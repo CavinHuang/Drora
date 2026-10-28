@@ -1,4 +1,6 @@
 import type { SubagentRunOptions } from "@drora/contracts";
+// §21 A6（2026-10-24 常量接线）：长寿命策略兜底改引登记常量（原 ?? 40 手写）。
+import { TEAM_MEMBER_DEFAULT_MAX_TURNS } from "@drora/contracts";
 import type {
   ExploreSubagentRuntimeRequest,
   ExploreSubagentRuntimeResult,
@@ -71,7 +73,8 @@ export function createTeamMemberRunExploreAgent(
       request.profile.injectAgentsMd !== false
         ? lead.contextSourceSnapshot?.userInstructions
         : undefined;
-    const { selection: profileChildSelection, hasConcreteModel } = resolveSubagentSelection({
+    // §21 C：hasConcreteModel 解构未用（死解构清除）——selection 即本函数消费值。
+    const { selection: profileChildSelection } = resolveSubagentSelection({
       profileSelection: request.profile.modelSelection,
       parentSelection: lead.getSessionModelSelection(),
       overrideSelection: options?.modelOverride?.selection,
@@ -94,7 +97,8 @@ export function createTeamMemberRunExploreAgent(
       ...baseChildEnvInfo,
       ...(shellEnvironment ? { shell: shellEnvironment.promptShell } : {}),
     };
-    const agentPrompt = request.systemPrompt?.trim() === "" ? undefined : request.systemPrompt?.trim();
+    const agentPrompt =
+      request.systemPrompt?.trim() === "" ? undefined : request.systemPrompt?.trim();
     const childRuntimeEnvInfo = { ...childEnvInfo, cwd: request.workingDirectory };
     const baseChildModelFactory =
       options?.modelOverride !== undefined
@@ -103,7 +107,9 @@ export function createTeamMemberRunExploreAgent(
           ? createInheritedSubagentModelFactory(childSelection, inheritedModel, lead.modelFactory)
           : lead.modelFactory;
     if (baseChildModelFactory === undefined) {
-      throw new Error(`Team member model cannot resolve ${childSelection.providerId}/${childSelection.modelId}`);
+      throw new Error(
+        `Team member model cannot resolve ${childSelection.providerId}/${childSelection.modelId}`,
+      );
     }
     const childModel = baseChildModelFactory({ selection: childSelection });
     const childModelFactory: NonNullable<AgentRuntimeDeps["modelFactory"]> = (target) =>
@@ -129,7 +135,9 @@ export function createTeamMemberRunExploreAgent(
         description: request.description,
         parentSessionId: lead.sessionId,
         parentToolCallId,
-        ...(request.traceContext.turnId === undefined ? {} : { parentTurnId: request.traceContext.turnId }),
+        ...(request.traceContext.turnId === undefined
+          ? {}
+          : { parentTurnId: request.traceContext.turnId }),
       },
     );
     const childBrowserControlPort =
@@ -146,7 +154,9 @@ export function createTeamMemberRunExploreAgent(
       sessionReadyNotified = true;
     };
     const permissionMode = binding?.permissionMode ?? lead.config.mode;
-    const memberMaxTurns = binding?.memberMaxTurns ?? request.maxTurns ?? 40;
+    // §21 A6：兜底改引 contracts TEAM_MEMBER_DEFAULT_MAX_TURNS（与 install 装配值同源）。
+    const memberMaxTurns =
+      binding?.memberMaxTurns ?? request.maxTurns ?? TEAM_MEMBER_DEFAULT_MAX_TURNS;
     const childRuntime = new AgentRuntime(
       request.sessionId,
       {
@@ -190,7 +200,9 @@ export function createTeamMemberRunExploreAgent(
         modelFactory: childModelFactory,
         resolveEffectiveModelSelection: leadDeps.resolveEffectiveModelSelection,
         ...childClientPorts,
-        ...(childBrowserControlPort === undefined ? {} : { browserControlPort: childBrowserControlPort }),
+        ...(childBrowserControlPort === undefined
+          ? {}
+          : { browserControlPort: childBrowserControlPort }),
         coordinatorResponsePort: createCoordinatorResponsePort({
           agentId: request.agentId,
           agentType: request.agentType,
@@ -212,7 +224,10 @@ export function createTeamMemberRunExploreAgent(
         eventSink: {
           onSessionEvent: async (event) => {
             request.reportActivity?.();
-            await lead.notifyEventSinks(event, { ...request.traceContext, sessionId: request.sessionId });
+            await lead.notifyEventSinks(event, {
+              ...request.traceContext,
+              sessionId: request.sessionId,
+            });
             const mirroredEvent = mirrorSubagentToolEvent(event, {
               agentId: request.agentId,
               agentType: request.agentType,
@@ -225,7 +240,10 @@ export function createTeamMemberRunExploreAgent(
               toolNameByChildToolCallId: mirroredToolNameByChildToolCallId,
             });
             if (!mirroredEvent) return;
-            await lead.notifyEventSinks(mirroredEvent, { ...request.traceContext, sessionId: lead.sessionId });
+            await lead.notifyEventSinks(mirroredEvent, {
+              ...request.traceContext,
+              sessionId: lead.sessionId,
+            });
           },
         },
       },
@@ -233,7 +251,9 @@ export function createTeamMemberRunExploreAgent(
 
     const resumesExistingChild = request.resumeFromStore === true;
     if (resumesExistingChild) {
-      const persistedMessages = await leadDeps.sessionStore?.messages({ sessionID: request.sessionId });
+      const persistedMessages = await leadDeps.sessionStore?.messages({
+        sessionID: request.sessionId,
+      });
       if (persistedMessages === undefined || persistedMessages.length === 0) {
         throw new Error(`No transcript found for team member ${request.agentId}`);
       }

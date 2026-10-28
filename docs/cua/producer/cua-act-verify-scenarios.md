@@ -419,14 +419,14 @@ with this spec:
   KNOWN_LIMITATION is excluded from the valid PASS-rate denominator (like
   `env_offspace` / `BLOCKED_INFRA`): it is neither a PASS nor a product `backend_fail`,
   and it can never become a false PASS.
-- **AV37** task steers to the committal **real key input** path (`type` with app*ref
+- **AV37** task steers to the committal **real key input** path (`type` with app_ref
   keystrokes into the focused new note, or `type` `strategy=event` on the body element);
   its verify still requires persistence (`AV37_MARKER` in the note body) because real key
   input DOES commit. Unit coverage: `tests/test_cua_act_verify.py`
-  (`test_score_notes_noncommittal*\*`, `test_run_one_scores_av57_pass_from_transcript`,
-`test_run_one_scores_av58_av73_known_limitation_without_any_model_call`,
-`test_known_limitation_sids_not_in_noncommittal_set`,
-`test_verify_scenario_does_not_read_persistence_for_notes_setvalue`).
+  (`test_score_notes_noncommittal_*`, `test_run_one_scores_av57_pass_from_transcript`,
+  `test_run_one_scores_av58_av73_known_limitation_without_any_model_call`,
+  `test_known_limitation_sids_not_in_noncommittal_set`,
+  `test_verify_scenario_does_not_read_persistence_for_notes_setvalue`).
 
 ### AV13-AV17 design notes (drag + multi-step)
 

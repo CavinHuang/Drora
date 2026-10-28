@@ -5,6 +5,8 @@ import type { Logger, SkillContent, SkillDiagnostic, SkillLoadOutcome } from "@d
 import { resolveBundledSkillRoots } from "./app/bundled-skills.js";
 import { getCliStorageRoot } from "./app/paths.js";
 import { filterVisualizeSkillRoots } from "./app/visualize-skill-gate.js";
+import { gateAgentsTeamSkillPort } from "./app/agents-team-skill-gate/index.js";
+import { resolveAgentsTeamEnabled } from "./app/drora-team/install.js";
 import { resolveDroraPlugins } from "./plugins.js";
 import { collectDisabledPaths } from "./skill-command-overrides.js";
 
@@ -118,14 +120,20 @@ function createSkillDiscovery(options: ListDroraSkillsOptions):
 
   return {
     enabled: true,
-    skillPort: createNodeSkillAdapter({
-      extraRoots: configResult.config.skills.roots,
-      extraResolvedRoots: [
-        ...filterVisualizeSkillRoots(pluginOutcome.skillRoots, options.includeVisualize),
-        ...bundledSkillRoots,
-      ],
-      disabledPaths: collectDisabledPaths(configResult.config.skillOverrides),
-    }),
+    // agents-team 技能与装配同门（specs/agents-team.md §17 契约 1）：裁决单一出处与
+    // create-app.ts 同一函数——fileConfig agentsTeam.enabled 显式值优先，缺省回落 env
+    // DRORA_AGENTS_TEAM=1。门关时工具缺席，说明书（bundled agents-team 技能）也必须缺席。
+    skillPort: gateAgentsTeamSkillPort(
+      createNodeSkillAdapter({
+        extraRoots: configResult.config.skills.roots,
+        extraResolvedRoots: [
+          ...filterVisualizeSkillRoots(pluginOutcome.skillRoots, options.includeVisualize),
+          ...bundledSkillRoots,
+        ],
+        disabledPaths: collectDisabledPaths(configResult.config.skillOverrides),
+      }),
+      resolveAgentsTeamEnabled(configResult.config.agentsTeam?.enabled),
+    ),
     workingDirectory,
   };
 }

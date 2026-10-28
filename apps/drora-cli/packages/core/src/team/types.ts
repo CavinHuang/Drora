@@ -6,7 +6,6 @@ import type {
   TeamTaskContract,
   TeamTaskSpec,
   TeamTaskStatus,
-  TeamSendDelivery,
 } from "@drora/contracts";
 
 /**
@@ -85,6 +84,16 @@ export interface TeamMailboxEntry {
   deliveredVia?: "steered" | "resumed" | "lead_injected";
   /** ack 只认注入（spec §16.3）：queued 不算送达。 */
   deliveredAccepted: boolean;
+  /**
+   * 投递租约盖戳（spec §16 契约 3，dsh「投递 claim 互斥 + 60s 崩溃租约」）：条目被某条
+   * 投递路径领取后进入「投递中」窗口，租约内其他路径按 pendingMail 的租约过滤跳过；
+   * dispatch 拒绝/抛错释放，被接受由 markDelivered 覆盖（deliveredAccepted=true 后
+   * claim 无语义）。内部态——wire 投影不携带；journal message_appended 携带本字段对
+   * replay 结构守卫透明（isMailboxEntryWellFormed 只验必填），崩溃恢复后旧盖戳因租约
+   * 过期自然失效可重投（dsh 同款崩溃租约语义），恢复侧无需特殊处理。挂起中的 dispatch
+   * 不主动续租，到期自然失效。
+   */
+  deliveryClaimedAt?: string;
 }
 
 /** team 记录（hub 持有的聚合根；journal 事件流是它的持久化事实源，M3 PR-3.1）。 */
@@ -92,6 +101,14 @@ export interface TeamRecord {
   teamId: string;
   name?: string;
   leadSessionId: string;
+  /** 管理者成员名（§22 契约 1；roster 首位成员的名字，路由/汇报/工具 actor 键）。 */
+  managerName?: string;
+  /**
+   * §22 契约 3 恢复通道（journal 重放回填、hub adopt 后消费并清除）：终态汇报
+   * dispatched/delivered 两 flag 的冷恢复载体——hub 实例字段不随重放重建，经 record
+   * 携带一次。不进 wire 投影（投影逐字段映射）。
+   */
+  restoredFinalReport?: { dispatched?: boolean; delivered?: boolean };
   permissionMode?: TeamPermissionMode;
   status: TeamStatus;
   members: TeamMemberInternal[];
@@ -115,6 +132,11 @@ export interface TeamInternalLimits {
   messageMaxChars: number;
   dependencyDigestPerItemChars: number;
   dependencyDigestTotalChars: number;
+  /**
+   * 投递租约时长（spec §16 契约 3）：拍 60s 照 dsh 崩溃租约。已知边界——正常投递
+   * 耗时超租约会提前重投，幂等兜底靠 ack 只认注入（spec §16.3），取舍登记于契约 3。
+   */
+  deliveryLeaseMs: number;
 }
 
 export const TEAM_KERNEL_LIMITS: TeamInternalLimits = {
@@ -124,6 +146,7 @@ export const TEAM_KERNEL_LIMITS: TeamInternalLimits = {
   messageMaxChars: 8_000,
   dependencyDigestPerItemChars: 2_000,
   dependencyDigestTotalChars: 12_000,
+  deliveryLeaseMs: 60_000,
 } as const;
 
 /** TaskCard 投影（内部记录 → wire 卡；剥除内部交接态）。 */
@@ -144,6 +167,21 @@ export function taskCardOf(task: TeamTaskInternal): TeamTaskCard {
     ...(task.recoveryRetried === undefined ? {} : { recoveryRetried: task.recoveryRetried }),
     ...(task.contract === undefined ? {} : { contract: task.contract }),
   };
+}
+
+/**
+ * 终报送达后的团队终局状态（2026-10-27 M12-core/决策 D3）：任务全 cancelled 且板非空
+ * → "cancelled"，否则 "completed"（含全 failed——失败结论的收尾汇报亦是完成；空板视为
+ * completed）。hub 运行态（markFinalReportDelivered）与 journal 重放
+ * （final_report_delivered 事实 + 任务终态分布推导）共用本口径，不加新 journal kind
+ * ——completed/cancelled 此前在 hub/journal 均无生产者，终局团队永远定格 idle。
+ */
+export function finaleStatusOfTasks(
+  tasks: readonly Pick<TeamTaskInternal, "status">[],
+): "completed" | "cancelled" {
+  const allCancelled =
+    tasks.length > 0 && tasks.every((task) => task.status === "cancelled");
+  return allCancelled ? "cancelled" : "completed";
 }
 
 /**

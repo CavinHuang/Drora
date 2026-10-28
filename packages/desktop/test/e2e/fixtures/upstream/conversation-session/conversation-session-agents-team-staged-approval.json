@@ -1,14 +1,13 @@
 {
   "version": 1,
+  "caseName": "conversation-session-agents-team-staged-approval",
+  "spec": "./test/e2e/conversation-session/conversation-session-agents-team-staged-approval.test.ts",
   "fixtures": [
     {
       "id": "agents-team-staged-approval-parent-spawn",
       "match": {
         "pathIncludes": "/messages",
-        "bodyIncludes": [
-          "E2E_AGENTS_TEAM_STAGED_APPROVAL",
-          "TeamSpawn"
-        ]
+        "bodyIncludes": ["E2E_AGENTS_TEAM_STAGED_APPROVAL", "TeamSpawn"]
       },
       "response": {
         "statusCode": 200,
@@ -27,9 +26,7 @@
               {
                 "title": "E2E_AGENTS_TEAM_TASK",
                 "goal": "E2E goal for the staged approval case",
-                "acceptance": [
-                  "E2E acceptance met"
-                ],
+                "acceptance": ["E2E acceptance met"],
                 "assignee": "alice"
               }
             ]
@@ -48,10 +45,7 @@
       "id": "agents-team-staged-approval-parent-final",
       "match": {
         "pathIncludes": "/messages",
-        "bodyIncludes": [
-          "E2E_AGENTS_TEAM_STAGED_APPROVAL",
-          "The draft is staged for user approval"
-        ]
+        "bodyIncludes": ["E2E_AGENTS_TEAM_STAGED_APPROVAL", "The draft is staged for user approval"]
       },
       "response": {
         "statusCode": 200,
@@ -69,9 +63,7 @@
       "id": "agents-team-staged-approval-member-welcome",
       "match": {
         "pathIncludes": "/messages",
-        "bodyIncludes": [
-          "You are \\\"alice\\\", a member of an Agents Team"
-        ]
+        "bodyIncludes": ["You are \\\"alice\\\", a member of an Agents Team"]
       },
       "response": {
         "statusCode": 200,
@@ -89,10 +81,7 @@
       "id": "agents-team-staged-approval-member-assignment",
       "match": {
         "pathIncludes": "/messages",
-        "bodyIncludes": [
-          "Agents Team automatic task assignment",
-          "E2E_AGENTS_TEAM_TASK"
-        ]
+        "bodyIncludes": ["Agents Team automatic task assignment", "E2E_AGENTS_TEAM_TASK"]
       },
       "response": {
         "statusCode": 200,
@@ -103,6 +92,189 @@
         "timingPolicy": "fast-text",
         "source": "synthetic",
         "syntheticReason": "终态边缘 → kick → 自动派发的复活回合请求到达即证明缺口2 调度链（派发提示由 hub dispatchTicket 生成）。"
+      },
+      "maxMatches": 1
+    },
+    {
+      "id": "agents-team-noprofile-parent-spawn",
+      "match": {
+        "pathIncludes": "/messages",
+        "bodyIncludes": ["E2E_AGENTS_TEAM_NO_PROFILE", "TeamSpawn"]
+      },
+      "response": {
+        "statusCode": 200,
+        "toolUse": {
+          "id": "toolu_e2e_agents_team_noprofile_spawn",
+          "name": "TeamSpawn",
+          "input": {
+            "name": "e2e-noprofile-team",
+            "members": [
+              {
+                "name": "bob"
+              }
+            ],
+            "tasks": [
+              {
+                "title": "E2E_AGENTS_TEAM_NO_PROFILE_TASK",
+                "goal": "E2E goal for the no-profile staged case",
+                "acceptance": ["E2E acceptance met"],
+                "assignee": "bob"
+              }
+            ]
+          }
+        }
+      },
+      "metadata": {
+        "kind": "main",
+        "timingPolicy": "fast-tool-use",
+        "source": "synthetic",
+        "syntheticReason": "无 profile 成员的 TeamSpawn tool_use（specs/agents-team.md §19 契约 2：profile 是 optional 合法缺省，落库归一为键缺席，wire min(1) 不再被空串击穿）。"
+      },
+      "maxMatches": 1
+    },
+    {
+      "id": "agents-team-noprofile-parent-final",
+      "match": {
+        "pathIncludes": "/messages",
+        "bodyIncludes": ["E2E_AGENTS_TEAM_NO_PROFILE", "The draft is staged for user approval"]
+      },
+      "response": {
+        "statusCode": 200,
+        "text": "E2E_AGENTS_TEAM_NO_PROFILE_SUMMARY: team staged without profile, waiting for user approval."
+      },
+      "metadata": {
+        "kind": "main",
+        "timingPolicy": "fast-text",
+        "source": "synthetic",
+        "syntheticReason": "无 profile 草案的 TeamSpawn 工具结果回读后 lead 收束回合（next 指引文本区分首回合）。"
+      },
+      "maxMatches": 1
+    },
+    {
+      "id": "agents-team-noprofile-member-welcome",
+      "match": {
+        "pathIncludes": "/messages",
+        "bodyIncludes": ["You are \\\"bob\\\", a member of an Agents Team"]
+      },
+      "response": {
+        "statusCode": 200,
+        "text": "E2E_AGENTS_TEAM_MEMBER_IDLE"
+      },
+      "metadata": {
+        "kind": "subagent",
+        "timingPolicy": "fast-text",
+        "source": "synthetic",
+        "syntheticReason": "无 profile 成员 bob 的欢迎回合自然终态——批准路径行为不变（§19 契约 2 不变量）。"
+      },
+      "maxMatches": 1
+    },
+    {
+      "id": "agents-team-noprofile-member-assignment",
+      "match": {
+        "pathIncludes": "/messages",
+        "bodyIncludes": ["Agents Team automatic task assignment", "E2E_AGENTS_TEAM_NO_PROFILE_TASK"]
+      },
+      "response": {
+        "statusCode": 200,
+        "text": "E2E_AGENTS_TEAM_MEMBER_ACK"
+      },
+      "metadata": {
+        "kind": "subagent",
+        "timingPolicy": "fast-text",
+        "source": "synthetic",
+        "syntheticReason": "无 profile 草案审批后的终态边缘 → kick → 自动派发请求到达即证明全链无烧帧。"
+      },
+      "maxMatches": 1
+    },
+    {
+      "id": "agents-team-sendrej-parent-spawn",
+      "match": {
+        "pathIncludes": "/messages",
+        "bodyIncludes": ["E2E_AGENTS_TEAM_SEND_REJECTED", "TeamSpawn"]
+      },
+      "response": {
+        "statusCode": 200,
+        "toolUse": {
+          "id": "toolu_e2e_agents_team_sendrej_spawn",
+          "name": "TeamSpawn",
+          "input": {
+            "name": "e2e-sendrej-team",
+            "members": [
+              {
+                "name": "carol",
+                "profile": "general-purpose"
+              }
+            ],
+            "tasks": [
+              {
+                "title": "E2E_AGENTS_TEAM_SEND_TASK",
+                "goal": "E2E goal for the send-rejected staged case",
+                "acceptance": ["E2E acceptance met"],
+                "assignee": "carol"
+              }
+            ]
+          }
+        }
+      },
+      "metadata": {
+        "kind": "main",
+        "timingPolicy": "fast-tool-use",
+        "source": "synthetic",
+        "syntheticReason": "带 profile 成员 carol 的 TeamSpawn tool_use（specs/agents-team.md §19 契约 5 E2E：halt 后下钻发消息被拒，需要一个可 halt 的 active 团队）。"
+      },
+      "maxMatches": 1
+    },
+    {
+      "id": "agents-team-sendrej-parent-final",
+      "match": {
+        "pathIncludes": "/messages",
+        "bodyIncludes": ["E2E_AGENTS_TEAM_SEND_REJECTED", "The draft is staged for user approval"]
+      },
+      "response": {
+        "statusCode": 200,
+        "text": "E2E_AGENTS_TEAM_SEND_REJECTED_SUMMARY: team staged, waiting for user approval before the halt-then-send flow."
+      },
+      "metadata": {
+        "kind": "main",
+        "timingPolicy": "fast-text",
+        "source": "synthetic",
+        "syntheticReason": "TeamSpawn 结果回读后 lead 收束回合（next 指引文本区分首回合）。"
+      },
+      "maxMatches": 1
+    },
+    {
+      "id": "agents-team-sendrej-member-welcome",
+      "match": {
+        "pathIncludes": "/messages",
+        "bodyIncludes": ["You are \\\"carol\\\", a member of an Agents Team"]
+      },
+      "response": {
+        "statusCode": 200,
+        "text": "E2E_AGENTS_TEAM_MEMBER_IDLE"
+      },
+      "metadata": {
+        "kind": "subagent",
+        "timingPolicy": "fast-text",
+        "source": "synthetic",
+        "syntheticReason": "成员 carol 的欢迎回合自然终态（批准路径行为不变）。"
+      },
+      "maxMatches": 1
+    },
+    {
+      "id": "agents-team-sendrej-member-assignment",
+      "match": {
+        "pathIncludes": "/messages",
+        "bodyIncludes": ["Agents Team automatic task assignment", "E2E_AGENTS_TEAM_SEND_TASK"]
+      },
+      "response": {
+        "statusCode": 200,
+        "text": "E2E_AGENTS_TEAM_MEMBER_ACK"
+      },
+      "metadata": {
+        "kind": "subagent",
+        "timingPolicy": "fast-text",
+        "source": "synthetic",
+        "syntheticReason": "批准后的终态边缘 → kick → 自动派发请求到达（契约 5 flow 的前置：halt 前团队为 active）。"
       },
       "maxMatches": 1
     }

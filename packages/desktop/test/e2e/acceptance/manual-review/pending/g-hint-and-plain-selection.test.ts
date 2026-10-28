@@ -55,10 +55,7 @@
 import assert from "node:assert/strict";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join, resolve, sep } from "node:path";
-import {
-  TID_WORKSPACE_FILE_TREE_ROW,
-  testId,
-} from "@drora/shared";
+import { TID_WORKSPACE_FILE_TREE_ROW, testId } from "@drora/shared";
 import {
   clickTestIdByDom,
   DEFAULT_WORKSPACE,

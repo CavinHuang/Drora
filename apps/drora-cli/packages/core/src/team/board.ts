@@ -1,8 +1,4 @@
-import type {
-  TeamTaskClaimResult,
-  TeamTaskStatus,
-  TeamTaskUpdateInput,
-} from "@drora/contracts";
+import type { TeamTaskClaimResult, TeamTaskStatus, TeamTaskUpdateInput } from "@drora/contracts";
 import { teamPortError } from "./errors.js";
 import { LEAD_ASSIGNEE_KEY, type TeamTaskInternal } from "./types.js";
 
@@ -13,15 +9,20 @@ import { LEAD_ASSIGNEE_KEY, type TeamTaskInternal } from "./types.js";
  * 串行进入后天然原子。
  */
 
-/** 严格迁移表：终态无出边；claimed 不得直接 completed（E4）。 */
-export const TASK_TRANSITIONS: Readonly<
-  Record<TeamTaskStatus, readonly TeamTaskStatus[]>
-> = {
+/**
+ * 严格迁移表：completed/cancelled 终态无出边；claimed 不得直接 completed（E4）。
+ * failed → pending 是唯一受控出边（spec §16 契约 5，2026-10-23 登记）：只由管理
+ * 动作端口 hub.reopenTask 消费（板级执行 reopenFailedTask；2026-10-27 M15/决策 D8
+ * 起 actor 为 manager，经 memberPort.reopen 接线）；通用更新面对终态任务的
+ * status 写即便迁移合法也拒绝（见 applyTaskUpdate 的 wasTerminal 守卫），
+ * reassign 的终态拒绝语义不变。
+ */
+export const TASK_TRANSITIONS: Readonly<Record<TeamTaskStatus, readonly TeamTaskStatus[]>> = {
   pending: ["claimed", "cancelled"],
   claimed: ["in_progress", "failed", "cancelled"],
   in_progress: ["completed", "failed", "cancelled"],
   completed: [],
-  failed: [],
+  failed: ["pending"],
   cancelled: [],
 };
 
@@ -114,6 +115,33 @@ export function cancelUnfinishedTask(
   return true;
 }
 
+// ---------- 显式重开 failed 任务（spec §16 契约 5，2026-10-23 登记；M15 起 manager） ----------
+
+/**
+ * failed → pending 受控出边的板级执行（唯一调用方 hub.reopenTask——2026-10-27
+ * M15/决策 D8 起 actor 为 manager，经 memberPort.reopen 接线；
+ * 通用更新面在 applyTaskUpdate 的 wasTerminal 守卫处被拒）。重开 = 开新世代槽位：
+ * 回共享池（assignee 清空，定向指派经既有 reassign）、证据清空（output/
+ * acceptanceSupplement，「重试必须自证」clearAttemptResult 同语义；artifactRefs 是
+ * 历史产出引用，保留）、recoveryRetried 重置（人工重开与自动冷恢复两预算独立，
+ * 新世代仍享恰一次冷恢复）。attempt 计数不动——+1 与新 attemptId 由再认领时的
+ * beginTaskAttempt 延续重铸，旧代更新即失效（attempt_revoked）。重开无异步静默
+ * 半边（失败成员已终态），不铸 handoffId。completed/cancelled 无出边，非 failed
+ * 一律 no-op 返回 false（hub 侧先行拒绝并给出 invalid_transition 教学文案）。
+ */
+export function reopenFailedTask(task: TeamTaskInternal, clock: BoardClock): boolean {
+  if (task.status !== "failed") return false;
+  task.status = "pending";
+  task.assignee = undefined;
+  task.attemptId = undefined;
+  task.handoffId = undefined;
+  task.reassigning = false;
+  task.recoveryRetried = undefined;
+  clearAttemptResult(task);
+  task.updatedAt = clock.now();
+  return true;
+}
+
 /** 成员当前持有的未完成任务（一成员至多一个，spec §2.3）。 */
 export function ownedOpenTask(
   tasks: readonly TeamTaskInternal[],
@@ -121,9 +149,63 @@ export function ownedOpenTask(
 ): TeamTaskInternal | undefined {
   return tasks.find(
     (task) =>
-      task.assignee === memberName &&
-      (task.status === "claimed" || task.status === "in_progress"),
+      task.assignee === memberName && (task.status === "claimed" || task.status === "in_progress"),
   );
+}
+
+// ---------- 成员终态失败处置分类器（spec §16 契约 1，2026-10-22 登记；dsh members.ts 三分语义） ----------
+
+/**
+ * 失败事件现场携带的世代凭证（registry 快照可得族；缺项 = 无从核对，
+ * 不参与失配判定——生产路径 install 从快照 parentToolCallId 取派发 attemptId）。
+ */
+export interface MemberFailureObserved {
+  memberName: string;
+  /** 事件所属 agentId（换代核对：花名册记录已换 id 即迟到失败）。 */
+  agentId?: string;
+  taskId?: string;
+  attemptId?: string;
+  assignee?: string;
+}
+
+/** 分类对照面：花名册当前记录 + 该成员当前开放任务（ownedOpenTask 的产物）。 */
+export interface MemberFailureCurrent {
+  member?: { agentId?: string; removed?: boolean };
+  task?: Pick<TeamTaskInternal, "taskId" | "attemptId" | "assignee" | "status">;
+}
+
+export type MemberFailureDisposition = "ignored" | "noted" | "failed_attempt";
+
+/**
+ * 三分裁决（spec §16 契约 1；迟到失败不误伤新代）：
+ * - `ignored`：成员已移除/换代，或 observed 的 taskId/attemptId/assignee 任一与
+ *   当前开放任务不符——全静默；
+ * - `noted`：无开放任务（含任务已终态）——板零改动，仅通知；
+ * - `failed_attempt`：精确匹配（taskId/attemptId/assignee 一致，任务
+ *   claimed/in_progress）→ 仅该代置 failed（claimed→failed 与 in_progress→failed
+ *   均为 TASK_TRANSITIONS 合法边）。
+ */
+export function classifyMemberFailure(
+  observed: MemberFailureObserved,
+  current: MemberFailureCurrent,
+): MemberFailureDisposition {
+  const member = current.member;
+  if (member === undefined || member.removed === true) return "ignored";
+  if (
+    observed.agentId !== undefined &&
+    member.agentId !== undefined &&
+    member.agentId !== observed.agentId
+  ) {
+    return "ignored"; // 换代：花名册记录的 agentId 已换
+  }
+  const task = current.task;
+  if (task === undefined || (task.status !== "claimed" && task.status !== "in_progress")) {
+    return "noted"; // 无开放任务：板零改动，仅通知
+  }
+  if (observed.taskId !== undefined && observed.taskId !== task.taskId) return "ignored";
+  if (observed.attemptId !== undefined && observed.attemptId !== task.attemptId) return "ignored";
+  if (observed.assignee !== undefined && observed.assignee !== task.assignee) return "ignored";
+  return "failed_attempt";
 }
 
 /** 认领三态裁决（claim 只领不派，spec §16.2）。 */
@@ -135,7 +217,10 @@ export function claimTask(
 ): { task: TeamTaskInternal | undefined; result: TeamTaskClaimResult } {
   const task = tasks.find((candidate) => candidate.taskId === taskId);
   if (task === undefined) {
-    return { task: undefined, result: { status: "rejected", error: teamPortError("team_not_present") } };
+    return {
+      task: undefined,
+      result: { status: "rejected", error: teamPortError("team_not_present") },
+    };
   }
   if (task.reassigning) {
     return { task, result: { status: "already_taken" } };
@@ -176,8 +261,17 @@ export function applyTaskUpdate(
     return { task: undefined, error: teamPortError("team_not_present") };
   }
   const presented = input.attemptId.trim();
-  const terminal = isTerminalTaskStatus(task.status);
-  if (!terminal) {
+  // 终态不可变（spec §16 契约 2，2026-10-22 登记；dsh terminal-immutability-append-
+  // evidence）：wasTerminal 取**迁移前旧态**，保证「同一次更新内置 completed+output」
+  // 的合法派发/提交流不受影响（凭证按迁移前状态核对）。已终态任务的 output/artifactRefs
+  // 写一律整体拒绝——无论 attempt_id 携带何值（空/错/恰好同值），凭证校验在终态面无意义；
+  // acceptanceSupplement 署名追补是唯一合法终态通道（spec §16.1，下方 append-only 保留）。
+  // 携带非法写字段时整次更新拒绝（含同时携带的追补），与函数其余拒绝路径一致，不做部分应用。
+  const wasTerminal = isTerminalTaskStatus(task.status);
+  if (wasTerminal && (input.patch.output !== undefined || input.patch.artifactRefs !== undefined)) {
+    return { task, error: teamPortError("terminal_read_only", { id: task.taskId }) };
+  }
+  if (!wasTerminal) {
     // 非终态任务的一切更新必须携带有效凭证（spec §16.1）：
     // E1：没带凭证（含从未认领）——教学文案导向「用当前 assignment 的 id 重试」；
     // E2：带的凭证对不上当前世代（含凭证已被转派/接管清空）——导向「停止工作」。
@@ -198,13 +292,26 @@ export function applyTaskUpdate(
     if (transition !== undefined) {
       return { task, error: transition };
     }
+    if (wasTerminal) {
+      // 受控出边仅管理动作端口可消费（spec §16 契约 5，2026-10-23 登记；
+      // 2026-10-27 M15 起 manager 专属，lead 的 taskUpdate 同拒）：
+      // TASK_TRANSITIONS 的 failed→pending 是 reopenTask 唯一通道的板级依据；通用
+      // 更新面（含 lead 的 taskUpdate）即便迁移合法也整次拒绝——否则在场成员可无
+      // 凭证把 failed 任务拉回 pending，绕过重开的 manager 权与预算语义。复用
+      // team_lead_only：沿用既有 E10 管理权拒绝码（§22 后管理动作归 manager，文案
+      // 归属见 errors.ts；契约 2 先例：文案与场景不符才新增错误码）。非出边的终态
+      // 迁移仍走上方 invalid_transition；混带的追补一并整次拒绝（不做部分应用，
+      // 与其余拒绝路径一致）。
+      return { task, error: teamPortError("team_lead_only") };
+    }
   }
 
   if (input.acceptanceSupplement !== undefined) {
     // 署名追补：append-only，不改 verdict/状态，不重认领。
     const previous = task.acceptanceSupplement ?? {};
     task.acceptanceSupplement = {
-      ...(previous.acceptanceResults === undefined && input.acceptanceSupplement.acceptanceResults === undefined
+      ...(previous.acceptanceResults === undefined &&
+      input.acceptanceSupplement.acceptanceResults === undefined
         ? {}
         : {
             acceptanceResults: [
@@ -223,9 +330,10 @@ export function applyTaskUpdate(
       ...(input.acceptanceSupplement.evidenceNote === undefined
         ? {}
         : {
-            evidenceNote: previous.evidenceNote === undefined
-              ? input.acceptanceSupplement.evidenceNote
-              : `${previous.evidenceNote}\n${input.acceptanceSupplement.evidenceNote}`,
+            evidenceNote:
+              previous.evidenceNote === undefined
+                ? input.acceptanceSupplement.evidenceNote
+                : `${previous.evidenceNote}\n${input.acceptanceSupplement.evidenceNote}`,
           }),
     };
   }
@@ -303,7 +411,8 @@ export function formatDependencyOutputs(
 ): string {
   if (items.length === 0) return "(none)";
   const formatted = items.map((item) => {
-    const raw = item.output === undefined || item.output === "" ? "(no output recorded)" : item.output;
+    const raw =
+      item.output === undefined || item.output === "" ? "(no output recorded)" : item.output;
     const body =
       raw.length > limits.perItemChars
         ? raw.slice(0, limits.perItemChars) + TRUNCATION_SUFFIX

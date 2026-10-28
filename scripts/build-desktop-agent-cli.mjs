@@ -73,14 +73,6 @@ const requiredDevPluginRuntimeBuilds = [
     artifactPath: "obsidian-plugin/dist/hooks/session-start.mjs",
   },
   {
-    packageName: "@drora/android-emulator-plugin",
-    artifactPath: "android-emulator-plugin/dist/mcp/server.js",
-  },
-  {
-    packageName: "@drora/ios-simulator-plugin",
-    artifactPath: "ios-simulator-plugin/dist/mcp/server.js",
-  },
-  {
     // node_repl 宿主：Browser Use 与 Computer Use 共用，产物归属独立包。
     packageName: "@drora/node-repl-host",
     artifactPath: "node-repl-host/dist/mcp/server.js",

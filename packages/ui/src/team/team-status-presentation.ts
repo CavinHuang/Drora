@@ -46,7 +46,11 @@ export const TEAM_STATUS_I18N_KEYS: Record<TeamUiStatus, string> = {
 export const TONE_DOT_CLASS: Record<TeamStatusDotTone, string> = {
   confirmation: "bg-[var(--color-interaction-confirmation-foreground)]",
   accent: "bg-accent",
-  neutral: "bg-neutral-foreground/40",
+  // 2026-10-24（specs/agents-team.md §21 A8）：原 bg-neutral-foreground/40 是幽灵 token
+  // ——本仓任何主题层都未定义 --color-neutral-foreground（Tailwind 类静默不生成 CSS，
+  // idle/cancelled/archived 圆点视觉消失）；改用本仓真实 token foreground-subtlest，
+  // 不新登记 neutral-foreground 引入第二套中性命名（§18 同族幽灵 token 清除的漏网残留）。
+  neutral: "bg-foreground-subtlest/40",
   success: "bg-success",
   warning: "bg-warning",
   destructive: "bg-destructive",

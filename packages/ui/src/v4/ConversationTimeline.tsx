@@ -324,6 +324,12 @@ export interface ConversationTimelineProps {
   headerSlot?: ReactNode;
   /** 可选当前态摘要；不写入 transcript、不猜测历史 turn。 */
   footerSlot?: ReactNode;
+  /**
+   * 团队卡轮内挂载（specs/agents-team.md §10 增补五，2026-10-27）：Timeline 判定
+   * 锚定轮（renderRows 含 TeamSpawn 工具行的 turn）后在该轮尾渲染；找不到锚定轮时
+   * 回退 footerSlot 钉底（诚实兜底）。卡内容/命令通道由宿主构造，本组件只定位。
+   */
+  teamCardSlot?: ReactNode;
   /** §32.51 手机远控：消息操作行常显（rowContext 消费）。 */
 
   /** 草稿态让 emptyState 与同一个 bottomDock 作为整体居中，不重挂 composer。 */
@@ -387,6 +393,7 @@ function ConversationTimelineImpl({
   emptyState,
   headerSlot,
   footerSlot,
+  teamCardSlot,
   centerEmptyStateWithDock = false,
   compactEmptyStateWithDock = false,
   summaryPanelLayout = "none",
@@ -466,6 +473,13 @@ function ConversationTimelineImpl({
     [renderUnits],
   );
   const hasRunningUnit = useMemo(() => renderUnits.some((unit) => unit.isRunning), [renderUnits]);
+  // §10 增补五：团队卡锚定轮 = 最后一个含 TeamSpawn 工具行的 turn（同轮原子修订不
+  // 重复；取最后一个覆盖「重建团队」场景——新卡跟新锚点）。无锚定轮回退 footerSlot。
+  const teamCardAnchorTurnKey = useMemo(
+    () =>
+      teamCardSlot === undefined ? undefined : resolveTeamCardAnchorTurnKey(renderUnits),
+    [renderUnits, teamCardSlot],
+  );
   const nextHighspeedExpiryMs = useMemo(
     () => resolveNextHighspeedExpiryMs(rows, liveNowMs),
     [liveNowMs, rows],
@@ -2002,6 +2016,9 @@ function ConversationTimelineImpl({
                         onRetry={onRetry}
                         onFeedbackChange={onFeedbackChange}
                         onEdit={onEdit}
+                        {...(teamCardAnchorTurnKey === unit.key && teamCardSlot !== undefined
+                          ? { teamCardSlot }
+                          : {})}
                       />
                     </div>
                   );
@@ -2032,10 +2049,15 @@ function ConversationTimelineImpl({
                     onRetry={onRetry}
                     onFeedbackChange={onFeedbackChange}
                     onEdit={onEdit}
+                    {...(teamCardAnchorTurnKey === liveUnit.key && teamCardSlot !== undefined
+                      ? { teamCardSlot }
+                      : {})}
                   />
                 </div>
               ) : null}
-              {footerSlot ? (
+              {/* §10 增补五：团队卡锚定轮在场时 footerSlot 让位（卡已在轮内，钉底
+                  重复呈现同一投影）。 */}
+              {footerSlot && teamCardAnchorTurnKey === undefined ? (
                 <div
                   data-v4-timeline-content-column="true"
                   className={cn(
@@ -2128,3 +2150,21 @@ function ConversationTimelineImpl({
 }
 
 export const ConversationTimeline = memo(ConversationTimelineImpl);
+
+/**
+ * §10 增补五（2026-10-27）：团队卡锚定轮判定（纯函数）——最后一个 renderRows 含
+ * TeamSpawn 工具行的 turn（取最后一个覆盖「重建团队」；同轮原子修订不产生第二锚）。
+ * 无锚定轮 → undefined（宿主回退 footerSlot 钉底）。
+ */
+export function resolveTeamCardAnchorTurnKey(
+  units: readonly { key: string; renderRows: readonly { kind: string; toolName?: string }[] }[],
+): string | undefined {
+  for (let index = units.length - 1; index >= 0; index -= 1) {
+    const unit = units[index];
+    if (unit === undefined) continue;
+    if (unit.renderRows.some((row) => row.kind === "toolCall" && row.toolName === "TeamSpawn")) {
+      return unit.key;
+    }
+  }
+  return undefined;
+}

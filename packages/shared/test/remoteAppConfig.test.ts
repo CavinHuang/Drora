@@ -1,9 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  getCommunityUrlFromConfig,
-  getCommunityUrlFromConfigs,
-  getFeedbackUrlFromConfig,
-} from "../src/remoteAppConfig.js";
+import { getCommunityUrlFromConfig, getCommunityUrlFromConfigs } from "../src/remoteAppConfig.js";
 
 describe("remoteAppConfig", () => {
   it("中文界面只读取中文社群地址", () => {

@@ -39,7 +39,9 @@ export const TEAM_LIMITS = {
   dependencyDigestPerItemChars: 2_000,
   /** 依赖产物预算：总量（design §3.3.5 / spec §16.2）。 */
   dependencyDigestTotalChars: 12_000,
-  /** 成员默认 maxTurns（长寿命策略；与 contracts TEAM_MEMBER_DEFAULT_MAX_TURNS 同值，M1 先落，镜像登记）。 */
+  /** 成员默认 maxTurns（长寿命策略）。镜像登记：真实消费点在 CLI 树——contracts
+   *  TEAM_MEMBER_DEFAULT_MAX_TURNS 由 bootstrap install 装配（resolveMemberBinding）
+   *  与 core member-runtime 长寿命策略兜底引用（§21 A6，2026-10-24 注释订正）。 */
   memberDefaultMaxTurns: 40,
   // 以下为线上字符串/数组上界（design §3.3.5 未逐条列出，照 WORKFLOW_RUNS_LIMITS 体例补充：
   // 协议边界上的所有载荷有界——数字必须有界，字符串同理）。
@@ -263,6 +265,8 @@ export type TeamArtifacts = z.infer<typeof teamArtifactsSchema>;
 export const teamProjectionStateSchema = z.object({
   teamId: z.string().min(1).max(TEAM_LIMITS.maxIdChars),
   name: z.string().min(1).max(TEAM_LIMITS.maxNameChars).optional(),
+  /** 管理者成员名（§22 契约 1；manager=roster 首位，徽标/汇报 actor 的 UI 依据）。 */
+  managerName: z.string().min(1).max(TEAM_LIMITS.maxNameChars).optional(),
   status: teamStatusSchema,
   /** 成队定死的记录值；缺席 = 未记录（旧版本 journal，读侧回退继承 lead 当前模式）。 */
   permissionMode: teamPermissionModeSchema.optional(),
@@ -287,7 +291,14 @@ export type TeamProjectionState = z.infer<typeof teamProjectionStateSchema>;
  */
 export const TEAM_COMMAND_PAYLOAD_SCHEMAS = {
   /** staged 草案的「确认并启动」：唯一创建成员入口；草案全文是 hub 的服务端事实，载荷为空。 */
-  approveTeamPlan: z.object({}),
+  // §10 增补三（2026-10-26）：批准时刻定成员权限——additive optional，枚举单一出处
+  // teamPermissionModeSchema；缺省=维持建队捕获值（hub 侧不覆写）。
+  // §10 增补六（2026-10-27）：会话级始终允许——additive optional rememberForSession，
+  // true 时 hub 置会话免问标志（后续草案自动批准，等价 workflow allowForSession）。
+  approveTeamPlan: z.object({
+    permissionMode: teamPermissionModeSchema.optional(),
+    rememberForSession: z.boolean().optional(),
+  }),
   /** 「回对话修改」：草案标记为等待反馈并取消规划回合；修改方向由用户在对话里说（spec §10）。 */
   reviseTeamPlan: z.object({
     note: z.string().min(1).max(TEAM_LIMITS.maxTextChars).optional(),

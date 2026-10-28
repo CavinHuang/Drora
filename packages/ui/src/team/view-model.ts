@@ -61,6 +61,10 @@ export interface TeamPanelStagedTaskView {
 
 /** staged 草案整体（仅 staged 态携带；TeamStagedEditor 的数据输入）。 */
 export interface TeamPanelStagedDraftView {
+  /** 团队名（§18 附裁二表头 name 位；stagedDraft 本无名字，由 team 层投影随行）。 */
+  teamName?: string;
+  /** 管理者成员名（§22 契约 1；编辑器成员行徽标，draftMembers 首位即 manager）。 */
+  managerName?: string;
   members: readonly TeamPanelStagedMemberView[];
   tasks: readonly TeamPanelStagedTaskView[];
   awaitingFeedback: boolean;
@@ -84,6 +88,8 @@ export interface TeamPanelMailboxEntryView {
 export interface TeamPanelModel {
   teamId: string;
   name?: string;
+  /** 管理者成员名（§22 契约 1；成员行/成员卡「管理者」徽标依据，manager 恒首位）。 */
+  managerName?: string;
   status: TeamUiStatus;
   permissionMode?: "build" | "edit" | "yolo" | "guarded" | "auto";
   members: readonly TeamPanelMemberView[];
@@ -170,6 +176,7 @@ export function mapTeamProjectionToViewModel(team: TeamProjectionState): TeamPan
   return {
     teamId: team.teamId,
     ...(team.name === undefined ? {} : { name: team.name }),
+  ...(team.managerName === undefined ? {} : { managerName: team.managerName }),
     status: team.status,
     ...(team.permissionMode === undefined ? {} : { permissionMode: team.permissionMode }),
     members: team.members.map((member) => ({
@@ -197,6 +204,8 @@ export function mapTeamProjectionToViewModel(team: TeamProjectionState): TeamPan
       ? {}
       : {
           stagedDraft: {
+            ...(team.name === undefined ? {} : { teamName: team.name }),
+            ...(team.managerName === undefined ? {} : { managerName: team.managerName }),
             members: team.stagedDraft.draftMembers.map((member) => ({
               memberName: member.memberName,
               ...(member.profile === undefined ? {} : { profile: member.profile }),

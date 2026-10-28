@@ -81,7 +81,9 @@ import {
   type OpenScopedWorkflowArtifactSideTabRequest,
   type OpenScopedWorkflowWorkspaceSideTabRequest,
   openTeamSidePane,
+  openTeamMemberSidePane,
   type OpenScopedTeamSideTabRequest,
+  type OpenScopedTeamMemberSideTabRequest,
   type WorkspaceSidePaneState,
   type WorkspaceSidePaneTab,
 } from "@/lib/workspaceSidePane.js";
@@ -1094,11 +1096,10 @@ export function useAppPanels(options: {
   );
 
   /**
-   * 打开（或聚焦）一条对话的 team 面板 tab（specs/agents-team.md §10）。
-   *
-   * PR-2.4c 起对话侧触发已接线：staged 草案边沿的监听在 App 挂载的
-   * TeamStagedAutoOpenBridge（ui-team 模块）里，经本 handler 打开面板；本 hook 另回出
-   * `isTeamSidePaneOpenForActiveTask` 供桥判「仅当面板未开」。
+   * 打开（或聚焦）一条对话的 team 面板 tab（specs/agents-team.md §10）。用户驱动的
+   * 入口调用（加号菜单「组建团队」、staged 内联审批卡的详情入口等）；staged 草案的
+   * 审批自 2026-10-22 起内联在会话流 TeamConversationSummary 内，不再自动开面板
+   * （原 PR-2.4c 的 TeamStagedAutoOpenBridge 已废除）。
    */
   const handleOpenTeamSidePane = useCallback(
     (request: OpenScopedTeamSideTabRequest) => {
@@ -1118,17 +1119,24 @@ export function useAppPanels(options: {
     [commitOpenedSidePaneState],
   );
 
-  /**
-   * 活动会话的 team tab 是否已开（PR-2.4c）：TeamStagedAutoOpenBridge 的「仅当面板未开」
-   * 门。team tab 身份是 (workspaceKey, parentSessionId)——本 hook 本就 per-workspace，
-   * 按 parentSessionId 匹配即可。
-   */
-  const isTeamSidePaneOpenForActiveTask = useMemo(
-    () =>
-      sidePaneState?.tabs.some(
-        (tab) => tab.type === "team" && tab.parentSessionId === activeTaskId,
-      ) ?? false,
-    [activeTaskId, sidePaneState],
+  /** 打开（或聚焦）一个成员 transcript tab（specs/agents-team.md §10 增补四）。 */
+  const handleOpenTeamMemberSidePane = useCallback(
+    (request: OpenScopedTeamMemberSideTabRequest) => {
+      const workspaceKey = request.workspaceIdentity?.trim() || request.workspacePath;
+      setIsSidePaneCollapsed(false);
+      commitOpenedSidePaneState((current) =>
+        openTeamMemberSidePane(current, {
+          ...request,
+          workspaceKey,
+        }),
+      );
+      logger.debug("[App] 打开团队成员右侧 tab", {
+        parentSessionId: request.parentSessionId,
+        memberName: request.memberName,
+        workspaceKey,
+      });
+    },
+    [commitOpenedSidePaneState],
   );
 
   const handleOpenWorkflowActorSession = useCallback(
@@ -1729,7 +1737,7 @@ export function useAppPanels(options: {
     handleOpenWorkflowWorkspace,
     handleOpenWorkflowArtifact,
     handleOpenTeamSidePane,
-    isTeamSidePaneOpenForActiveTask,
+    handleOpenTeamMemberSidePane,
     handleToggleTerminal,
     handleToggleSidebar,
     handleToggleSidePaneCollapse,

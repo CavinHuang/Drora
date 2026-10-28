@@ -33,10 +33,44 @@ ACK → 真实 in-process 成员 spawn → 欢迎回合自然终态触发的自�
 DRORA_E2E_MANUAL_REVIEW=1 replay 模式）。转正待人工复核（e2e:promote --reviewed）。
 
 AT-01 施工过程修出的两处既有缺口（spec §14 登记）：
+
 - ack 可观测面——commandAckObservability 环形缓冲只在 SessionPane 派发路径记录，
   team 命令（ui/team/commands.ts）从未入账；已补（与 SessionPane 同口径）。
 - 捕获记录的消息文本是解码态——测试查询不能搜 JSON 转义形态（`\"`），夹具匹配面
   用的是原始 body，两侧表示不同；用例内以注释登记。
+
+AT-01 呈现对齐扩展（2026-10-22，spec §10 呈现规则1/4、§15；同一 pending 用例新增断言，
+不新增 fixture/manifest 条目）：① 问句表头——`team-staged-editor` 内首个 h2 由
+「团队计划草案」改为问句「启动这支团队？」，表头计数行为「N 名成员 · N 项任务」
+（原 stagedSummary 尾巴「确认后才会创建成员」移除），aria-label「团队计划草案」既有
+约定不变（E2E 默认语言 zh-CN，store/index.ts:267）；② 既有 testid 约定守门——2026-10-23
+§19 契约 5/6 起编辑器迁 timeline bottom dock（SessionPane 在 V4InteractionDialogs 后挂
+TeamApprovalDock，摘要卡同帧退化只读），dock 挂载点可渲染控件
+approve/revise/abandon/revise-note/rename 全部在位（改名入口（team-staged-rename 系）
+自编辑器内置发送，审批面两挂载点一体适用，原「改名五件套仅侧栏挂载点渲染」不再成立）；
+③ 新增 testid `team-staged-command-error`
+（role=alert）无失败时不得出现——假阳性守门。转正前人工项（无自动化夹具机制）：
+三动作失败出显的**正向**断言——approveTeamPlan/reviseTeamPlan/abandonTeamPlan 走
+v4 命令通道（sendCommand → hub），不经 provider HTTP，replay 夹具无拦截面，仓库亦无
+v4 命令故障注入 env（既有 DRORA_E2E 故障族仅 SSH/FS/auth）；人工验证须断言编辑器内
+出现 role=alert 且文案按 ack.reasonCode 出词典（未知码走
+`team.stagedEditor.failure.fallback` 兜底；传输异常走 transport 文案），两挂载点
+（TeamApprovalDock / TeamSidePane→TeamPanel）各验一次。
+
+AT-01 dock 迁移与 2026-10-23 重跑（spec §18 用户裁定、§19 契约 2/5/6）：staged 审批面
+迁 timeline bottom dock——TeamApprovalDock 与 workflow 确认窗同位同 chrome，钉在
+composer 上方；摘要卡同帧退化为只读；旧「TeamSpawn 后自动打开侧栏面板」桥与桌面端
+「会话流摘要卡内联编辑器」均已废除（移动/远端仍保留内联编辑器）。同日 manual-review
+实跑 3/3 全绿（1m08s，artifact `desktop-e2e-20261023-140157-122`）：① 主流程含 dock
+形态守门（§19 契约 6：编辑器位于 team-approval-dock 内、dock role=status/aria-live=polite、
+眉题「团队计划待确认」、摘要卡只读、页面恰一编辑器实例、rename 纳入控件断言）+ 真实成员
+spawn + 欢迎回合自然终态边缘自动派发；② §19 契约 2 无 profile 流——TeamSpawn 省略
+profile（optional 合法缺省）→ 草案落库归一为键缺席 → 编辑器正常呈现 → Approve 真实
+spawn 全链无烧帧（fail-closed 烧帧回归）；③ §19 契约 5 halt 后下钻发消息——halt 真打
+hub（haltTeam ACK accepted）→ 任务板下钻成员 composer 发送 → hub portSend 对 halted
+团队真拒 team_halted（无需夹具拦截），composer role=alert 内联出显「消息未送达/团队
+已暂停」且输入框保留原文（草稿永不丢不变量）。用例仍在 manual-review/pending，
+转正待人工复核（e2e:promote --reviewed）。
 
 ## 项目与任务草稿生命周期（PD，2026-10-16）
 

@@ -2599,11 +2599,14 @@ describe("ToolExecutor trace propagation", () => {
     const sessionId = createSessionId("tool-trusted-cua-receipt");
     const turnId = createTurnId("tool-turn");
     const traceContext = createRootTraceContext({ sessionId, turnId });
+    // schema_version 保留原版名：还原区生产者 packages/zcode-cua/src/mcp/session.ts:3436 逐字产出
+    // zcode-cua-action-receipt-v1（specs/drora-rename.md 豁免区 2「身份字符串逐字保留」与
+    // 「兼容点」映射条目；2026-10-21 v3.16.1 合并审计 F11——还原区/wire 契约字面量不随品牌归一化改名）。
     const receipt = {
       type: "text" as const,
       text: JSON.stringify({
         action_receipt: {
-          schema_version: "drora-cua-action-receipt-v1",
+          schema_version: "zcode-cua-action-receipt-v1",
           action_sent: true,
           dispatch_status: "accepted",
           retry_action: false,
@@ -2664,7 +2667,7 @@ describe("ToolExecutor trace propagation", () => {
     );
 
     expect(result.success).toBe(true);
-    expect(result.serialization?.content).toContain("drora-cua-action-receipt-v1");
+    expect(result.serialization?.content).toContain("zcode-cua-action-receipt-v1");
     expect(result.serialization?.content).toContain("hook-context");
     expect(result.serialization?.content).not.toContain("Tool output truncated by resultBudget");
     expect(result.serialization?.truncated).toBe(false);
@@ -2682,7 +2685,7 @@ describe("ToolExecutor trace propagation", () => {
       type: "text" as const,
       text: JSON.stringify({
         action_receipt: {
-          schema_version: "drora-cua-action-receipt-v1",
+          schema_version: "zcode-cua-action-receipt-v1",
           action_sent: true,
           dispatch_status: "accepted",
           retry_action: false,

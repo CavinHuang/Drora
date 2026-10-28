@@ -7,6 +7,8 @@ import type { CodeViewerSource } from "@/lib/codeViewer.js";
 import { SessionPane } from "@/v4/SessionPane.js";
 import { useConversationProjection } from "@/v4/useConversationProjection.js";
 import { useV4Conversation } from "@/v4/V4ConversationContext.js";
+import type { TeamCommandOutcome } from "./commands.js";
+import { teamRejectionReasonI18nKeyOrUndefined } from "./TeamStagedEditor.js";
 
 /**
  * 团队成员下钻面板（specs/agents-team.md §10、
@@ -96,62 +98,108 @@ function TeamMemberPending({
 /**
  * 底部发消息占位。`onSendMessage` 缺席（PR-2.4b 未接线）时禁用 + 说明文案；
  * 接线后 Enter 发送，走宿主注入的 `commands.sendTeamMessage`（邮箱投递，不入 conversation 行）。
+ *
+ * §19 契约 5（2026-10-23）：onSendMessage 返回 TeamCommandOutcome——发送即 in-flight
+ * （按钮禁用），outcome.ok 才清空草稿；被拒（ack 非 accepted|duplicate|noop）或传输
+ * 异常时草稿保留原文 + 输入框上方 role=alert 出显拒绝原因（reasonCode 查表，未知走
+ * 兜底）。草稿永不丢（specs/agents-team.md §19 契约 5 不变量）：halt 团队后发消息被
+ * hub 以 team_halted 拒，此前静默拒绝 + 草稿已清，消息文本直接丢失。
  */
 function TeamMemberMessageComposer({
   memberName,
   onSendMessage,
 }: {
   memberName: string;
-  onSendMessage?: (message: string) => void;
+  onSendMessage?: (message: string) => Promise<TeamCommandOutcome> | TeamCommandOutcome | void;
 }) {
   const { intl } = useDroraIntl();
   const [draft, setDraft] = useState("");
+  const [sending, setSending] = useState(false);
+  const [failure, setFailure] = useState<{ reasonCode?: string } | null>(null);
   const wired = onSendMessage !== undefined;
   const send = () => {
     const text = draft.trim();
-    if (!wired || text.length === 0) return;
-    onSendMessage(text);
-    setDraft("");
+    if (!wired || text.length === 0 || sending) return;
+    setSending(true);
+    setFailure(null);
+    const pending = onSendMessage(text);
+    void Promise.resolve(pending)
+      .then((outcome) => {
+        if (outcome === undefined || outcome.ok) {
+          setDraft("");
+          return;
+        }
+        // 被拒/传输异常：草稿保留原文（契约 5 草稿永不丢），reasonCode 供文案查表。
+        setFailure(
+          outcome.ack?.reasonCode === undefined ? {} : { reasonCode: outcome.ack.reasonCode },
+        );
+      })
+      .finally(() => {
+        setSending(false);
+      });
   };
   return (
-    <div className="flex shrink-0 items-center gap-2 border-t border-border/50 p-2">
-      <input
-        type="text"
-        value={draft}
-        disabled={!wired}
-        onChange={(event) => setDraft(event.target.value)}
-        onKeyDown={(event) => {
-          if (event.key === "Enter" && !event.nativeEvent.isComposing) {
-            event.preventDefault();
-            send();
-          }
-        }}
-        placeholder={intl.formatMessage(
-          { id: "team.memberPane.inputPlaceholder" },
-          { name: memberName },
-        )}
-        aria-label={intl.formatMessage(
-          { id: "team.memberPane.inputPlaceholder" },
-          { name: memberName },
-        )}
-        data-testid="team-member-message-input"
-        className="h-8 min-w-0 flex-1 rounded-md border border-border bg-surface px-2 text-ui-base text-foreground placeholder:text-foreground-subtlest focus-visible:border-ring focus-visible:outline-none disabled:cursor-not-allowed"
-      />
-      <button
-        type="button"
-        onClick={send}
-        disabled={!wired}
-        aria-label={intl.formatMessage({ id: "team.memberPane.send" })}
-        data-testid="team-member-message-send"
-        className="flex size-8 shrink-0 items-center justify-center rounded-md text-foreground-subtle hover:bg-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50"
-      >
-        <SendHorizontalIcon className="size-4" />
-      </button>
-      <span className="sr-only" aria-live="polite">
-        {intl.formatMessage({
-          id: wired ? "team.memberPane.inputReady" : "team.memberPane.inputPending",
-        })}
-      </span>
+    <div className="flex shrink-0 flex-col gap-1 border-t border-border/50 p-2">
+      {failure === null ? null : (
+        <p
+          role="alert"
+          className="text-ui-sm text-destructive"
+          data-testid="team-member-message-error"
+        >
+          {intl.formatMessage(
+            { id: "team.memberPane.sendFailed.line" },
+            {
+              reason: intl.formatMessage({
+                id:
+                  failure.reasonCode === undefined
+                    ? "team.memberPane.sendFailed.transport"
+                    : (teamRejectionReasonI18nKeyOrUndefined(failure.reasonCode) ??
+                      "team.memberPane.sendFailed.fallback"),
+              }),
+            },
+          )}
+        </p>
+      )}
+      <div className="flex items-center gap-2">
+        {/* pointer-coarse ≥44px（DESIGN.md:661-662）：输入与发送钮同纪律。 */}
+        <input
+          type="text"
+          value={draft}
+          disabled={!wired}
+          onChange={(event) => setDraft(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && !event.nativeEvent.isComposing) {
+              event.preventDefault();
+              send();
+            }
+          }}
+          placeholder={intl.formatMessage(
+            { id: "team.memberPane.inputPlaceholder" },
+            { name: memberName },
+          )}
+          aria-label={intl.formatMessage(
+            { id: "team.memberPane.inputPlaceholder" },
+            { name: memberName },
+          )}
+          data-testid="team-member-message-input"
+          className="h-8 min-w-0 flex-1 rounded-lg border border-border bg-surface px-2 text-ui-base text-foreground placeholder:text-foreground-subtlest focus-visible:border-ring focus-visible:outline-none disabled:cursor-not-allowed pointer-coarse:min-h-11"
+        />
+        <button
+          type="button"
+          onClick={send}
+          disabled={!wired || sending}
+          aria-label={intl.formatMessage({ id: "team.memberPane.send" })}
+          data-testid="team-member-message-send"
+          className="flex size-8 shrink-0 items-center justify-center rounded-lg text-foreground-subtle hover:bg-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 pointer-coarse:min-h-11 pointer-coarse:min-w-11"
+        >
+          <SendHorizontalIcon className="size-4" />
+        </button>
+        <span className="sr-only" aria-live="polite">
+          {intl.formatMessage({
+            id: wired ? "team.memberPane.inputReady" : "team.memberPane.inputPending",
+          })}
+        </span>
+      </div>
     </div>
   );
 }
@@ -171,8 +219,10 @@ export interface TeamMemberSidePaneProps {
   /**
    * 发送通道（PR-2.4b 接线 `commands.sendTeamMessage` 后由宿主注入）。缺席 = 输入框占位态。
    * 团队消息**永不**进 conversation 行（spec §1 硬边界），本组件不自行构造命令信封。
+   * §19 契约 5：返回 TeamCommandOutcome（Promise 或值）——composer 据 ok 决定清空或
+   * 保留草稿并出显；宿主返回 void（未接线 outcome 的宿主）按成功处理，行为同前。
    */
-  onSendMessage?: (message: string) => void;
+  onSendMessage?: (message: string) => Promise<TeamCommandOutcome> | TeamCommandOutcome | void;
   onOpenBrowserUrl?: (url: string) => void;
   onOpenCodeViewer?: (source: CodeViewerSource) => void;
   onOpenFileLink?: (target: MessageFileLinkTarget) => void;

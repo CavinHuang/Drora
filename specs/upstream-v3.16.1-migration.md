@@ -57,7 +57,7 @@ flowchart LR
 ### 引擎：正向转换 + 逐文件三方合并（上轮方法论的机械化升级）
 
 1. **正向改名转换脚本** `scripts/upstream/transform-upstream-tree.mjs`（新增，自研工具）：
-   - 输入 git ref，输出转换后的树（临时目录）。规则唯一来源 = `specs/drora-rename.md` 有序替换表 + 豁免清单（CDN/OAuth 回调/appId/`x-zcode-*` wire header/`.zcode-plugin`/官方 URL 如 `github.com/zai-org`/许可文本），外加大小写变体（`Zcode`→`Drora`）。
+   - 输入 git ref，输出转换后的树（临时目录）。规则唯一来源 = `specs/drora-rename.md` 有序替换表 + 豁免清单（CDN/OAuth 回调/appId（覆盖对象形态 `appId: "zcode"` 与 URL 查询形态 `appId=zcode`；2026-10-21 修复——原实现 APPID_RE 只护对象形态，URL 形态曾被规则 8 sweep，残留缺口与取舍见 `specs/drora-divergence-ledger.md` 台账 6）/`x-zcode-*` wire header/`.zcode-plugin`/官方 URL 如 `github.com/zai-org`/许可文本），外加大小写变体（`Zcode`→`Drora`）。
    - 路径层与内容层都做转换；对二进制/官方字节资产跳过内容转换（豁免区）。
 2. **黄金校验**（S0 内完成，不通过不得进入 S1）：对 `aac4755` 全树做正向转换，与 `82b02c14` 树做文件级 diff。残差必须全部可归类为：forceUpdate 家族删除、品牌资产（Drora 图标/SVG）、上轮迁移补齐修复、既有 spec 已记录的有意分歧。残差清单固化为转换脚本的「分歧白名单」，后续段落引用。
    - 路径层已知校验数据：反替换命中率 99.92%（16866/16880），未命中的 14 条上游路径已知原因（2 条 `Zcode` 大小写、9 条 Drora 主动删除、3 条结构差异）。
@@ -67,7 +67,7 @@ flowchart LR
    - theirs = 转换后的 `upstream/main:<zcode路径>` 内容。
    - base 与 ours 的 diff 只剩 Drora 真实改动、base 与 theirs 的 diff只剩上游真实改动 → 冲突仅在双方真实改动重叠处出现。
    - 上游新增文件：转换后直接落盘。上游删除： ours 无独有改动则随删，有则走决策表。
-4. **决策表**（逐条登记，不许静默）：ours 删/theirs 改 → 维持删除（forceUpdate 家族，spec 已裁定）；theirs 删/ours 改 → 评估（Relay V1 见 R1）；双方大分歧同名路径（`zcode-cua-plugin`）→ Drora 拥有，上游增量人工甄别。
+4. **决策表**（逐条登记，不许静默）：ours 删/theirs 改 → 维持删除（forceUpdate 家族，spec 已裁定）；theirs 删/ours 改 → 评估（Relay V1 见 R1）；双方大分歧同名路径（`zcode-cua-plugin`）→ Drora 拥有，上游增量人工甄别。常设性（跨版本）有意分歧的逐条台账集中在 `specs/drora-divergence-ledger.md`（2026-10-21 依合并审计补建），本表只记合并执行期裁决。
 5. **分段清单驱动**：预演产出每段的上游路径集 glob，逐段应用、门禁、核查、提交。
 
 ### 工具链约束
@@ -155,3 +155,4 @@ B 类（共享文件，逐挂载点保真，冲突高危）：`packages/ui/src/A
 
 - 上游对齐总策略、官方实现优先表、CUA/更新器/知识装配边界沿用 `specs/upstream-v3.15.1-migration.md`，本文只增量记录 v3.16.1 的段表与裁定；该文与本文冲突处以本文为准（期间），收口后回写合并。
 - 改名规则唯一权威仍为 `specs/drora-rename.md`；转换脚本是它的机械化实现，规则变更须先改 spec。
+- 常设性有意分歧（CLI 版本线、任务模式投影、lock 插件 importer、oxlint 覆盖面、vault 侧栏槽位、appId 转换形态）集中登记于 `specs/drora-divergence-ledger.md`；下次上游同步先查该台账再判「缺口」与「有意分歧」。

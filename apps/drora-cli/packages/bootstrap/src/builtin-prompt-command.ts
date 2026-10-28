@@ -2,6 +2,7 @@ import { join } from "node:path";
 import {
   BUILTIN_TEAM_COMMAND_NAME,
   expandBuiltinTeamCommandPrompt,
+  expandBuiltinTeamDisabledNoticePrompt,
 } from "./builtin-team-command.js";
 import {
   BUILTIN_WORKFLOW_COMMAND_NAME,
@@ -76,7 +77,13 @@ export function resolveDroraBuiltinPromptCommandInvocation(
     // 调用点（create-app）已传入 settings 灰度值；与装配门同源同门（审查缺口③修复，
     // 2026-10-21）：显式值优先，缺省回落 env DRORA_AGENTS_TEAM=1。
     if (!resolveAgentsTeamEnabled(options.agentsTeamEnabled)) {
-      return undefined;
+      // 2026-10-22（specs/agents-team.md §17 契约 2）：不再「undefined=不存在同形」透传——
+      // 透传曾让模型拿着 agents-team 技能即兴扮演团队（session_76d145bb 实证）。改为确定性
+      // 未开启提示。workflow 保持 DWG-03 透传不变（有意分歧，仅 team，分歧理由见 §17）。
+      return {
+        name: BUILTIN_TEAM_COMMAND_NAME,
+        prompt: expandBuiltinTeamDisabledNoticePrompt(invocation.args),
+      };
     }
     return {
       name: BUILTIN_TEAM_COMMAND_NAME,

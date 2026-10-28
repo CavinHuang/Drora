@@ -59,7 +59,16 @@ import type {
 import { logger } from "@/logger.js";
 import { PluginUiSessionProvider } from "@/plugin-ui/index.js";
 // Agents Team 目录收敛的 workspace-config 订阅 hook（挂载点理由见使用处注释）。
-import { useWorkspaceConfigCatalogSync, TeamConversationSummary } from "@/team/index.js";
+import {
+  haltTeam,
+  resumeTeam,
+  useWorkspaceConfigCatalogSync,
+  TeamApprovalDock,
+  TeamConversationSummary,
+  type TeamCommandOutcome,
+} from "@/team/index.js";
+// 状态面板 team 分区的打开路径（§19 契约 6）：与摘要卡「打开面板」同一 TeamNavigation。
+import { useTeamNavigation, type TeamOpenTarget } from "@/team/TeamNavigation.js";
 import {
   getConversationShareErrorDetails,
   resolveConversationShareFallbackIssueCode,
@@ -557,6 +566,29 @@ export function resolveQueuedComposerRestore(
 
 export function shouldRestoreQueuedComposerFromAck(status: CommandAck["status"]): boolean {
   return status === "accepted" || status === "duplicate";
+}
+
+/**
+ * 状态面板 team 行打开 team 面板的导航 target（§19 契约 6）。
+ *
+ * 修复原因（M16）：此前只传 workspacePath + parentSessionId——identity≠path 的远程/
+ * 虚拟工作区会与消息流卡入口（TeamConversationSummary 的 target 四元组）铸出两个
+ * 不同结构化 id 的 team tab，remoteSessionId 解析 miss。现与卡片 target 同一形态，
+ * 身份字段（workspaceIdentity/remoteSessionId）在场即随行（条件展开语义，
+ * exactOptionalPropertyTypes 下缺席不下发键）。
+ */
+export function resolveTeamStatusPanelOpenTarget(input: {
+  workspacePath: string;
+  workspaceIdentity?: string | null;
+  remoteSessionId?: string | null;
+  parentSessionId: string;
+}): TeamOpenTarget {
+  return {
+    workspacePath: input.workspacePath,
+    ...(input.workspaceIdentity ? { workspaceIdentity: input.workspaceIdentity } : {}),
+    ...(input.remoteSessionId ? { remoteSessionId: input.remoteSessionId } : {}),
+    parentSessionId: input.parentSessionId,
+  };
 }
 
 /**
@@ -1674,6 +1706,26 @@ export function SessionPane({
     },
     [workspaceIdentity, workspacePath],
   );
+  // staged dock「回对话修改」预填（spec §15 第4条 2026-10-23 三发起面扩圈）：与侧栏
+  // WorkspaceShellLayout.handlePrefillComposer 同一 store 通道（requestComposerTextInsert，
+  // 缺口9 消费门按 targetSessionId 匹配，不新造 composer 写路径）。dock 守卫保证
+  // snapshot.sessionId === sessionId（lead 会话即本 pane），TeamApprovalDock 以本回调
+  // 定向插入；v1 边界：hub 不消费 wire note，修改方向随预填文案进对话（revise-prefill.ts）。
+  const handleTeamRevisePrefill = useCallback(
+    (prefill: string, targetSessionId?: string | null) => {
+      useDroraSessionStore
+        .getState()
+        .requestComposerTextInsert(
+          workspacePath,
+          prefill,
+          workspaceIdentity,
+          undefined,
+          undefined,
+          targetSessionId,
+        );
+    },
+    [workspaceIdentity, workspacePath],
+  );
   const composerBindingRef = useRef({ sessionId, workspaceKey });
   composerBindingRef.current = { sessionId, workspaceKey };
   const configCommandBarrier = useMemo(() => createConfigCommandBarrier(), []);
@@ -2184,6 +2236,9 @@ export function SessionPane({
           // unknown 现已静默清账，也不应为确定性拒绝留下无效的恢复记录。
           pendingCommandRegistry.rejectCommand(envelope.sessionId, envelope.commandId);
         }
+        // "transport-error" 是 UI 本地观测面的口径字面量（非跨进程契约键，不收
+        // shared 常量），与 ui/team/commands.ts 八命令/历史查询 catch 半边同字面量
+        // 互指（specs/agents-team.md §14 缺口11 补环纪律，2026-10-23 补齐）。
         recordV4CommandAck({
           type,
           status: "transport-error",
@@ -4823,6 +4878,7 @@ export function SessionPane({
         backgroundWorks: snapshot?.backgroundWorks ?? [],
         runningSubagents: subagents.running,
         workflowRuns: snapshot?.workflowRuns?.runs ?? [],
+        team: snapshot?.team ?? null,
       }),
     [
       isOfficeMode,
@@ -4832,6 +4888,7 @@ export function SessionPane({
       snapshot?.backgroundWorks,
       snapshot?.goal,
       snapshot?.plan,
+      snapshot?.team,
       snapshot?.workflowRuns,
       state.sessionPlans,
       selectionSideChat,
@@ -4875,6 +4932,38 @@ export function SessionPane({
   const soleRunningWorkflowRunTarget = useMemo(
     () => (onOpenWorkflowRun ? resolveSoleRunningWorkflowRunTarget(statusPanelModel) : null),
     [onOpenWorkflowRun, statusPanelModel],
+  );
+  // 状态面板 team 分区（specs/agents-team.md §19 契约 6）：行点击打开 team 侧栏面板。
+  // open 函数在 TeamNavigationProvider 之外为 null（纯历史视图），届时 onOpenTeamPanel
+  // 缺席、面板行退化为不可点的事实行——与摘要卡同一打开路径，不造第二条导航。
+  const openTeamPanelTarget = useTeamNavigation();
+  const handleOpenTeamPanelFromStatusPanel = useCallback(() => {
+    if (!sessionId) return;
+    // M16：target 与消息流卡同一形态（身份字段随行），不再只按路径铸 tab id。
+    openTeamPanelTarget?.(
+      resolveTeamStatusPanelOpenTarget({
+        workspacePath,
+        workspaceIdentity,
+        remoteSessionId,
+        parentSessionId: sessionId,
+      }),
+    );
+  }, [openTeamPanelTarget, remoteSessionId, sessionId, workspaceIdentity, workspacePath]);
+  // 状态面板一键停止（specs/agents-team.md §10 增补，2026-10-26）：haltTeam 单一通道
+  // （与侧栏同一命令语义）；二次确认与失败出显在面板内聚（TeamStatusSection）。
+  const handleHaltTeamFromStatusPanel = useCallback((): Promise<TeamCommandOutcome> => {
+    // 面板行渲染蕴含 sessionId 在场；防御分支不发送、按传输异常出显（不可达）。
+    if (!sessionId) return Promise.resolve({ ok: false, error: new Error("no session") });
+    return haltTeam({ sessionId, sendCommand });
+  }, [sendCommand, sessionId]);
+  // 一键恢复（§10 增补二）：与侧栏 ResumeTeamSection 同一 resumeTeam 命令
+  //（reason 必填由面板本地门把守）。
+  const handleResumeTeamFromStatusPanel = useCallback(
+    (reason: string): Promise<TeamCommandOutcome> => {
+      if (!sessionId) return Promise.resolve({ ok: false, error: new Error("no session") });
+      return resumeTeam({ sessionId, sendCommand, reason });
+    },
+    [sendCommand, sessionId],
   );
   const handleOpenRunningBackgroundWorks = useCallback(() => {
     if (runningBackgroundWorkCount === 0) return;
@@ -5366,6 +5455,18 @@ export function SessionPane({
 
   // subagent 右侧 child tab 是观察视图；复用普通 SessionPane 时
   // 若仍创建 composer，会让用户误以为可以直接向 child session 继续输入。
+  // §10 增补六修订（2026-10-28 用户裁定）：staged 审批 dock 与 workflow 确认窗同机制
+  // ——在场时 composer 隐藏（ConversationComposer 对 blockingRequestId 非空自display:none，
+  // 弹窗覆盖输入框位置），而非把输入框下推并存。守卫与下方 dock 挂载完全同源；
+  // 哨兵值不会与 interactionId（intr_ 前缀）碰撞。
+  const teamStagedDockVisible =
+    Boolean(sessionId) &&
+    snapshot?.team?.status === "staged" &&
+    snapshot.sessionId === sessionId &&
+    !readOnly &&
+    !importedShare;
+  const composerBlockingRequestId =
+    blockingInteractionId ?? (teamStagedDockVisible ? "team-staged-dock" : null);
   const composerNode = readOnly ? null : (
     <ConversationComposer
       key="conversation-composer"
@@ -5386,7 +5487,7 @@ export function SessionPane({
       telemetryDraftConfig={telemetryDraftConfig}
       contextHeader={isDraft ? draftComposerHeader : undefined}
       centered={isDraft}
-      blockingRequestId={blockingInteractionId}
+      blockingRequestId={composerBlockingRequestId}
       listenAddToChatEvents={focused}
       // 缺口9 消费门（2026-10-21 修复）：此前 `focused && sessionId === null` 只对草稿
       // composer 下发——团队面板「回对话修改/在主会话中引用」的目标是 lead 会话
@@ -5595,6 +5696,20 @@ export function SessionPane({
           }
         />
       ) : null}
+      {/* staged 审批的 timeline bottom dock（specs/agents-team.md §10 呈现规则修订，
+          2026-10-23）：与 workflow 确认窗同位同 chrome——钉底、composer 之上；摘要卡在
+          同一守卫下传 stagedEditorSuppressed 退化为只读。守卫与 footerSlot 同源。
+          2026-10-28：守卫提取为 teamStagedDockVisible——composer 的阻塞隐藏（覆盖输入框）
+          与本挂载共用同一布尔，保证「dock 在场 ⇔ composer 隐藏」不漂移。 */}
+      {teamStagedDockVisible && snapshot?.team ? (
+        <TeamApprovalDock
+          key={`team-approval-dock:${snapshot.team.teamId}`}
+          team={snapshot.team}
+          sessionId={snapshot.sessionId}
+          sendCommand={sendCommand}
+          onPrefillComposer={handleTeamRevisePrefill}
+        />
+      ) : null}
       {composerNode}
       {/* 办公模式显示主动任务推荐；编程模式保留原有小型场景入口。 */}
       {isDraft && (!isOfficeMode || sharedSettings?.proactiveSuggestionsEnabled === true) ? (
@@ -5636,6 +5751,25 @@ export function SessionPane({
       {conversationBottomDockContent}
     </ConversationBottomDockTransition>
   ) : null;
+  // §10 增补五团队卡唯一节点（M14 修复）：同一张卡同时喂 teamCardSlot（锚定轮轮内）
+  // 与 footerSlot（无锚定轮兜底钉底）。锚定/兜底两条路由由 ConversationTimeline 互斥
+  // ——锚定轮在场时抑制 footer——同一时刻只挂载一份；此前只传 teamCardSlot，
+  // TeamSpawn 轮滚出视口/折叠后卡彻底消失，违反增补五「诚实兜底而非消失」。
+  const teamConversationCardNode =
+    !readOnly && !importedShare && snapshot?.team && snapshot.sessionId === sessionId ? (
+      <TeamConversationSummary
+        key={`${sessionId}:${snapshot.team.teamId}`}
+        team={snapshot.team}
+        connection={{ sessionId: snapshot.sessionId, sendCommand }}
+        stagedEditorSuppressed
+        target={{
+          workspacePath,
+          workspaceIdentity: workspaceIdentity ?? undefined,
+          remoteSessionId: remoteSessionId ?? undefined,
+          parentSessionId: snapshot.sessionId,
+        }}
+      />
+    ) : null;
 
   return (
     <PluginUiSessionProvider
@@ -5796,6 +5930,16 @@ export function SessionPane({
                   ? handleOpenWorkflowRunDirectoryFromPanel
                   : undefined
               }
+              team={snapshot?.team ?? null}
+              onOpenTeamPanel={
+                compactForRemoteControl ? undefined : handleOpenTeamPanelFromStatusPanel
+              }
+              onHaltTeam={
+                readOnly || compactForRemoteControl ? undefined : handleHaltTeamFromStatusPanel
+              }
+              onResumeTeam={
+                readOnly || compactForRemoteControl ? undefined : handleResumeTeamFromStatusPanel
+              }
             />
           ) : null}
 
@@ -5830,24 +5974,8 @@ export function SessionPane({
                 workspaceIdentity={workspaceIdentity}
               >
                 <ConversationTimeline
-                  footerSlot={
-                    !readOnly &&
-                    !importedShare &&
-                    snapshot?.team &&
-                    snapshot.sessionId === sessionId ? (
-                      <TeamConversationSummary
-                        key={`${sessionId}:${snapshot.team.teamId}`}
-                        team={snapshot.team}
-                        connection={{ sessionId: snapshot.sessionId, sendCommand }}
-                        target={{
-                          workspacePath,
-                          workspaceIdentity: workspaceIdentity ?? undefined,
-                          remoteSessionId: remoteSessionId ?? undefined,
-                          parentSessionId: snapshot.sessionId,
-                        }}
-                      />
-                    ) : null
-                  }
+                  teamCardSlot={teamConversationCardNode}
+                  footerSlot={teamConversationCardNode}
                   compactForRemoteControl={compactForRemoteControl}
                   scrollToBottomActionRef={timelineScrollToBottomRef}
                   scrollToQueryActionRef={timelineScrollToQueryRef}

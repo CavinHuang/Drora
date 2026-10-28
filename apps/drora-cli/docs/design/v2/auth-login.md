@@ -183,7 +183,7 @@ deeplink:
 2. Generate `state`.
 3. Build the BigModel authorize URL with
    `redirect=http://127.0.0.1:<port>/oauth/callback/bigmodel`,
-   `appId=drora`, and `state`.
+   `appId=zcode`, and `state`.
 4. Show the URL in the TUI/CLI and try to open it in the system browser.
 5. Accept callback query `authCode` or `code` plus `state`.
 6. Exchange the code through `https://bigmodel.cn/api/auth/tokenByAuthCode`.

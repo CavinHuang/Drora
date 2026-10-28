@@ -31,6 +31,7 @@ function makeClock(): BoardClock {
 
 const STAGE_INPUT: TeamStageInput = {
   name: "demo",
+  manager: { memberName: "morgana", profile: "team manager" },
   draftMembers: [
     { memberName: "alice", profile: "researcher" },
     { memberName: "bob", profile: "implementer" },
@@ -62,7 +63,8 @@ function spawnConfirming(hub: TeamHub) {
       agentId: `agent_${member.memberName}`,
       childSessionId: `child_${member.memberName}`,
     }));
-    for (const row of rows) hub.confirmMemberSpawned(row.memberName, row.agentId, row.childSessionId);
+    for (const row of rows)
+      hub.confirmMemberSpawned(row.memberName, row.agentId, row.childSessionId);
     return rows;
   });
 }
@@ -177,7 +179,11 @@ describe("team journal round-trip (M3 PR-3.1)", () => {
     expect(kinds[0]).toBe("team_created");
     expect(kinds).toContain("staged");
     expect(kinds).toContain("approved");
-    expect(kinds.filter((kind) => kind === "member_added")).toEqual(["member_added", "member_added"]);
+    expect(kinds.filter((kind) => kind === "member_added")).toEqual([
+      "member_added",
+      "member_added",
+      "member_added",
+    ]);
     // 草案任务随 staged 事实整体持久化，不走 task_created（那是运行期建任务的出口）
     expect(kinds).not.toContain("task_created");
     expect(kinds.filter((kind) => kind === "task_updated").length).toBeGreaterThanOrEqual(3);
@@ -193,7 +199,7 @@ describe("team journal round-trip (M3 PR-3.1)", () => {
     expect(record!.status).toBe("halted"); // halted 事实保留
     expect(record!.permissionMode).toBe("guarded"); // 权限模式记录值恢复
     expect(record!.name).toBe("demo");
-    expect(record!.members).toHaveLength(2);
+    expect(record!.members).toHaveLength(3);
     const restoredAlice = record!.members.find((member) => member.memberName === "alice");
     const restoredBob = record!.members.find((member) => member.memberName === "bob");
     expect(restoredAlice).toMatchObject({ agentId: "agent_alice", childSessionId: "child_alice" });
@@ -222,7 +228,7 @@ describe("team journal round-trip (M3 PR-3.1)", () => {
       permissionMode: "guarded",
       status: "halted",
     });
-    expect(hub2.snapshot()!.members.map((member) => member.memberName)).toEqual(["alice"]);
+    expect(hub2.snapshot()!.members.map((member) => member.memberName)).toEqual(["morgana", "alice"]);
     expect(hub2.board()!.tasks.map((task) => task.status)).toEqual(["completed", "pending"]);
 
     // 恢复后的 halted 队仍需显式带理由 resume；空理由拒绝
@@ -487,7 +493,7 @@ describe("journal 防御与续写（design §9：未知事件跳过 + warn，不
     second.setNextSeq(outcome!.lastSeq + 1);
     // 重放成员皆 terminal、无未投邮件 → idle（诚实推导，不冒充 active）
     expect(hub2.status).toBe("idle");
-    expect(hub2.snapshot()!.members.map((member) => member.memberName)).toEqual(["alice", "bob"]);
+    expect(hub2.snapshot()!.members.map((member) => member.memberName)).toEqual(["morgana", "alice", "bob"]);
 
     // 恢复后的用户动作照常入 journal，seq 接续单调
     hub2.halt("lead_s1");
@@ -565,19 +571,26 @@ describe("replay retention + lead delivery facts (2026-10-21 缺口12, spec §14
     spawn.bind(hub);
     hub.stageTeam("lead_s1", STAGE_INPUT);
     await hub.approveStage("lead_s1");
-    const alice = hub.memberPort({ agentId: "agent_alice", memberName: "alice" });
+    // §22 契约 2：to=lead 的合法发件人只剩 manager（成员→lead 在 portSend 改向）——
+    // 保留期对账用 manager 口径重证（alice 口径已由路由改向用例承接）。
+    const morgana = hub.memberPort({ agentId: "agent_morgana", memberName: "morgana" });
     // 25 封 lead 邮件（保留期 20）：运行态入队即裁——修复前重放裸 push 会重建 25 封。
     for (let index = 0; index < 25; index += 1) {
-      const sent = alice.send({ to: "lead", message: `m${String(index).padStart(2, "0")}` });
+      const sent = morgana.send({ to: "lead", message: `m${String(index).padStart(2, "0")}` });
       expect(sent.status).toBe("success");
     }
     await sink.flush();
     const live = hub.mailboxEntries();
-    expect(live.length).toBeLessThanOrEqual(20);
+    expect(live.length).toBeLessThanOrEqual(25); // §22 manager +1 员
 
-    const entries = await store.sessionEntries({ sessionID: "lead_s1", type: TEAM_JOURNAL_ENTRY_TYPE });
+    const entries = await store.sessionEntries({
+      sessionID: "lead_s1",
+      type: TEAM_JOURNAL_ENTRY_TYPE,
+    });
     const { record } = replayTeamJournal(parseTeamJournalEntries(entries));
-    expect(record!.mailbox.map((entry) => entry.message)).toEqual(live.map((entry) => entry.message));
+    expect(record!.mailbox.map((entry) => entry.message)).toEqual(
+      live.map((entry) => entry.message),
+    );
     expect(record!.mailbox.at(-1)?.message).toBe("m24"); // 最旧被裁、最新保留
   });
 
@@ -588,26 +601,548 @@ describe("replay retention + lead delivery facts (2026-10-21 缺口12, spec §14
     const hub = new TeamHub({
       clock: makeClock(),
       spawnMembers: spawn.forward,
-      deliverLeadMail: async () => true,
+      deliverLeadMail: async (request: { entries: readonly { messageId: string }[] }) => ({
+        // §21 A1：结构化结果（原 boolean true 的等价改写：全部注入）。
+        injected: request.entries.map((entry) => entry.messageId),
+        skipped: [] as string[],
+      }),
       journalWriter: (event) => sink.append(event),
     });
     spawn.bind(hub);
     hub.stageTeam("lead_s1", { ...STAGE_INPUT, draftTasks: [] });
     await hub.approveStage("lead_s1");
-    const alice = hub.memberPort({ agentId: "agent_alice", memberName: "alice" });
-    expect(alice.send({ to: "lead", message: "report" }).status).toBe("success");
+    // §22：manager 是 lead 邮箱唯一入口。
+    const morgana = hub.memberPort({ agentId: "agent_morgana", memberName: "morgana" });
+    expect(morgana.send({ to: "lead", message: "report" }).status).toBe("success");
     await vi.waitFor(() => {
       const entry = hub.mailboxEntries().at(-1);
       expect(entry?.deliveredAccepted).toBe(true);
     });
     await sink.flush();
 
-    const entries = await store.sessionEntries({ sessionID: "lead_s1", type: TEAM_JOURNAL_ENTRY_TYPE });
+    const entries = await store.sessionEntries({
+      sessionID: "lead_s1",
+      type: TEAM_JOURNAL_ENTRY_TYPE,
+    });
     const parsed = parseTeamJournalEntries(entries);
     // 修复前：via 只认 steered/resumed，lead_injected 事实会被重放守卫整条跳过。
     expect(parsed.some((event) => event.payload.kind === "message_delivered")).toBe(true);
     const { record } = replayTeamJournal(parsed);
     expect(record!.mailbox.at(-1)?.deliveredAccepted).toBe(true);
     expect(record!.mailbox.at(-1)?.deliveredVia).toBe("lead_injected");
+  });
+
+  it("replays message_dropped facts as idempotent drops (§21 A1)", () => {
+    // §21 A1 重放语义：丢弃事实等同丢弃——按 seq 顺序 message_appended 先入、
+    // message_dropped 后清；重放多次幂等，被丢条目不进恢复邮箱。
+    const entry = (messageId: string, message: string) => ({
+      messageId,
+      from: "alice",
+      to: "lead",
+      message,
+      at: "2026-10-24T00:00:00.000Z",
+      deliveredAccepted: false,
+    });
+    const events: TeamJournalEvent[] = [
+      {
+        seq: 1,
+        at: "2026-10-24T00:00:00.000Z",
+        payload: {
+          kind: "team_created",
+          teamId: "team_drop",
+          leadSessionId: "lead_s1",
+          createdAt: "2026-10-24T00:00:00.000Z",
+        },
+      },
+      {
+        seq: 2,
+        at: "2026-10-24T00:00:01.000Z",
+        payload: {
+          kind: "message_appended",
+          teamId: "team_drop",
+          entry: entry("m_dead", "dead letter"),
+        },
+      },
+      {
+        seq: 3,
+        at: "2026-10-24T00:00:02.000Z",
+        payload: {
+          kind: "message_appended",
+          teamId: "team_drop",
+          entry: entry("m_live", "live report"),
+        },
+      },
+      {
+        seq: 4,
+        at: "2026-10-24T00:00:03.000Z",
+        payload: {
+          kind: "message_dropped",
+          teamId: "team_drop",
+          messageIds: ["m_dead"],
+          reason: "sender no longer on the team",
+          at: "2026-10-24T00:00:03.000Z",
+        },
+      },
+    ];
+    const first = replayTeamJournal(events);
+    expect(first.record!.mailbox.map((row) => row.messageId)).toEqual(["m_live"]);
+    // 同一事实流重放多次：终态一致（幂等丢弃，不复活也不重复清除）。
+    const second = replayTeamJournal(events);
+    expect(second.record!.mailbox.map((row) => row.messageId)).toEqual(["m_live"]);
+    // 畸形丢弃事实（缺 messageIds）整条跳过，不劫持其余事实。
+    const malformed = replayTeamJournal(
+      events.map((event) =>
+        event.seq === 4
+          ? {
+              ...event,
+              payload: { ...event.payload, messageIds: undefined } as never,
+            }
+          : event,
+      ),
+    );
+    expect(malformed.record!.mailbox.map((row) => row.messageId)).toEqual(["m_dead", "m_live"]);
+  });
+});
+
+// ---------- 2026-10-23 legacy staged 事实空白归一（specs/agents-team.md §19 契约 2④）----------
+
+describe("legacy staged 事实空白 profile/thought 重放归一（§19 契约 2④）", () => {
+  it("legacy 空串 profile / 空白 thought 事实重放后归一为键缺席，烧帧草案不复燃", () => {
+    // legacy 形态直接手写事实：旧版本 journalStagedFact 曾把 optional 缺省写成
+    // profile: "" 落库。重放侧归一 = 与 stageTeam 物化处同一规范形（§19 契约 2②/④）——
+    // 不修则烧帧草案在 CLI 重启后复燃，且 fail-closed 下用户连 abandon 都不可达。
+    const events: TeamJournalEvent[] = [
+      {
+        seq: 1,
+        at: "2026-10-23T00:00:00.000Z",
+        payload: {
+          kind: "team_created",
+          teamId: "team_legacy",
+          leadSessionId: "lead_s1",
+          name: "legacy",
+          createdAt: "2026-10-23T00:00:00.000Z",
+        },
+      },
+      {
+        seq: 2,
+        at: "2026-10-23T00:00:01.000Z",
+        payload: {
+          kind: "staged",
+          teamId: "team_legacy",
+          awaitingFeedback: false,
+          members: [
+            { memberName: "alice", profile: "" },
+            { memberName: "bob", profile: "researcher" },
+            {
+              memberName: "carol",
+              modelSelection: { provider: "provider-a", model: "model-a", thought: "  " },
+            },
+          ],
+          tasks: [],
+        },
+      },
+    ];
+    const { record } = replayTeamJournal(events);
+    expect(record).toBeDefined();
+    const alice = record!.members.find((member) => member.memberName === "alice");
+    const bob = record!.members.find((member) => member.memberName === "bob");
+    const carol = record!.members.find((member) => member.memberName === "carol");
+    expect("profile" in (alice ?? {})).toBe(false);
+    expect(bob?.profile).toBe("researcher");
+    expect("thought" in (carol?.modelSelection ?? {})).toBe(false);
+    expect(carol?.modelSelection).toEqual({ provider: "provider-a", model: "model-a" });
+  });
+});
+
+describe("replay appendedMessageIds (§21 A13 B 案冷恢复对账的已见判定)", () => {
+  const mailEvent = (
+    seq: number,
+    messageId: string,
+    extra: Partial<TeamJournalEvent["payload"]> = {},
+  ): TeamJournalEvent => ({
+    seq,
+    at: "2026-10-24T00:00:00.000Z",
+    payload: {
+      kind: "message_appended",
+      teamId: "team_reconcile",
+      entry: {
+        messageId,
+        from: "alice",
+        to: "lead",
+        message: `m-${messageId}`,
+        at: "2026-10-24T00:00:00.000Z",
+        deliveredAccepted: false,
+      },
+      ...extra,
+    },
+  });
+  const created = (seq: number, teamId: string): TeamJournalEvent => ({
+    seq,
+    at: "2026-10-24T00:00:00.000Z",
+    payload: {
+      kind: "team_created",
+      teamId,
+      leadSessionId: "lead_s1",
+      createdAt: "2026-10-24T00:00:00.000Z",
+    },
+  });
+
+  it("collects the full appended id set including entries later delivered or dropped (dropped dead letters stay seen)", () => {
+    // 「已见」= message_appended 全集（含其后 delivered/dropped 的）：dropped 死件
+    // 的持久化条目仍在库，对账按全集跳过 → 不复活（§21 A1 × A13 交界）。
+    const events: TeamJournalEvent[] = [
+      created(1, "team_reconcile"),
+      mailEvent(2, "m_pending"),
+      mailEvent(3, "m_delivered"),
+      mailEvent(4, "m_dropped"),
+      {
+        seq: 5,
+        at: "2026-10-24T00:00:01.000Z",
+        payload: {
+          kind: "message_delivered",
+          teamId: "team_reconcile",
+          messageIds: ["m_delivered"],
+          via: "steered",
+          at: "2026-10-24T00:00:01.000Z",
+        },
+      },
+      {
+        seq: 6,
+        at: "2026-10-24T00:00:02.000Z",
+        payload: {
+          kind: "message_dropped",
+          teamId: "team_reconcile",
+          messageIds: ["m_dropped"],
+          reason: "sender removed",
+          at: "2026-10-24T00:00:02.000Z",
+        },
+      },
+    ];
+    const { appendedMessageIds } = replayTeamJournal(events);
+    expect([...appendedMessageIds].sort()).toEqual(["m_delivered", "m_dropped", "m_pending"]);
+  });
+
+  it("resets the seen set when team_created rebuilds the team (old ids do not leak into the new team)", () => {
+    // 同会话重建 team（abandon 后再建）：旧 team 的 messageId 不参与新 team 对账
+    // ——旧集重置；新 team 内的条目正常入集。
+    const events: TeamJournalEvent[] = [
+      created(1, "team_old"),
+      mailEvent(2, "m_old_team"),
+      created(3, "team_new"),
+      mailEvent(4, "m_new_team"),
+    ];
+    const { appendedMessageIds } = replayTeamJournal(events);
+    expect([...appendedMessageIds]).toEqual(["m_new_team"]);
+  });
+});
+
+// ---------- 2026-10-27 终报链修复批（journal 侧：L4 manager 口径 + M12 终局重放推导）----------
+
+describe("replay busy derivation excludes the manager (2026-10-27 L4, §22 口径对齐)", () => {
+  const AT = "2026-10-27T00:00:00.000Z";
+
+  it("a manager still in its spawning placeholder does not pin the restored team active", () => {
+    // crash 窗口事实流：approved 已落、manager 的 member_added 未刷盘——manager 保持
+    // pending_ 占位（重放的 spawning 态），workers 已全部真实出生（重放统一终态化）。
+    // 修复前 derivedActiveIdle 不排除 manager：busy 误判 active，与 hub
+    // hasWorkingMember 的 §22 口径分叉（workers 全终态应 idle——终报派发边缘挂
+    // idle，分叉会让恢复后的团队永不再触发派发）。
+    const events: TeamJournalEvent[] = [
+      {
+        seq: 1,
+        at: AT,
+        payload: {
+          kind: "team_created",
+          teamId: "team_l4",
+          leadSessionId: "lead_s1",
+          managerName: "morgana",
+          createdAt: AT,
+        },
+      },
+      {
+        seq: 2,
+        at: AT,
+        payload: {
+          kind: "staged",
+          teamId: "team_l4",
+          managerName: "morgana",
+          awaitingFeedback: false,
+          members: [{ memberName: "morgana" }, { memberName: "alice" }],
+          tasks: [],
+        },
+      },
+      { seq: 3, at: AT, payload: { kind: "approved", teamId: "team_l4" } },
+      {
+        seq: 4,
+        at: AT,
+        payload: {
+          kind: "member_added",
+          teamId: "team_l4",
+          memberName: "alice",
+          agentId: "agent_alice",
+          childSessionId: "child_alice",
+        },
+      },
+    ];
+    const { record } = replayTeamJournal(events);
+    expect(record).toBeDefined();
+    expect(record!.status).toBe("idle"); // 修复前：manager 的 spawning 占位 → active
+  });
+});
+
+describe("replay busy derivation filters off-roster recipients (2026-10-27 M3 口径对齐)", () => {
+  const AT = "2026-10-27T00:00:00.000Z";
+
+  it("an undelivered entry addressed to a removed member does not pin the restored team active", () => {
+    // crash 窗口：bob 已移除、其滞留邮件的 message_dropped 事实未刷盘——重放邮箱含
+    // to=bob 的未投条目。hub 侧 busy 谓词按收件人在册过滤（M3 isRecipientOnRoster）；
+    // 重放侧同口径（recipientOnRoster），否则未终报未派发的恢复团队得到重放 active /
+    // 运行态 idle 的分叉初值。
+    const events: TeamJournalEvent[] = [
+      {
+        seq: 1,
+        at: AT,
+        payload: {
+          kind: "team_created",
+          teamId: "team_dead",
+          leadSessionId: "lead_s1",
+          managerName: "morgana",
+          createdAt: AT,
+        },
+      },
+      {
+        seq: 2,
+        at: AT,
+        payload: {
+          kind: "staged",
+          teamId: "team_dead",
+          managerName: "morgana",
+          awaitingFeedback: false,
+          members: [{ memberName: "morgana" }, { memberName: "alice" }, { memberName: "bob" }],
+          tasks: [],
+        },
+      },
+      { seq: 3, at: AT, payload: { kind: "approved", teamId: "team_dead" } },
+      {
+        seq: 4,
+        at: AT,
+        payload: {
+          kind: "member_added",
+          teamId: "team_dead",
+          memberName: "alice",
+          agentId: "agent_alice",
+          childSessionId: "child_alice",
+        },
+      },
+      {
+        seq: 5,
+        at: AT,
+        payload: {
+          kind: "member_added",
+          teamId: "team_dead",
+          memberName: "bob",
+          agentId: "agent_bob",
+          childSessionId: "child_bob",
+        },
+      },
+      {
+        seq: 6,
+        at: AT,
+        payload: { kind: "member_removed", teamId: "team_dead", memberName: "bob" },
+      },
+      {
+        seq: 7,
+        at: AT,
+        payload: {
+          kind: "message_appended",
+          teamId: "team_dead",
+          entry: {
+            messageId: "m_stale",
+            from: "alice",
+            to: "bob",
+            message: "stale mail to a removed recipient",
+            at: AT,
+            deliveredAccepted: false,
+          },
+        },
+      },
+    ];
+    const { record } = replayTeamJournal(events);
+    expect(record).toBeDefined();
+    expect(record!.status).toBe("idle"); // 修复前：离册收件人的滞留条目被计忙 → active
+  });
+});
+
+describe("final-report finale status replay derivation (2026-10-27 M12-core, 决策 D3)", () => {
+  const AT = "2026-10-27T00:00:00.000Z";
+
+  function finaleEvents(
+    taskStatus: "completed" | "failed" | "cancelled",
+    extra: TeamJournalEvent[] = [],
+  ): TeamJournalEvent[] {
+    const taskFact = (
+      status: "pending" | "completed" | "failed" | "cancelled",
+    ) => ({
+      taskId: "t1",
+      title: "t1",
+      spec: { goal: "g", acceptance: ["a"] },
+      status,
+      attempt: 1,
+      dependsOn: [],
+      artifactRefs: [],
+      createdAt: AT,
+      updatedAt: AT,
+    });
+    return [
+      {
+        seq: 1,
+        at: AT,
+        payload: {
+          kind: "team_created",
+          teamId: "team_fin",
+          leadSessionId: "lead_s1",
+          managerName: "morgana",
+          createdAt: AT,
+        },
+      },
+      {
+        seq: 2,
+        at: AT,
+        payload: {
+          kind: "staged",
+          teamId: "team_fin",
+          managerName: "morgana",
+          awaitingFeedback: false,
+          members: [{ memberName: "morgana" }, { memberName: "alice" }],
+          tasks: [taskFact("pending")],
+        },
+      },
+      { seq: 3, at: AT, payload: { kind: "approved", teamId: "team_fin" } },
+      {
+        seq: 4,
+        at: AT,
+        payload: {
+          kind: "task_updated",
+          teamId: "team_fin",
+          task: taskFact(taskStatus),
+        },
+      },
+      // 评审修正：worker 的 member_added 必在场——否则 alice 保持 pending_/spawning
+      // 占位（finalizeMemberStates 跳过 pending_ 前缀），busy 推导按既有语义正确计忙，
+      // 「无送达事实维持 idle」的用例会被夹具自身弄红（非 L4/M12 修复缺陷）。
+      {
+        seq: 5,
+        at: AT,
+        payload: {
+          kind: "member_added",
+          teamId: "team_fin",
+          memberName: "alice",
+          agentId: "agent_alice",
+          childSessionId: "child_alice",
+        },
+      },
+      ...extra,
+      { seq: 99, at: AT, payload: { kind: "final_report_delivered", teamId: "team_fin" } },
+    ];
+  }
+
+  it("final_report_delivered + a completed/failed task derives status completed (no new journal kinds)", () => {
+    const { record: completed } = replayTeamJournal(finaleEvents("completed"));
+    expect(completed!.status).toBe("completed");
+    // 失败结论的收尾汇报亦是完成（全 failed ≠ 全 cancelled）。
+    const { record: failed } = replayTeamJournal(finaleEvents("failed"));
+    expect(failed!.status).toBe("completed");
+  });
+
+  it("final_report_delivered with every task cancelled derives status cancelled", () => {
+    const { record } = replayTeamJournal(finaleEvents("cancelled"));
+    expect(record!.status).toBe("cancelled");
+  });
+
+  it("without the delivered fact the derivation stays in the busy family (idle), and halted still wins", () => {
+    // 无送达事实：终态团队照旧推导 idle（completed 不得凭任务分布凭空出现）。
+    const withoutDelivered = finaleEvents("completed").filter(
+      (event) => event.payload.kind !== "final_report_delivered",
+    );
+    const { record } = replayTeamJournal(withoutDelivered);
+    expect(record!.status).toBe("idle");
+    // frozen（halted 最后事实）优先于终局推导——防御性保持（事实序上送达后端口
+    // 全关，冻结后置不可达）。
+    const halted = replayTeamJournal([
+      ...finaleEvents("completed"),
+      { seq: 100, at: AT, payload: { kind: "halted", teamId: "team_fin" } },
+    ]);
+    expect(halted.record!.status).toBe("halted");
+  });
+});
+
+// ---------- 2026-10-27 M8（决策 D7）：approved 事实的 permissionMode 重放回写 ----------
+
+describe("approved fact writes back the approval-time permissionMode on replay (M8/决策 D7)", () => {
+  it("批准覆写 → 冷恢复重放回写批准值，不回退建队捕获值", async () => {
+    const store = createMemorySessionStore();
+    const sink = createTeamJournalSessionStoreSink({ sessionStore: store, sessionId: "lead_s1" });
+    const warns: string[] = [];
+    const spawn = makeConfirmingSpawn();
+    const hub = new TeamHub({
+      clock: makeClock(),
+      spawnMembers: spawn.forward,
+      leadPermissionMode: "build", // 建队捕获值
+      journalWriter: (event) => sink.append(event),
+    });
+    spawn.bind(hub);
+    hub.stageTeam("lead_s1", STAGE_INPUT);
+    // §10 增补三：批准时刻覆写（经 port 携带 options，L9）
+    const approved = await hub.leadPort("lead_s1").approveStage({ permissionMode: "yolo" });
+    expect(approved.status).toBe("ok");
+    await sink.flush();
+
+    const events = await journalEventsOf(store, (message) => warns.push(message));
+    expect(warns).toEqual([]);
+    // 事实面：approved 事实携带覆写值（M8）
+    const approvedFact = events.find((event) => event.payload.kind === "approved") as {
+      payload: { permissionMode?: string };
+    };
+    expect(approvedFact?.payload.permissionMode).toBe("yolo");
+
+    // 重放回写：恢复后的 record 保持批准值（修复前回退 team_created 的 build）
+    const { record } = replayTeamJournal(events);
+    expect(record!.permissionMode).toBe("yolo");
+  });
+
+  it("approved 事实无 permissionMode 键（legacy 流）→ 维持建队捕获值；未知值 warn + 缺席", () => {
+    const base: TeamJournalEvent[] = [
+      {
+        seq: 1,
+        at: "t0",
+        payload: {
+          kind: "team_created",
+          teamId: "team_x",
+          leadSessionId: "lead_s1",
+          permissionMode: "guarded",
+          createdAt: "t0",
+        },
+      },
+      { seq: 2, at: "t0", payload: { kind: "approved", teamId: "team_x" } },
+    ];
+    expect(replayTeamJournal(base).record!.permissionMode).toBe("guarded");
+
+    const warns: string[] = [];
+    // 未知模式值（旧版本/损坏流）：结构守卫通过（string），重放 warn + 缺席不猜语义。
+    const withUnknown: TeamJournalEvent[] = [
+      ...base,
+      {
+        seq: 3,
+        at: "t0",
+        payload: {
+          kind: "approved",
+          teamId: "team_x",
+          permissionMode: "wild-mode",
+        } as unknown as TeamJournalEvent["payload"],
+      },
+    ];
+    const unknown = replayTeamJournal(withUnknown, (message) => warns.push(message));
+    expect(unknown.record!.permissionMode).toBe("guarded"); // 不猜语义（spec §8.1）
+    expect(warns.join("\n")).toContain("wild-mode");
   });
 });

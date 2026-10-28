@@ -31,6 +31,7 @@ import {
   PlayIcon,
   SquareIcon,
   SquareTerminalIcon,
+  UsersIcon,
   Workflow,
 } from "lucide-react";
 import {
@@ -49,6 +50,7 @@ import type {
   BackgroundWorkSummary,
   GoalState,
   PlanState,
+  TeamProjectionState,
   ToolCallRow,
   WorkflowRunState,
 } from "@drora/shared/drora-protocol-v4";
@@ -75,7 +77,11 @@ import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { formatBackgroundTaskElapsedLabel } from "@/BackgroundTaskElapsedLabel.js";
 import { GitActionMenu } from "@/GitActionMenu.js";
 import { GitBranchSwitcher } from "@/GitBranchSwitcher.js";
+import { useConfirmDialog } from "@/hooks/useConfirmDialog.js";
 import { useDroraIntl } from "@/i18n/IntlProvider.js";
+import { TEAM_STATUS_I18N_KEYS } from "@/team/team-status-presentation.js";
+import { teamRejectionReasonI18nKeyOrUndefined } from "@/team/TeamStagedEditor.js";
+import type { TeamCommandOutcome } from "@/team/commands.js";
 import type {
   OpenPlanDetailSideTabRequest,
   OpenSubagentDirectorySideTabRequest,
@@ -89,6 +95,7 @@ import {
   type ConversationStatusPanelRunningSubagent,
   type ConversationStatusPanelModel,
   type ConversationStatusPanelSessionPlanItem,
+  type ConversationStatusPanelTeam,
   type ConversationStatusPanelWorkflowRun,
 } from "@/v4/conversationStatusPanelModel.js";
 import type { ConversationStatusPanelWorkflowRunTarget } from "@/v4/conversationStatusPanelModel.js";
@@ -124,6 +131,17 @@ export interface ConversationStatusPanelProps {
    */
   endedWorkflowRunCount?: number;
   endedSubagentCount?: number;
+  /** team 投影（specs/agents-team.md §19 契约 6）：缺席/终态时面板不渲染 Team 分区。 */
+  team?: TeamProjectionState | null;
+  /** 打开 team 侧栏面板（行点击；宿主接 TeamNavigation，同一打开路径）。缺席 = 行不可点。 */
+  onOpenTeamPanel?: () => void;
+  /**
+   * 一键停止团队（specs/agents-team.md §10 增补）：发送 haltTeam 并返回 outcome；
+   * 缺席（手机远控/只读）= 不渲染停止钮。确认与失败出显由面板内聚。
+   */
+  onHaltTeam?: () => Promise<TeamCommandOutcome>;
+  /** 一键恢复（§10 增补二）：reason 必填；缺席 = 不渲染恢复钮。 */
+  onResumeTeam?: (reason: string) => Promise<TeamCommandOutcome>;
   rootSessionId?: string;
   parentSessionId?: string;
   /** 当前 pane 是否由手机 Web 远控壳承载。 */
@@ -234,7 +252,8 @@ type StatusSectionKind =
   | "plan"
   | "terminal"
   | "workflow"
-  | "agent";
+  | "agent"
+  | "team";
 
 const STATUS_SECTION_SCROLL_POLICY = {
   environment: null,
@@ -246,6 +265,8 @@ const STATUS_SECTION_SCROLL_POLICY = {
   // workflow 行定高 56px，列表滚到三行半（196px）：露出的半行告诉人下面还有。
   workflow: "max-h-[12.25rem]",
   agent: "max-h-48",
+  // team 是单行分区（一个会话至多一个团队，§19 契约 6），无可滚动列表。
+  team: null,
 } as const satisfies Record<StatusSectionKind, string | null>;
 
 function StatusSectionHeader({
@@ -1327,6 +1348,230 @@ function WorkflowRunRow({
 }
 
 /**
+ * Team 分区（specs/agents-team.md §19 契约 6 运行态最小闭环，2026-10-23）：与
+ * Terminals / Agents / Workflows 并列的实时活动分区，单行——一个会话至多一个团队
+ * （§0 team 键单例）。staged 有 timeline bottom dock 钉底、终态由会话流摘要卡与任务
+ * 列表徽标承载，面板只收在途状态（模型层已过滤）。行点击经 onOpenTeamPanel 打开
+ * team 侧栏面板（与摘要卡「打开面板」同一 TeamNavigation 路径，不造第二条导航）；
+ * 宿主缺席（如手机远控未接线）时行退化为不可点的事实行，不假装可开。
+ */
+function TeamStatusSection({
+  separated,
+  team,
+  onOpenTeamPanel,
+  onHaltTeam,
+  onResumeTeam,
+}: {
+  separated: boolean;
+  team: ConversationStatusPanelTeam;
+  onOpenTeamPanel?: () => void;
+  /**
+   * 一键停止（specs/agents-team.md §10 增补，2026-10-26）：宿主注入的 haltTeam 发送
+   * （返回 TeamCommandOutcome）。缺席（手机远控/只读）= 不渲染停止钮。二次确认在本组件
+   * 内完成（复用侧栏同款文案）；失败经行内 role=alert 出显（§19 契约 5 同款纪律）。
+   */
+  onHaltTeam?: () => Promise<TeamCommandOutcome>;
+  /**
+   * 一键恢复（§10 增补二，2026-10-26）：reason 必填（spec §1 产品规则，不因对齐
+   * workflow 放松）。缺席 = 不渲染恢复钮；失败出显与停止同一行内 alert。
+   */
+  onResumeTeam?: (reason: string) => Promise<TeamCommandOutcome>;
+}) {
+  const { intl } = useDroraIntl();
+  const requestConfirmation = useConfirmDialog();
+  const [haltFailure, setHaltFailure] = useState<{
+    action: "halt" | "resume";
+    reasonCode?: string;
+  } | null>(null);
+  const [resumeOpen, setResumeOpen] = useState(false);
+  const [resumeReason, setResumeReason] = useState("");
+  const [resumeSending, setResumeSending] = useState(false);
+  const statusLabel = intl.formatMessage({ id: TEAM_STATUS_I18N_KEYS[team.status] });
+  // 二次确认 + 发送 + 失败出显（照 TeamPanel HaltTeamButton 的确认语义；失败文案复用
+  // team.panel.commandFailure.* 族，reasonCode 查表兜底同侧栏）。
+  const handleHalt = async () => {
+    if (onHaltTeam === undefined) return;
+    setHaltFailure(null);
+    const confirmed = await requestConfirmation({
+      title: intl.formatMessage({ id: "team.panel.haltConfirmTitle" }),
+      description: intl.formatMessage({ id: "team.panel.haltConfirmBody" }),
+      confirmLabel: intl.formatMessage({ id: "team.panel.haltConfirmLabel" }),
+      confirmVariant: "destructive",
+    });
+    if (!confirmed) return;
+    const outcome = await onHaltTeam();
+    if (outcome.ok) return;
+    setHaltFailure({
+      action: "halt",
+      ...(outcome.ack?.reasonCode ? { reasonCode: outcome.ack.reasonCode } : {}),
+    });
+  };
+  // 一键恢复（§10 增补二）：理由必填本地门 + 发送 + 在途防双击；失败与停止共用
+  // 行内 alert（action 标签按来源区分），失败后理由输入保留。
+  const handleResume = async () => {
+    if (onResumeTeam === undefined || resumeSending) return;
+    const trimmed = resumeReason.trim();
+    if (trimmed === "") return;
+    setHaltFailure(null);
+    setResumeSending(true);
+    const outcome = await onResumeTeam(trimmed);
+    setResumeSending(false);
+    if (outcome.ok) return;
+    setHaltFailure({
+      action: "resume",
+      ...(outcome.ack?.reasonCode ? { reasonCode: outcome.ack.reasonCode } : {}),
+    });
+  };
+  const words = intl.formatMessage(
+    { id: "chat.statusPanel.teamRowWords" },
+    {
+      working: String(team.workingCount),
+      members: String(team.memberCount),
+      completed: String(team.completed),
+      total: String(team.total),
+    },
+  );
+  return (
+    <StatusSection
+      section="team"
+      defaultOpen
+      separated={separated}
+      title={intl.formatMessage({ id: "chat.statusPanel.team" })}
+      trailing={() =>
+        team.workingCount > 0 ? (
+          <span>
+            {intl.formatMessage(
+              { id: "chat.statusPanel.teamWorking" },
+              { count: String(team.workingCount) },
+            )}
+          </span>
+        ) : null
+      }
+    >
+      <div className="px-2 pb-1">
+        {haltFailure === null ? null : (
+          <p
+            role="alert"
+            className="mb-1 text-ui-caption text-destructive"
+            data-testid="status-panel-team-halt-error"
+          >
+            {intl.formatMessage(
+              { id: "team.panel.commandFailure.line" },
+              {
+                action: intl.formatMessage({ id: `team.panel.action.${haltFailure.action}` }),
+                reason: intl.formatMessage({
+                  id:
+                    haltFailure.reasonCode === undefined
+                      ? "team.panel.commandFailure.transport"
+                      : (teamRejectionReasonI18nKeyOrUndefined(haltFailure.reasonCode) ??
+                        "team.panel.commandFailure.fallback"),
+                }),
+              },
+            )}
+          </p>
+        )}
+        <button
+          type="button"
+          onClick={onOpenTeamPanel}
+          disabled={onOpenTeamPanel === undefined}
+          data-testid="status-panel-team-row"
+          className="flex w-full min-w-0 items-center gap-2 rounded-md px-1 py-1 text-left hover:bg-hover disabled:hover:bg-transparent disabled:cursor-default focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <UsersIcon className="size-4 shrink-0 text-[var(--color-foreground-subtle)]" />
+          <span className="min-w-0 flex-1 truncate text-ui-sm text-[var(--color-foreground)]">
+            {team.name ?? intl.formatMessage({ id: "team.ui.title" })}
+          </span>
+          <span className="shrink-0 text-ui-caption text-[var(--color-foreground-subtle)]">
+            {statusLabel}
+          </span>
+          <span className="shrink-0 text-ui-caption text-[var(--color-foreground-subtlest)] tabular-nums">
+            {words}
+          </span>
+          {team.blockedCount > 0 ? (
+            <span className="shrink-0 text-ui-caption text-warning">
+              {intl.formatMessage(
+                { id: "chat.statusPanel.teamBlocked" },
+                { count: String(team.blockedCount) },
+              )}
+            </span>
+          ) : null}
+          {onHaltTeam === undefined || team.status === "halted" ? null : (
+            // 一键停止（§10 增补）：照 WorkflowRunRow 的 Stop 形态（图标钮）；
+            // pointer-coarse ≥44px 同面板纪律。
+            <button
+              type="button"
+              aria-label={intl.formatMessage({ id: "team.panel.halt" })}
+              title={intl.formatMessage({ id: "team.panel.halt" })}
+              data-testid="status-panel-team-halt"
+              className="flex size-6 shrink-0 items-center justify-center rounded-md text-foreground-subtle hover:bg-hover hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring pointer-coarse:min-h-11 pointer-coarse:min-w-11"
+              onClick={(event) => {
+                event.stopPropagation();
+                void handleHalt();
+              }}
+            >
+              <SquareIcon className="size-3.5" />
+            </button>
+          )}
+          {onResumeTeam === undefined || team.status !== "halted" ? null : (
+            // 一键恢复（§10 增补二）：停止钮的对称位；点开理由输入行（理由必填，
+            // spec §1）。active/escalated 不出（与停止钮互斥呈现）。
+            <button
+              type="button"
+              aria-label={intl.formatMessage({ id: "team.panel.resume" })}
+              title={intl.formatMessage({ id: "team.panel.resume" })}
+              aria-expanded={resumeOpen}
+              data-testid="status-panel-team-resume"
+              className="flex size-6 shrink-0 items-center justify-center rounded-md text-foreground-subtle hover:bg-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring pointer-coarse:min-h-11 pointer-coarse:min-w-11"
+              onClick={(event) => {
+                event.stopPropagation();
+                setResumeOpen((value) => !value);
+              }}
+            >
+              <PlayIcon className="size-3.5" />
+            </button>
+          )}
+        </button>
+        {resumeOpen && onResumeTeam !== undefined && team.status === "halted" ? (
+          // 恢复理由行（§10 增补二）：输入 + 提交，空白禁提交、在途防双击；失败后
+          // 输入保留。成功后投影翻 active，本行随 halted 消失自然卸载。
+          <div className="mt-1 flex items-center gap-2">
+            <input
+              type="text"
+              value={resumeReason}
+              onChange={(event) => setResumeReason(event.target.value)}
+              disabled={resumeSending}
+              aria-label={intl.formatMessage({ id: "team.panel.resumeReasonLabel" })}
+              placeholder={intl.formatMessage({ id: "team.panel.resumeReasonPlaceholder" })}
+              data-testid="status-panel-team-resume-reason"
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && !event.nativeEvent.isComposing) {
+                  event.preventDefault();
+                  void handleResume();
+                }
+              }}
+              className="h-8 min-w-0 flex-1 rounded-lg border border-border bg-surface px-2 text-ui-sm text-foreground placeholder:text-foreground-subtlest focus-visible:border-ring focus-visible:outline-none pointer-coarse:min-h-11"
+            />
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={resumeSending || resumeReason.trim() === ""}
+              onClick={() => {
+                void handleResume();
+              }}
+              data-testid="status-panel-team-resume-submit"
+              className="pointer-coarse:min-h-11"
+            >
+              {intl.formatMessage({ id: "team.panel.resume" })}
+            </Button>
+          </div>
+        ) : null}
+      </div>
+    </StatusSection>
+  );
+}
+
+/**
  * Workflows 分区：与 Terminals / Agents 并列的第三类实时活动，**外加**一条通往 run 目录的
  * 页脚行——已结束的 run 折进这条页脚行，不占活动列表的位置。
  *
@@ -1910,6 +2155,10 @@ function ConversationStatusPanelImpl({
   onOpenSubagentDirectory,
   onOpenWorkflowRun,
   onOpenWorkflowRunDirectory,
+  team,
+  onOpenTeamPanel,
+  onHaltTeam,
+  onResumeTeam,
   className,
 }: ConversationStatusPanelProps) {
   const isOfficeMode = useIsOfficeMode();
@@ -1927,6 +2176,7 @@ function ConversationStatusPanelImpl({
         backgroundWorks,
         runningSubagents,
         workflowRuns,
+        team,
       }),
     [
       isOfficeMode,
@@ -1939,6 +2189,7 @@ function ConversationStatusPanelImpl({
       plan,
       runningSubagents,
       workflowRuns,
+      team,
       workspacePath,
     ],
   );
@@ -1972,6 +2223,8 @@ function ConversationStatusPanelImpl({
   // 已结束目录入口过去渲染在 Agent StatusSection 之后，视觉和 DOM 都被提升成
   // 并列顶层 section。Agent 的运行态和已结束目录属于同一领域，统一由 Agent 折叠分组承载。
   const canRenderAgents = model.runningSubagentWorks.length > 0 || canRenderEndedAgents;
+  // team 分区（§19 契约 6）：模型层只收在途状态，非 null 即有行。
+  const canRenderTeam = model.team !== null;
   const handlePanelModeChange = useCallback(
     (value: string) => {
       if (value === "auto") {
@@ -2195,6 +2448,23 @@ function ConversationStatusPanelImpl({
                 rootSessionId={rootSessionId}
                 onOpenSubagentSession={onOpenSubagentSession}
                 onOpenSubagentDirectory={onOpenSubagentDirectory}
+              />
+            ) : null}
+            {canRenderTeam && model.team !== null ? (
+              <TeamStatusSection
+                team={model.team}
+                onOpenTeamPanel={onOpenTeamPanel}
+                onHaltTeam={onHaltTeam}
+                onResumeTeam={onResumeTeam}
+                separated={
+                  canRenderGit ||
+                  canRenderGoal ||
+                  canRenderSessionPlans ||
+                  canRenderPlan ||
+                  canRenderTerminals ||
+                  canRenderWorkflows ||
+                  canRenderAgents
+                }
               />
             ) : null}
           </div>

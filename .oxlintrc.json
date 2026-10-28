@@ -23,6 +23,9 @@
         "**/apps/drora-cli/packages/bootstrap/src/drora-protocol/session-mapper.ts",
         "**/apps/drora-cli/packages/bootstrap/src/drora-protocol/v4-bridge.ts",
         "**/apps/drora-cli/packages/contracts/src/interfaces/session-store.port.ts",
+        // §21 C（2026-10-24）：team hub 有效行超 800（状态所有者单文件集中裁决，
+        // 拆分归后续重构卡）——照 steering.ts 先例只 warn 不机械拆分。
+        "**/apps/drora-cli/packages/core/src/team/hub.ts",
         "**/apps/drora-cli/packages/core/src/runtime/methods/steering.ts",
         "**/apps/drora-cli/packages/core/src/runtime/methods/turn.ts",
         "**/apps/drora-cli/packages/core/src/runtime/methods/turn-model-step.ts",
@@ -30,6 +33,7 @@
         "src/runtime/methods/steering.ts",
         "src/runtime/methods/turn.ts",
         "src/runtime/methods/turn-model-step.ts",
+        "src/team/hub.ts",
         "**/packages/ui/src/remote-connection-flow/index.ts"
       ],
       "rules": {

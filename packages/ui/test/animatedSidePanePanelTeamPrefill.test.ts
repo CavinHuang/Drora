@@ -11,9 +11,12 @@ import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AnimatedSidePanePanel } from "@/app-shell/AnimatedSidePanePanel.js";
 import { DroraIntlProvider } from "@/i18n/IntlProvider.js";
-import type { TeamSidePaneTab } from "@/lib/workspaceSidePane.js";
+import type { TeamMemberSidePaneTab, TeamSidePaneTab } from "@/lib/workspaceSidePane.js";
 
-const captured = vi.hoisted(() => ({ teamSidePaneProps: null as unknown }));
+const captured = vi.hoisted(() => ({
+  teamSidePaneProps: null as unknown,
+  teamMemberTabPaneProps: null as unknown,
+}));
 
 vi.mock("@/app-shell/TeamSidePane.js", async () => {
   const React = await import("react");
@@ -21,6 +24,10 @@ vi.mock("@/app-shell/TeamSidePane.js", async () => {
     TeamSidePane: (props: Record<string, unknown>) => {
       captured.teamSidePaneProps = props;
       return React.createElement("div", { "data-testid": "mock-team-side-pane" });
+    },
+    TeamMemberTabPane: (props: Record<string, unknown>) => {
+      captured.teamMemberTabPaneProps = props;
+      return React.createElement("div", { "data-testid": "mock-team-member-tab-pane" });
     },
   };
 });
@@ -50,7 +57,21 @@ const teamTab: TeamSidePaneTab = {
   parentSessionId: "lead-session-1",
 };
 
-function renderPanel(onPrefillComposer?: (prefill: string) => void) {
+// L15：成员 transcript tab（TeamMemberTabPane 未声明 onPrefillComposer——此前宿主
+// 条件 spread 传入被静默丢弃，已删除死传参；本用例锁定该键不再下发，防假接线回潮）。
+const teamMemberTab: TeamMemberSidePaneTab = {
+  id: "team-member-tab-1",
+  type: "team-member",
+  workspaceKey: "/ws",
+  workspacePath: "/ws",
+  parentSessionId: "lead-session-1",
+  memberName: "alice",
+};
+
+function renderPanel(
+  onPrefillComposer?: (prefill: string) => void,
+  tab: TeamSidePaneTab | TeamMemberSidePaneTab = teamTab,
+) {
   const noop = () => undefined;
   return render(
     createElement(
@@ -59,7 +80,7 @@ function renderPanel(onPrefillComposer?: (prefill: string) => void) {
       createElement(AnimatedSidePanePanel, {
         services: {} as never,
         isVisible: true,
-        sidePaneState: { tabs: [teamTab], activeTabId: teamTab.id },
+        sidePaneState: { tabs: [tab], activeTabId: tab.id },
         recentClosedSidePaneTabs: [],
         isBrowserOpen: false,
         workspaceAbsPath: "/ws",
@@ -108,6 +129,7 @@ function renderPanel(onPrefillComposer?: (prefill: string) => void) {
 
 afterEach(() => {
   captured.teamSidePaneProps = null;
+  captured.teamMemberTabPaneProps = null;
   cleanup();
 });
 beforeEach(() => {
@@ -136,6 +158,16 @@ describe("AnimatedSidePanePanel team branch forwards onPrefillComposer (缺口9)
     expect(screen.getByTestId("mock-team-side-pane")).toBeTruthy();
     expect(
       Object.prototype.hasOwnProperty.call(captured.teamSidePaneProps, "onPrefillComposer"),
+    ).toBe(false);
+  });
+});
+
+describe("team-member tab 分支不下发 onPrefillComposer（L15 死传参清理）", () => {
+  it("即使挂载点提供 onPrefillComposer，TeamMemberTabPane 也不收到该键（成员视图无预填入口）", () => {
+    renderPanel((prefill: string) => prefill, teamMemberTab);
+    expect(screen.getByTestId("mock-team-member-tab-pane")).toBeTruthy();
+    expect(
+      Object.prototype.hasOwnProperty.call(captured.teamMemberTabPaneProps, "onPrefillComposer"),
     ).toBe(false);
   });
 });

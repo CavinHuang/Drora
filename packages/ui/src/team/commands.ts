@@ -2,8 +2,10 @@ import type {
   CommandAck,
   CommandEnvelope,
   CommandPayloadMap,
+  TeamHistoryResult,
   TeamV4CommandType,
 } from "@drora/shared/drora-protocol-v4";
+import { TEAM_HISTORY_QUERY, teamHistoryResultSchema } from "@drora/shared/drora-protocol-v4";
 import { createCommandEnvelope } from "@/v4/commandFactory.js";
 import { recordV4CommandAck } from "@/v4/commandAckObservability.js";
 import { logger } from "@/logger.js";
@@ -77,19 +79,46 @@ async function sendTeamCommand<T extends TeamV4CommandType>(
     }
     return { ok, ack };
   } catch (error) {
-    logger.error("[team-commands] 团队命令发送失败", {
+    // §21 A11（2026-10-24，specs/agents-team.md）：传输异常（断线/握手失败/能力缺席）
+    // 可恢复、用户可重试——AGENTS.md 分级口径「warn 用于可恢复异常」，与下方
+    // queryTeamHistory 的 catch 同级 warn（此前两处 error/warn 错位，无从按级过滤）。
+    logger.warn("[team-commands] 团队命令发送失败", {
       type,
       sessionId: input.sessionId,
       commandId: envelope.commandId,
       error,
     });
+    // 2026-10-23（specs/agents-team.md §14 缺口11 补环的 catch 半边补齐）：传输异常
+    // 同属 commandAckObservability 头注「每条命令」一条账——此前只进 logger，
+    // 环形缓冲里该命令完全缺席，e2e/现场 probe 分不清「未派发」与「已派发但传输失败」。
+    // status 用派发路径同款字面量 "transport-error"（v4/SessionPane.tsx 派发 catch；
+    // UI 本地观测面非跨进程契约键，不收 shared 常量，两处注释互指）。
+    // §21 A12：补 reasonCode: String(error)（与 SessionPane:2215-2221 同口径）——
+    // probe 断线/能力缺席/握手失败原因时 team 命令不再不可见。
+    recordV4CommandAck({
+      type,
+      status: "transport-error",
+      reasonCode: String(error),
+      at: Date.now(),
+    });
     return { ok: false, error };
   }
 }
 
-/** staged 草案「确认并启动」：唯一创建成员入口（design §6.2；载荷为空，草案全文在 hub）。 */
-export function approveTeamPlan(input: TeamCommandInput): Promise<TeamCommandOutcome> {
-  return sendTeamCommand(input, "approveTeamPlan", {});
+/**
+ * staged 草案「确认并启动」：唯一创建成员入口（design §6.2；草案全文在 hub）。
+ * §10 增补三：optional permissionMode 随批准覆写成员权限（审批面板选择行；缺省维持
+ * 建队捕获值）。
+ */
+export function approveTeamPlan(
+  input: TeamCommandInput & CommandPayloadMap["approveTeamPlan"],
+): Promise<TeamCommandOutcome> {
+  const { permissionMode, rememberForSession } = input;
+  // §10 增补六：rememberForSession 随行（true=会话免问标志，wire additive optional）。
+  return sendTeamCommand(input, "approveTeamPlan", {
+    ...(permissionMode === undefined ? {} : { permissionMode }),
+    ...(rememberForSession === undefined ? {} : { rememberForSession }),
+  });
 }
 
 /** 「回对话修改」：草案标记等待反馈并取消规划回合；修改方向由用户在对话里说（spec §10）。 */
@@ -153,4 +182,69 @@ export function resumeTeam(
 ): Promise<TeamCommandOutcome> {
   const { reason } = input;
   return sendTeamCommand(input, "resumeTeam", { reason });
+}
+
+/** 历史查询的连接（原 useTeamHistory 本地形态，随命令收口迁入单一出处）。 */
+export interface TeamHistoryConnection {
+  sessionId: string;
+  sendCommand: (envelope: CommandEnvelope) => Promise<CommandAck>;
+}
+
+/**
+ * team 域第九条命令：历史查询（TEAM_HISTORY_QUERY；specs/agents-team.md §19 契约 6
+ * 低危项收口，2026-10-23）。此前信封在 useTeamHistory 内直构、ACK 不进
+ * commandAckObservability 环形缓冲——八命令补观测环的同一理由（AT-01 实证 probe 不到
+ * ACK）对历史查询同样成立；信封构造/发送/ACK 记录自此单一出处。payload 形状
+ * { teamId, beforeSeq?, throughSeq? }（shared command.ts 注册表的第九条：schema 在
+ * drora-protocol-v4/team-history.ts，经 TEAM_HISTORY_QUERY_SCHEMAS 挂载）。
+ *
+ * @returns ok=false = 被拒/载荷不合法/传输异常（ack 缺席或解析失败），调用面出错误态。
+ */
+export async function queryTeamHistory(
+  connection: TeamHistoryConnection,
+  teamId: string,
+  cursor: { beforeSeq?: number; throughSeq?: number } = {},
+): Promise<{ ok: boolean; data?: TeamHistoryResult }> {
+  const envelope = createCommandEnvelope({
+    type: TEAM_HISTORY_QUERY,
+    sessionId: connection.sessionId,
+    payload: { teamId, ...cursor },
+  });
+  try {
+    const ack = await connection.sendCommand(envelope);
+    recordV4CommandAck({
+      type: TEAM_HISTORY_QUERY,
+      status: ack.status,
+      ...(ack.reasonCode ? { reasonCode: ack.reasonCode } : {}),
+      at: Date.now(),
+    });
+    const parsed = teamHistoryResultSchema.safeParse(ack.result);
+    if (
+      (ack.status !== "accepted" && ack.status !== "duplicate") ||
+      !parsed.success ||
+      parsed.data.teamId !== teamId
+    ) {
+      return { ok: false };
+    }
+    return { ok: true, data: parsed.data };
+  } catch (error) {
+    // §21 A11（2026-10-24，specs/agents-team.md）：与上方 sendTeamCommand 的 catch
+    // 同级 warn——同一 sendCommand 传输异常族此前两处 error/warn 错位；分级依据与
+    // 互指注释见该处（AGENTS.md「warn 用于可恢复异常」）。
+    logger.warn("[team-commands] 团队历史查询失败", {
+      sessionId: connection.sessionId,
+      teamId,
+      error,
+    });
+    // 同 sendTeamCommand catch 半边（specs/agents-team.md §19 契约 6「recordV4CommandAck
+    // 单一口径」的传输异常半边补齐）：与 SessionPane "transport-error" 同字面量互指。
+    // §21 A12：补 reasonCode: String(error)（与 SessionPane:2215-2221 同口径）。
+    recordV4CommandAck({
+      type: TEAM_HISTORY_QUERY,
+      status: "transport-error",
+      reasonCode: String(error),
+      at: Date.now(),
+    });
+    return { ok: false };
+  }
 }

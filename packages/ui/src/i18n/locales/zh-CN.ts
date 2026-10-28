@@ -1402,9 +1402,14 @@ const zhCN: Record<string, string> = {
   "team.memberPane.send": "发送",
   "team.memberPane.inputPending": "消息发送通道尚未接线，即将开放",
   "team.memberPane.inputReady": "按 Enter 发送，经 lead 团队邮箱投递",
+  // §19 契约 5（2026-10-23）：发送在途 + 失败出显——草稿永不丢（被拒/传输异常保留原文）。
+  "team.memberPane.sendFailed.line": "消息未送达：{reason}",
+  "team.memberPane.sendFailed.transport": "连接不可用，消息没有发出；输入已保留，恢复连接后重发",
+  "team.memberPane.sendFailed.fallback": "请求被拒绝（未知原因）；输入已保留，可稍后重试",
   // PR-2.4c：成员卡入口（下钻 + 发消息）、tab 状态点、状态机徽标文字（色 + 文字并行）。
   "team.panel.memberOpen": "查看 {name} 的会话",
   "team.panel.memberMessage": "给 {name} 发消息",
+  "team.ui.managerBadge": "管理者",
   "team.tab.statusDot": "团队状态：{status}",
   "team.status.staged": "待审批",
   "team.status.active": "进行中",
@@ -1418,7 +1423,6 @@ const zhCN: Record<string, string> = {
   // 词典（此前为组件内 zh 内联常量 TEAM_PANEL_COPY/TEAM_STAGED_EDITOR_COPY；design 01 §4
   // 「全部文案走 locales zh-CN/en-US 双语全量（含状态标签/动态摘要/无障碍文案）」）。
   // zh 值与原内联常量逐字一致，仅搬运不改写。
-  "team.panel.title": "团队 · {teamId}",
   "team.panel.aria": "Agents Team {teamId}",
   "team.panel.permission": "权限 {mode}",
   "team.panel.memberProgress": "{members} 成员 · {done}/{total} 任务",
@@ -1451,8 +1455,18 @@ const zhCN: Record<string, string> = {
   "team.member.state.working": "工作中",
   "team.member.state.terminal": "空闲",
   "team.member.state.removed": "已移除",
+  // §21 A1（2026-10-24）：journal 新增 message_dropped 事实的历史呈现键
+  //（动态键族 team.history.kind.*，i18n 守卫按前缀放行）。
+  "team.history.kind.message_dropped": "邮件已丢弃（发件人离册）",
+  // §22 契约 3（2026-10-27 审查 M13 补齐）：终态单条汇报两段事实的历史呈现键
+  //（同上动态键族；shared teamHistoryEntrySchema 补两 kind 后过程面板可见终局事实）。
+  "team.history.kind.final_report_dispatched": "终态汇报已派发给管理者",
+  "team.history.kind.final_report_delivered": "终态汇报已送达主会话",
   "team.stagedEditor.title": "团队计划草案",
-  "team.stagedEditor.stagedSummary": "{members} 名成员 · {tasks} 项任务，确认后才会创建成员",
+  // 2026-10-22 问句表头（spec §10 呈现规则1）：stagedSummary 移作表头计数（「N 名成员 ·
+  // N 项任务」），确认语义由问句行承载；问句行 + 失败文案键见 TeamStagedEditor 头注。
+  "team.stagedEditor.stagedSummary": "{members} 名成员 · {tasks} 项任务",
+  "team.stagedEditor.question": "启动这支团队？",
   "team.stagedEditor.awaitingFeedback": "已请求修改：请在对话里说明调整方向，模型会更新这份草案",
   "team.stagedEditor.membersHeading": "成员",
   "team.stagedEditor.tasksHeading": "任务",
@@ -1464,14 +1478,61 @@ const zhCN: Record<string, string> = {
   "team.stagedEditor.dependsOnNone": "无依赖",
   "team.stagedEditor.dependsOnSeparator": "、",
   "team.stagedEditor.noteLabel": "修改方向（可选）",
-  "team.stagedEditor.notePlaceholder": "要调整什么？可留空，回到对话里说明",
-  "team.stagedEditor.approve": "确认并启动",
-  "team.stagedEditor.revise": "回对话修改",
+  "team.stagedEditor.notePlaceholder": "描述这个团队应该怎么改…",
+  // 2026-10-23 三发起面预填通道（spec §15 第4条）：无法触达 composer 的挂载面隐藏
+  // note 输入并出本提示——禁止 note 静默丢弃（输入只会随命令上 wire 而 hub v1 不消费）。
+  "team.stagedEditor.noteSuppressedHint": "此面板无法携带修改方向：请在对话里直接说明调整方向",
+  "team.stagedEditor.approve": "允许",
+  "team.stagedEditor.approveDescription": "仅允许这一次",
+  "team.stagedEditor.approveSession": "本会话内始终允许",
+  "team.stagedEditor.approveSessionDescription": "本会话内启动团队不再询问",
+  "team.stagedEditor.revise": "提出修改",
+  // §19 契约 6（2026-10-23）：在途等待文案（发起后到 outcome 结算前，按钮全禁用）。
+  "team.stagedEditor.pendingApprove": "正在启动成员…",
+  "team.stagedEditor.pendingApproveSession": "正在允许并启动成员…",
+  "team.stagedEditor.pendingRevise": "正在发送…",
+  "team.stagedEditor.pendingAbandon": "正在归档…",
+  "team.stagedEditor.confirm": "确认",
+  // §10 增补三：审批面板成员权限选择行（枚举词汇独立成族，不与 composer 模式键混用）。
+  "team.permission.mode.build": "变更前确认",
+  "team.permission.mode.edit": "自动编辑",
+  "team.permission.mode.yolo": "完全访问",
+  "team.permission.mode.guarded": "自主模式",
+  "team.permission.mode.auto": "自动匹配",
+  "team.stagedEditor.optionsAria": "审批动作",
+  // 改名失败的 action 标签（失败行模板 {action}失败：{reason}）。
+  "team.stagedEditor.rename": "改名",
+  "team.stagedDock.title": "团队计划待确认",
   "team.stagedEditor.abandon": "放弃",
+  // 三动作失败出显（spec §10 呈现规则4）：line 为壳（动作标签 + 原因），原因按
+  // ack.reasonCode 在 TeamStagedEditor 的 TEAM_STAGED_FAILURE_REASON_I18N_KEYS 映射；
+  // 未知 reasonCode 落 fallback，传输异常（ack 缺席）落 transport。
+  "team.stagedEditor.failure.line": "{action}失败：{reason}",
+  "team.stagedEditor.failure.transport": "命令未能发送：连接不可用，请恢复连接后重试",
+  "team.stagedEditor.failure.fallback": "操作未能完成（未知原因），请重试或回到对话查看团队状态",
+  "team.stagedEditor.failure.teamNotPresent": "草案已不在：可能已被启动或放弃，请刷新后重试",
+  "team.stagedEditor.failure.teamLeadOnly": "该操作只能在发起团队规划的会话中执行",
+  "team.stagedEditor.failure.memberSpawnFailed":
+    "成员创建失败：草案完好、未创建任何成员，可修正后重新确认启动",
+  "team.stagedEditor.failure.draftInvalid": "草案校验未通过：请修正成员名、任务 id 或依赖后重试",
+  "team.stagedEditor.failure.hubUnavailable": "团队运行时未就绪：可能未开启或正在重启，请稍后重试",
   "team.stagedEditor.abandonConfirmTitle": "放弃这份团队草案？",
   "team.stagedEditor.abandonConfirmBody":
     "草案将归档且不可恢复，模型也不会自动重建；再次成队需要重新 /team。",
   "team.stagedEditor.abandonConfirmLabel": "确认放弃",
+  // §19 契约 5 扩圈（2026-10-23）：五命令 hub 拒绝码的命令域文案（composer/面板共用，
+  // 查表出处 TEAM_STAGED_FAILURE_REASON_I18N_KEYS；staged 三动作正常流触不到这些码）。
+  "team.commandFailure.teamHalted": "团队已暂停，恢复后才能继续投递",
+  "team.commandFailure.targetRetired": "目标成员已移除，无法投递",
+  "team.commandFailure.nameRedirect": "成员已改名，请用新名字重试",
+  "team.commandFailure.persistFailed": "邮箱持久化失败，消息未送达",
+  // 面板动作区命令失败出显（halt/resume/stop；TeamPanel 动作区顶部 role=alert）。
+  "team.panel.commandFailure.line": "「{action}」未完成：{reason}",
+  "team.panel.commandFailure.transport": "命令未能发送：连接不可用，请恢复连接后重试",
+  "team.panel.commandFailure.fallback": "操作未能完成（未知原因），请重试",
+  "team.panel.action.halt": "停止团队",
+  "team.panel.action.resume": "恢复团队",
+  "team.panel.action.stop": "移除成员",
   // 「回对话修改」会话输入框预填追问（design 01 §3.1）；拼接与携带规则见 team/revise-prefill.ts
   "team.revise.prefillPrompt": "要调整什么？",
   "subagentDirectory.title": "子智能体目录",
@@ -3151,7 +3212,7 @@ const zhCN: Record<string, string> = {
   "settings.toolGroupingExplore": "分组探索工具",
   "settings.agentsTeamEnabled": "智能体团队（实验）",
   "settings.agentsTeamEnabledDescription":
-    "启用 /team 多智能体协作与团队面板（默认关闭）。开启后需新开会话生效；CLI 配置 agentsTeam.enabled 的显式值仍优先。",
+    "启用 /team 多智能体协作与团队面板（默认关闭）。灰度在 Agent 进程创建时定格：已打开的窗口内新开会话不生效，需重启应用或新开窗口；CLI 配置 agentsTeam.enabled 的显式值仍优先。",
   "settings.toolGroupingExploreDescription": "将连续的读取和搜索工具聚合为 Explore 分组。",
   "settings.toolGroupingTerminal": "分组终端命令",
   "settings.toolGroupingTerminalDescription": "将连续的非只读 Shell 命令聚合为 Terminal 分组。",
@@ -5612,6 +5673,11 @@ const zhCN: Record<string, string> = {
   // Workflows 分区：与 Terminals / Agents 并列的
   // 第三类实时活动。行内的状态词与步数复用 chat.toolCall.workflow.* 那一组，不另造词汇。
   "chat.statusPanel.workflows": "工作流",
+  // Team 分区（specs/agents-team.md §19 契约 6）：单行在途团队；状态词复用 team.status.*。
+  "chat.statusPanel.team": "团队",
+  "chat.statusPanel.teamWorking": "{count} 人执行中",
+  "chat.statusPanel.teamRowWords": "成员 {working}/{members} · 任务 {completed}/{total}",
+  "chat.statusPanel.teamBlocked": "{count} 项等待前置",
   "chat.statusPanel.runningStatusValue": "{count} 个后台运行",
   "chat.statusPanel.runningStatusValuePlural": "{count} 个后台运行",
   "chat.statusPanel.runningAgentsValue": "{count} 运行",

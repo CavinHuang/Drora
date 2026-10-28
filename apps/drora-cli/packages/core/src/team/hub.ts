@@ -6,44 +6,54 @@ import type {
   TeamPermissionMode,
   TeamRosterSnapshot,
   TeamReassignInput,
+  TeamReopenInput,
   TeamSendDelivery,
   TeamSendInput,
   TeamSendResult,
   TeamStageInput,
+  TeamStageMemberDraft,
   TeamStageResult,
   TeamStatus,
   TeamTaskClaimResult,
   TeamTaskCreateInput,
   TeamTaskMutationResult,
+  TeamTaskStatus,
   TeamTaskUpdateInput,
   TeamBoardSnapshot,
 } from "@drora/contracts";
+import { TEAM_LIMITS } from "@drora/shared/drora-protocol-v4";
+import { TEAM_MEMBERS_MAX_DEFAULT } from "@drora/contracts";
 import {
   applyTaskUpdate,
   beginTaskAttempt,
   claimTask,
+  classifyMemberFailure,
   collectCompletedDependencyOutputs,
   formatDependencyOutputs,
   invalidateTaskAttempt,
   isTerminalTaskStatus,
   ownedOpenTask,
+  reopenFailedTask,
   unsatisfiedDependencies,
   type BoardClock,
 } from "./board.js";
 import { teamPortError } from "./errors.js";
 import {
   appendToMailbox,
+  claimDeliveryLease,
+  dropMailEntries,
+  findDuplicateMail,
   isCurrentMail,
   markDelivered,
   pendingMail,
+  reconcilePersistedMailEntries,
+  releaseDeliveryLease,
   validateMessageSize,
 } from "./mailbox.js";
-import { buildRevivalBody, buildSteerBody } from "./message-format.js";
-import {
-  taskJournalFactOf,
-  type TeamJournalPayload,
-  type TeamJournalWriter,
-} from "./journal.js";
+import { buildRevivalBody, buildSteerBody,
+  buildFinalReportRequestBody,
+} from "./message-format.js";
+import { taskJournalFactOf, type TeamJournalPayload, type TeamJournalWriter } from "./journal.js";
 import {
   LEAD_ASSIGNEE_KEY,
   TEAM_KERNEL_LIMITS,
@@ -52,6 +62,7 @@ import {
   type TeamMemberInternal,
   type TeamRecord,
   type TeamTaskInternal,
+  finaleStatusOfTasks,
   taskCardOf,
 } from "./types.js";
 
@@ -72,6 +83,19 @@ export type TeamDispatchFn = (request: {
   attemptId?: string;
 }) => Promise<boolean>;
 
+/**
+ * lead 邮箱投递通道的结构化结果（§21 A1，2026-10-24 登记）：通道逐条容错，
+ * 不因单条失败提前 return。`injected` = 已注入（enqueue 即接受）；`skipped` =
+ * 永久不可投（发件人离册或 childSessionId 缺席——任何重投边缘都不可能成功，
+ * hub 侧丢弃并记 message_dropped 事实）；两表都缺席的条目 = 注入动作失败但
+ * 非永久不可投（回调内部逐条吞错不上抛），hub 仅释放该条投递租约留 queued
+ * 待重投边缘（§16 契约 3「抛错与拒绝同责」收窄到未注入条目）。
+ */
+export interface TeamLeadMailDeliveryResult {
+  injected: readonly string[];
+  skipped: readonly string[];
+}
+
 export interface TeamHubDeps {
   clock?: BoardClock;
   /** 建队时捕获的 lead 会话权限模式（spec §8.1 成队定死；plan 不带入由 install 换算）。 */
@@ -90,7 +114,11 @@ export interface TeamHubDeps {
    * （hub 回滚草案为 staged，零成员）。PR-1.6 接私有端口；测试注入。
    */
   spawnMembers?: (
-    members: readonly { memberName: string; profile: string; modelSelection?: { provider: string; model: string; thought?: string } }[],
+    members: readonly {
+      memberName: string;
+      profile: string;
+      modelSelection?: { provider: string; model: string; thought?: string };
+    }[],
     permissionMode: TeamPermissionMode | undefined,
   ) => Promise<readonly { memberName: string; agentId: string; childSessionId: string }[]>;
   membersMax?: number;
@@ -99,11 +127,15 @@ export interface TeamHubDeps {
   onChange?: () => void;
   /**
    * lead 邮箱投递通道（2026-10-21 缺口12，spec §14）：install 经 lead
-   * enqueueSubagentMessage 注入（mid-turn steer / idle 独立轮同通道）。返回 true =
-   * 已接受（enqueue 即接受），hub 记 lead_injected 送达事实；false/抛错 = 留 queued
-   * 待重试边缘。缺席 = lead 邮件恒 queued（与修复前行为一致）。
+   * enqueueSubagentMessage 注入（mid-turn steer / idle 独立轮同通道）。返回
+   * 结构化结果（§21 A1）：injected 条目 hub 记 lead_injected 送达事实；skipped
+   * 条目为永久不可投（发件人不在场），hub 丢弃并记 message_dropped；两表缺席
+   * 条目仅释放投递租约留 queued 重投。抛错与「全部未注入」同责。缺席 = lead
+   * 邮件恒 queued（与修复前行为一致）。
    */
-  deliverLeadMail?: (request: { entries: readonly TeamMailboxEntry[] }) => Promise<boolean>;
+  deliverLeadMail?: (request: {
+    entries: readonly TeamMailboxEntry[];
+  }) => Promise<TeamLeadMailDeliveryResult>;
   /**
    * halt 时中断 lead 自身回合（2026-10-21 边缘1，spec §14）：install 实现 =
    * lead.stopActiveForegroundExecution。静默失败不回滚冻结（同成员中断先例）。
@@ -133,16 +165,108 @@ interface DispatchTicket {
   previousAttemptId?: string;
 }
 
+/**
+ * 成员失败事件信息（spec §16 契约 1，2026-10-22 登记）。install 分诊只对
+ * failed/lost 调用；stopInitiator 仅随事件透传作诊断，**不作甄别键**（适配修正：
+ * 成员停机路径写 killed 且不写 stopInitiator，全部 stopped/killed 都来自 hub 自身
+ * 中断动作，照 §2.6 sticky park 一律不标 failed）。agentId/attemptId 是事件现场
+ * 世代核对字段，detail 是模型侧错误原文（§16.2 可行动文案的路由命名错误载体）；
+ * 缺项不参与失配判定、不渲染。
+ */
+interface TeamMemberFailureInfo {
+  status: "failed" | "lost";
+  stopInitiator?: "user" | "model";
+  agentId?: string;
+  attemptId?: string;
+  detail?: string;
+}
+
+/** 失败通知携带的任务绑定（置 failed 前的世代快照；isCurrentMail 世代过滤载体）。 */
+interface MemberFailureTaskBinding {
+  taskId: string;
+  attemptId: string;
+  status: TeamTaskStatus;
+  attempt: number;
+}
+
+/**
+ * 失败通知文案（spec §16.2：附可行动文案——含路由命名错误与 fallback 提示；
+ * §16 契约 1「不做」：不自动重试）。终态不可转派裁决（spec §16 契约 1 实现验证段
+ * 登记）：failed_attempt 已把任务置 failed，reassign 对终态任务必拒 invalid_transition
+ * ——通知不再建议 TeamReassign/接管。契约 5（2026-10-23）落地后有任务绑定时陈述
+ * manager 的两路补救：显式重开（TeamReopen 受控出边）或新建替代任务再指派；无绑定
+ * 时不含任何转派/重开建议。2026-10-27 M15（决策 D8）：重开入口随 §22 裁定 3 归
+ * manager（TeamReopen 工具，经 memberPort.reopen）——原文案「the lead can explicitly
+ * reopen it via the lead-only reopen port」指向无人能触发的端口（lead 零管理工具），
+ * 改指 manager。
+ */
+function buildMemberFailureNotice(input: {
+  memberName: string;
+  status: "failed" | "lost";
+  stopInitiator?: "user" | "model";
+  detail?: string;
+  task?: MemberFailureTaskBinding;
+}): string {
+  const runtime = `runtime status: ${input.status}${input.stopInitiator === undefined ? "" : `, stopInitiator: ${input.stopInitiator}`}`;
+  const binding =
+    input.task === undefined
+      ? "No open task was held on the board at failure time; the board was not changed."
+      : ` Open task binding: task ${input.task.taskId} (attempt ${input.task.attempt}, attempt_id ${input.task.attemptId}, status=${input.task.status}); the task has been marked failed and will NOT retry automatically.`;
+  const detail =
+    input.detail === undefined || input.detail.trim() === ""
+      ? ""
+      : `\nFailure detail: ${input.detail}`;
+  // 终态不可转派：reassign 对终态任务必拒（invalid_transition），旧文案「reassign
+  // the work or take it over yourself」在 failed_attempt 主路径上必然被拒。spec §16
+  // 契约 5（2026-10-23）落地后收窄契约 1 裁决④的「cannot be reopened」表述：成员面
+  // 仍不可重开/转派（成员端口对非 manager 拒重开），manager 补救两路——显式重开
+  //（TeamReopen，failed→pending 受控出边）或新建替代任务再指派；文案如实陈述两路。
+  // 2026-10-27 M15（决策 D8）：收件人按 §22 契约 2 路由到 manager——补救动作的主语
+  // 同步改 manager（lead 零管理工具，原「lead-only reopen port」生产不可达）。
+  const followUp =
+    input.task === undefined
+      ? ""
+      : " The failed task is closed to member updates; the team manager can explicitly reopen it via the TeamReopen tool, or create a replacement task and assign it instead.";
+  return (
+    `Team member "${input.memberName}" turn ended with a model-side failure (${runtime}).${binding}${detail}\n` +
+    "Suggested actions: verify this member's model routing name and provider availability " +
+    "(the route was fixed at spawn time), or switch to a configured fallback route." +
+    `${followUp} This notice is informational only.`
+  );
+}
+
+/**
+ * 既有邮箱条目的当前投递态投影到闭合枚举 TeamSendDelivery（spec §16 契约 4：
+ * 去重命中时 portSend 返回既有 messageId 及其当前 delivery，不加 "duplicate" 值
+ * 避免 wire 偏斜——同 messageId 返回即去重信号）。lead_injected 在枚举无对应值，
+ * 照 routeMail 对 lead 收件恒报 "queued" 的既有约定归入 queued（送达事实只认
+ * 邮箱 deliveredAccepted + journal，send 返回值不承载送达语义）。
+ */
+function currentDeliveryOf(entry: TeamMailboxEntry): TeamSendDelivery {
+  if (entry.deliveredAccepted && entry.deliveredVia === "steered") return "steered";
+  if (entry.deliveredAccepted && entry.deliveredVia === "resumed") return "resumed";
+  return "queued";
+}
+
 export class TeamHub {
   private readonly clock: BoardClock;
   private readonly limits: TeamInternalLimits;
   private readonly membersMax: number;
   private record: TeamRecord | undefined;
+  // §10 增补六（2026-10-27）：会话级「始终允许团队」标志——用户在审批面选
+  // 「本会话内始终允许」（approveStage rememberForSession=true）后置位；置位期间
+  // 新 TeamSpawn 草案落库即自动批准。内存态：随 hub（=lead 会话）生命周期，不入
+  // journal、不跨重启——与 workflow allowForSession 的会话语义同构。
+  private sessionAutoApproveTeams = false;
   private readonly parkedAttempts = new Map<string, string>();
   private readonly dispatch: TeamDispatchFn;
   private readonly deps: Pick<
     TeamHubDeps,
-    "interruptAndSettle" | "persistMailboxEntry" | "spawnMembers" | "deliverLeadMail" | "interruptLead"
+    | "interruptAndSettle"
+    | "persistMailboxEntry"
+    | "spawnMembers"
+    | "deliverLeadMail"
+    | "interruptLead"
   >;
   private readonly dispatchQueues = new Map<string, Promise<unknown>>();
   private readonly notifyChange: () => void;
@@ -152,10 +276,10 @@ export class TeamHub {
   constructor(private readonly depsOrUndefined: TeamHubDeps = {}) {
     this.clock = depsOrUndefined.clock ?? DEFAULT_CLOCK;
     this.limits = depsOrUndefined.limits ?? TEAM_KERNEL_LIMITS;
-    this.membersMax = depsOrUndefined.membersMax ?? 5;
-    this.dispatch =
-      depsOrUndefined.dispatch ??
-      (async () => false);
+    // §21 A6（2026-10-24 常量接线）：?? 5 改引 contracts TEAM_MEMBERS_MAX_DEFAULT
+    //（原硬编码绕过登记常量，改任一声明不影响行为）。
+    this.membersMax = depsOrUndefined.membersMax ?? TEAM_MEMBERS_MAX_DEFAULT;
+    this.dispatch = depsOrUndefined.dispatch ?? (async () => false);
     this.notifyChange = depsOrUndefined.onChange ?? (() => undefined);
     this.journalWriter = depsOrUndefined.journalWriter ?? (() => undefined);
     this.deps = depsOrUndefined;
@@ -182,9 +306,12 @@ export class TeamHub {
       // 2026-10-21 缺口10：查询面补齐草案 name 与逐成员路由快照回读——
       // reviseTeamPlan/setTeamMemberName 以 snapshot/board 重建草案入参，缺这两项
       // 会让 stageTeam 整体替换 + journalStagedFact 把 team 名与 modelSelection
-      // （spec §8.7 建队时刻定死）静默清空并持久化。additive optional，投影侧
-      // （product-projection teamProjectionViewOf）逐字段映射不受影响。
+      // （spec §8.7 建队时刻定死）静默清空并持久化。additive optional；投影侧
+      // （product-projection teamProjectionViewOf）对 name/modelSelection 的逐字段
+      // 映射由 §19 契约 3（2026-10-23）补齐——原注「映射不受影响」与事实不符：
+      // 桥此前的显式字段清单漏了这两项，查询面补齐后仍到不了 wire。
       ...(record.name === undefined ? {} : { name: record.name }),
+      ...(record.managerName === undefined ? {} : { managerName: record.managerName }),
       members: record.members
         .filter((member) => !member.removed)
         .map((member) => ({
@@ -225,19 +352,53 @@ export class TeamHub {
   // ---------- 两阶段成队（spec §1 / §2.6；设计差异 D3） ----------
 
   stageTeam(leadSessionId: string, input: TeamStageInput): TeamStageResult {
-    if (this.record !== undefined && !isStageEditable(this.record.status)) {
+    // §10 增补六（2026-10-27）：终局/弃置队（isArchival：archived/completed/cancelled）
+    // 允许被新草案**替换**——会话内二队的前提（此前单记录 + staged-only 门让归档/
+    // 完成后的 TeamSpawn 一律 team_not_present，会话实际只能有一支队）。替换=新建
+    // 记录（新 teamId），旧队历史由 journal 流保留（重放按序：后续 team_created
+    // 重建新记录，旧队事实在流中位于其前、不跨队污染）。在途态（active/halted/
+    // escalated）仍拒绝——同会话并行两队不在 v1 词表。
+    if (
+      this.record !== undefined &&
+      this.record.status !== "staged" &&
+      !isArchival(this.record.status)
+    ) {
       return { status: "rejected", error: teamPortError("team_not_present") };
     }
-    if (input.draftMembers.length > this.membersMax) {
+    if (input.draftMembers.length + 1 > this.membersMax) {
       return {
         status: "rejected",
         error: teamPortError("board_limit_reached", { limit: String(this.membersMax) }),
+      };
+    }
+    // §17 契约 4（2026-10-23）：草案字段与 wire 限额同门（TEAM_LIMITS 单一出处）——草案
+    // 原样进 team 投影，超限字段会让投影一 emit 就烧掉每一帧（session_7117760500 实证：
+    // 模型给出的 200+ 字符 profile 使会话流 fail-closed 白屏）。工具入参边界已挡模型侧，
+    // 这里是状态所有者的不变量兜底（port 的其它调用方不经过工具 schema）。
+    // 2026-10-27 L10：manager 入参同门校验（§22 契约 1 新增载荷不在 draftMembers
+    // 循环内，port 直调可绕过 TeamSpawn 工具 schema 的 min/max）——空白名单独拒：
+    // memberName 是联接键（E13 同族），不能像空白 profile 那样归一为键缺席。
+    if (input.manager.memberName.trim() === "") {
+      return {
+        status: "rejected",
+        error: teamPortError("draft_blank_name", { field: "manager.name" }),
+      };
+    }
+    const overLimitField = draftOverLimitField(input);
+    if (overLimitField !== undefined) {
+      return {
+        status: "rejected",
+        error: teamPortError("draft_field_too_long", overLimitField),
       };
     }
     // 2026-10-18 team UI 审查修复（E13/E14）：wire 面的 agent↔task 关系全部按
     // memberName 联接（assignee/下钻门/邮箱 from-to），重名会让联接错位、悬空
     // assignee 会显示不存在的负责人——在草案落库前源头拦截，而不是让投影带病展示。
     const draftNames = new Set<string>();
+    // §22 契约 1：manager 计入重名门（与成员同门；manager 是 roster 首位成员）。
+    // 2026-10-27 L2：删除了对刚建空集的恒假 has 检查——manager↔成员重名的实际防护
+    // 由「先 add manager、成员循环再查重」的次序承担（下方循环命中即拒）。
+    draftNames.add(input.manager.memberName);
     for (const member of input.draftMembers) {
       if (draftNames.has(member.memberName)) {
         return {
@@ -292,17 +453,26 @@ export class TeamHub {
         error: teamPortError("dependency_cycle", { path: cycle.join(" -> ") }),
       };
     }
-    if (this.record === undefined) {
+    if (this.record === undefined || isArchival(this.record.status)) {
+      // §10 增补六：终局队替换成新队时，终报两标志（hub 实例级）必须随队复位——
+      // 旧队的 dispatched/delivered 若带入新队，派发门恒早退、新队永不终报
+      // （会话免问测试实证：第二队邮箱全空）。冷恢复路径不受影响（adoptRestored
+      // 按 record.restoredFinalReport 重置两标志，见 :1397-1398）。
+      this.finalReportDispatchedFlag = false;
+      this.finalReportDeliveredFlag = false;
       // 权限模式成队定死（spec §8.1）：plan 由 install 换算为 build 后传入；
       // 未记录（undefined）= 旧宿主/未知值，读回时回退继承 lead 当前模式。
       this.record = {
         teamId: `team_${this.clock.newId()}`,
         ...(input.name === undefined ? {} : { name: input.name }),
         leadSessionId,
+        managerName: input.manager.memberName,
         ...(this.depsOrUndefined.leadPermissionMode === undefined
           ? {}
           : { permissionMode: this.depsOrUndefined.leadPermissionMode }),
-        status: input.skipApproval === true ? "staged" : "staged",
+        // §21 A3（2026-10-24）：skipApproval 的「直通」分支 v1 不实现（两分支字面
+        // 相同的死三元已收折）——两阶段审批是唯一成队入口，参数保留待后续卡。
+        status: "staged",
         members: [],
         tasks: [],
         mailbox: [],
@@ -315,6 +485,7 @@ export class TeamHub {
         kind: "team_created",
         teamId: this.record.teamId,
         leadSessionId,
+        managerName: input.manager.memberName,
         ...(input.name === undefined ? {} : { name: input.name }),
         ...(this.depsOrUndefined.leadPermissionMode === undefined
           ? {}
@@ -323,20 +494,51 @@ export class TeamHub {
       });
     }
     // staged 再次调用 = 原子更新同一草案（同 teamId，不另建）。
-    this.record.name = input.name;
+    // 2026-10-27 L11（决策 D11）：重列草案不带 name 时保留已命名团队——此前无条件
+    // 覆写会把已命名团队清成 undefined 并经 journalStagedFact 持久化（revise/rename
+    // 以查询面重建草案时 name 键总在，此缺口对 port 直调/未来调用方成立）。
+    if (input.name !== undefined) this.record.name = input.name;
+    // 2026-10-27 M2（决策 D11）：再入库刷新 managerName——草案修订可换 manager 名，
+    // 不刷新则旧名成幽灵管理者（成员→lead 邮件改投不存在的成员、真 manager 被
+    // team_lead_only 拒、终局判定错位）；journalStagedFact 读 record，随行持久化。
+    this.record.managerName = input.manager.memberName;
     this.record.updatedAt = now;
     // 身份保持的物化结果整体替换（缺口5）：taskId 带入者保 ID，dependsOn 引用不悬空。
     this.record.tasks = materialized;
-    this.record.members = input.draftMembers.map((draft) => ({
-      agentId: `pending_${draft.memberName}`,
-      memberName: draft.memberName,
-      profile: draft.profile,
-      ...(draft.modelSelection === undefined ? {} : { modelSelection: draft.modelSelection }),
-      state: "spawning" as const,
-      removed: false,
-    }));
+    // 2026-10-23 空白归一（specs/agents-team.md §19 契约 2）：profile/thought 空白
+    // （trim 后 === ""）→ 键缺席，归一先于 journalStagedFact——落库即规范形。工具入参
+    // 对这两字段只有 max 无 min（team-tools.ts TeamSpawnInputSchema），空白是合法缺省，
+    // 但 wire 对 profile/thought 有 min(1)，空串原样落库会让投影每一帧被渲染器按
+    // proto.frameAssemblyInvalidPayload 拒掉（§17 契约 4 的 min(1) 侧同门烧帧）。
+    // provider/model 不归一：工具边界已 min(1) 拒绝，生产不可达。
+    // §22 契约 1：manager 物化为 roster 首位（结构从 manager 开始），随后执行成员。
+    const draftRoster = [input.manager, ...input.draftMembers];
+    this.record.members = draftRoster.map((draft) => {
+      const profile = draft.profile?.trim() === "" ? undefined : draft.profile;
+      let modelSelection = draft.modelSelection;
+      if (modelSelection !== undefined && modelSelection.thought?.trim() === "") {
+        const { thought: _blankThought, ...rest } = modelSelection;
+        modelSelection = rest;
+      }
+      return {
+        agentId: `pending_${draft.memberName}`,
+        memberName: draft.memberName,
+        ...(profile === undefined ? {} : { profile }),
+        ...(modelSelection === undefined ? {} : { modelSelection }),
+        state: "spawning" as const,
+        removed: false,
+      };
+    });
     this.notifyChange();
     this.journalStagedFact();
+    // §10 增补六（2026-10-27）：会话免问（用户已选「本会话内始终允许」）时，草案
+    // 落库即自动批准——与人工批准同一条 runApprove 路径（spawn/journal/notifyChange
+    // 单一出处），approved 事实带 cause:"session_allow" 审计标记。stageTeam 保持同步
+    // 契约（port 返回 staged 结果），批准在后台推进、经投影翻转呈现。revise 出的
+    // awaitingFeedback 草案不自动批准（用户明确要改，等待反馈优先）。
+    if (this.sessionAutoApproveTeams && this.record.awaitingFeedback !== true) {
+      void this.runApprove(leadSessionId, undefined, "session_allow");
+    }
     return { status: "ok", teamId: this.record.teamId };
   }
 
@@ -368,6 +570,8 @@ export class TeamHub {
       kind: "staged",
       teamId: record.teamId,
       ...(record.name === undefined ? {} : { name: record.name }),
+      // §22 契约 1：manager 名随草案事实持久化（重放恢复 record.managerName）。
+      ...(record.managerName === undefined ? {} : { managerName: record.managerName }),
       awaitingFeedback: record.awaitingFeedback === true,
       members: record.members.map((member) => ({
         memberName: member.memberName,
@@ -388,15 +592,57 @@ export class TeamHub {
     record.updatedAt = this.clock.now();
     // 归档事实入 journal：恢复后草案不得「复活」为 staged（spec §2.6 禁止自动重建）。
     this.journal({ kind: "archived", teamId: record.teamId });
+    // 2026-10-23 缺口修复（specs/agents-team.md §19 契约 1）：归档必须补通知半边——
+    // 此前只 journal 零 notify，零 TeamStateChanged → 零 delta，UI 审批 dock/侧栏/
+    // 手机摘要卡停留在 staged 草案 + 三动作，此后 approve/revise/abandon 均被 hub 以
+    // team_not_present/team_lead_only 拒绝并出显误导性失败。次序照 halt 先例
+    // （journal 先、notify 后）；拒绝语义不变，通知补齐后这些拒绝在正常 UI 流不可达。
+    this.notifyChange();
     return { status: "ok" };
   }
 
-  /** Approve & Run：唯一创建成员的裁决入口；全败回滚草案（spec §1 两阶段成队）。 */
-  async approveStage(leadSessionId: string): Promise<TeamApproveResult> {
+  /**
+   * Approve & Run：唯一创建成员的裁决入口；全败回滚草案（spec §1 两阶段成队）。
+   * §10 增补三（2026-10-26）：options.permissionMode 在批准时刻覆写成员权限模式
+   * （缺省维持建队捕获值；非法值在 wire 网关被枚举 zod 先拒，此处只收已验值）。
+   * §10 增补六（2026-10-27）：options.rememberForSession=true 置会话免问标志
+   * sessionAutoApproveTeams——本 lead 会话后续 TeamSpawn 草案自动批准（标志为内存态、
+   * 随 hub 生命周期，不入 journal 不跨重启）。
+   */
+  async approveStage(
+    leadSessionId: string,
+    options?: { permissionMode?: TeamPermissionMode; rememberForSession?: boolean },
+  ): Promise<TeamApproveResult> {
+    if (options?.rememberForSession === true) this.sessionAutoApproveTeams = true;
+    return this.runApprove(leadSessionId, options, undefined);
+  }
+
+  /**
+   * 批准执行体（approveStage 与会话免问自动批准共用同一条路径：spawn/journal/
+   * notifyChange 单一出处）。cause 仅自动路径携带（journal 事实审计用，重放语义同
+   * approved——不区分人工/自动）。
+   */
+  private async runApprove(
+    leadSessionId: string,
+    options: { permissionMode?: TeamPermissionMode } | undefined,
+    cause: "session_allow" | undefined,
+  ): Promise<TeamApproveResult> {
     const record = this.requireLeadRecord(leadSessionId);
     if (typeof record === "string") return { status: "rejected", error: teamPortError(record) };
     if (record.status !== "staged") {
       return { status: "rejected", error: teamPortError("team_lead_only") };
+    }
+    // 自动路径（会话免问）的等待反馈门：revise 链是 stageTeam → markStageAwaitingFeedback
+    // 后序（handlers/team.ts:174-175），自动批准在 stageTeam 尾部开跑时反馈标记尚未置
+    // ——入口与 spawn 后双查，反馈标记期间到达的自动批准整批让位（用户明确要改，
+    // 等待反馈优先；spawn 后复查命中时成员进程未指派即弃，同并发写者分支的处置）。
+    if (cause === "session_allow" && record.awaitingFeedback === true) {
+      return { status: "rejected", error: teamPortError("team_lead_only") };
+    }
+    // §10 增补三：批准时刻定权限（spawn 前，随 spawn 下发；缺省不覆写。非法枚举在
+    // wire 网关被 zod 先拒，此处只收已验值）。
+    if (options?.permissionMode !== undefined) {
+      record.permissionMode = options.permissionMode;
     }
     const draft = record.members.filter((member) => !member.removed);
     const spawn = this.deps.spawnMembers;
@@ -413,6 +659,21 @@ export class TeamHub {
         record.permissionMode,
       );
       const byName = new Map(spawned.map((row) => [row.memberName, row] as const));
+      // 2026-10-23 竞态复查（specs/agents-team.md §19 契约 6）：await spawn 期间 status
+      // 仍可被并发改写（abandon/halt 直调 port 的路径）——复查不过则整批拒绝、record
+      // 保持改写后状态，不再无条件翻 active 腐蚀记录。生产面此路径不可达：v4 命令经
+      // command-inbox 的 per-session FIFO（gate 持有到 settle）串行化，第二条命令在
+      // 第一条 spawn 完成后才执行并被 staged 检查拒绝；本复查是纵深防御，仅测试直调
+      // 可触达。此分支下已 launch 的成员进程成为孤儿（无 childSessionId 登记），是
+      // 「并发写者绕过命令通道」这一非法输入的代价，不做对账（§19 契约 5「不做」）。
+      if (record.status !== "staged") {
+        return { status: "rejected", error: teamPortError("team_lead_only") };
+      }
+      // 自动路径的等待反馈复查（§10 增补六，见 runApprove 头注）：spawn 期间 revise 链
+      // 标了 awaitingFeedback → 让位（record 保持 staged+反馈标记；成员进程未指派即弃）。
+      if (cause === "session_allow" && record.awaitingFeedback === true) {
+        return { status: "rejected", error: teamPortError("team_lead_only") };
+      }
       for (const member of record.members) {
         const row = byName.get(member.memberName);
         if (row === undefined) continue;
@@ -426,7 +687,18 @@ export class TeamHub {
       delete record.awaitingFeedback;
       this.notifyChange();
       // journal：审批是用户动作；成员 agentId 事实由 spawn 回调里的 member_added 逐条记。
-      this.journal({ kind: "approved", teamId: record.teamId });
+      // 2026-10-27 M8（决策 D7）：approved 事实增补可选 permissionMode（additive）——
+      // 批准时刻覆写的模式此前不入事实，冷恢复重放回退为建队捕获值，复活成员与
+      // UI 投影和用户批准值分叉；重放侧（journal.ts approved 分支）同点回写 record。
+      this.journal({
+        kind: "approved",
+        teamId: record.teamId,
+        ...(record.permissionMode === undefined
+          ? {}
+          : { permissionMode: record.permissionMode }),
+        // §10 增补六：自动批准（会话免问）路径的审计标记；人工批准缺省缺席。
+        ...(cause === undefined ? {} : { cause }),
+      });
       return { status: "ok", spawnedMembers: spawned.map((row) => row.memberName) };
     } catch {
       // 原子性：spawn 失败 → 草案原样保留（staged，零真实成员），可修订后重批。
@@ -438,7 +710,14 @@ export class TeamHub {
 
   // ---------- 停止与恢复（spec §2.6：halted ≠ escalated） ----------
 
-  halt(leadSessionId: string): TeamMutationResult {
+  /**
+   * 2026-10-27 L8（决策 D9）：halt 增可选 reason 透传进 halted 事实——wire 载荷的
+   * optional reason 此前被接受后即丢弃（对比 resume 全链入库）；重放侧不消费 reason
+   * （只推 halted 状态）。已知边界（review 登记的不对称）：history 读取面只对 resumed
+   * 透出 reason，halted 仍落 default 分支——本修复只落 journal 事实（处置范围），history
+   * 半边是否透出归后续卡（wire 词表属 shared 面）。
+   */
+  halt(leadSessionId: string, reason?: string): TeamMutationResult {
     const record = this.requireLeadRecord(leadSessionId);
     if (typeof record === "string") return { status: "rejected", error: teamPortError(record) };
     if (record.status === "staged" || isArchival(record.status)) {
@@ -447,7 +726,11 @@ export class TeamHub {
     record.status = "halted";
     record.updatedAt = this.clock.now();
     // 冻结态事实入 journal（差异裁决#5：状态迁移本身不记，用户裁决结果保留）。
-    this.journal({ kind: "halted", teamId: record.teamId });
+    this.journal({
+      kind: "halted",
+      teamId: record.teamId,
+      ...(reason === undefined ? {} : { reason }),
+    });
     this.notifyChange();
     // 2026-10-21 缺口7：停队必须中断在飞成员（spec §2.6「中断全员 + 冻结调度」的
     // 中断半边；此前只翻状态，在飞成员回合继续跑到自然终态）。裁决外静默（同
@@ -477,8 +760,12 @@ export class TeamHub {
       return { status: "rejected", error: teamPortError("team_lead_only") };
     }
     if (reason.trim() === "") {
-      // 用户停的队不得静默恢复（spec §2.6）。
-      return { status: "rejected", error: teamPortError("team_lead_only") };
+      // 用户停的队不得静默恢复（spec §2.6）。§21 A2（2026-10-24）：错误码由
+      // team_lead_only 订正为 team_halted——调用方就是 lead，被拒因是 reason 空白，
+      // team_halted 的 hint（explicit resume with a reason）才是正确的「为什么被拒 +
+      // 怎么补救」教学；team_lead_only 文案对 lead 本人自相矛盾。生产不可达（wire
+      // schema reason min(1) 网关先拒），仅直调 hub 的测试/工具路径可触达。零新码。
+      return { status: "rejected", error: teamPortError("team_halted") };
     }
     record.status = this.hasWorkingMember(record) ? "active" : "idle";
     record.updatedAt = this.clock.now();
@@ -523,7 +810,13 @@ export class TeamHub {
     member.agentId = agentId;
     member.childSessionId = childSessionId;
     // journal：成员出生事实（恢复侧据此把草案成员锚定到真实 child 会话）。
-    this.journal({ kind: "member_added", teamId: record.teamId, memberName, agentId, childSessionId });
+    this.journal({
+      kind: "member_added",
+      teamId: record.teamId,
+      memberName,
+      agentId,
+      childSessionId,
+    });
   }
 
   markMemberWorking(memberName: string): void {
@@ -555,12 +848,102 @@ export class TeamHub {
   }
 
   /**
+   * 成员终态失败处置（spec §16 契约 1 + §16.2 LLM 失败处理，2026-10-22 登记）：
+   * 成员回合死于模型侧失败（429/鉴权/异常重试耗尽）时，事件现场同步分类（hub
+   * 单线程、registry subscribe 回调同步到达，无 DSH 的锁等待窗口）——
+   * `failed_attempt` → applyTaskUpdate 同路径置 failed（claimed→failed 与
+   * in_progress→failed 均为合法边）+ journalTaskFact + 经既有邮箱路径通知 lead；
+   * `ignored`（迟到失败）→ 全静默，不误伤新代；`noted`（无开放任务）→ 仅通知不动板。
+   * 不强制置 idle、不自动重试（§16.2 原文）；halted 冻结期只消费边缘不分类（§2.6，
+   * 任务保持 sticky park 由 lead 转派兜底，lastSeen 去重保证 resume 后不补分类）。
+   */
+  async handleMemberFailed(memberName: string, info: TeamMemberFailureInfo): Promise<void> {
+    const record = this.record;
+    const member = this.findMember(memberName);
+    if (record === undefined || member === undefined || member.removed) return; // ignored：花名册无此成员
+    member.state = "terminal"; // 运行态事实：成员进程已死（与 handleMemberTerminal 同表）
+    if (record.status === "halted") {
+      // §2.6 冻结面：失败边缘只消费不分类——开放任务保持 sticky park（不 kick 亦
+      // 不标 failed，spec 契约 1 分诊与不变量）。
+      const frozen = ownedOpenTask(record.tasks, memberName);
+      if (frozen?.attemptId !== undefined) {
+        this.parkedAttempts.set(member.agentId, frozen.attemptId);
+      } else if (frozen === undefined) {
+        this.parkedAttempts.delete(member.agentId);
+      }
+      return;
+    }
+    const owned = ownedOpenTask(record.tasks, memberName);
+    const disposition = classifyMemberFailure(
+      {
+        memberName,
+        ...(info.agentId === undefined ? {} : { agentId: info.agentId }),
+        ...(info.attemptId === undefined ? {} : { attemptId: info.attemptId }),
+      },
+      { member, ...(owned === undefined ? {} : { task: owned }) },
+    );
+    if (disposition === "ignored") {
+      this.refreshStatus(); // 迟到失败全静默：不误伤新代（spec 契约 1 ignored 语义）
+      return;
+    }
+    if (disposition === "noted") {
+      // 无开放任务：板零改动，仅通知（无任务绑定 → 通知不受世代过滤约束）。
+      this.enqueueLeadFailureNotice(memberName, info, undefined);
+      this.refreshStatus();
+      return;
+    }
+    // failed_attempt：仅该代标 failed。通知先于置 failed 入箱——任务进 failed 即
+    // 凭证关闭（attemptId 清空，applyTaskUpdate 终态分支），邮箱世代过滤（isCurrentMail
+    // 第一谓词要求 source.attemptId 与任务当前 attemptId 一致）会把事后入箱的通知
+    // 判为过期死件，lead 将永远收不到（DSH issue #205「面板全绿但最后一轮死了」的
+    // 通知半边）。enqueueMail → routeMail → deliverPendingLeadMail 在 pendingMail 上
+    // 同步评估，凭证仍在世代即当次投递；此后投递失败的重投由 isCurrentMail 自动失活
+    //（spec 契约 1 登记语义）。
+    const task = owned as TeamTaskInternal;
+    const attemptId = task.attemptId ?? "";
+    this.enqueueLeadFailureNotice(memberName, info, {
+      taskId: task.taskId,
+      attemptId,
+      status: task.status,
+      attempt: task.attempt,
+    });
+    const note = buildMemberFailureNotice({
+      memberName,
+      status: info.status,
+      ...(info.stopInitiator === undefined ? {} : { stopInitiator: info.stopInitiator }),
+      ...(info.detail === undefined ? {} : { detail: info.detail }),
+      task: {
+        taskId: task.taskId,
+        attemptId,
+        status: task.status,
+        attempt: task.attempt,
+      },
+    });
+    // applyTaskUpdate 同路径：凭证核对（attemptId + assignee）+ 严格迁移表一并生效。
+    const { error } = applyTaskUpdate(
+      record.tasks,
+      { taskId: task.taskId, attemptId, patch: { status: "failed", output: note } },
+      memberName,
+      this.clock,
+    );
+    if (error === undefined) {
+      this.journalTaskFact(task);
+      // failed_attempt 后任务已终态：清掉同代 sticky park 残留（若有），防悬挂凭证。
+      if (this.parkedAttempts.get(member.agentId) === attemptId) {
+        this.parkedAttempts.delete(member.agentId);
+      }
+    }
+    this.refreshStatus();
+  }
+
+  /**
    * 冷恢复单次重试（spec §2.3）：开放 attempt 且成员已终态离场 → 自动重试恰一次；
    * 恢复投递失败恢复原世代并保持 parked，**不退回 pending**（防无限重派）。
    */
   async recoverOpenAttempt(memberName: string): Promise<boolean> {
     const record = this.record;
-    if (record === undefined || record.status === "halted" || record.status === "staged") return false;
+    if (record === undefined || record.status === "halted" || record.status === "staged")
+      return false;
     const member = this.findMember(memberName);
     const owned = ownedOpenTask(record.tasks, memberName);
     if (member === undefined || owned === undefined || owned.attemptId === undefined) return false;
@@ -574,14 +957,16 @@ export class TeamHub {
     }
     this.rollbackTicket(ticket);
     owned.recoveryRetried = true;
-    if (member.agentId !== "") this.parkedAttempts.set(member.agentId, ticket.previousAttemptId ?? "");
+    if (member.agentId !== "")
+      this.parkedAttempts.set(member.agentId, ticket.previousAttemptId ?? "");
     return false;
   }
 
   /** 成员移除安全序（spec §16.2）：失效 → 回收任务 → 标记移除（→静默/重派由 install 驱动）。 */
   removeMember(memberName: string): TeamMutationResult {
     const record = this.record;
-    if (record === undefined) return { status: "rejected", error: teamPortError("team_not_present") };
+    if (record === undefined)
+      return { status: "rejected", error: teamPortError("team_not_present") };
     const member = this.findMember(memberName);
     if (member === undefined || member.removed) {
       return { status: "rejected", error: teamPortError("member_removed") };
@@ -651,24 +1036,47 @@ export class TeamHub {
 
   private async doKickMember(memberName: string): Promise<void> {
     const record = this.record;
-    if (record === undefined || record.status === "staged" || record.status === "halted" || isArchival(record.status)) {
+    if (
+      record === undefined ||
+      record.status === "staged" ||
+      record.status === "halted" ||
+      isArchival(record.status)
+    ) {
       return;
     }
     const member = this.findMember(memberName);
     if (member === undefined || member.removed) return;
 
-    // 邮箱优先：pending 邮件是真实的待处理工作（spec §16.3）。
-    const ready = pendingMail(record.mailbox, record.tasks, memberName);
+    // 邮箱优先：pending 邮件是真实的待处理工作（spec §16.3）。租约过滤（spec §16
+    // 契约 3）：claim 未过期的条目已被 routeMail 即时投递等并发路径领取，跳过。
+    const now = this.clock.now();
+    const ready = pendingMail(record.mailbox, record.tasks, memberName, {
+      now,
+      leaseMs: this.limits.deliveryLeaseMs,
+    });
     if (ready.length > 0) {
       const ids = ready.map((item) => item.messageId);
+      // 投递租约（spec §16 契约 3）：dispatch 是裁决外异步窗口（发起 → markDelivered
+      // 之间），盖 claim 后并发投递路径按租约过滤跳过本批，消除双投。
+      const claimedAt = now;
+      record.mailbox = claimDeliveryLease(record.mailbox, ids, claimedAt);
       const body = ready
-        .map((item) => `${buildRevivalBody(item, { teamId: record.teamId, ...(record.name === undefined ? {} : { teamName: record.name }) })}`)
+        .map(
+          (item) =>
+            `${buildRevivalBody(item, { teamId: record.teamId, ...(record.name === undefined ? {} : { teamName: record.name }) })}`,
+        )
         .join("\n\n---\n\n");
-      const accepted = await this.dispatch({
-        memberName,
-        prompt: body,
-        mode: "steer",
-      });
+      let accepted = false;
+      try {
+        accepted = await this.dispatch({
+          memberName,
+          prompt: body,
+          mode: "steer",
+        });
+      } catch {
+        // dispatch 抛错与拒绝同责（spec §16 契约 3）：释放租约留待重试边缘。
+        accepted = false;
+      }
       if (accepted) {
         record.mailbox = markDelivered(record.mailbox, ids, "steered", this.clock.now());
         record.updatedAt = this.clock.now();
@@ -680,8 +1088,17 @@ export class TeamHub {
           via: "steered",
           at: this.clock.now(),
         });
+        // 送达翻转补通知半边（2026-10-23 留档项「成员邮件 delivered 翻转不通知」）：
+        // 与 deliverPendingLeadMail 收尾同口径——refreshStatus 重算「邮箱待决清空 →
+        // active/idle」并 notifyChange 驱动投影（收敛链见 routeMail working 分支段注）；
+        // 租约盖戳/释放与冻结门判定一字不动（spec §16 契约 3）。
+        this.refreshStatus();
+        this.notifyChange();
+      } else {
+        // 未接受 → 释放投递租约（owner 核对防误删超时后其他路径的新租约），
+        // 下一终态边缘/复活再投恰一次；不 ack 不丢弃。
+        record.mailbox = releaseDeliveryLease(record.mailbox, ids, claimedAt);
       }
-      // 未接受 → 保留未投递（下次终态边缘/复活再投），不 ack 不丢弃。
       return;
     }
 
@@ -700,13 +1117,23 @@ export class TeamHub {
   }
 
   private nextReadyTask(record: TeamRecord, memberName: string): TeamTaskInternal | undefined {
+    // §22 契约 3 配套：manager 不领任务（协调者角色，v1 manager 零执行面，管理工具
+    // 族才是它的手）。
+    // 2026-10-27 M4（决策 D6）修正：显式指派给 manager（assignee===managerName）的
+    // 任务不是死信——manager 是路由地址不是执行者，workers 视同共享池可认领
+    // （reassign to=manager 同规则）。原实现 workers 只匹配本人/未指派，manager 名下
+    // 的 pending 任务永不自动派发、团队到不了终态，与头注宣称的「由 workers 承接」不符。
+    if (record.managerName === memberName) return undefined;
     const ready = record.tasks.filter(
       (task) =>
         task.status === "pending" &&
         task.reassigning !== true &&
         unsatisfiedDependencies(record.tasks, task.dependsOn).length === 0,
     );
-    return ready.find((task) => task.assignee === memberName) ?? ready.find((task) => task.assignee === undefined);
+    return (
+      ready.find((task) => task.assignee === memberName) ??
+      ready.find((task) => task.assignee === undefined || task.assignee === record.managerName)
+    );
   }
 
   private beginDispatchTicket(
@@ -797,24 +1224,48 @@ export class TeamHub {
     this.refreshStatus();
   }
 
-  // ---------- 转派三步（lead 专属；spec §16.1） ----------
+  // ---------- 转派三步（manager 专属，§22 契约 4/裁定 3；spec §16.1） ----------
 
-  async reassign(leadSessionId: string, input: TeamReassignInput): Promise<TeamMutationResult> {
-    const record = this.requireLeadRecord(leadSessionId);
-    if (typeof record === "string") return { status: "rejected", error: teamPortError(record) };
+  async reassign(actorSessionId: string, input: TeamReassignInput): Promise<TeamMutationResult> {
+    // §22 契约 4 + 2026-10-27 M9（决策 D1，用户 2026-10-26 裁定 3）：转派 actor 收敛为
+    // 仅 manager child 会话（isTeamActor 已移除 leadSessionId 分支——lead 零管理工具、
+    // 纯结果消费者，lead 会话直调得 team_lead_only；普通成员 child 一律 team_lead_only）。
+    const record = this.record;
+    if (record === undefined || !isTeamActor(record, actorSessionId)) {
+      return { status: "rejected", error: teamPortError("team_lead_only") };
+    }
     if (record.status === "staged" || isArchival(record.status) || record.status === "halted") {
       return { status: "rejected", error: teamPortError("team_halted") };
     }
     const task = record.tasks.find((candidate) => candidate.taskId === input.taskId);
     if (task === undefined) return { status: "rejected", error: teamPortError("team_not_present") };
     if (isTerminalTaskStatus(task.status)) {
-      return { status: "rejected", error: teamPortError("invalid_transition", { from: task.status, to: "pending" }) };
+      return {
+        status: "rejected",
+        error: teamPortError("invalid_transition", { from: task.status, to: "pending" }),
+      };
     }
     if (task.reassigning) {
       return { status: "rejected", error: teamPortError("attempt_revoked") };
     }
     if (input.to !== LEAD_ASSIGNEE_KEY && this.findMember(input.to) === undefined) {
       return { status: "rejected", error: teamPortError("name_redirect", { name: input.to }) };
+    }
+    // 2026-10-27 L7：目标忙闲校验——「一成员至多一个开放任务」不变量（spec §2.3）此前
+    // 只在认领面（claimTask 的 busy_with_open_task）与自动派发面（ownedOpenTask sticky
+    // park）成立，reassign 可给同一成员堆第二个开放任务。口径与 ownedOpenTask 同源
+    // （claimed/in_progress）；被转派任务自身除外（to=当前 assignee 的同名重派是合法
+    // 轮换）；to=lead 接管分支不受本门（接管唯一性由下方既有门承担，§19 遗留语义）。
+    if (input.to !== LEAD_ASSIGNEE_KEY) {
+      const busyHeld = record.tasks.find(
+        (candidate) =>
+          candidate !== task &&
+          candidate.assignee === input.to &&
+          (candidate.status === "claimed" || candidate.status === "in_progress"),
+      );
+      if (busyHeld !== undefined) {
+        return { status: "rejected", error: teamPortError("member_busy", { name: input.to }) };
+      }
     }
     if (input.to === LEAD_ASSIGNEE_KEY) {
       // lead 接管唯一性（失效之前检查——失效不可回滚）。
@@ -831,7 +1282,12 @@ export class TeamHub {
 
     // 第 1 步（裁决内）：失效旧凭证 + 铸交接世代。
     const previousAssignee = task.assignee;
-    const handoffId = invalidateTaskAttempt(task, input.to === LEAD_ASSIGNEE_KEY ? LEAD_ASSIGNEE_KEY : input.to, this.clock, true);
+    const handoffId = invalidateTaskAttempt(
+      task,
+      input.to === LEAD_ASSIGNEE_KEY ? LEAD_ASSIGNEE_KEY : input.to,
+      this.clock,
+      true,
+    );
     // journal：失效事实先落（后续静默失败时「凭证已清、交接在途」也是持久真相）。
     this.journalTaskFact(task);
 
@@ -864,8 +1320,68 @@ export class TeamHub {
     fresh.updatedAt = this.clock.now();
     this.journalTaskFact(fresh);
     // 新目标唤醒（邮箱派发其认领提示/任务卡）。
-    if (input.to !== LEAD_ASSIGNEE_KEY) await this.kickMember(input.to);
+    // 2026-10-27 M4（决策 D6）：to=manager 是路由地址（manager 不执行、kick 其本人
+    // 是 no-op）——改 kickTeam 唤醒全体 workers 按「视同可认领」规则认领。
+    if (input.to !== LEAD_ASSIGNEE_KEY) {
+      if (record.managerName !== undefined && input.to === record.managerName) {
+        await this.kickTeam();
+      } else {
+        await this.kickMember(input.to);
+      }
+    }
     return { status: "ok" };
+  }
+
+  /**
+   * 显式重开 failed 任务（spec §16 契约 5，2026-10-23 登记）：TASK_TRANSITIONS
+   * failed→pending 受控出边的唯一消费通道。2026-10-27 M15（决策 D8，§22 裁定 3）：
+   * 重开入口接线 manager——createTeamManagerToolEntries 注册 TeamReopen（经
+   * memberPort.reopen，child session 自证 actor），板级处置照 reassign 先例走
+   * isTeamActor（manager ✓；lead 会话/普通成员一律 team_lead_only——原 requireLeadRecord
+   * lead-only 门对应的 lead 端口无任何生产入口，属「有实现无入口」死面）。仅 failed
+   * 可重开（completed/cancelled 是交付结果/用户裁决终局，开放中任务无需重开——恢复
+   * 走新建或转派）；人工重开预算与 recoveryRetried 自动冷恢复预算相互独立（板级执行
+   * reopenFailedTask 重置 recoveryRetried 并清残留 parked 凭证）。重开任务回共享池后
+   * kickTeam 重臂调度（事件驱动无轮询，spec §2.3；fire-and-forget 照 resume 先例）。
+   */
+  reopenTask(actorKey: string, input: TeamReopenInput): TeamTaskMutationResult {
+    const record = this.record;
+    if (record === undefined || !isTeamActor(record, actorKey)) {
+      return { status: "rejected", error: teamPortError("team_lead_only") };
+    }
+    if (record.status === "staged" || isArchival(record.status) || record.status === "halted") {
+      return { status: "rejected", error: teamPortError("team_halted") };
+    }
+    const task = record.tasks.find((candidate) => candidate.taskId === input.taskId);
+    if (task === undefined) return { status: "rejected", error: teamPortError("team_not_present") };
+    if (task.status !== "failed") {
+      return {
+        status: "rejected",
+        error: teamPortError("invalid_transition", { from: task.status, to: "pending" }),
+      };
+    }
+    // parkedAttempts 残留清理（failed_attempt 先例，本文件 handleMemberFailed 同族）：
+    // 前 assignee 的 parked 值不再对应其当前开放 attempt 时清除，防悬挂凭证。须在
+    // reopenFailedTask 清 assignee 之前捕获前 assignee。
+    const previousAssignee =
+      task.assignee === undefined ? undefined : this.findMember(task.assignee);
+    reopenFailedTask(task, this.clock);
+    if (previousAssignee !== undefined) {
+      const parked = this.parkedAttempts.get(previousAssignee.agentId);
+      if (
+        parked !== undefined &&
+        ownedOpenTask(record.tasks, previousAssignee.memberName)?.attemptId !== parked
+      ) {
+        this.parkedAttempts.delete(previousAssignee.agentId);
+      }
+    }
+    // journal：重开是 manager 动作（M15/D8），板事实（pending + 证据清空 + attempt
+    // 延续值）随 task_updated 持久化——恢复侧重放即得重开结果，不新增 journal kind
+    //（契约 5；重放不区分动作者，actor 门只在运行态）。
+    this.journalTaskFact(task);
+    this.refreshStatus();
+    void this.kickTeam().catch(() => undefined);
+    return { status: "ok", task: taskCardOf(task) };
   }
 
   /** lead idle 边缘：未完成接管归还共享池（lead 无调度通道，防永久 parked）。 */
@@ -874,10 +1390,7 @@ export class TeamHub {
     if (record === undefined) return 0;
     let returned = 0;
     for (const task of record.tasks) {
-      if (
-        task.assignee === LEAD_ASSIGNEE_KEY &&
-        !isTerminalTaskStatus(task.status)
-      ) {
+      if (task.assignee === LEAD_ASSIGNEE_KEY && !isTerminalTaskStatus(task.status)) {
         invalidateTaskAttempt(task, undefined, this.clock, false);
         this.journalTaskFact(task);
         returned += 1;
@@ -897,22 +1410,119 @@ export class TeamHub {
   adoptRestored(record: TeamRecord): boolean {
     if (this.record !== undefined) return false;
     this.record = record;
+    // §22 契约 3：消费恢复通道 flag（journal 重放回填；消费即清，不留第二事实源）。
+    if (record.restoredFinalReport !== undefined) {
+      this.finalReportDispatchedFlag = record.restoredFinalReport.dispatched === true;
+      this.finalReportDeliveredFlag = record.restoredFinalReport.delivered === true;
+      delete record.restoredFinalReport;
+    }
     for (const member of record.members) {
       if (member.removed || member.agentId === "") continue;
       const owned = ownedOpenTask(record.tasks, member.memberName);
       if (owned?.attemptId !== undefined) this.parkedAttempts.set(member.agentId, owned.attemptId);
     }
     this.notifyChange();
+    // 2026-10-27 M7（决策 D5）修复：终报两段恢复臂——冷恢复缝里「恰一条」此前会退化
+    // 为「零条」（dispatched 事实丢失无人再派发；dispatched 已落未 delivered 时指令
+    // 邮件躺邮箱、恢复块既不补投也不 kick manager）。
+    this.recoverFinalReportAfterRestore(record);
     return true;
+  }
+
+  /**
+   * 冷恢复终报重臂（2026-10-27 M7/决策 D5）：
+   * (a) 未 dispatched 且团队已终态 → 重走 maybeDispatchFinalReport（幂等门在
+   *     dispatchedFlag，恰一次不变；halted/escalated/staged/归档态在派发门内拦截）；
+   * (b) dispatched 已落未 delivered → 优先把终报补投 lead——邮箱有 to=lead 终报条目
+   *     则走既有 deliverPendingLeadMail；有未投 to=manager 指令邮件且 manager 可用
+   *     则 kick 令其产出；其余恢复缝（指令已投/被裁剪，或 manager 不可用）走结构化
+   *     兜底直投，保证 lead 恰好收一条。冻结/归档态不重臂（§22 契约 3 halted 非终态
+   * 不汇报；escalated 冻结期同理——恢复/收尾后的 idle 边缘自然再入派发门）。
+   */
+  private recoverFinalReportAfterRestore(record: TeamRecord): void {
+    // 2026-10-27 评审阻断项补界：终报生命周期以 manager 架构为界（同 maybeDispatchFinalReport
+    // 头注）——legacy 无 manager 队伍无终报语义，不重臂（其 lead 邮箱走缺口12 普通通道，
+    // 由既有 kickTeam/deliverPendingLeadMail 边缘承接，与本恢复臂无关）。
+    if (record.managerName === undefined) return;
+    if (this.finalReportDeliveredFlag) return;
+    if (
+      record.status === "staged" ||
+      record.status === "halted" ||
+      record.status === "escalated" ||
+      isArchival(record.status)
+    ) {
+      return;
+    }
+    if (!this.finalReportDispatchedFlag) {
+      this.maybeDispatchFinalReport();
+      return;
+    }
+    const leadReport = record.mailbox.find(
+      (entry) => entry.to === LEAD_ASSIGNEE_KEY && !entry.deliveredAccepted,
+    );
+    if (leadReport !== undefined) {
+      void this.deliverPendingLeadMail().catch(() => undefined);
+      return;
+    }
+    const directivePending = record.mailbox.some(
+      (entry) =>
+        entry.from === LEAD_ASSIGNEE_KEY &&
+        entry.to === record.managerName &&
+        !entry.deliveredAccepted,
+    );
+    const manager = record.members.find(
+      (member) => member.memberName === record.managerName && !member.removed,
+    );
+    if (directivePending && manager !== undefined && manager.childSessionId !== undefined) {
+      void this.kickMember(manager.memberName).catch(() => undefined);
+      return;
+    }
+    this.deliverFinalReportFallback(record, this.clock.now());
+  }
+
+  /**
+   * 冷恢复对账（§21 A13 B 案裁决，2026-10-24）：journal 重放 adopt 完成后，把
+   * 持久化 team.mailbox 条目按 messageId 并入邮箱——journal 已见（appendedMessageIds，
+   * 含其后 delivered/dropped 的）跳过，dropped 死件与保留期裁掉的条目不复活；
+   * journal 未见的补入（半持久窗口：邮箱条目已持久化、journal 事实未刷）；
+   * delivered 以两源较新者为准（语义全文见 mailbox.reconcilePersistedMailEntries）。
+   * 补入/更新即刷新状态（未投邮件可能使 idle→active 重推导）并通知；无 team
+   * （未 adopt/无现役记录）时 no-op 返回 0。不补写 journal——持久化条目本身即
+   * 该条目的恢复源（再崩溃对账幂等重做）。
+   * @returns 补入条数与既有条目被更新数（0/0 = 无变化）。
+   */
+  reconcilePersistedMailbox(input: {
+    appendedMessageIds: ReadonlySet<string>;
+    entries: readonly TeamMailboxEntry[];
+  }): { appended: number; merged: number } {
+    const record = this.record;
+    if (record === undefined) return { appended: 0, merged: 0 };
+    const { mailbox, appended, merged } = reconcilePersistedMailEntries(
+      record.mailbox,
+      input.appendedMessageIds,
+      input.entries,
+      this.limits.mailboxRetentionPerMember,
+    );
+    if (appended === 0 && merged === 0) return { appended: 0, merged: 0 };
+    record.mailbox = mailbox;
+    record.updatedAt = this.clock.now();
+    this.refreshStatus();
+    this.notifyChange();
+    return { appended, merged };
   }
 
   // ---------- 端口工厂（两级接口；身份由装配结构性决定） ----------
 
   memberPort(binding: { agentId: string; memberName: string }): TeamMemberPort {
     return {
-      roster: () => this.requireSnapshot(binding) ?? { teamId: "", leadSessionId: "", status: "archived", members: [] },
-      boardRead: () =>
-        this.board() ?? { teamId: "", tasks: [], limit: this.limits.boardTasksMax },
+      roster: () =>
+        this.requireSnapshot(binding) ?? {
+          teamId: "",
+          leadSessionId: "",
+          status: "archived",
+          members: [],
+        },
+      boardRead: () => this.board() ?? { teamId: "", tasks: [], limit: this.limits.boardTasksMax },
       taskGet: (taskId) => {
         if (!this.checkPresence(binding)) return undefined;
         const task = this.record?.tasks.find((candidate) => candidate.taskId === taskId);
@@ -922,6 +1532,13 @@ export class TeamHub {
       taskUpdate: (input) => this.portTaskUpdate(binding, input),
       taskClaim: (taskId) => this.portTaskClaim(binding, taskId),
       send: (input) => this.portSend(binding, input),
+      // §22 契约 4：manager 成员转派/接管（binding.agentId = child agentId，lead 绑定
+      // 为 leadSessionId——isTeamActor 统一判定；普通成员 hub 层拒 team_lead_only）。
+      reassign: (input) => this.reassign(binding.agentId, input),
+      // 2026-10-27 M15（决策 D8）：failed→pending 受控出边经成员端口暴露——manager
+      // child 自证 actor（isTeamActor；普通成员/lead 绑定一律 team_lead_only），
+      // TeamReopen 工具经此接线（此前 hub.reopenTask 有实现无生产入口）。
+      reopen: (input) => this.reopenTask(binding.agentId, input),
     };
   }
 
@@ -929,12 +1546,16 @@ export class TeamHub {
     const member = this.memberPort({ agentId: leadSessionId, memberName: LEAD_ASSIGNEE_KEY });
     return {
       ...member,
-      taskCreate: (input) => this.portTaskCreate({ agentId: leadSessionId, memberName: LEAD_ASSIGNEE_KEY }, input),
-      taskUpdate: (input) => this.portTaskUpdate({ agentId: leadSessionId, memberName: LEAD_ASSIGNEE_KEY }, input),
-      taskClaim: (taskId) => this.portTaskClaim({ agentId: leadSessionId, memberName: LEAD_ASSIGNEE_KEY }, taskId),
+      taskCreate: (input) =>
+        this.portTaskCreate({ agentId: leadSessionId, memberName: LEAD_ASSIGNEE_KEY }, input),
+      taskUpdate: (input) =>
+        this.portTaskUpdate({ agentId: leadSessionId, memberName: LEAD_ASSIGNEE_KEY }, input),
+      taskClaim: (taskId) =>
+        this.portTaskClaim({ agentId: leadSessionId, memberName: LEAD_ASSIGNEE_KEY }, taskId),
       stageTeam: (input) => this.stageTeam(leadSessionId, input),
-      approveStage: () => this.approveStage(leadSessionId),
-      reassign: (input) => this.reassign(leadSessionId, input),
+      // 2026-10-27 L9（决策 D10）：options（§10 增补三 permissionMode）经 port 透传——
+      // 此前 port 契约签名无 options，生产 handler 只得直调 hub 绕开 port。
+      approveStage: (options) => this.approveStage(leadSessionId, options),
       resume: (reason) => this.resume(leadSessionId, reason),
     };
   }
@@ -947,11 +1568,17 @@ export class TeamHub {
       return { status: "rejected", error: teamPortError("member_removed") };
     }
     const record = this.record;
-    if (record === undefined) return { status: "rejected", error: teamPortError("team_not_present") };
-    if (record.status === "halted") return { status: "rejected", error: teamPortError("team_halted") };
-    if (record.status === "staged") return { status: "rejected", error: teamPortError("team_not_present") };
+    if (record === undefined)
+      return { status: "rejected", error: teamPortError("team_not_present") };
+    if (record.status === "halted")
+      return { status: "rejected", error: teamPortError("team_halted") };
+    if (record.status === "staged")
+      return { status: "rejected", error: teamPortError("team_not_present") };
     if (record.tasks.length >= this.limits.boardTasksMax) {
-      return { status: "rejected", error: teamPortError("board_limit_reached", { limit: String(this.limits.boardTasksMax) }) };
+      return {
+        status: "rejected",
+        error: teamPortError("board_limit_reached", { limit: String(this.limits.boardTasksMax) }),
+      };
     }
     // 2026-10-21 缺口5（spec §14）：运行态建任务同样校验依赖存在性——悬空依赖的
     // 任务 unsatisfiedDependencies 永不满足，会永久 pending 且无任何提示（staged
@@ -960,15 +1587,24 @@ export class TeamHub {
     const existingTaskIds = new Set(record.tasks.map((task) => task.taskId));
     const danglingDependency = input.dependsOn.find((id) => !existingTaskIds.has(id));
     if (danglingDependency !== undefined) {
-      return { status: "rejected", error: teamPortError("unknown_dependency", { id: danglingDependency }) };
+      return {
+        status: "rejected",
+        error: teamPortError("unknown_dependency", { id: danglingDependency }),
+      };
     }
     const now = this.clock.now();
     const task = this.materializeTask(input, now);
     record.tasks.push(task);
     record.updatedAt = now;
     // 指派任务立即唤醒被指派者（spec §16.2 唤醒与认领分离）。
+    // 2026-10-27 M4（决策 D6）：指派给 manager 是路由地址（manager 不执行，kick 其
+    // 本人是 no-op）——改 kickTeam 唤醒全体 workers 按「视同可认领」规则认领。
     if (input.assignee !== undefined && input.assignee !== LEAD_ASSIGNEE_KEY) {
-      void this.kickMember(input.assignee);
+      if (record.managerName !== undefined && input.assignee === record.managerName) {
+        void this.kickTeam().catch(() => undefined);
+      } else {
+        void this.kickMember(input.assignee);
+      }
     }
     this.journal({ kind: "task_created", teamId: record.teamId, task: taskJournalFactOf(task) });
     return { status: "ok", task: taskCardOf(task) };
@@ -982,10 +1618,12 @@ export class TeamHub {
       return { status: "rejected", error: teamPortError("member_removed") };
     }
     const record = this.record;
-    if (record === undefined) return { status: "rejected", error: teamPortError("team_not_present") };
+    if (record === undefined)
+      return { status: "rejected", error: teamPortError("team_not_present") };
     // 2026-10-21 缺口7：冻结面补漏——halted 后任务更新同样被拒（此前只有 create/claim
     // 有 halted 门，在飞成员回合仍可推进板状态，违背 spec §2.6「冻结调度」）。
-    if (record.status === "halted") return { status: "rejected", error: teamPortError("team_halted") };
+    if (record.status === "halted")
+      return { status: "rejected", error: teamPortError("team_halted") };
     const caller = binding.memberName;
     const { task, error } = applyTaskUpdate(record.tasks, input, caller, this.clock);
     if (error !== undefined) return { status: "rejected", error };
@@ -1003,9 +1641,12 @@ export class TeamHub {
       return { status: "rejected", error: teamPortError("member_removed") };
     }
     const record = this.record;
-    if (record === undefined) return { status: "rejected", error: teamPortError("team_not_present") };
-    if (record.status === "halted") return { status: "rejected", error: teamPortError("team_halted") };
-    const claimant = binding.memberName === LEAD_ASSIGNEE_KEY ? LEAD_ASSIGNEE_KEY : binding.memberName;
+    if (record === undefined)
+      return { status: "rejected", error: teamPortError("team_not_present") };
+    if (record.status === "halted")
+      return { status: "rejected", error: teamPortError("team_halted") };
+    const claimant =
+      binding.memberName === LEAD_ASSIGNEE_KEY ? LEAD_ASSIGNEE_KEY : binding.memberName;
     const { task, result } = claimTask(record.tasks, taskId, claimant, this.clock);
     // journal：认领成功 = 板事实变化（attempt 世代是冷恢复单次重试的依据）。
     if (result.status === "claimed" && task !== undefined) this.journalTaskFact(task);
@@ -1021,9 +1662,46 @@ export class TeamHub {
     }
     const record = this.record;
     if (record === undefined) return { status: "failed", error: teamPortError("team_not_present") };
-    if (record.status === "halted") return { status: "failed", error: teamPortError("team_halted") };
+    if (record.status === "halted")
+      return { status: "failed", error: teamPortError("team_halted") };
     if (!validateMessageSize(input.message, this.limits.messageMaxChars)) {
-      return { status: "failed", error: teamPortError("message_too_large", { limit: String(this.limits.messageMaxChars) }) };
+      return {
+        status: "failed",
+        error: teamPortError("message_too_large", { limit: String(this.limits.messageMaxChars) }),
+      };
+    }
+
+    // source 配对校验（spec §16 契约 4，dsh「source_task_id / source_attempt_id 成对
+    // 且与调用者当前代一致」，tools.ts 语义）：带源报告必须成对携带凭证；源任务非终态
+    // 时精确核对「任务当前 attemptId === 提交值 且 assignee === 发送者」，不符 →
+    // attempt_revoked（报告不再能靠省略 sourceAttemptId 全量穿透世代过滤）。纯引导
+    // （无 source）不受限，两拒绝族条件与文案一字不动（spec §20 契约 1）。
+    // 终态源剥离裁决（spec §20 契约 1，2026-10-23 补审计「先于实现」登记）：源任务在板
+    // 且已终态时 attemptId 已随终态清空（applyTaskUpdate 终态分支，board.ts），提交的
+    // sourceAttemptId 必非当前代——照旧入箱会在投递侧被 isCurrentMail 第一谓词判死
+    // （attemptId 相等先行，后置「终态宽容」子句在终态场景不可达，mailbox.ts isCurrentMail
+    // 头注同此订正），成员「先 TeamTaskUpdate{completed} 再 TeamSend 补报告」的自然顺序
+    // 沦为静默死件。故入箱前剥离 sourceAttemptId（保留 sourceTaskId 作展示引用，
+    // sourceProvenanceHeader 渲染 attempt_id n/a），降级为无绑定邮件——恢复契约 4 之前
+    // 终态场景「省略 attemptId 恒可投递」的投递语义。契约 1 失败通知路径不经本配对段
+    // （入箱先于置 failed，handleMemberFailed 登记次序），对本剥离结构上不可达。
+    let sourceAttemptId = input.sourceAttemptId;
+    if (input.sourceTaskId !== undefined) {
+      if (sourceAttemptId === undefined) {
+        return { status: "failed", error: teamPortError("missing_attempt_id") };
+      }
+      const source = record.tasks.find((candidate) => candidate.taskId === input.sourceTaskId);
+      if (source !== undefined) {
+        if (isTerminalTaskStatus(source.status)) {
+          // 终态源：剥凭证入箱（spec §20 契约 1），依据见上方段注。
+          sourceAttemptId = undefined;
+        } else if (
+          source.attemptId !== input.sourceAttemptId ||
+          source.assignee !== binding.memberName
+        ) {
+          return { status: "failed", error: teamPortError("attempt_revoked") };
+        }
+      }
     }
 
     // 目标解析：名字必须仍指向原成员（E5 名字重定向防护，spec §2.4）；
@@ -1031,11 +1709,16 @@ export class TeamHub {
     let targetName = input.to;
     if (input.to !== LEAD_ASSIGNEE_KEY) {
       const direct = this.findMember(input.to);
-      const byAgent = record.members.find((candidate) => candidate.agentId === input.to && !candidate.removed);
+      const byAgent = record.members.find(
+        (candidate) => candidate.agentId === input.to && !candidate.removed,
+      );
       if (byAgent !== undefined) {
         targetName = byAgent.memberName;
       } else if (direct !== undefined && direct.removed) {
-        return { status: "failed", error: teamPortError("message_target_terminal_retired", { name: input.to }) };
+        return {
+          status: "failed",
+          error: teamPortError("message_target_terminal_retired", { name: input.to }),
+        };
       } else if (direct !== undefined) {
         targetName = direct.memberName;
       } else {
@@ -1045,7 +1728,10 @@ export class TeamHub {
     if (targetName !== LEAD_ASSIGNEE_KEY) {
       const target = this.findMember(targetName);
       if (target === undefined || target.removed) {
-        return { status: "failed", error: teamPortError("message_target_terminal_retired", { name: targetName }) };
+        return {
+          status: "failed",
+          error: teamPortError("message_target_terminal_retired", { name: targetName }),
+        };
       }
     }
 
@@ -1056,15 +1742,32 @@ export class TeamHub {
       targetAttemptId = targetTask?.attemptId;
     }
 
+    // §22 契约 2（2026-10-26，落库前改向修正；2026-10-27 M5/决策 D4 收敛为无条件）：
+    // 成员→lead 的消息一律在入队前重写收件人为 manager——journal 与运行态记同一位
+    // 收件人（routeMail 后置改向会让重放重建旧地址、两态漂移；team-journal 保留期
+    // 对账用例实证）。原条件含 !finalReportDelivered()：终报送达后成员→lead 不再改写，
+    // 产生永久 queued 死信且 isCurrentMail 恒 true 把团队钉死 active——spec 契约 2 对
+    // 改向是无条件表述（成员汇报由 manager 消费），以契约为准；manager 离册场景由
+    // routeMail 的 §21 A1 同族死信承接（M3）。仅 manager 本人 → lead 保留 lead 收件
+    // （终态汇报唯一入口）。
+    let routedTo = targetName;
+    if (
+      targetName === LEAD_ASSIGNEE_KEY &&
+      record.managerName !== undefined &&
+      binding.memberName !== record.managerName
+    ) {
+      routedTo = record.managerName;
+    }
     const entry: TeamMailboxEntry = {
       messageId: this.clock.newId(),
       from: binding.memberName,
-      to: targetName,
+      to: routedTo,
       message: input.message,
       ...(input.summary === undefined ? {} : { summary: input.summary }),
       at: this.clock.now(),
       ...(input.sourceTaskId === undefined ? {} : { sourceTaskId: input.sourceTaskId }),
-      ...(input.sourceAttemptId === undefined ? {} : { sourceAttemptId: input.sourceAttemptId }),
+      // 终态源已剥离（sourceAttemptId 置 undefined，spec §20 契约 1）→ 无绑定条目。
+      ...(sourceAttemptId === undefined ? {} : { sourceAttemptId }),
       ...(input.targetTaskId === undefined ? {} : { targetTaskId: input.targetTaskId }),
       ...(targetAttemptId === undefined ? {} : { targetAttemptId }),
       deliveredAccepted: false,
@@ -1077,6 +1780,20 @@ export class TeamHub {
   enqueueMail(entry: TeamMailboxEntry): TeamSendResult {
     const record = this.record;
     if (record === undefined) return { status: "failed", error: teamPortError("team_not_present") };
+    // 内容级幂等去重（spec §16 契约 4，dsh「identical report retries reuse one
+    // durable message」）：from/to/message 逐字相同 + source 三元组相同 + 旧条目仍
+    // isCurrentMail（任务绑定报告无论已投递与否都去重，普通引导仅未投递时去重）
+    // → 不追加不投递不重复持久化，返回既有 messageId 及其当前 delivery。模型超时/
+    // 重试重发同一条 TeamSendMessage 不再重复入箱、不再重复唤醒收件方（lead 侧
+    // 每条 pending 只注入一次独立轮的既有语义因此不被重发放大）。
+    const duplicate = findDuplicateMail(record.mailbox, entry, record.tasks);
+    if (duplicate !== undefined) {
+      return {
+        status: "success",
+        messageId: duplicate.messageId,
+        delivery: currentDeliveryOf(duplicate),
+      };
+    }
     const persist = this.deps.persistMailboxEntry;
     if (persist !== undefined) {
       try {
@@ -1096,6 +1813,136 @@ export class TeamHub {
     return { status: "success", messageId: entry.messageId, delivery };
   }
 
+  // ===== §22 契约 3：终态单条汇报（manager 执笔，hub 结构化兜底）=====
+
+  /** 终态汇报是否已送达 lead（journal fact final_report_delivered 重放可得；内存态缓存）。 */
+  private finalReportDeliveredFlag = false;
+  private finalReportDispatchedFlag = false;
+
+  markFinalReportDelivered(): void {
+    if (this.finalReportDeliveredFlag) return;
+    this.finalReportDeliveredFlag = true;
+    const record = this.record;
+    if (record === undefined) return;
+    this.journal({ kind: "final_report_delivered", teamId: record.teamId });
+    // 2026-10-27 M12-core（决策 D3）修复：终报送达即终局——completed/cancelled 此前
+    // 在 hub/journal 均无生产者，终局团队永远定格 idle、UI 终局徽标不可达。终局口径
+    // finaleStatusOfTasks（types.ts 单一出处）；重放侧由 final_report_delivered 事实 +
+    // 任务终态分布同口径推导（journal.ts 重放末尾），不加新 journal kind。归档态随之
+    // 关闭全部端口（checkPresence 的 isArchival 既有门），与 §2.6「completed = 归档
+    // 保留完整花名册」一致；§2.6 原「用户收队/lead 会话结束」触发定义与此分歧，取舍
+    // 见 spec 收口批登记。
+    record.status = finaleStatusOfTasks(record.tasks);
+    record.updatedAt = this.clock.now();
+  }
+
+  finalReportDelivered(): boolean {
+    return this.finalReportDeliveredFlag;
+  }
+
+  /**
+   * 团队终态（§22 契约 3；2026-10-27 M11/决策 D2 口径对齐）：workers 全终态 + 任务板
+   * 全终态。manager 不参与（常驻协调、无任务，与 hasWorkingMember 的 §22 口径一致；
+   * spec 原文「全员（含 manager）」由收口批修订为 workers 口径）。任务终态对齐 board
+   * TERMINAL_STATUSES：failed/cancelled/completed 均终态——此前只认 completed/cancelled，
+   * 全任务 failed 收尾的团队被按「板仍开放」计，终报永不派发（修复依据：board.ts
+   * isTerminalTaskStatus 是任务终态的唯一口径）。escalated 冻结期不终报（派发门只放
+   * active/idle；恢复/收尾后再派）。
+   */
+  private isTeamTerminal(record: TeamRecord): boolean {
+    const membersActive = record.members.some(
+      (member) =>
+        !member.removed &&
+        member.memberName !== record.managerName &&
+        member.state !== "terminal",
+    );
+    const tasksOpen = record.tasks.some((task) => !isTerminalTaskStatus(task.status));
+    return !membersActive && !tasksOpen;
+  }
+
+  /**
+   * 终态边缘派发（§22 契约 3）：恰一次——先给 manager 投汇报指令邮件并 kick（复活链
+   * 承接 terminal manager）；manager 不可投则 hub 结构化兜底直投 lead。两条路径都落
+   * final_report fact（dispatched 防重派；delivered 由 manager→lead 投递或兜底路径置）。
+   *
+   * 2026-10-27 H1 修复：派发门由 record.status === "active" 改为「可调度态（active/
+   * idle）且团队终态且未派发」——原门要求 active，而唯一运行态调用点 refreshStatus 只在
+   * status === "idle" 时触发（两条件恒不相交），manager 指令邮件与结构化兜底两条路径
+   * 均不可达、final_report_dispatched 永不落（死代码）。idle 且终态时两条路径现在可达；
+   * halted/staged/escalated/归档态仍不派发（§22 契约 3「halted 非终态不汇报」；escalated
+   * 冻结期不终报）。冷恢复的未派发缝由 adoptRestored 恢复臂（M7）以 active 态重入本门。
+   *
+   * 2026-10-27 评审阻断项补界：终报链以 manager 架构为界——record.managerName ===
+   * undefined 的 legacy/无 manager 队伍（含冷恢复记录，hub.ts adoptRestored/team_created
+   * 均支持）不自动派发终报、不翻转 completed（否则空板/全终态板 + workers 终态对
+   * isTeamTerminal 空真，legacy 队伍被自动终报并关闭全部端口——install-runtime
+   * ⑤⑪⑫②⑩ 五例回归实证）。与 deliverPendingLeadMail 的送达标记、settleClosedLeadMailbox
+   * 的闭箱过滤两处既有 legacy 界同门。
+   */
+  private maybeDispatchFinalReport(): void {
+    const record = this.record;
+    if (
+      record === undefined ||
+      record.managerName === undefined ||
+      (record.status !== "active" && record.status !== "idle") ||
+      this.finalReportDispatchedFlag ||
+      !this.isTeamTerminal(record)
+    ) {
+      return;
+    }
+    this.finalReportDispatchedFlag = true;
+    // 2026-10-27 L5 修复：dispatched 事实随 flag 同点落——此前只 manager 路径在指令
+    // 邮件入箱后补落，兜底路径缺该事实（journal 流无法区分两条路径；恢复语义虽由
+    // restoredFinalReport 合并兜底，事实流应与运行态一致）。
+    this.journal({ kind: "final_report_dispatched", teamId: record.teamId });
+    const now = this.clock.now();
+    const manager = record.members.find(
+      (member) => member.memberName === record.managerName && !member.removed,
+    );
+    if (manager === undefined || manager.childSessionId === undefined) {
+      // 兜底：manager 不在（未 spawn 即全员终态/被移除）——结构化终态表直投 lead。
+      this.deliverFinalReportFallback(record, now);
+      return;
+    }
+    // 指令邮件：manager 执笔唯一终态汇报（from=lead 由 manager 视角接收）。
+    const directive = buildFinalReportRequestBody(record);
+    this.enqueueMail({
+      messageId: `reportreq_${this.clock.newId()}`,
+      from: LEAD_ASSIGNEE_KEY,
+      to: manager.memberName,
+      message: directive,
+      summary: "Write the final report to the lead",
+      at: now,
+      deliveredAccepted: false,
+    });
+    this.kickMember(manager.memberName);
+    this.notifyChange();
+  }
+
+  /**
+   * hub 结构化兜底（§22 契约 3 manager 不可投路径；2026-10-27 M7 恢复臂复用同一路径）：
+   * 任务终态表拼装直投 lead + 送达事实即时落账（注入由 routeMail 触发的
+   * deliverPendingLeadMail 异步承接；通道缺席/拒绝时条目留邮箱、delivered 事实已落——
+   * 与既有乐观语义一致，残留条目由 M6 闭箱过滤在后续边缘死信收口）。
+   */
+  private deliverFinalReportFallback(record: TeamRecord, now: string): void {
+    const summary = record.tasks
+      .map((task) => `${task.title}: ${task.status}`)
+      .join("; ");
+    const body = `Agents Team final report (fallback, manager unavailable): ${summary}`;
+    this.enqueueMail({
+      messageId: `final_${this.clock.newId()}`,
+      from: record.managerName ?? LEAD_ASSIGNEE_KEY,
+      to: LEAD_ASSIGNEE_KEY,
+      message: body,
+      summary: body.slice(0, 120),
+      at: now,
+      deliveredAccepted: false,
+    });
+    this.markFinalReportDelivered();
+    this.notifyChange();
+  }
+
   private routeMail(entry: TeamMailboxEntry): TeamSendDelivery {
     const record = this.record;
     if (record === undefined) return "queued";
@@ -1105,38 +1952,91 @@ export class TeamHub {
     // lead_injected）；fire-and-forget，投递失败留 queued 由 kickTeam 与 lead
     // turn-complete 边缘重试（deliverPendingLeadMail 内置 staged/halted/归档门）。
     if (entry.to === LEAD_ASSIGNEE_KEY) {
-      void this.deliverPendingLeadMail().catch(() => undefined);
+      // §22 契约 2（2026-10-26）：to=lead 的唯一合法发件人是 manager（终态汇报）；
+      // 其余成员对 lead 的消息在路由层改投 manager（成员汇报由 manager 消费，
+      // lead 上下文零污染——session_d15d08f4 实证修复）。
+      // 改向已在 portSend 入队前完成（单一事实源，重放不漂移；M5 后为无条件）；
+      // 此处只做 lead 收件门：manager 汇报已送达（finalReportDelivered）后 lead 收件
+      // 关闭——闭箱后的存量条目不再注入，由 deliverPendingLeadMail 的 M6 闭箱过滤
+      // 死信/改投收口（正常流改向在前不可达；legacy 无 manager 队伍维持缺口 12 通道）。
+      const managerMailboxOpen =
+        record.managerName === undefined || entry.from === record.managerName
+          ? !this.finalReportDelivered() || record.managerName === undefined
+          : false;
+      if (managerMailboxOpen || record.managerName === undefined) {
+        void this.deliverPendingLeadMail().catch(() => undefined);
+        return "queued";
+      }
       return "queued";
     }
     const target = this.findMember(entry.to);
-    if (target === undefined || target.removed) return "queued";
+    if (target === undefined || target.removed) {
+      // 2026-10-27 M3（决策 D4）修复：收件人离册（典型：成员→lead 被 §22 契约 2 改投
+      // 的 manager 已移除）的条目此前恒 queued——无死信通道、busy 谓词把死信计入，团队
+      // 被永久钉在 active。照 §21 A1 同族死信处置：message_dropped journal 事实 + 丢弃
+      // 退出 pendingMail 选取集；wire 返回值维持 "queued"（TeamSendDelivery 闭合枚举
+      // 无 dropped 值，送达事实只认邮箱与 journal——与 §21 A1 skipped 条目的静默丢弃
+      // 同口径）。已在箱的离册残留条目由 refreshStatus 的收件人在册过滤不计入 busy
+      //（isRecipientOnRoster）。
+      record.mailbox = dropMailEntries(record.mailbox, [entry.messageId]);
+      this.journal({
+        kind: "message_dropped",
+        teamId: record.teamId,
+        messageIds: [entry.messageId],
+        reason: "recipient no longer on the team",
+        at: this.clock.now(),
+      });
+      return "queued";
+    }
     if (target.state === "working") {
       // 运行中成员：steer 注入（presentation=subagent_reply_steer 渲染禁令）。
       const body = buildSteerBody(entry);
       const recordNow = record;
       const journalNow = this.journal.bind(this);
       const clockNow = this.clock;
+      // 投递租约（spec §16 契约 3）：fire-and-forget dispatch 到 markDelivered 之间
+      // 是 routeMail×kick 双投窗口——盖 claim 后 doKickMember 的租约过滤跳过本条。
+      const claimedAt = clockNow.now();
+      record.mailbox = claimDeliveryLease(record.mailbox, [entry.messageId], claimedAt);
       void this.dispatch({
         memberName: target.memberName,
         prompt: body,
         mode: "steer",
-      }).then((accepted) => {
-        if (accepted) {
-          recordNow.mailbox = markDelivered(
-            recordNow.mailbox,
-            [entry.messageId],
-            "steered",
-            clockNow.now(),
-          );
-          journalNow({
-            kind: "message_delivered",
-            teamId: recordNow.teamId,
-            messageIds: [entry.messageId],
-            via: "steered",
-            at: clockNow.now(),
-          });
-        }
-      });
+      })
+        .then((accepted) => {
+          if (accepted) {
+            recordNow.mailbox = markDelivered(
+              recordNow.mailbox,
+              [entry.messageId],
+              "steered",
+              clockNow.now(),
+            );
+            journalNow({
+              kind: "message_delivered",
+              teamId: recordNow.teamId,
+              messageIds: [entry.messageId],
+              via: "steered",
+              at: clockNow.now(),
+            });
+            // 送达事实翻转（deliveredAccepted→true）必须补通知半边（2026-10-23 留档项
+            // 「成员邮件 delivered 翻转不通知」）：通知是投影的唯一驱动（notify →
+            // deps.onChange → TeamStateChanged，spec §19 契约 1 收敛链），异步完成路径
+            // 此前只改邮箱不发通知——UI 尾窗 mailboxTail[].delivered 恒滞留 false、
+            // refreshStatus 的「邮箱待决清空 → active/idle 重算」也不发生。与 enqueueMail
+            // 同步路径收尾、deliverPendingLeadMail 收尾同口径（markDelivered → journal →
+            // refreshStatus → notifyChange）；租约盖戳/释放与冻结门判定一字不动
+            // （spec §16 契约 3 现状保留；dsh「ack 只认注入」的送达事实落库后对 UI 可见）。
+            this.refreshStatus();
+            this.notifyChange();
+            return;
+          }
+          // 拒绝 → 释放租约（owner 核对：超租约后其他路径已盖新戳时不清除）。
+          recordNow.mailbox = releaseDeliveryLease(recordNow.mailbox, [entry.messageId], claimedAt);
+        })
+        .catch(() => {
+          // dispatch 抛错与拒绝同责（spec §16 契约 3）：释放租约留待重试边缘。
+          recordNow.mailbox = releaseDeliveryLease(recordNow.mailbox, [entry.messageId], claimedAt);
+        });
       return "steered";
     }
     if (target.state === "terminal") {
@@ -1148,27 +2048,42 @@ export class TeamHub {
       const recordNow = record;
       const journalNow = this.journal.bind(this);
       const clockNow = this.clock;
+      // 投递租约（spec §16 契约 3）：同 working 分支——复活投递同样是裁决外异步窗口。
+      const claimedAt = clockNow.now();
+      record.mailbox = claimDeliveryLease(record.mailbox, [entry.messageId], claimedAt);
       void this.dispatch({
         memberName: target.memberName,
         prompt: body,
         mode: "queue",
-      }).then((accepted) => {
-        if (accepted) {
-          record.mailbox = markDelivered(
-            record.mailbox,
-            [entry.messageId],
-            "resumed",
-            this.clock.now(),
-          );
-          journalNow({
-            kind: "message_delivered",
-            teamId: recordNow.teamId,
-            messageIds: [entry.messageId],
-            via: "resumed",
-            at: clockNow.now(),
-          });
-        }
-      });
+      })
+        .then((accepted) => {
+          if (accepted) {
+            record.mailbox = markDelivered(
+              record.mailbox,
+              [entry.messageId],
+              "resumed",
+              this.clock.now(),
+            );
+            journalNow({
+              kind: "message_delivered",
+              teamId: recordNow.teamId,
+              messageIds: [entry.messageId],
+              via: "resumed",
+              at: clockNow.now(),
+            });
+            // 送达翻转补通知半边（留档项「成员邮件 delivered 翻转不通知」）：与 working
+            // 分支同口径（deliverPendingLeadMail 收尾同款），依据见该分支段注。
+            this.refreshStatus();
+            this.notifyChange();
+            return;
+          }
+          // 拒绝 → 释放租约（owner 核对：超租约后其他路径已盖新戳时不清除）。
+          recordNow.mailbox = releaseDeliveryLease(recordNow.mailbox, [entry.messageId], claimedAt);
+        })
+        .catch(() => {
+          // dispatch 抛错与拒绝同责（spec §16 契约 3）：释放租约留待重试边缘。
+          recordNow.mailbox = releaseDeliveryLease(recordNow.mailbox, [entry.messageId], claimedAt);
+        });
       return "resumed";
     }
     return "queued";
@@ -1176,39 +2091,165 @@ export class TeamHub {
 
   /**
    * lead 待决邮件批量投递（2026-10-21 缺口12，spec §14）：pendingMail(lead) 经装配
-   * 通道注入 lead 会话。送达 ack = 通道返回 true——enqueue 即接受（spec §14 登记的
-   * lead 例外：mid-turn 注入由 active-loop 异步完成，无同步回执面，stale-branch
-   * 丢弃窗口与 RespondToCoordinator 同源同责）；失败/抛错整体留 queued，重试边缘
-   * = routeMail 即时投递、kickTeam 末尾、lead turn-complete、冷恢复 adoption。
+   * 通道注入 lead 会话。送达 ack = 通道结构化结果（§21 A1，2026-10-24）：injected
+   * 条目 markDelivered(lead_injected) + journal message_delivered（enqueue 即接受，
+   * spec §14 登记的 lead 例外：mid-turn 注入由 active-loop 异步完成，无同步回执面）；
+   * skipped 条目为永久不可投（发件人离册/childSessionId 缺席）——丢弃条目（动作与
+   * discardStaleMail 清除同族）+ journal 新事实 message_dropped；其余条目（注入动作
+   * 失败但非永久不可投）仅释放投递租约留 queued，重试边缘 = routeMail 即时投递、
+   * kickTeam 末尾、lead turn-complete、冷恢复 adoption。旧「accepted=false 整批
+   * 释放」路径已删——批内已注入条目 markDelivered 后永久退出 pendingMail 选取集
+   * （§16 契约 3 既有语义），重投边缘只捡未注入未丢弃条目，重复注入通道结构性消失。
    * 幂等：deliveredAccepted 只在成功后置位，重复调用零副作用。
+   * 投递租约（spec §16 契约 3）：三个并发触发点（routeMail/kickTeam/turn-complete）
+   * 对同一 pending 集只投一次——发起注入前同步盖 claim，未过期租约被其余触发点的
+   * 租约过滤跳过；注入拒绝/抛错释放，接受由 markDelivered 覆盖。
    */
   async deliverPendingLeadMail(): Promise<void> {
     const record = this.record;
+    if (record === undefined) return;
+    // 2026-10-27 M6（决策 D4）修复：终报送达后的 lead 收件箱关闭过滤先于冻结/归档门
+    // 与通道判定——死信清理不是投递，终局（completed/cancelled，M12）团队经冷恢复
+    // 对账补入的闭箱条目仍需在此收口（settleClosedLeadMailbox）；未送达/无 manager
+    // 队伍此过滤恒 no-op，既有投递路径零改动。
+    this.settleClosedLeadMailbox(record);
     const deliver = this.deps.deliverLeadMail;
-    if (record === undefined || deliver === undefined) return;
+    if (deliver === undefined) return;
     if (record.status === "staged" || record.status === "halted" || isArchival(record.status)) {
       return;
     }
-    const ready = pendingMail(record.mailbox, record.tasks, LEAD_ASSIGNEE_KEY);
-    if (ready.length === 0) return;
-    let accepted = false;
-    try {
-      accepted = await deliver({ entries: ready });
-    } catch {
-      accepted = false;
-    }
-    if (!accepted) return;
-    const messageIds = ready.map((item) => item.messageId);
-    const at = this.clock.now();
-    record.mailbox = markDelivered(record.mailbox, messageIds, "lead_injected", at);
-    record.updatedAt = at;
-    this.journal({
-      kind: "message_delivered",
-      teamId: record.teamId,
-      messageIds,
-      via: "lead_injected",
-      at,
+    const claimedAt = this.clock.now();
+    const ready = pendingMail(record.mailbox, record.tasks, LEAD_ASSIGNEE_KEY, {
+      now: claimedAt,
+      leaseMs: this.limits.deliveryLeaseMs,
     });
+    if (ready.length === 0) return;
+    const messageIds = ready.map((item) => item.messageId);
+    record.mailbox = claimDeliveryLease(record.mailbox, messageIds, claimedAt);
+    let outcome: TeamLeadMailDeliveryResult;
+    try {
+      outcome = await deliver({ entries: ready });
+    } catch {
+      // 注入抛错与拒绝同责（spec §16 契约 3）：未注入条目释放租约留待下一触发点重投。
+      record.mailbox = releaseDeliveryLease(record.mailbox, messageIds, claimedAt);
+      return;
+    }
+    const injected = outcome.injected.filter((id) => messageIds.includes(id));
+    const skipped = outcome.skipped.filter(
+      (id) => messageIds.includes(id) && !injected.includes(id),
+    );
+    const now = this.clock.now();
+    if (injected.length > 0) {
+      record.mailbox = markDelivered(record.mailbox, injected, "lead_injected", now);
+      this.journal({
+        kind: "message_delivered",
+        teamId: record.teamId,
+        messageIds: injected,
+        via: "lead_injected",
+        at: now,
+      });
+      // §22 契约 3：to=lead 的注入只可能是 manager 的终态汇报（路由层已改向）——
+      // 送达即关闭 lead 收件箱（恰一条），防后续多报。legacy 无 manager 队伍的普通
+      // lead 邮件不算终报：终局翻转（M12）与防多报过滤（M6）都以 manager 架构为界，
+      // 缺口12 通道对 legacy 队伍保持开放。
+      if (record.managerName !== undefined) this.markFinalReportDelivered();
+    }
+    if (skipped.length > 0) {
+      // §21 A1：永久不可投（发件人不在场）——丢弃退出选取集 + message_dropped 事实
+      //（重放等同丢弃，journal.ts 同款语义）；不再整批释放让死件每个边缘重试。
+      record.mailbox = dropMailEntries(record.mailbox, skipped);
+      this.journal({
+        kind: "message_dropped",
+        teamId: record.teamId,
+        messageIds: skipped,
+        reason: "sender no longer on the team",
+        at: now,
+      });
+    }
+    const settled = new Set<string>([...injected, ...skipped]);
+    const unreached = messageIds.filter((id) => !settled.has(id));
+    if (unreached.length > 0) {
+      // 注入动作失败但非永久不可投：仅释放本批盖戳（owner 核对），留 queued 重投。
+      record.mailbox = releaseDeliveryLease(record.mailbox, unreached, claimedAt);
+    }
+    record.updatedAt = now;
+    this.refreshStatus();
+    this.notifyChange();
+  }
+
+  /**
+   * 2026-10-27 M6（决策 D4）修复：finalReportDelivered 后 lead 收件箱关闭的过滤——
+   * 防多报门此前只在 routeMail 即时分支生效，批量通道 deliverPendingLeadMail 无发件
+   * 人/终局过滤，manager 第二条汇报与（M5 修复前入箱的存量/冷恢复对账补入的）成员
+   * 迟到 lead 信仍会被整批注入 lead 会话。批量通道选取前在此收口：
+   * - manager 发件的 to=lead 条目（契约 2 下 manager→lead 是唯一 lead 入口，即终报
+   *   语义）→ message_dropped 死信（防多报；含兜底直投条目通道拒绝后的残留收口）；
+   * - 成员发件的 to=lead 条目 → 改投 manager（旧条目 dropMailEntries 出箱 + 新条目
+   *   appendToMailbox 入箱——按新 messageId 走 dropped/appended 两事实保持重放一致：
+   *   原地改 to 会让重放按 message_appended 重建旧地址、按旧 id 原地换信会让运行态
+   *   与重放两态漂移，§22 契约 2 落库前改向的同一裁决）；manager 离册则死信（M3 同族）。
+   * legacy 无 manager 队伍不适用（缺口12 通道保持开放）。过滤幂等：处理过的条目
+   * 退出 pendingMail 选取集，重复调用零副作用。
+   */
+  private settleClosedLeadMailbox(record: TeamRecord): void {
+    if (record.managerName === undefined || !this.finalReportDelivered()) return;
+    const managerName = record.managerName;
+    const ready = pendingMail(record.mailbox, record.tasks, LEAD_ASSIGNEE_KEY, {
+      now: this.clock.now(),
+      leaseMs: this.limits.deliveryLeaseMs,
+    });
+    if (ready.length === 0) return;
+    const managerOnRoster = record.members.some(
+      (member) => member.memberName === managerName && !member.removed,
+    );
+    const deadLetterIds: string[] = [];
+    const reroutes: { before: TeamMailboxEntry; after: TeamMailboxEntry }[] = [];
+    for (const entry of ready) {
+      if (entry.from === managerName || !managerOnRoster) {
+        deadLetterIds.push(entry.messageId);
+        continue;
+      }
+      reroutes.push({
+        before: entry,
+        after: { ...entry, messageId: this.clock.newId(), to: managerName },
+      });
+    }
+    if (deadLetterIds.length === 0 && reroutes.length === 0) return;
+    const now = this.clock.now();
+    for (const reroute of reroutes) {
+      // 改投 = 旧条目出箱 + 新条目入箱：appendToMailbox 走 per-recipient 保留期裁剪
+      // （与其它入箱路径同源）。评审阻断项修正：不可用 replaceMailEntry——它按**新**
+      // messageId 查找，而改投条目从未入过邮箱，查找必 miss、条目被静默丢弃，运行态
+      // 与重放（dropped+appended 两事实已落）漂移且旧条目滞留 lead 选取集反复重处理。
+      // 新条目 to=manager，永不再进 lead 选取集 → 过滤幂等成立。
+      record.mailbox = appendToMailbox(
+        dropMailEntries(record.mailbox, [reroute.before.messageId]),
+        reroute.after,
+        this.limits.mailboxRetentionPerMember,
+      );
+      this.journal({
+        kind: "message_dropped",
+        teamId: record.teamId,
+        messageIds: [reroute.before.messageId],
+        reason: "lead mailbox closed after final report; rerouted to the team manager",
+        at: now,
+      });
+      this.journal({ kind: "message_appended", teamId: record.teamId, entry: reroute.after });
+    }
+    if (deadLetterIds.length > 0) {
+      record.mailbox = dropMailEntries(record.mailbox, deadLetterIds);
+      this.journal({
+        kind: "message_dropped",
+        teamId: record.teamId,
+        messageIds: deadLetterIds,
+        reason: "lead mailbox closed after final report",
+        at: now,
+      });
+    }
+    record.updatedAt = now;
+    // 改投条目随 kick 交给 manager 复活链投递（事件驱动无轮询，spec §2.3——不补 kick
+    // 则迟到信滞留邮箱等下一终态边缘）。
+    if (reroutes.length > 0) this.kickMember(managerName);
     this.refreshStatus();
     this.notifyChange();
   }
@@ -1235,6 +2276,51 @@ export class TeamHub {
     this.journal({ kind: "task_updated", teamId: record.teamId, task: taskJournalFactOf(task) });
   }
 
+  /**
+   * 失败通知入箱（spec §16 契约 1：经既有邮箱路径通知 lead，from=成员、to=lead、
+   * 携 source_task_id/source_attempt_id）。best-effort：persist 失败（E12）只让
+   * 通知不落箱，不回滚已发生的失败分类；绑定任务时携带置 failed 前的世代快照
+   * （isCurrentMail 世代过滤载体——迟到投递自动失活）。
+   */
+  private enqueueLeadFailureNotice(
+    memberName: string,
+    info: TeamMemberFailureInfo,
+    task: MemberFailureTaskBinding | undefined,
+  ): void {
+    const record = this.record;
+    if (record === undefined) return;
+    // §22 契约 2：失败通知是中间管理事件——收件人按 manager 架构路由（manager 在场
+    // 投 manager 协调转派/重开；legacy 无 manager 队伍维持 lead）。
+    const failureNoticeTo =
+      record.managerName === undefined ? LEAD_ASSIGNEE_KEY : record.managerName;
+    const entry: TeamMailboxEntry = {
+      messageId: this.clock.newId(),
+      from: memberName,
+      to: failureNoticeTo,
+      message: buildMemberFailureNotice({
+        memberName,
+        status: info.status,
+        ...(info.stopInitiator === undefined ? {} : { stopInitiator: info.stopInitiator }),
+        ...(info.detail === undefined ? {} : { detail: info.detail }),
+        ...(task === undefined ? {} : { task }),
+      }),
+      summary:
+        task === undefined
+          ? `Member ${memberName} turn failed (${info.status})`
+          : `Member ${memberName} turn failed on task ${task.taskId} (${info.status})`,
+      at: this.clock.now(),
+      ...(task === undefined
+        ? {}
+        : {
+            sourceTaskId: task.taskId,
+            sourceAttemptId: task.attemptId,
+            sourceTaskStatus: task.status,
+          }),
+      deliveredAccepted: false,
+    };
+    this.enqueueMail(entry);
+  }
+
   private materializeTask(
     input: TeamTaskCreateInput & { taskId?: string },
     now: string,
@@ -1243,7 +2329,8 @@ export class TeamHub {
   ): TeamTaskInternal {
     return {
       // 缺口5：draft.taskId 已在上游去重校验（非空 + 草案内唯一），此处只保持。
-      taskId: preserveTaskId && input.taskId !== undefined ? input.taskId : `task_${this.clock.newId()}`,
+      taskId:
+        preserveTaskId && input.taskId !== undefined ? input.taskId : `task_${this.clock.newId()}`,
       title: input.title,
       spec: input.spec,
       status: "pending",
@@ -1265,18 +2352,27 @@ export class TeamHub {
   /** 在场性校验（spec §16.2）：每次端口调用验证成员仍在花名册（E6）且团队活跃。 */
   private checkPresence(binding: { agentId: string; memberName: string }): boolean {
     const record = this.record;
-    if (record === undefined || isArchival(record.status) || record.status === "staged") return false;
+    if (record === undefined || isArchival(record.status) || record.status === "staged")
+      return false;
     if (binding.memberName === LEAD_ASSIGNEE_KEY) {
       return record.leadSessionId === binding.agentId;
     }
     const member = this.findMember(binding.memberName);
-    return member !== undefined && !member.removed && (binding.agentId === "" || member.agentId === binding.agentId);
+    return (
+      member !== undefined &&
+      !member.removed &&
+      (binding.agentId === "" || member.agentId === binding.agentId)
+    );
   }
 
-  private requireLeadRecord(leadSessionId: string): TeamRecord | "team_not_present" | "team_lead_only" {
+  private requireLeadRecord(
+    leadSessionId: string,
+  ): TeamRecord | "team_not_present" | "team_lead_only" {
     const record = this.record;
     if (record === undefined || isArchival(record.status) || record.status === "staged") {
-      return record !== undefined && record.status === "staged" && record.leadSessionId === leadSessionId
+      return record !== undefined &&
+        record.status === "staged" &&
+        record.leadSessionId === leadSessionId
         ? record
         : "team_not_present";
     }
@@ -1284,14 +2380,36 @@ export class TeamHub {
     return record;
   }
 
-  private requireSnapshot(binding: { agentId: string; memberName: string }): TeamRosterSnapshot | undefined {
+  private requireSnapshot(binding: {
+    agentId: string;
+    memberName: string;
+  }): TeamRosterSnapshot | undefined {
     return this.checkPresence(binding) ? this.snapshot() : undefined;
   }
 
   private hasWorkingMember(record: TeamRecord): boolean {
+    // §22 契约 3 配套：manager 不计入忙闲——workers 全终态即 idle（终态汇报边缘在
+    // idle 判定上触发）；manager 自身由邮件 kick 驱动（汇报指令/成员消息），活着的
+    // manager 不该让团队永远 active（死锁：workers 完成而 manager 常驻 → 永不 idle）。
     return record.members.some(
-      (member) => !member.removed && (member.state === "working" || member.state === "spawning"),
+      (member) =>
+        !member.removed &&
+        member.memberName !== record.managerName &&
+        (member.state === "working" || member.state === "spawning"),
     );
+  }
+
+  /**
+   * 2026-10-27 M3（决策 D4）：收件人仍在花名册——离册死信不进 busy/pending 语义。
+   * manager 离册后残留的 to=manager 条目恒 isCurrentMail（无世代键），若计入 busy
+   * 会把团队永久钉在 active；新入箱的离册条目由 routeMail 即时死信（M3 主路径），
+   * 本过滤兜住「已在箱、随后收件人被移除」的存量（removeMember 不重跑 routeMail）。
+   * lead 收件恒可投（可达性由 lead 通道 §21 A1 的 skipped 判定承载）。
+   */
+  private isRecipientOnRoster(record: TeamRecord, entry: TeamMailboxEntry): boolean {
+    if (entry.to === LEAD_ASSIGNEE_KEY) return true;
+    const target = this.findMember(entry.to);
+    return target !== undefined && !target.removed;
   }
 
   /** 状态机事件驱动迁移（hub 唯一裁决；成员运行态 + 邮箱待决推导，非第二份状态）。 */
@@ -1308,15 +2426,37 @@ export class TeamHub {
     }
     const busy =
       this.hasWorkingMember(record) ||
-      record.mailbox.some((entry) => !entry.deliveredAccepted && isCurrentMail(record.tasks, entry));
+      record.mailbox.some(
+        (entry) =>
+          !entry.deliveredAccepted &&
+          isCurrentMail(record.tasks, entry) &&
+          this.isRecipientOnRoster(record, entry),
+      );
     record.status = busy ? "active" : "idle";
     record.updatedAt = this.clock.now();
     this.notifyChange();
+    // §22 契约 3：终态边缘挂点——refreshStatus 是成员/任务终态的公共汇聚点；团队
+    // 终态（且尚未派发）时恰一次派发终态汇报指令（manager 执笔/结构化兜底）。
+    // 2026-10-27 H1：派发门已收敛为「可调度态 + 终态 + 未派发」（maybeDispatchFinalReport
+    // 头注），idle 边缘与冷恢复恢复臂（M7）都经同一门进入，幂等由 dispatchedFlag 保证。
+    if (record.status === "idle") {
+      this.maybeDispatchFinalReport();
+    }
   }
 }
 
-function isStageEditable(status: TeamStatus): boolean {
-  return status === "staged";
+/**
+ * §22 契约 4 + 2026-10-27 M9（决策 D1，用户 2026-10-26 裁定 3「lead 零管理工具」）：
+ * 团队管理 actor 判定——入参是 actor 键（成员绑定 agentId / lead 绑定为 leadSessionId），
+ * 仅 manager 成员的 agentId 可过。lead 会话分支已移除：lead 是纯结果消费者，
+ * reassign/reopen 等管理动作对 lead 会话返回 team_lead_only（spec §22 契约 4 原文
+ * 「lead 会话或 manager child 会话皆可」随裁定 3 收敛，见 spec 收口批登记）。
+ */
+function isTeamActor(record: TeamRecord, actorKey: string): boolean {
+  const manager = record.members.find(
+    (member) => member.memberName === record.managerName && !member.removed,
+  );
+  return manager?.agentId === actorKey;
 }
 
 function isArchival(status: TeamStatus): boolean {
@@ -1355,6 +2495,115 @@ function findDependencyCycle(tasks: readonly TeamTaskInternal[]): string[] | und
   for (const task of tasks) {
     const cycle = visit(task.taskId);
     if (cycle !== undefined) return cycle;
+  }
+  return undefined;
+}
+
+// ---------- §17 契约 4（2026-10-23）：草案字段与 wire 限额同门 ----------
+
+/**
+ * 找出第一个超出 wire 限额的草案字段。限额单一出处 = shared TEAM_LIMITS（与
+ * teamProjectionStateSchema/teamStagedDraft*Schema 的上界同族）——草案原样进投影，
+ * 任何超限字段都会让投影 emit 的每一帧被渲染器按
+ * proto.frameAssemblyInvalidPayload 拒掉（session_7117760500 实证：200+ 字符的
+ * profile 使会话流 fail-closed 白屏）。
+ *
+ * @returns 违规字段名与限额；全部合规返回 undefined。
+ */
+function draftOverLimitField(input: TeamStageInput): { field: string; limit: string } | undefined {
+  if (input.name !== undefined && input.name.length > TEAM_LIMITS.maxNameChars) {
+    return { field: "name", limit: String(TEAM_LIMITS.maxNameChars) };
+  }
+  // 2026-10-27 L10：manager 入参同门校验——§22 契约 1 新增的 manager 载荷不在
+  // draftMembers 循环内，port 直调（绕过 TeamSpawn 工具 schema 的 min/max）可让超长
+  // manager 名/profile/modelSelection 落库烧 wire 帧（§17 契约 4 同族，状态所有者
+  // 不变量兜底）；空白名在 stageTeam 入口以 draft_blank_name 先拒。
+  const managerViolation = draftMemberLimitViolation("manager", input.manager);
+  if (managerViolation !== undefined) return managerViolation;
+  for (const member of input.draftMembers) {
+    const violation = draftMemberLimitViolation(`members.${member.memberName}`, member);
+    if (violation !== undefined) return violation;
+  }
+  for (const task of input.draftTasks) {
+    if (task.taskId !== undefined && task.taskId.length > TEAM_LIMITS.maxIdChars) {
+      return { field: `tasks.${task.taskId}.taskId`, limit: String(TEAM_LIMITS.maxIdChars) };
+    }
+    if (task.title.length > TEAM_LIMITS.maxTextChars) {
+      return {
+        field: `tasks.${task.taskId ?? task.title}.title`,
+        limit: String(TEAM_LIMITS.maxTextChars),
+      };
+    }
+    if (task.spec.goal.length > TEAM_LIMITS.maxTextChars) {
+      return {
+        field: `tasks.${task.taskId ?? task.title}.spec.goal`,
+        limit: String(TEAM_LIMITS.maxTextChars),
+      };
+    }
+    if (task.spec.acceptance.length > TEAM_LIMITS.acceptanceMax) {
+      return {
+        field: `tasks.${task.taskId ?? task.title}.spec.acceptance`,
+        limit: String(TEAM_LIMITS.acceptanceMax),
+      };
+    }
+    if (task.spec.acceptance.some((item) => item.length > TEAM_LIMITS.maxTextChars)) {
+      return {
+        field: `tasks.${task.taskId ?? task.title}.spec.acceptance[]`,
+        limit: String(TEAM_LIMITS.maxTextChars),
+      };
+    }
+    if ((task.spec.outputFormat?.length ?? 0) > TEAM_LIMITS.maxTextChars) {
+      return {
+        field: `tasks.${task.taskId ?? task.title}.spec.outputFormat`,
+        limit: String(TEAM_LIMITS.maxTextChars),
+      };
+    }
+    if ((task.assignee?.length ?? 0) > TEAM_LIMITS.maxNameChars) {
+      return {
+        field: `tasks.${task.taskId ?? task.title}.assignee`,
+        limit: String(TEAM_LIMITS.maxNameChars),
+      };
+    }
+    if (task.dependsOn.length > TEAM_LIMITS.dependsOnMax) {
+      return {
+        field: `tasks.${task.taskId ?? task.title}.dependsOn`,
+        limit: String(TEAM_LIMITS.dependsOnMax),
+      };
+    }
+    if (task.dependsOn.some((id) => id.length > TEAM_LIMITS.maxIdChars)) {
+      return {
+        field: `tasks.${task.taskId ?? task.title}.dependsOn[]`,
+        limit: String(TEAM_LIMITS.maxIdChars),
+      };
+    }
+  }
+  return undefined;
+}
+
+/**
+ * 草案成员条目（manager 与 draftMembers 同构，TeamStageMemberDraft）的限额检查
+ * （2026-10-27 L10 提取共用：manager 与执行成员走同一套 TEAM_LIMITS 上界；字段名
+ * 前缀区分 manager./members.<name>.）。§19 契约 2：profile optional——undefined 即
+ * 键缺席，不参与 max 检查；空白归一在 stageTeam 物化处，此处只守非空值的上界。
+ */
+function draftMemberLimitViolation(
+  prefix: string,
+  member: TeamStageMemberDraft,
+): { field: string; limit: string } | undefined {
+  if (member.memberName.length > TEAM_LIMITS.maxNameChars) {
+    return { field: `${prefix}.name`, limit: String(TEAM_LIMITS.maxNameChars) };
+  }
+  if (member.profile !== undefined && member.profile.length > TEAM_LIMITS.maxNameChars) {
+    return { field: `${prefix}.profile`, limit: String(TEAM_LIMITS.maxNameChars) };
+  }
+  const selection = member.modelSelection;
+  if (
+    selection !== undefined &&
+    (selection.provider.length > TEAM_LIMITS.maxIdChars ||
+      selection.model.length > TEAM_LIMITS.maxIdChars ||
+      (selection.thought?.length ?? 0) > TEAM_LIMITS.maxIdChars)
+  ) {
+    return { field: `${prefix}.modelSelection`, limit: String(TEAM_LIMITS.maxIdChars) };
   }
   return undefined;
 }

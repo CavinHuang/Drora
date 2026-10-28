@@ -43,7 +43,14 @@ export class V4TeamHubUnavailableError extends Error {
   }
 }
 
-/** hub 拒绝（TeamPortErrorCode 透传为 reasonCode 后缀，文案单一出处 core errors.ts）。 */
+/**
+ * hub 拒绝（TeamPortErrorCode 透传为 reasonCode 后缀，文案单一出处 core errors.ts）。
+ * §21 D 例外登记（2026-10-24）：getTeamHistory 的 teamId 不匹配拒绝用 handler 层
+ * 局部码 historyTeamMismatch（fault.command.teamRejected.historyTeamMismatch，文案
+ * 内联英文）——它是命令面路由校验（请求的 teamId 与该会话 hub 现役 team 不符）而非
+ * 内核裁决语义，**不进 TeamPortErrorCode 联合**（21 码封闭）与 core errors.ts；
+ * 持久化缺席路径仍用既有 TEAM_HISTORY_UNAVAILABLE。
+ */
 export class V4TeamRejectedError extends Error {
   readonly reasonCode: string;
 
@@ -86,7 +93,29 @@ async function approveTeamPlan(
   envelope: CommandEnvelope,
 ): Promise<CommandResult | undefined> {
   const { hub, sessionId } = requireTeamHub(host, envelope);
-  assertMutationOk("approveTeamPlan", await hub.approveStage(sessionId));
+  // §10 增补三：载荷 optional permissionMode（wire 枚举已验）随批准覆写成员权限
+  //（载荷形态断言照姊妹 handler 同款）。
+  // 2026-10-27 L9（决策 D10）：改走 leadPort——TeamLeadPort.approveStage 契约签名
+  // 已扩 options，生产路径不再结构性直调 hub 绕开 port。
+  // §10 增补六：载荷 optional rememberForSession——true 时 hub 置会话免问标志。
+  const payload = envelope.payload as CommandPayloadMap["approveTeamPlan"];
+  // 2026-10-27 review：条件展开改直接构造——spread 单键条件对象触发
+  // unicorn/no-useless-spread；缺省传 undefined（approveStage options 可选）。
+  const options =
+    payload.permissionMode === undefined && payload.rememberForSession === undefined
+      ? undefined
+      : {
+          ...(payload.permissionMode === undefined
+            ? {}
+            : { permissionMode: payload.permissionMode }),
+          ...(payload.rememberForSession === undefined
+            ? {}
+            : { rememberForSession: payload.rememberForSession }),
+        };
+  assertMutationOk(
+    "approveTeamPlan",
+    await hub.leadPort(sessionId).approveStage(options),
+  );
   return undefined;
 }
 
@@ -117,9 +146,13 @@ async function reviseTeamPlan(
     "reviseTeamPlan",
     hub.stageTeam(sessionId, {
       ...(roster.name === undefined ? {} : { name: roster.name }),
-      draftMembers: roster.members.map((member) => ({
+      // §22 契约 1：manager 随重建入参回写（roster 首位 = manager；hub 物化保持首位）。
+      manager: roster.members[0]!,
+      draftMembers: roster.members.slice(1).map((member) => ({
         memberName: member.memberName,
-        profile: member.profile ?? "",
+        // §19 契约 2：透传 optional profile（缺省即键缺席），不再 `?? ""`——空白与
+        // 缺席由 hub.stageTeam 落库归一兜住，空串落库会破 wire min(1) 烧帧。
+        profile: member.profile,
         ...(member.modelSelection === undefined ? {} : { modelSelection: member.modelSelection }),
       })),
       draftTasks: board.tasks.map((task) => ({
@@ -153,13 +186,18 @@ async function abandonTeamPlan(
   return undefined;
 }
 
-/** 用户停队：halted ≠ escalated（spec §2.6）；payload.reason v1 无 hub 消费面（hub.halt 不收）。 */
+/**
+ * 用户停队：halted ≠ escalated（spec §2.6）。2026-10-27 L8（决策 D9）：payload.reason
+ * 透传 hub.halt 随 halted 事实留档——此前 wire 接受该字段后即被丢弃（对比 resume 全链
+ * 入库）；shared schema 已有 optional reason（min(1)/max(maxTextChars)），此处只透传。
+ */
 async function haltTeam(
   host: V4CommandCoreHost,
   envelope: CommandEnvelope,
 ): Promise<CommandResult | undefined> {
   const { hub, sessionId } = requireTeamHub(host, envelope);
-  assertMutationOk("haltTeam", hub.halt(sessionId));
+  const payload = envelope.payload as CommandPayloadMap["haltTeam"];
+  assertMutationOk("haltTeam", hub.halt(sessionId, payload.reason));
   return undefined;
 }
 
@@ -254,11 +292,26 @@ async function setTeamMemberName(
     "setTeamMemberName",
     hub.stageTeam(sessionId, {
       ...(roster.name === undefined ? {} : { name: roster.name }),
-      draftMembers: roster.members.map((member) => ({
-        memberName: member.memberName === payload.memberName
-          ? payload.newName
-          : member.memberName,
-        profile: member.profile ?? "",
+      // §22 契约 1：manager 随重建入参回写（roster 首位 = manager；hub 物化保持首位）。
+      // 2026-10-27 M1（决策 D13）：改名映射覆盖 manager——此前映射只作用 slice(1)，
+      // 对 manager 改名是静默 no-op（草案 manager 名不同步；hub 侧 M2 修复再入库刷新
+      // record.managerName，两侧合力使 manager 改名生效）。assignee=manager 的任务
+      // 在下方 draftTasks 映射按同一 payload.memberName→newName 规则重指派。
+      manager: {
+        memberName:
+          roster.members[0]!.memberName === payload.memberName
+            ? payload.newName
+            : roster.members[0]!.memberName,
+        profile: roster.members[0]!.profile,
+        ...(roster.members[0]!.modelSelection === undefined
+          ? {}
+          : { modelSelection: roster.members[0]!.modelSelection }),
+      },
+      draftMembers: roster.members.slice(1).map((member) => ({
+        memberName: member.memberName === payload.memberName ? payload.newName : member.memberName,
+        // §19 契约 2：透传 optional profile（缺省即键缺席），不再 `?? ""`——
+        // 同 reviseTeamPlan，空串落库会破 wire min(1) 烧帧。
+        profile: member.profile,
         ...(member.modelSelection === undefined ? {} : { modelSelection: member.modelSelection }),
       })),
       draftTasks: board.tasks.map((task) => ({

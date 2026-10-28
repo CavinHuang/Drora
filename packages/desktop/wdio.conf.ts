@@ -1419,7 +1419,9 @@ async function startCodingPlanTeamMockIfNeeded(specs: string[] = []) {
       writeJson(response, {
         code: 0,
         data: {
-          authorize_url: `https://bigmodel.cn/login?appId=drora&redirect=${encodeURIComponent("https://zcode.z.ai/api/v1/oauth/cli/callback/bigmodel")}&state=${SUBAGENT_CODING_PLAN_OAUTH_STATE}`,
+          // appId 是 bigmodel 服务端注册值，属 specs/drora-rename.md 规则 0 改名豁免区，不得写作 drora
+          //（修复审计 docs/upstream-sync/2026-10-21-v3.16.1-merge-audit.md「appId 契约漂移」，分派单 F1）。
+          authorize_url: `https://bigmodel.cn/login?appId=zcode&redirect=${encodeURIComponent("https://zcode.z.ai/api/v1/oauth/cli/callback/bigmodel")}&state=${SUBAGENT_CODING_PLAN_OAUTH_STATE}`,
           expires_at: Math.floor(Date.now() / 1000) + 300,
           flow_id: SUBAGENT_CODING_PLAN_OAUTH_FLOW_ID,
           poll_interval_sec: 30,

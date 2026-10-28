@@ -172,6 +172,12 @@ export function RemoteConversationTimeline({
               plan={statusSnapshot?.plan ?? null}
               backgroundWorks={statusSnapshot?.backgroundWorks ?? []}
               runningSubagents={statusSnapshot?.subagents?.running ?? []}
+              // §21 A4（2026-10-24，specs/agents-team.md）：手机远控状态面此前漏传 team
+              // prop——team 分区整体缺席（连 hasContent 一起消失），与 §19 契约 6B 登记的
+              // 「不可点事实行」退化形态不符。数据面就绪（RemoteStatusSnapshot 的 Pick 含
+              // "team"）；不传 onOpenTeamPanel（手机远端 timeline 无 shell 导航端口），
+              // 即得不可点退化事实行——模型层既有过滤照常（TEAM_LIVE_STATUSES 只收在途）。
+              team={statusSnapshot?.team ?? null}
               layoutMode={statusPanelLayout}
               summaryPanelVariantOverride={statusPanelVariant}
               onVariantChange={setStatusPanelVariant}

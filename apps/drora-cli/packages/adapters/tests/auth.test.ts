@@ -609,7 +609,8 @@ describe("BigModel OAuth client", () => {
     const tokenSet = await client.exchangeCode({ code: "auth-code" });
 
     expect(authorizeUrl).toContain("https://bigmodel.cn/login?");
-    expect(authorizeUrl).toContain("appId=drora");
+    // appId 是 bigmodel 服务端注册值（specs/drora-rename.md 规则 0 改名豁免），期望 zcode 而非 drora。
+    expect(authorizeUrl).toContain("appId=zcode");
     expect(authorizeUrl).toContain("state=state-1");
     expect(tokenSet).toEqual({
       accessToken: "bigmodel-access-token",

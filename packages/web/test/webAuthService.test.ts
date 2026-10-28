@@ -439,7 +439,9 @@ describe("WebAuthService BigModel provider", () => {
     const url = new URL(assigned[0]!);
     expect(url.pathname).toBe("/login");
     expect(url.searchParams.get("redirect")).toBe("https://zcode.z.ai/cn/share/callback");
-    expect(url.searchParams.get("appId")).toBe("drora");
+    // appId 是 bigmodel 服务端注册值（specs/drora-rename.md 规则 0），默认值须为
+    // "zcode"，与桌面端一致；改成 drora 会被授权服务按未注册 appId 拒绝（台账 6）。
+    expect(url.searchParams.get("appId")).toBe("zcode");
     // ZAI 专用参数不能出现，否则 BigModel 侧会忽略 redirect 直接回默认地址
     expect(url.searchParams.get("redirect_uri")).toBeNull();
     expect(url.searchParams.get("client_id")).toBeNull();

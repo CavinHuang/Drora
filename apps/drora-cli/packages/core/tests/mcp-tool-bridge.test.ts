@@ -65,10 +65,13 @@ function exactRasterInspector(width: number, height: number): ImageProcessorPort
   };
 }
 
+// schema_version 保留原版名：还原区生产者 packages/zcode-cua/src/mcp/session.ts:3436 逐字产出
+// zcode-cua-action-receipt-v1（specs/drora-rename.md 豁免区 2「身份字符串逐字保留」与
+// 「兼容点」映射条目；2026-10-21 v3.16.1 合并审计 F11——还原区/wire 契约字面量不随品牌归一化改名）。
 function cuaActionReceipt(overrides: Record<string, unknown> = {}): string {
   return JSON.stringify({
     action_receipt: {
-      schema_version: "drora-cua-action-receipt-v1",
+      schema_version: "zcode-cua-action-receipt-v1",
       action_sent: true,
       dispatch_status: "accepted",
       retry_action: false,

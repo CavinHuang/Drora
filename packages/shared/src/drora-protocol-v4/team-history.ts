@@ -30,11 +30,20 @@ export const teamHistoryEntrySchema = z
       "task_updated",
       "message_appended",
       "message_delivered",
+      // §21 A1（2026-10-24）：lead 邮箱「永久不可投」条目丢弃事实（载荷复用既有
+      // 字段 messageIds + reason，零其余 wire 词表变更）。
+      "message_dropped",
       "member_removed",
       "halted",
       "resumed",
       "escalated",
       "archived",
+      // §22 契约 3（2026-10-27 审查 M13 补齐）：终态单条汇报两段事实（dispatched 恰一次
+      // 防重派；delivered 后 to=lead 路由关闭）。core journal 自 §22 起写入这两 kind，
+      // 此前枚举缺席 → 历史查询 safeParse 逐条拒绝、计入 skippedEntries 误报「跳过 N 条」，
+      // 过程面板看不到终局事实。载荷仅 teamId（superRefine 无附加要求，缺席其余字段）。
+      "final_report_dispatched",
+      "final_report_delivered",
     ]),
     memberName: name.optional(),
     taskId: id.optional(),
@@ -61,7 +70,8 @@ export const teamHistoryEntrySchema = z
           ? !!entry.messageId && !!entry.from && !!entry.to && entry.message !== undefined
           : entry.kind === "member_added" || entry.kind === "member_removed"
             ? !!entry.memberName
-            : entry.kind === "message_delivered"
+            : // §21 A1：message_dropped 与 message_delivered 同款要求 messageIds 在场。
+              entry.kind === "message_delivered" || entry.kind === "message_dropped"
               ? entry.messageIds !== undefined
               : true;
     if (!valid) ctx.addIssue({ code: "custom", message: "Incomplete team history fact" });

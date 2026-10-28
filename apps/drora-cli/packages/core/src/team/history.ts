@@ -118,11 +118,24 @@ function historyFact(event: TeamJournalEvent, delivered: ReadonlySet<string>): u
       };
     case "message_delivered":
       return { ...base, messageIds: p.messageIds };
+    // §21 A1（2026-10-24）：丢弃事实复用 messageIds + reason 载荷——不加本分支会
+    // 落到 default 只剩 {seq,at,kind}，被 schema superRefine（要求 messageIds）拒成
+    // skippedEntries，事实在历史查询面不可见。
+    case "message_dropped":
+      return { ...base, messageIds: p.messageIds, reason: p.reason };
     case "member_added":
     case "member_removed":
       return { ...base, memberName: p.memberName };
     case "resumed":
       return { ...base, reason: p.reason };
+    // §22 契约 3（2026-10-27 审查 M13 修复）：终态汇报两 kind 载荷仅 teamId，base 已足
+    // 过 schema（superRefine 对两 kind 无附加字段要求）。不加显式 case 虽也能落到
+    // default 透传，但枚举补齐前的教训是「schema 拒帧静默计入 skippedEntries」——显式
+    // 列出这两 kind，superRefine 将来若收紧字段要求（如随行 manager 名）时会在此编译
+    // 期暴露，而不是又静默跳过。
+    case "final_report_dispatched":
+    case "final_report_delivered":
+      return base;
     default:
       return base;
   }

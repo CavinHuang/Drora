@@ -328,7 +328,8 @@ try {
                 process.env.REMOTE_LOGIN_E2E_BIGMODEL_ORIGIN || "https://bigmodel.cn",
               );
               assert.equal(login.traffic.authorize.pathname, "/login");
-              assert.equal(login.traffic.authorize.searchParams.get("appId"), "drora");
+              // appId 是 bigmodel 服务端注册值（specs/drora-rename.md 规则 0），默认 zcode。
+              assert.equal(login.traffic.authorize.searchParams.get("appId"), "zcode");
               assert.equal(login.traffic.authorize.searchParams.has("redirect_uri"), false);
             }
             const payload = JSON.parse(Buffer.from(state, "base64url").toString());

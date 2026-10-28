@@ -199,7 +199,11 @@ export { LogLevel, SessionEventType } from "@drora/contracts";
 export { TeamHub } from "./team/hub.js";
 export { readTeamHistoryPage } from "./team/history.js";
 export { createTeamMemberPort } from "./team/member-port.js";
-export { createTeamCollabToolEntries, createTeamLeadToolEntries } from "./team/team-tools.js";
+export {
+  createTeamCollabToolEntries,
+  createTeamLeadToolEntries,
+  createTeamManagerToolEntries,
+} from "./team/team-tools.js";
 // 2026-10-21 缺口8（spec §14）：成员消息 sink（subagent_reply_steer 禁令承载），测试直连断言 presentation。
 export { createTeamMemberMessageSink } from "./team/member-sink.js";
 export { MEMBER_STEER_PRESENTATION } from "./team/message-format.js";
@@ -222,14 +226,18 @@ export type {
   TeamProjectionTaskInput,
 } from "./team/projection.js";
 // M3 PR-3.1：journal 持久化与 lead resume 恢复（install.ts 经这些入口接线 journal 通道）。
+// TEAM_MAILBOX_ENTRY_TYPE/readPersistedMailboxEntries：§21 A13 B 案冷恢复对账读取面
+//（写入方 bootstrap install persistMailboxEntry，读取方 install 冷恢复建态后对账）。
 export {
   createTeamJournalSessionStoreSink,
   parseTeamJournalEntries,
+  readPersistedMailboxEntries,
   readTeamJournalEvents,
   replayTeamJournal,
   restoreAgentsTeamFromJournal,
   taskJournalFactOf,
   TEAM_JOURNAL_ENTRY_TYPE,
+  TEAM_MAILBOX_ENTRY_TYPE,
 } from "./team/journal.js";
 export type {
   TeamJournalEvent,

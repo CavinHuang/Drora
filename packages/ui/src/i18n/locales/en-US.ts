@@ -1530,10 +1530,18 @@ const enUS: Record<string, string> = {
   "team.memberPane.send": "Send",
   "team.memberPane.inputPending": "Message sending is not wired up yet; coming soon",
   "team.memberPane.inputReady": "Press Enter to send; delivered via the lead's team mailbox",
+  // §19 contract 5 (2026-10-23): in-flight send + failure surfacing — the draft is never
+  // lost (kept verbatim on rejection or transport error).
+  "team.memberPane.sendFailed.line": "Message not delivered: {reason}",
+  "team.memberPane.sendFailed.transport":
+    "The connection is unavailable and the message was not sent. Your input is kept — resend once reconnected",
+  "team.memberPane.sendFailed.fallback":
+    "The request was rejected (unknown reason). Your input is kept — try again later",
   // PR-2.4c: member card entries (drill-down + message), tab status dot, and status badge
   // copy (color paired with text, never color alone).
   "team.panel.memberOpen": "Open {name}'s session",
   "team.panel.memberMessage": "Message {name}",
+  "team.ui.managerBadge": "Manager",
   "team.tab.statusDot": "Team status: {status}",
   "team.status.staged": "Pending approval",
   "team.status.active": "Active",
@@ -1547,7 +1555,6 @@ const enUS: Record<string, string> = {
   // copy moved into the dictionary (previously inline zh constants TEAM_PANEL_COPY /
   // TEAM_STAGED_EDITOR_COPY; design 01 §4: all copy lives in the locales dictionaries,
   // zh-CN/en-US complete, including status labels, dynamic summaries, and a11y copy).
-  "team.panel.title": "Team · {teamId}",
   "team.panel.aria": "Agents Team {teamId}",
   "team.panel.permission": "Permission {mode}",
   "team.panel.memberProgress": "{members} members · {done}/{total} tasks",
@@ -1585,8 +1592,10 @@ const enUS: Record<string, string> = {
   "team.member.state.terminal": "Idle",
   "team.member.state.removed": "Removed",
   "team.stagedEditor.title": "Team plan draft",
-  "team.stagedEditor.stagedSummary":
-    "{members} members · {tasks} tasks; members are created only after you confirm",
+  // 2026-10-22 question header (spec §10 presentation rule 1): stagedSummary moved to the
+  // header counter ("N members · N tasks"); the confirmation semantics live in the question line.
+  "team.stagedEditor.stagedSummary": "{members} members · {tasks} tasks",
+  "team.stagedEditor.question": "Launch this team?",
   "team.stagedEditor.awaitingFeedback":
     "Revision requested: describe the adjustments in the conversation and the model will update this draft",
   "team.stagedEditor.membersHeading": "Members",
@@ -1599,15 +1608,81 @@ const enUS: Record<string, string> = {
   "team.stagedEditor.dependsOnNone": "No dependencies",
   "team.stagedEditor.dependsOnSeparator": ", ",
   "team.stagedEditor.noteLabel": "Revision notes (optional)",
-  "team.stagedEditor.notePlaceholder":
-    "What should change? Leave empty and explain it in the conversation",
-  "team.stagedEditor.approve": "Approve & run",
-  "team.stagedEditor.revise": "Revise in conversation",
+  "team.stagedEditor.notePlaceholder": "Describe how this team should change…",
+  // 2026-10-23 three-surface prefill channel (spec §15 item 4): mounts that cannot reach
+  // the composer hide the note input and show this hint — silent note drops are forbidden
+  // (a typed note would only go on the wire, which the hub v1 does not consume).
+  "team.stagedEditor.noteSuppressedHint":
+    "Revision notes can't be attached here: state the direction in the conversation",
+  "team.stagedEditor.approve": "Allow",
+  "team.stagedEditor.approveDescription": "Just this once",
+  "team.stagedEditor.approveSession": "Always allow for this session",
+  "team.stagedEditor.approveSessionDescription": "Launching teams won't ask again this session",
+  "team.stagedEditor.revise": "Suggest changes",
+  // §19 contract 6 (2026-10-23): in-flight waiting copy (buttons disabled until the outcome settles).
+  "team.stagedEditor.pendingApprove": "Starting members…",
+  "team.stagedEditor.pendingApproveSession": "Allowing and launching members…",
+  "team.stagedEditor.pendingRevise": "Sending…",
+  "team.stagedEditor.pendingAbandon": "Archiving…",
+  "team.stagedEditor.confirm": "Confirm",
+  // §10 增补三: member permission selector row in the approval panel.
+  "team.permission.mode.build": "Ask before changes",
+  "team.permission.mode.edit": "Edit automatically",
+  "team.permission.mode.yolo": "Full access",
+  "team.permission.mode.guarded": "Autonomous",
+  "team.permission.mode.auto": "Auto",
+  "team.stagedEditor.optionsAria": "Approval actions",
+  // Action label for rename failures (line template "{action} failed: {reason}").
+  "team.stagedEditor.rename": "Rename",
+  "team.stagedDock.title": "Team plan pending approval",
   "team.stagedEditor.abandon": "Abandon",
+  // Inline failure for the three staged actions (spec §10 presentation rule 4): "line" is the
+  // shell (action label + reason); the reason maps from ack.reasonCode via
+  // TEAM_STAGED_FAILURE_REASON_I18N_KEYS in TeamStagedEditor; unknown codes fall back,
+  // transport errors (ack absent) use "transport".
+  "team.stagedEditor.failure.line": "{action} failed: {reason}",
+  "team.stagedEditor.failure.transport":
+    "The command could not be sent: the connection is unavailable. Reconnect and try again",
+  "team.stagedEditor.failure.fallback":
+    "The action did not complete (unknown reason). Try again, or check the team status in the conversation",
+  "team.stagedEditor.failure.teamNotPresent":
+    "The draft is gone: it may already be approved or abandoned. Refresh and try again",
+  "team.stagedEditor.failure.teamLeadOnly":
+    "This action can only be run in the session that planned the team",
+  "team.stagedEditor.failure.memberSpawnFailed":
+    "Spawning members failed: the draft is intact with zero members. Fix the cause and approve again",
+  "team.stagedEditor.failure.draftInvalid":
+    "Draft validation failed: fix member names, task ids, or dependencies and retry",
+  "team.stagedEditor.failure.hubUnavailable":
+    "The team runtime is not ready: it may be disabled or restarting. Try again shortly",
   "team.stagedEditor.abandonConfirmTitle": "Abandon this team draft?",
   "team.stagedEditor.abandonConfirmBody":
     "The draft will be archived and cannot be recovered, and the model will not rebuild it automatically; forming a team again requires a new /team.",
   "team.stagedEditor.abandonConfirmLabel": "Confirm abandon",
+  // §19 contract 5 expansion (2026-10-23): hub rejection copy for the five user commands
+  // (shared by the composer and the panel action area via TEAM_STAGED_FAILURE_REASON_I18N_KEYS;
+  // the three staged actions never reach these codes in the normal flow).
+  "team.commandFailure.teamHalted": "The team is halted; resume it before delivering messages",
+  "team.commandFailure.targetRetired":
+    "The target member was removed; the message cannot be delivered",
+  "team.commandFailure.nameRedirect": "The member was renamed; retry with the new name",
+  "team.commandFailure.persistFailed": "Mailbox persistence failed; the message was not delivered",
+  // Panel action-area command failures (halt/resume/stop; role=alert at the top of TeamPanel's action area).
+  "team.panel.commandFailure.line": '"{action}" did not complete: {reason}',
+  "team.panel.commandFailure.transport":
+    "The command could not be sent: the connection is unavailable. Reconnect and try again",
+  "team.panel.commandFailure.fallback": "The action did not complete (unknown reason). Try again",
+  "team.panel.action.halt": "Stop team",
+  "team.panel.action.resume": "Resume team",
+  "team.panel.action.stop": "Remove member",
+  // §21 A1 (2026-10-24): history label for the new message_dropped journal fact
+  // (dynamic key family team.history.kind.*, allowed by prefix in the i18n guard).
+  "team.history.kind.message_dropped": "Message dropped (sender no longer on the team)",
+  // §22 contract 3 (2026-10-27 review M13): history labels for the two final-report
+  // journal facts (same dynamic key family; visible in the process panel once the shared
+  // teamHistoryEntrySchema admits the two kinds).
+  "team.history.kind.final_report_dispatched": "Final report dispatched to the manager",
+  "team.history.kind.final_report_delivered": "Final report delivered to the lead session",
   // Prefill follow-up for "Revise in conversation" (design 01 §3.1); composition rules in team/revise-prefill.ts
   "team.revise.prefillPrompt": "What would you like to adjust?",
   "subagentDirectory.title": "Subagents",
@@ -3366,7 +3441,7 @@ const enUS: Record<string, string> = {
   "settings.toolGroupingExplore": "Group exploration tools",
   "settings.agentsTeamEnabled": "Agents Team (experimental)",
   "settings.agentsTeamEnabledDescription":
-    "Enable /team multi-agent collaboration and the team panel (off by default). Takes effect for new sessions; an explicit CLI agentsTeam.enabled value still takes precedence.",
+    "Enable /team multi-agent collaboration and the team panel (off by default). The gate is snapshotted when an agent process is created: new sessions inside already-open windows stay disabled — restart the app or open a new window; an explicit CLI agentsTeam.enabled value still takes precedence.",
   "settings.toolGroupingExploreDescription":
     "Group consecutive reads and searches into an Explore section.",
   "settings.toolGroupingTerminal": "Group terminal commands",
@@ -5992,6 +6067,11 @@ const enUS: Record<string, string> = {
   "chat.statusPanel.terminals": "Terminals",
   "chat.statusPanel.agents": "Agents",
   "chat.statusPanel.workflows": "Workflows",
+  // Team section (specs/agents-team.md §19 contract 6): single live-team row; status words reuse team.status.*.
+  "chat.statusPanel.team": "Team",
+  "chat.statusPanel.teamWorking": "{count} working",
+  "chat.statusPanel.teamRowWords": "members {working}/{members} · tasks {completed}/{total}",
+  "chat.statusPanel.teamBlocked": "{count} blocked",
   "chat.statusPanel.runningStatusValue": "{count} in background",
   "chat.statusPanel.runningStatusValuePlural": "{count} in background",
   "chat.statusPanel.runningAgentsValue": "{count} running",

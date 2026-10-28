@@ -143,6 +143,11 @@ export interface ProjectSidebarProps {
   onOpenPluginStore?: () => void;
   automationsActive?: boolean;
   pluginStoreActive?: boolean;
+  // Drora 扩展槽位：vault 侧栏入口。上游 v3.16.1 重写 ProjectSidebarProps 时无该槽位，
+  // 旧入口随合并丢失（审计 docs/upstream-sync/2026-10-21-v3.16.1-merge-audit.md F7）；
+  // 按可选扩展点回植——仅 Shell 接线 onOpenVault 时渲染按钮，路由仍由 Shell 唯一持有。
+  onOpenVault?: () => void;
+  vaultActive?: boolean;
   onFileTreeOpenChange?: (open: boolean) => void;
   onWebRemoteTaskOpen?: (options: { crossWorkspace: boolean }) => void;
   onWebRemoteTaskSwitchingChange?: (switching: boolean) => void;

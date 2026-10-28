@@ -353,6 +353,9 @@ export interface WorkspaceShellLayoutProps extends Omit<AppProps, "baseFeedbackS
   handleOpenSelectionSideChat: (request: OpenSelectionSideChatRequest) => void;
   handleOpenPlanDetail: (request: OpenScopedPlanDetailSideTabRequest) => void;
   handleOpenWorkflowRun: (request: OpenScopedWorkflowRunSideTabRequest) => void;
+  handleOpenTeamMemberSidePane?: (
+    request: import("@/lib/workspaceSidePane.js").OpenScopedTeamMemberSideTabRequest,
+  ) => void;
   handleOpenTeamSidePane?: (
     request: import("@/lib/workspaceSidePane.js").OpenScopedTeamSideTabRequest,
   ) => void;

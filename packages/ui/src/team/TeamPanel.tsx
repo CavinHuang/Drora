@@ -9,11 +9,20 @@ import { useConfirmDialog } from "@/hooks/useConfirmDialog.js";
 import { useDroraIntl } from "@/i18n/IntlProvider.js";
 import type { TeamUiStatus, TeamUiFocus } from "./contract.js";
 import type { TeamHistoryConnection } from "@/hooks/useTeamHistory.js";
-import { TeamStagedEditor } from "./TeamStagedEditor.js";
+import {
+  TeamStagedEditor,
+  teamRejectionReasonI18nKeyOrUndefined,
+  type TeamStagedCommandFailure,
+  type TeamStagedPendingAction,
+} from "./TeamStagedEditor.js";
 import type { TeamPanelMemberView, TeamPanelModel, TeamPanelTaskView } from "./view-model.js";
 import { TeamWorkspaceViews } from "./TeamWorkspaceViews.js";
 import { TeamStatusBadge } from "./TeamStatusBadge.js";
 import { TeamAvatar } from "./TeamAvatar.js";
+// §21 A8（2026-10-24）：尾窗/任务卡 fallback 圆点收口引本表——收口后 TeamPanel 零
+// 字面量，tone→类名映射单一出处（原手写 bg-neutral-foreground/40 是幽灵 token，同族
+// 残留见 team-status-presentation.ts TONE_DOT_CLASS 注释）。
+import { TONE_DOT_CLASS } from "./team-status-presentation.js";
 
 /**
  * TeamPanel（PR-2.4a 只读视图 + PR-2.4b 动作区；specs/agents-team.md §10、
@@ -50,6 +59,17 @@ export type TeamPanelCommandType = Extract<
 export type TeamPanelCommand = {
   [K in TeamPanelCommandType]: { type: K; payload: CommandPayloadMap[K] };
 }[TeamPanelCommandType];
+
+/**
+ * 面板动作区命令失败（specs/agents-team.md §19 契约 5 扩圈，2026-10-23）：halt/resume/
+ * stop 的 TeamCommandOutcome 被拒/传输异常时宿主交回，动作区顶部 role=alert 出显——
+ * 「确认 + 静默失败」是最差组合（stop 已有二次确认，被拒必须可见）。改名失败并入
+ * stagedFailure（action=rename，编辑器内联出显），不经本类型。
+ */
+export interface TeamPanelCommandFailure {
+  action: "halt" | "resume" | "stop";
+  reasonCode?: string;
+}
 
 export interface TeamPanelActionVisibility {
   /** staged：渲染 TeamStagedEditor（三动作载体）。 */
@@ -132,6 +152,23 @@ export interface TeamPanelProps {
    * 草案原子更新同一 teamId，任务 assignee 随名字重定向）。缺席 = 成员行只读展示。
    */
   onRenameMember?: (memberName: string, newName: string) => void;
+  /**
+   * 最近一次三动作失败（spec §10 呈现规则4；2026-10-22 审批面呈现对齐）：宿主消费
+   * approveTeamPlan/reviseTeamPlan/abandonTeamPlan 的 TeamCommandOutcome 后交回
+   * （映射单一出处 teamCommandOutcomeToStagedFailure），编辑器内联 role=alert 出显；
+   * 任一动作再次发起时宿主置空清除。null/缺席 = 无失败提示。
+   */
+  stagedFailure?: TeamStagedCommandFailure | null;
+  /**
+   * 在途动作（spec §19 契约 6）：宿主在动作发起时置位、outcome 结算时清空；编辑器
+   * 三动作按钮全禁用 + 在途等待文案（对齐 workflow responding）。
+   */
+  stagedPending?: TeamStagedPendingAction | null;
+  /**
+   * 面板动作区命令失败（spec §19 契约 5 扩圈）：halt/resume/stop 被拒/传输异常出显于
+   * 动作区顶部；宿主在任一面板命令再次发起或团队状态迁移时置空清除。
+   */
+  panelFailure?: TeamPanelCommandFailure | null;
 }
 
 export function TeamPanel(props: TeamPanelProps): JSX.Element {
@@ -145,6 +182,9 @@ function TeamPanelContent({
   onMessageMember,
   onStopMember,
   onRenameMember,
+  stagedFailure,
+  stagedPending,
+  panelFailure,
   focus,
   connection,
   onQuoteTask,
@@ -166,7 +206,7 @@ function TeamPanelContent({
         </span>
         <TeamStatusBadge status={status} />
         {model.permissionMode === undefined ? null : (
-          <span className="text-ui-xs rounded-sm bg-neutral-3 px-1.5 py-0.5 text-neutral-foreground">
+          <span className="text-ui-xs rounded-sm bg-surface px-1.5 py-0.5 text-foreground-subtle">
             {intl.formatMessage({ id: "team.panel.permission" }, { mode: model.permissionMode })}
           </span>
         )}
@@ -179,6 +219,34 @@ function TeamPanelContent({
       </header>
 
       {/*
+       * 面板命令失败出显（specs/agents-team.md §19 契约 5 扩圈，2026-10-23）：
+       * halt/resume/stop 被拒（ack 非 accepted|duplicate|noop）或传输异常时
+       * role=alert 内联出显，文案 = 动作标签 + 按 reasonCode 查表的原因（未知走兜底）。
+       * 宿主在任一面板命令再次发起或团队状态迁移时置空清除。
+       */}
+      {panelFailure === undefined || panelFailure === null ? null : (
+        <p
+          role="alert"
+          className="text-ui-sm text-destructive"
+          data-testid="team-panel-command-error"
+        >
+          {intl.formatMessage(
+            { id: "team.panel.commandFailure.line" },
+            {
+              action: intl.formatMessage({ id: `team.panel.action.${panelFailure.action}` }),
+              reason: intl.formatMessage({
+                id:
+                  panelFailure.reasonCode === undefined
+                    ? "team.panel.commandFailure.transport"
+                    : (teamRejectionReasonI18nKeyOrUndefined(panelFailure.reasonCode) ??
+                      "team.panel.commandFailure.fallback"),
+              }),
+            },
+          )}
+        </p>
+      )}
+
+      {/*
        * staged 审批态：面板即草案编辑器（design §3.1）。宿主未接命令时退化为
        * 只读摘要行（保持 PR-2.4a 的只读行为）。
        */}
@@ -186,7 +254,18 @@ function TeamPanelContent({
         visibility.stagedEditor ? (
         <TeamStagedEditor
           draft={model.stagedDraft}
-          onApprove={() => onCommand({ type: "approveTeamPlan", payload: {} })}
+          failure={stagedFailure}
+          pendingAction={stagedPending}
+          onApprove={(permissionMode, rememberForSession) =>
+            onCommand({
+              type: "approveTeamPlan",
+              payload: {
+                ...(permissionMode === undefined ? {} : { permissionMode }),
+                // §10 增补六：会话级「始终允许」随行。
+                ...(rememberForSession === undefined ? {} : { rememberForSession }),
+              },
+            })
+          }
           onRevise={(note) =>
             onCommand({
               type: "reviseTeamPlan",
@@ -197,7 +276,7 @@ function TeamPanelContent({
           {...(onRenameMember === undefined ? {} : { onRenameMember })}
         />
       ) : (
-        <div className="text-ui-caption rounded border border-border-subtle p-2">
+        <div className="text-ui-caption rounded-lg border border-border-subtle p-2">
           {intl.formatMessage(
             { id: "team.panel.stagedReadonlySummary" },
             {
@@ -306,7 +385,11 @@ function TeamPanelContent({
                       <li key={member.agentId} className="flex items-center gap-1">
                         {onMemberClick === undefined ? (
                           <span className="flex min-w-0 flex-1 items-center gap-2">
-                            <MemberCardBody member={member} stateLabel={stateLabel} />
+                            <MemberCardBody
+                              member={member}
+                              stateLabel={stateLabel}
+                              managerName={model.managerName}
+                            />
                           </span>
                         ) : (
                           <button
@@ -319,7 +402,11 @@ function TeamPanelContent({
                             data-testid="team-member-card"
                             className="flex min-w-0 flex-1 items-center gap-2 rounded-md px-1 py-0.5 text-left hover:bg-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                           >
-                            <MemberCardBody member={member} stateLabel={stateLabel} />
+                            <MemberCardBody
+                              member={member}
+                              stateLabel={stateLabel}
+                              managerName={model.managerName}
+                            />
                           </button>
                         )}
                         {onMessageMember === undefined ? null : (
@@ -331,7 +418,10 @@ function TeamPanelContent({
                               { name: member.memberName },
                             )}
                             data-testid="team-member-message"
-                            className="flex size-7 shrink-0 items-center justify-center rounded-md text-foreground-subtle hover:bg-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                            /* §21 A9（2026-10-24）：同功能按钮（TeamMemberSidePane 发送钮）已带
+                               pointer-coarse ≥44px（DESIGN.md:660-662）——此处漏补偿属 §19 契约 6E
+                               全局一致性破口的登记失准订正，照同面板写法补齐。 */
+                            className="flex size-7 shrink-0 items-center justify-center rounded-md text-foreground-subtle hover:bg-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring pointer-coarse:min-h-11 pointer-coarse:min-w-11"
                           >
                             <MessageSquareTextIcon className="size-3.5" />
                           </button>
@@ -358,9 +448,10 @@ function TeamPanelContent({
                     <ul className="flex flex-col gap-0.5">
                       {model.mailboxTail.map((entry) => (
                         <li key={entry.messageId} className="flex min-w-0 items-center gap-1.5">
+                          {/* §21 A8：fromColor 缺席（lead/未匹配）兜底引单一出处映射的 neutral 档。 */}
                           <span
                             aria-hidden
-                            className={`size-1.5 shrink-0 rounded-full ${entry.fromColor ?? "bg-neutral-foreground/40"}`}
+                            className={`size-1.5 shrink-0 rounded-full ${entry.fromColor ?? TONE_DOT_CLASS.neutral}`}
                           />
                           <span className="shrink-0 text-ui-caption text-foreground-subtle">
                             {`${displayActorName(intl, entry.from)} → ${displayActorName(intl, entry.to)}`}
@@ -393,15 +484,27 @@ function displayActorName(intl: ReturnType<typeof useDroraIntl>["intl"], name: s
 function MemberCardBody({
   member,
   stateLabel,
+  managerName,
 }: {
   member: TeamPanelMemberView;
   stateLabel: string;
+  /** 管理者成员名（§22 徽标依据；§21 A9 后由调用方透传避免闭包整 model）。 */
+  managerName?: string;
 }): JSX.Element {
+  const { intl } = useDroraIntl();
   return (
     <>
       <TeamAvatar name={member.memberName} color={member.profileColor} />
       <span className="min-w-0 break-words text-ui-sm">
         {member.memberName}
+        {managerName !== undefined && member.memberName === managerName ? (
+          <span
+            className="ml-1 rounded-sm bg-surface px-1.5 py-0.5 text-ui-caption text-foreground-subtle"
+            data-testid="team-manager-badge"
+          >
+            {intl.formatMessage({ id: "team.ui.managerBadge" })}
+          </span>
+        ) : null}
         {member.profile ? (
           <span className="ml-1 text-foreground-subtle">{member.profile}</span>
         ) : null}
@@ -428,12 +531,14 @@ function HaltTeamButton({ onHalt }: { onHalt: () => void }): JSX.Element {
     if (confirmed) onHalt();
   };
   return (
+    // pointer-coarse ≥44px（DESIGN.md:661-662）：动作区控件与 staged 编辑器同一纪律。
     <Button
       type="button"
       variant="outline"
       onClick={() => {
         void handleHalt();
       }}
+      className="pointer-coarse:min-h-11 pointer-coarse:min-w-11"
       data-testid="team-halt"
     >
       {intl.formatMessage({ id: "team.panel.halt" })}
@@ -452,12 +557,13 @@ function ResumeTeamSection({ onResume }: { onResume: (reason: string) => void })
         {intl.formatMessage({ id: "team.panel.resumeReasonLabel" })}
       </label>
       <div className="flex flex-wrap items-center gap-2">
+        {/* pointer-coarse ≥44px（DESIGN.md:661-662）：恢复理由输入与提交钮。 */}
         <Input
           id="team-resume-reason"
           value={reason}
           onChange={(event) => setReason(event.target.value)}
           placeholder={intl.formatMessage({ id: "team.panel.resumeReasonPlaceholder" })}
-          className="text-ui-sm"
+          className="text-ui-sm pointer-coarse:min-h-11"
           data-testid="team-resume-reason"
         />
         <Button
@@ -465,6 +571,7 @@ function ResumeTeamSection({ onResume }: { onResume: (reason: string) => void })
           variant="outline"
           disabled={!ready}
           onClick={() => onResume(reason.trim())}
+          className="pointer-coarse:min-h-11 pointer-coarse:min-w-11"
           data-testid="team-resume"
         >
           {intl.formatMessage({ id: "team.panel.resume" })}
@@ -539,17 +646,18 @@ function TaskCard({
   const attentionTone =
     task.status === "failed"
       ? "border-destructive/40 bg-destructive/10"
-      : "border-border-subtle bg-neutral-2 opacity-70";
+      : "border-border-subtle bg-surface opacity-70";
   const indent = ["", "pl-3", "pl-6", "pl-9"][Math.min(task.dependsDepth, 3)] ?? "";
   return (
     <li
-      className={`text-ui-base rounded-lg border p-1.5 ${attention ? attentionTone : "border-transparent bg-neutral-2"} ${indent}`}
+      className={`text-ui-base rounded-lg border p-1.5 ${attention ? attentionTone : "border-transparent bg-surface"} ${indent}`}
     >
       <div className="flex min-w-0 flex-wrap items-start gap-1.5">
         {task.assignee === undefined ? null : (
+          /* §21 A8：assigneeColor 缺席（lead/未匹配）兜底引单一出处映射的 neutral 档。 */
           <span
             aria-hidden
-            className={`size-2 shrink-0 rounded-full ${task.assigneeColor ?? "bg-neutral-foreground/40"}`}
+            className={`size-2 shrink-0 rounded-full ${task.assigneeColor ?? TONE_DOT_CLASS.neutral}`}
           />
         )}
         <button
@@ -586,7 +694,7 @@ function TaskCard({
             <span
               key={ref}
               title={ref}
-              className="truncate rounded-md bg-neutral-3 px-1 py-px font-mono text-ui-sm text-foreground-subtle"
+              className="truncate rounded-md bg-surface px-1 py-px font-mono text-ui-sm text-foreground-subtle"
             >
               {ref}
             </span>

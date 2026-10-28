@@ -4,11 +4,13 @@ import type {
   GoalState,
   PlanState,
   RunningSubagentSummary,
+  TeamProjectionState,
   ToolCallRow,
   WorkflowRunState,
 } from "@drora/shared/drora-protocol-v4";
 import type { SessionWorkflowPhaseSummary } from "@drora/shared/drora-protocol-v4";
 import {
+  deriveSessionTeamActivity,
   deriveSessionWorkflowPhases,
   workflowRunStepCounts,
 } from "@drora/shared/drora-protocol-v4";
@@ -126,7 +128,37 @@ export interface ConversationStatusPanelModel {
   runningBashWorks: BackgroundWorkSummary[];
   runningSubagentWorks: ConversationStatusPanelRunningSubagent[];
   runningWorkflowRuns: ConversationStatusPanelWorkflowRun[];
+  /** team 分区（specs/agents-team.md §19 契约 6，2026-10-23）；null = 无在途团队。 */
+  team: ConversationStatusPanelTeam | null;
 }
+
+/**
+ * Team 分区（specs/agents-team.md §19 契约 6 运行态最小闭环，2026-10-23）：一个会话至多
+ * 一个团队（§0 team 键单例），所以是单对象不是数组。**只收在途状态**
+ * （active/halted/escalated/idle）——staged 有 timeline bottom dock 钉底承载、终态
+ * （completed/cancelled/archived）由会话流摘要卡与任务列表徽标承载，面板不重复。
+ * 计数全部派生自 team 投影（deriveSessionTeamActivity 单一出处），无假 0。
+ */
+export interface ConversationStatusPanelTeam {
+  teamId: string;
+  name?: string;
+  status: "active" | "halted" | "escalated" | "idle";
+  memberCount: number;
+  /** state === "working" 的成员数（「此刻在做什么」的词）。 */
+  workingCount: number;
+  /** 等待前置的 pending 任务数（blocked）。 */
+  blockedCount: number;
+  completed: number;
+  total: number;
+}
+
+/** 面板 team 行的在途状态集合（staged 与终态不进面板，见接口注释）。 */
+const TEAM_LIVE_STATUSES: readonly TeamProjectionState["status"][] = [
+  "active",
+  "halted",
+  "escalated",
+  "idle",
+];
 
 export interface BuildConversationStatusPanelModelInput {
   isOfficeMode?: boolean;
@@ -140,6 +172,7 @@ export interface BuildConversationStatusPanelModelInput {
   backgroundWorks?: readonly BackgroundWorkSummary[];
   runningSubagents?: readonly RunningSubagentSummary[];
   workflowRuns?: readonly WorkflowRunState[];
+  team?: TeamProjectionState | null;
 }
 
 function buildGitModel({
@@ -407,6 +440,8 @@ export function buildConversationStatusPanelModel(
 
   const runningWorkflowRuns = buildRunningWorkflowRuns(input.workflowRuns, workflowWorkByWorkId);
 
+  const team = buildTeamModel(input.team);
+
   return {
     git,
     goal,
@@ -415,6 +450,7 @@ export function buildConversationStatusPanelModel(
     runningBashWorks,
     runningSubagentWorks,
     runningWorkflowRuns,
+    team,
     hasContent: Boolean(
       git ||
       goal ||
@@ -422,7 +458,28 @@ export function buildConversationStatusPanelModel(
       plan ||
       runningBashWorks.length > 0 ||
       runningSubagentWorks.length > 0 ||
-      runningWorkflowRuns.length > 0,
+      runningWorkflowRuns.length > 0 ||
+      team !== null,
     ),
+  };
+}
+
+/** team 投影 → 面板 team 行；投影缺席或状态不在途（staged/终态）→ null（不渲染分区）。 */
+function buildTeamModel(
+  team: TeamProjectionState | null | undefined,
+): ConversationStatusPanelTeam | null {
+  if (team === null || team === undefined) return null;
+  if (!TEAM_LIVE_STATUSES.includes(team.status)) return null;
+  const activity = deriveSessionTeamActivity(team);
+  if (activity === undefined) return null;
+  return {
+    teamId: activity.teamId,
+    ...(activity.name === undefined ? {} : { name: activity.name }),
+    status: team.status as ConversationStatusPanelTeam["status"],
+    memberCount: activity.memberCount,
+    workingCount: activity.working ?? 0,
+    blockedCount: activity.blocked ?? 0,
+    completed: activity.completed,
+    total: activity.total,
   };
 }

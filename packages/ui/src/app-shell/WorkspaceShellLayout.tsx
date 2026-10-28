@@ -111,6 +111,7 @@ import {
   requestSelectionSideChatOpen,
 } from "@/lib/selectionSideChatRuntime.js";
 import { getActiveSelectionSideChatTab } from "@/lib/workspaceSidePane.js";
+import type { OpenTeamMemberSideTabRequest } from "@/lib/workspaceSidePane.js";
 import { logger } from "@/logger.js";
 import {
   areWorkspaceFilePathsEqual,
@@ -407,6 +408,7 @@ const WorkspaceShellLayoutContent = memo(function WorkspaceShellLayoutComponent(
   // Drora 扩展挂载：agents-team 面板打开回调（specs/agents-team.md §10），
   // 由 TeamNavigationProvider 内的入口触发，Shell 负责落到 side pane tab。
   handleOpenTeamSidePane,
+  handleOpenTeamMemberSidePane,
   handleOpenTerminalTab,
   handleToggleGit,
   handleOpenGitReview,
@@ -1405,6 +1407,26 @@ const WorkspaceShellLayoutContent = memo(function WorkspaceShellLayoutComponent(
     },
     [handleOpenTeamSidePane, handleSelectTaskInChat, workspaceTabs],
   );
+  // 成员 transcript tab（specs/agents-team.md §10 增补四）：面板成员卡/发消息入口的开 tab
+  // 通道——宿主缺席（手机远控）时面板退化为既有本地下钻（TeamSidePane 侧判定）。
+  const handleOpenTeamMemberSidePaneSession = useCallback(
+    (
+      request: OpenTeamMemberSideTabRequest & {
+        workspacePath: string;
+        workspaceIdentity?: string;
+      },
+    ) => {
+      const key = request.workspaceIdentity?.trim() || request.workspacePath;
+      const remote =
+        workspaceTabs.find((tab) => (tab.workspaceIdentity?.trim() || tab.workspacePath) === key)
+          ?.remoteSessionId ?? undefined;
+      handleOpenTeamMemberSidePane?.({
+        ...request,
+        ...(remote ? { remoteSessionId: remote } : {}),
+      });
+    },
+    [handleOpenTeamMemberSidePane, workspaceTabs],
+  );
   // 中枢的产物 chip：与「查看实例」逐字同构（同一条「先回到发起它的会话」的路径），
   // 只是终点是 `workflow-artifact` tab 而不是 run 详情页。
   const handleOpenSavedWorkflowArtifact = useCallback(
@@ -1721,9 +1743,13 @@ const WorkspaceShellLayoutContent = memo(function WorkspaceShellLayoutComponent(
     // parent effect retries the still-active event.
     for (const detail of deferred) detail.retryAfterMount();
   }, [vaultHasOpened]);
-  // 说明：旧侧栏「vault」入口（onOpenVault/vaultActive）随上游 project-sidebar 重构移除——
-  // 新 ProjectSidebarProps 无该槽位；vault 仍可经知识引用（onCitationOpen）进入，入口槽位
-  // 待后续以 project-sidebar 扩展点回植（specs 决策记录见本文件 git 历史）。
+  // 回植（审计 docs/upstream-sync/2026-10-21-v3.16.1-merge-audit.md F7）：旧侧栏「vault」
+  // 入口（onOpenVault/vaultActive）随上游 project-sidebar 重构丢失，现以 ProjectSidebarProps
+  // 的 Drora 扩展槽位恢复接线；vault 主视图路由仍由 onWorkspaceMainViewChange 唯一切换。
+  const handleOpenVault = useCallback(
+    () => onWorkspaceMainViewChange("vault"),
+    [onWorkspaceMainViewChange],
+  );
   const handleOpenMarkdownFileLink = useCallback(
     async (target: WorkspacePathOpenRequest) => {
       if (workspaceReadOnlyReason && target.serviceScope !== "base-local") {
@@ -1960,6 +1986,7 @@ const WorkspaceShellLayoutContent = memo(function WorkspaceShellLayoutComponent(
       onOpenBackgroundBash={handleOpenBackgroundBash}
       onOpenSubagentSession={handleOpenSubagentSession}
       onOpenWorkflowActorSession={handleOpenWorkflowActorSession}
+      onOpenTeamMemberSession={handleOpenTeamMemberSidePaneSession}
       onOpenWorkflowWorkspace={handleOpenWorkflowWorkspace}
       onOpenWorkflowArtifact={handleOpenWorkflowArtifact}
       onOpenWorkflowRun={handleOpenWorkflowRun}
@@ -2056,6 +2083,9 @@ const WorkspaceShellLayoutContent = memo(function WorkspaceShellLayoutComponent(
       automationsActive={workspaceMainView === "automations"}
       onOpenPluginStore={handleOpenPluginStore}
       pluginStoreActive={workspaceMainView === "plugin-store"}
+      // Drora 扩展槽位接线：vault 侧栏入口回植（审计 F7），选中态跟随自研主视图旁路。
+      onOpenVault={handleOpenVault}
+      vaultActive={isDroraWorkspaceMainView(workspaceMainView)}
       // 桌面没有 mobile 导航动作；内联包装曾让右侧开关穿透侧栏 memo，重复渲染全部项目。
       onWebRemoteTaskOpen={
         mobile

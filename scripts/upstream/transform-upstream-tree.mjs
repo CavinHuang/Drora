@@ -78,8 +78,17 @@ export const PLACEHOLDERS = [
   "bump-zcode-cua-producer",
   "sync-skill-from-zcode-cua",
   "zcode-cua-windows-dev",
+  // 还原区/wire 契约字面量（specs/drora-rename.md「还原区/wire 契约字面量双名」）：
+  // 文档/测试引用的是还原代码逐字产出的身份字符串，不随品牌改名；
+  // 不占位会被规则 8b/8 sweep 成 drora- 名，下次上游同步 F11/F2 双名问题原样复发。
+  "zcode-cua-action-receipt-v1",
+  "zcode-cua-pip-session-v2",
 ];
-const APPID_RE = /appId:\s*(["'])zcode\1/g;
+// appId 契约字面量占位（specs/drora-rename.md 规则 0：appId 是 bigmodel 服务端注册值，改名即失效）。
+// 须同时覆盖对象形态 `appId: "zcode"` 与 URL 查询形态 `appId=zcode`：旧正则只护对象形态，
+// URL 形态被兜底规则 8 sweep 成 drora，造成 mock/文档/测试与真实契约漂移
+//（修复审计 docs/upstream-sync/2026-10-21-v3.16.1-merge-audit.md「appId 契约漂移」，分派单 F1）。
+const APPID_RE = /(?<![A-Za-z])appId\s*([:=])\s*(["']?)zcode\2/g;
 
 // —— 豁免区（内容逐字不动；upstream 命名空间下的路径前缀）。
 export const VERBATIM_PREFIXES = [

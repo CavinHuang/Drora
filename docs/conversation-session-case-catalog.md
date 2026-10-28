@@ -29,13 +29,28 @@ ATUI01–03 使用 renderer-only 浏览器候选，不声称覆盖 Electron Host
 TeamSpawn（spec §14 缺口0，staged 唯一生产入口）落地后的桌面 E2E accepted 用例
 （replay provider，零真实模型；灰度门经 wdio worker 按 spec 注入 `DRORA_AGENTS_TEAM=1`）：
 
-| ID    | Setup                                 | Action                                     | Assertion                                                                                                                             | Decision |
-| ----- | ------------------------------------- | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------- | -------- |
-| AT-01 | yolo 会话 + team 灰度开门（worker env） | 发起 TeamSpawn → staged → 点 Approve & Run | staged 编辑器自动打开；Approve 前成员欢迎请求计数为 0（M2 零成员零会话）；approveTeamPlan ACK accepted；成员欢迎请求与自动派发复活请求（"Agents Team automatic task assignment"）相继到达（缺口2 调度链 E2E 化）；审批后 staged 编辑器退场 | accepted |
+| ID    | Setup                                   | Action                                     | Assertion                                                                                                                                                                                                                                  | Decision |
+| ----- | --------------------------------------- | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------- |
+| AT-01 | yolo 会话 + team 灰度开门（worker env） | 发起 TeamSpawn → staged → 点 Approve & Run | staged 编辑器呈现在 timeline bottom dock（TeamApprovalDock，与 workflow 确认窗同位同 chrome，钉在 composer 上方；2026-10-23 §18 裁定形态，不再自动打开侧栏面板；摘要卡同帧退化只读；dock 形态守门 §19 契约 6：编辑器在 dock 内、role=status 播报、恰一编辑器实例、rename 纳入控件断言）；Approve 前成员欢迎请求计数为 0（M2 零成员零会话）；approveTeamPlan ACK accepted；成员欢迎请求与自动派发复活请求（"Agents Team automatic task assignment"）相继到达（缺口2 调度链 E2E 化）；审批后 dock 内 staged 编辑器退场 | accepted |
 
 范围外（后续用例承接）：revise/改名/abandon 分支（缺口9/10 UI 单测已覆盖）、
-halt/resume、spawn 原子性故障流、断线重同步。候选 spec：
+resume 正向流、spawn 原子性故障流、断线重同步；halt 后下钻拒发已由 2026-10-23
+同用例第三场景覆盖（hub 真拒 team_halted，非伪造 ACK）。候选 spec：
 `packages/desktop/test/e2e/conversation-session/manual-review/pending/conversation-session-agents-team-staged-approval.test.ts`。
+
+AT-01 呈现对齐扩展（2026-10-22，spec §10 呈现规则1/4、§15；同一候选 spec 新增断言，
+不新增 fixture/manifest 条目）：① 问句表头——dock 内编辑器首个 h2 为问句「启动这支团队？」
+并带表头计数「N 名成员 · N 项任务」（原 stagedSummary 尾巴「确认后才会创建成员」移除），
+aria-label「团队计划草案」既有约定不变；② 既有 testid 在位守门（2026-10-23 §19 契约 5/6
+起编辑器迁 timeline bottom dock 后：dock 挂载点 approve/revise/abandon/revise-note/rename
+全部在位——改名入口（team-staged-rename 系）自编辑器内置发送，审批面两挂载点一体适用，
+原「改名五件套仅侧栏渲染」不再成立）；③ 新增
+`team-staged-command-error`（role=alert）无失败时不得出现（假阳性守门）。
+三动作失败出显的**正向**断言登记为**转正前人工项**：team 命令走 v4 命令通道
+（sendCommand → hub）不经 provider HTTP，replay 夹具无法模拟拒绝；人工验证须覆盖
+两挂载点（TeamApprovalDock / 侧栏 TeamPanel）、按 ack.reasonCode 的词典文案与未知码兜底。
+2026-10-23 manual-review 实跑 3/3 全绿（1m08s，artifact `desktop-e2e-20261023-140157-122`），
+上述扩展断言与 dock 形态守门已随该轮取证；用例仍在 manual-review/pending，转正待人工复核。
 
 ## 项目与任务草稿生命周期（2026-10-16）
 

@@ -6,6 +6,12 @@
 .codex
 .claude
 .agents
+# 会话/工作流元数据与临时产物（relay standalone Dockerfile 以仓库根为 build context，
+# 以下条目用于收敛 context 体积；仓库其余 Docker 消费方不受影响）
+.zcode
+.tmp
+# Caddy 双服务形态的静态挂载点（本地产物，镜像内由 vite 重新构建，不入 context）
+packages/relay-v2-server/deploy/web-remote-control
 
 node_modules
 **/node_modules

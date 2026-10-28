@@ -53,7 +53,7 @@
 | 远程工作区断开与重连               | [工作区重连](./mobile-remote-workspace-reconnect.md)                 |
 | 实时同步、snapshot 与 gap 恢复     | [任务实时同步](./task-realtime-sync.md)                              |
 | 输入 admission、队列与跨端命令路由 | [任务命令队列](../web-remote-control-task-command-queue.md)          |
-| V4 静态资源发布                    | [V4 部署](./remote-v4-static-deployment.md)                          |
+| V4 静态资源发布                    | OSS 多版本流水线（部署文档待补）                                     |
 | 独立 OAuth 登录入口                | [Web Remote Login](./web-remote-login.md)                            |
 
 下文描述当前技术实现；[最小跑通规划](./web-remote-control-minimal-plan.md)仅作为历史记录，
@@ -82,7 +82,7 @@ pnpm dev:web-remote-control
 
 ## 静态部署
 
-手机 V2 页面只通过 OSS 多版本流水线发布，无需入口变量。在主流水线手动运行 `upload:remote:test`、`upload:remote:prod`，或各自的 `:latest` job；环境、版本选源与生产限制见 [OSS 多版本部署](./remote-v4-static-deployment.md#gitlab-ci-测试与生产-oss-多版本产物)。
+手机 V2 页面只通过 OSS 多版本流水线发布，无需入口变量。在主流水线手动运行 `upload:remote:test`、`upload:remote:prod`，或各自的 `:latest` job；环境、版本选源与生产限制见 OSS 多版本部署流水线（GitLab CI；部署文档待补）。
 
 ```text
 选定 commit/tag → 按 app 版本构建 /remote/v4/<version>/ 资源
@@ -90,9 +90,9 @@ pnpm dev:web-remote-control
               → 网关按 app_version 选择 index、按目录选择静态资源
 ```
 
-页面路由固定为 `/remote/v4`。旧 `/remote`、`/remote/v3`、`/remote/v4` Docker 单版本部署冻结在最后一次 V1 镜像；仓库已删除相应构建、推送、验证入口，不得覆盖旧部署。`/remote/__test__` 的独立测试链继续保留，使用方式见[静态部署文档](./remote-v4-static-deployment.md)。
+页面路由固定为 `/remote/v4`。旧 `/remote`、`/remote/v3`、`/remote/v4` Docker 单版本部署冻结在最后一次 V1 镜像；仓库已删除相应构建、推送、验证入口，不得覆盖旧部署。`/remote/__test__` 的独立测试链继续保留，使用方式见 OSS 测试流水线（静态部署文档待补）。
 
-OSS 的版本选择、环境隔离、latest 规则、网关路由及验收见[多版本部署](./remote-v4-static-deployment.md)。发布前必须完成 [Relay V2 外部依赖与真机验收](./relay-v2-pairing.md#外部依赖与发布顺序07)。
+OSS 的版本选择、环境隔离、latest 规则、网关路由及验收见 OSS 多版本部署流水线（部署文档待补）。发布前必须完成 [Relay V2 外部依赖与真机验收](./relay-v2-pairing.md#外部依赖与发布顺序07)。
 
 ## Transport
 
@@ -325,7 +325,7 @@ Mobile web 连接流程：
 2. 通过 `WebRemoteControlTerminalTransport` 申请 role=terminal token，连接 ws2?token&mid，再发送 V2 auth_init(device_sid)；401 回登录，AUTH_FAILED 显示账号归属失败与切换账号动作。
 3. paired 后发送 `bootstrap-request`；v4 使用响应中的可选 `desktopAppVersion` 校验 URL。
    首次不一致时校正并导航，已进入页面时保留页面并提示确认后重新加载；旧桌面缺字段时保持原行为。
-   重连/回前台时即使 bridge 健康也重新校验，具体边界见 [v4 版本同步](./remote-v4-static-deployment.md#v4-url-与桌面实际版本同步)。
+   重连/回前台时即使 bridge 健康也重新校验，具体边界见 v4 版本同步守卫（OSS 多版本部署文档待补）。
 4. 按 `mobileViewState -> initialViewState -> first workspace` 选择初始 workspace
 5. 若目标远程工作区尚不具备 bridge 条件，渲染 home-only `Root`，保留工作区列表与重连入口；
    此时不创建 workspace bridge，也不开放依赖工作区服务的任务操作。没有可选工作区时显示错误页。

@@ -3,11 +3,8 @@
   "tags": ["-lintignore"],
   "workspaces": {
     ".": {},
-    "packages/relay-server": {
-      "entry": ["src/index.ts", "src/main.ts", "test/*.test.ts"]
-    },
-    "packages/relay-client": {
-      "entry": ["src/index.ts", "test/*.test.ts"]
+    "packages/relay-v2-server": {
+      "entry": ["deploy/run-relay.mjs", "tools/*", "contract.test.ts"]
     },
     "packages/mobile-web": {
       "entry": [

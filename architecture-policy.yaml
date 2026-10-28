@@ -46,6 +46,22 @@ modules:
   - id: drora-server-cli
     roots: [packages/drora-server-cli/src]
     managed: false
+  # relay-v2-server：自建 Relay V2 服务端（specs/relay-v2-server.md §13）；由 architecture:adopt 置为 managed
+  - id: relay-v2-server
+    roots: [packages/relay-v2-server]
+    managed: true
+    publicEntrypoints:
+      - packages/relay-v2-server/src/index.ts
+      - packages/relay-v2-server/contract.ts
+    # client/rpc 仅 test/differential.test.ts（§10 L0 差异测试）消费：复用 @drora/client 的
+    # rpc-frame 协议层与 @drora/rpc VSBuffer 对 fake relay 与本服务做同场景双打；src 构建闭包不变
+    requires:
+      - web-remote-relay
+      - client
+      - rpc
+    layers:
+      adapters: .
+    owner: remote
   - id: mobile-web
     roots: [packages/mobile-web/scripts, packages/mobile-web/src]
     managed: false

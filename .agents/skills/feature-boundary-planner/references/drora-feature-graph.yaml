@@ -17,6 +17,27 @@ rules:
     - "evidence-only"
 
 nodes:
+  - id: "capability.persona"
+    kind: "capability"
+    label: "Drora 单一长期伙伴（设计阶段，未实现）"
+    aliases: ["人格", "拟人系统", "personal agent", "个人偏好", "人格资料导出"]
+    docs:
+      - "specs/drora-persona-system.md"
+      - "docs/design/drora-persona-data-contracts-2026-10-29.md"
+    codeSeeds: []
+    invariants:
+      - "Design only: one stable identity and limited growth; no shipped Persona owner, protocol or UI is asserted by this node."
+      - "Existing task execution, permissions, canonical history and recovery retain their owners; proposed extensions are optional and default off."
+      - "Proposed personal evidence must retain attribution and scope; explicit settings outrank inferred values; exports are read-only snapshots, not live configuration."
+  - id: "evidence.persona-design"
+    kind: "evidence"
+    label: "Persona v4 design and planned PM01–PM48 acceptance"
+    docs:
+      - "docs/design/drora-persona-system-impact-2026-10-28.md"
+      - "docs/design/drora-persona-system-feasibility-review-2026-10-28.md"
+      - "docs/design/drora-persona-system-compatibility-review-2026-10-29.md"
+    codeSeeds: []
+
   - id: "capability.tool-search"
     kind: "capability"
     label: "Provider-aware deferred ToolSearch"
@@ -5499,6 +5520,12 @@ nodes:
         file: "packages/ui/src/v4/ConversationShareReadonlyTimeline.tsx"
 
 edges:
+  - from: "capability.persona"
+    to: "evidence.persona-design"
+    type: "specified-by"
+    rank: "evidence-only"
+    condition: "Design retrieval only; candidate cases and proposed integration seams have no implementation or runtime coverage yet."
+
   - from: "capability.tool-search"
     to: "surface.tool-search-settings"
     type: "renders-in"

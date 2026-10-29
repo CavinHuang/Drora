@@ -1,9 +1,13 @@
 import { describe, expect, it } from "vitest";
 import type { ModelInputMessage } from "@drora/contracts";
-import { applyPersonaContribution, compilePersonaCore, defaultPersonaCore } from "./index.js";
-import { buildProviderRequestMessages } from "../runtime/helpers/provider-request-messages.js";
-import { prepareRuntimeProviderRequest } from "../runtime/helpers/runtime-provider-request-messages.js";
-import { createTestRuntimeModel } from "../../tests/test-runtime-model.js";
+import {
+  applyPersonaContribution,
+  compilePersonaCore,
+  defaultPersonaCore,
+} from "../../src/persona/index.js";
+import { buildProviderRequestMessages } from "../../src/runtime/helpers/provider-request-messages.js";
+import { prepareRuntimeProviderRequest } from "../../src/runtime/helpers/runtime-provider-request-messages.js";
+import { createTestRuntimeModel } from "../test-runtime-model.js";
 
 function contribution() {
   const compiled = compilePersonaCore(defaultPersonaCore, 3);

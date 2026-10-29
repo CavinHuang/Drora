@@ -35,6 +35,7 @@ import type {
   ContextBuilder,
   ContextBuildResult,
 } from "./deps.js";
+import type { PersonaCapturePort } from "../persona/index.js";
 import type {
   ActiveTurnSteeringState,
   ActiveTurnStartReservation,
@@ -117,6 +118,8 @@ export interface AgentRuntimeInternal
   mcpToolsSignature?: string;
   mcpToolListRevision?: number;
   subagentPort?: SubagentPort;
+  /** P0a 人格捕获端口；缺席即功能关闭，轮次保持原请求路径。 */
+  personaCapturePort?: PersonaCapturePort;
   getAgentDefinitions: NonNullable<AgentRuntimeDeps["getAgentDefinitions"]>;
   prepareAgentDefinitions: (input: {
     signal: AbortSignal;

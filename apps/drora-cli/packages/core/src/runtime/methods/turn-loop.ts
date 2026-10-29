@@ -46,6 +46,62 @@ import {
   filterOutputTokenContinuationEntries,
 } from "./turn-output-token-continuation.js";
 
+/**
+ * P0a 轮内人格捕获编排（spec §6）：资格已在 admission 同步冻结；这里只在首个合格主请求前
+ * 通过可选端口捕获一次，结果整轮冻结——重试、工具续跑、输出 token continuation 与同轮
+ * compact 后的主请求都复用同一值，不重新捕获。端口缺席即功能关闭，保持原请求路径。
+ * 取消沿原 AbortSignal 路径传播，不能被转换成 omitted 后继续请求；人格故障只降级扩展，
+ * 此处不存在原 session/provider 错误，不会吞掉它们。生产服务与执行许可门属于后续切片，
+ * 该编排届时由独立 Persona 服务模块承接。
+ */
+async function capturePersonaContributionForTurn(
+  this: AgentRuntimeInternal,
+  state: RegularTurnLoopState,
+): Promise<void> {
+  if (state.personaCaptureSettled || state.modelStepCount !== 0) return;
+  // 捕获机会一次性结算：omitted 后同轮迟到结果不再生效，同一轮不会突然出现另一个身份。
+  state.personaCaptureSettled = true;
+  const port = this.personaCapturePort;
+  if (!port || !state.personaMainRequestEligible) return;
+  try {
+    const outcome = await port.captureContribution({
+      sessionId: this.sessionId,
+      signal: state.turnAbortSignal,
+      turnId: state.turnId,
+    });
+    if (outcome.status === "applied") {
+      state.personaContribution = outcome.contribution;
+      this.logger?.info("Persona contribution captured for turn", {
+        coreRevision: outcome.contribution.coreRevision,
+        event: "persona.capture.applied",
+        module: "core.runtime",
+        status: "completed",
+        turnId: state.turnId,
+      });
+    } else {
+      // 信号未中止时的 cancelled 是端口侧判定：按省略处理并如实记录，不伪装成已应用。
+      this.logger?.info("Persona contribution not applied for turn", {
+        event: "persona.capture.omitted",
+        ...(outcome.reason ? { reason: outcome.reason } : {}),
+        captureStatus: outcome.status,
+        module: "core.runtime",
+        status: "completed",
+        turnId: state.turnId,
+      });
+    }
+  } catch (error) {
+    this.logger?.warn("Persona capture failed; omitting contribution for this turn", {
+      errorMessage: error instanceof Error ? error.message : String(error),
+      event: "persona.capture.failed",
+      module: "core.runtime",
+      status: "failed",
+      turnId: state.turnId,
+    });
+  }
+  // 信号在捕获等待期间中止时取消必须穿出，交还原轮次取消路径。
+  throwIfTurnAborted(state.turnAbortSignal);
+}
+
 export async function runRegularTurnLoop(
   this: AgentRuntimeInternal,
   state: RegularTurnLoopState,
@@ -212,12 +268,15 @@ export async function runRegularTurnLoop(
       ? undefined
       : consumePendingProjectMemoryUpdate(this);
     const requestEntries = memoryUpdate ? [...providerEntries, memoryUpdate] : providerEntries;
+    // 首个合格主请求前一次性捕获；omitted/applied 后整轮冻结，见 turn-persona-capture.ts。
+    await capturePersonaContributionForTurn.call(this, state);
     const prepared = prepareRuntimeProviderRequest(this, {
       model: state.model,
       tools,
       registry: this.getToolRegistry(),
       entries: requestEntries,
       applyCacheControl: true,
+      contribution: state.personaContribution,
     });
     this.logger?.debug("ToolSearch request exposure", {
       event: "tool.search.exposure",
@@ -240,6 +299,8 @@ export async function runRegularTurnLoop(
             loadedToolCallIds: prepared.loadedToolCallIds,
             applyCacheControl: true,
             model: state.model,
+            // 记录投影与实际请求使用同一冻结贡献（PM36：二次渲染内容一致）。
+            contribution: state.personaContribution,
           });
     state.turnMachine = new TurnMachineImpl(
       state.turnMachine.startModelRequest(

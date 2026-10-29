@@ -105,16 +105,18 @@
 
 ## 6. 本轮状态
 
-统一 spec、接口/存储/生命周期合同、58 项验收和本计划完成。P0a 首批已实现：托管 cli-persona-domain、五字段严格校验、确定性不可变核心贡献、可选请求 overlay、canonical/source/cache/user 索引对应、直接辅助调用隔离。没有注册 Runtime capture、执行许可或 UI，普通请求仍不传 contribution。
+统一 spec、接口/存储/生命周期合同、58 项验收和本计划完成。P0a 首批已实现：托管 cli-persona-domain、五字段严格校验、确定性不可变核心贡献、可选请求 overlay、canonical/source/cache 索引对应、直接辅助调用隔离。没有注册执行许可或 UI，普通调用不传 contribution。
+
+第二批（同日）完成 Runtime 轮内捕获接线：cli-persona-domain 新增封闭世界入口资格表 `isPersonaEligibleMainRequest`（合成来源、model-only、automation、off-peak 一律不合格，未知值拒绝）与 `PersonaCapturePort`/outcome 契约；runtime 经 `AgentRuntimeDeps.personaCapturePort` 可选注入，`executeTurnCommand` 在 admission 同步冻结资格（PM34：旧模型冻结前无新增 await），`runRegularTurnLoop` 在首个合格主请求前经 `capturePersonaContributionForTurn` 捕获一次并整轮冻结（重试、工具续跑、输出 token continuation、同轮 compact 后主请求复用；omitted 终局，迟到结果不生效）；取消沿原 AbortSignal 传播，端口故障/cancelled 按省略降级并如实记录；实际请求与 recordable 二次渲染传同一冻结贡献，token 估算沿用含贡献的最终 messages；canonical 历史零回写。编排内联在 turn-loop.ts（避免为单个接缝新开未受管文件），生产服务落地 P0b 时由独立模块承接。另外修正：原 `src/persona/contract.test.ts` 不在 vitest `tests/**` 收集范围从未执行，已移入 `tests/persona/contract.test.ts`（28 项现真实执行），并删除其单行指针 `tests/persona/domain.test.ts`。
 
 - [x] P0a 核心编译与可选请求投影接缝；28 项新单测。
 - [x] 相关 MCS/ToolSearch 回归：4 文件、47 项测试通过。
 - [x] CLI core typecheck、架构 changed 检查通过；root lint 通过（395 个既有 warnings）。
-- [ ] P0a Runtime 轮内 capture、记录/预算实际接线、取消/续跑/恢复集成。
+- [x] P0a Runtime 轮内 capture、记录/预算实际接线、取消/续跑/恢复集成：资格表 + 可选端口 + 每轮一次冻结捕获 + 记录一致 + 取消传播；新增 26 项集成测试（含资格表、默认关闭等价、busy 队列执行时捕获、continuation/工具续跑复用、记录投影一致、取消不降级、故障降级、不合格入口零捕获）。
 - [ ] P0b 独立库 worker、无会话管理、执行许可/能力发现、设置 UI、应用状态。
 - [ ] P0b E2E、真实模型效果、跨平台发行与回退准入。
 - [ ] P1a 显式交流默认与逻辑忘记/导出。
 - [ ] P1b 有限自动学习、来源复验、预算/fencing。
 - [ ] P2 当前态呈现及原桌宠/语音回归。
 
-整个清单只通过同一个分支/PR 更新，不能为后续切片另开功能 PR。首批测试前重建了过期的本地 contracts dist，使当前源码的 ToolSearch 常量可用；没有改相关业务源码。根 typecheck 仍在 relay-v2-server 的模块解析及相关类型处失败，未记为通过。根 lint 原先忽略整个 CLI，本次仅将新人格模块/测试和最小接缝纳回检查，不重新 lint 其他还原目录。
+整个清单只通过同一个分支/PR 更新，不能为后续切片另开功能 PR。首批测试前重建了过期的本地 contracts dist，使当前源码的 ToolSearch 常量可用；没有改相关业务源码。本批验证前重建了 core dist 以解除 bootstrap 对过期 d.ts 的误报（team 域错误消失）；根 typecheck 仍在 relay-v2-server 的模块解析及相关类型处失败（`@drora/shared/web-remote-relay`/`@drora/client`/`@drora/rpc` 等 TS2307 家族），bootstrap 单独 typecheck 另有 3 个同家族 stale-dist 错误（NodeSkillAdapterOptions/NodeCustomCommandAdapterOptions 的 additionalDirectories、ProviderEndpointRoutingFactoryOptions 的 readDroraJwt），均与本切片无关，未记为通过。根 lint 0 errors、395 warnings 与交接基线一致；`pnpm fmt:check` 在干净基线同样失败（全树 10484 文件、内容级 diff 为 0，Windows CRLF 环境性），本切片文件已按内容级格式核对并修正 2 个测试文件。root lint 原先忽略整个 CLI，本次仅将新人格模块/测试和最小接缝纳回检查，不重新 lint 其他还原目录。

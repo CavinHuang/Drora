@@ -1,6 +1,6 @@
 # Drora 人格与个人化系统
 
-- 版本：v5，2026-10-29；P0a 纯领域模块与可选请求投影接缝已实现，完整功能尚未启用。
+- 版本：v5，2026-10-29；P0a 纯领域模块、可选请求投影接缝与 Runtime 轮内捕获编排已实现，完整功能尚未启用。
 - 源码依据：54db6b6309c2b155f1e6d6630062c97c0432f0f2。
 - 本文是唯一产品设计基线，取代[文件方案](drora-persona.md)及本文件 v4。旧评审保留问题发现过程，不再作为并行实施合同。
 - 配套：[数据与接口合同](../docs/design/drora-persona-data-contracts-2026-10-29.md)、[影响/验收](../docs/design/drora-persona-system-impact-2026-10-28.md)、[实施计划](../docs/superpowers/plans/2026-10-29-drora-persona-p0.md)、[综合评审](../docs/design/drora-persona-integrated-review-2026-10-29.md)。
@@ -266,7 +266,9 @@ G1=统一字段/owner/许可合同；G2=用途与诊断边界；G3=执行/恢复
 
 ### 实施跟踪（2026-10-29）
 
-用户要求整个功能在 codex/drora-persona-system 分支、一个专门 Draft PR 中跟进，不拆分功能 PR。首个 P0a 提交实现纯核心校验/编译和请求投影的可选 contribution 接缝；尚不注册执行许可、capture、资料库或 UI，普通调用不传参数即沿原路径。projection 在原 provider role/ToolSearch/cache 映射完成后，把只属于本请求的 system 消息插入前导 system 组末尾；同时调整 sourceEntries/真实用户/cache 索引，返回的 canonical entries 不加入该消息。诊断和实际请求的调用者必须传同一贡献；正式 turn 生命周期接线仍属后续 P0a。
+用户要求整个功能在 codex/drora-persona-system 分支、一个专门 Draft PR 中跟进，不拆分功能 PR。首个 P0a 提交实现纯核心校验/编译和请求投影的可选 contribution 接缝；尚不注册执行许可、capture、资料库或 UI，普通调用不传参数即沿原路径。projection 在原 provider role/ToolSearch/cache 映射完成后，把只属于本请求的 system 消息插入前导 system 组末尾；同时调整 sourceEntries/真实用户/cache 索引，返回的 canonical entries 不加入该消息。诊断和实际请求的调用者必须传同一贡献。
+
+第二批提交（同日）落地 §6 的轮内捕获编排：cli-persona-domain 新增封闭世界入口资格表（任何合成来源、model-only 续跑、automation/off-peak 身份不合格，未知值拒绝）与 `PersonaCapturePort` 契约；Runtime 经可选 deps 端口注入，admission 同步冻结资格，首个合格主请求前捕获一次并整轮冻结，重试/工具续跑/输出 token continuation/同轮 compact 后主请求复用，omitted 终局，取消沿原 AbortSignal 传播，端口故障按省略降级；实际请求与 recordable 二次渲染使用同一冻结贡献。执行许可 E、生产 Persona 服务与资料库仍未注册，端口缺席即功能关闭。
 
 | 问题            | 本版处理                                                 |
 | --------------- | -------------------------------------------------------- |

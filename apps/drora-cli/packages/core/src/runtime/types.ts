@@ -115,6 +115,7 @@ import type { RuntimeTaskRegistry } from "../runtime-task/registry.js";
 import type { BashTimeoutPolicy } from "../tool/bash-timeout-policy.js";
 import type { PresentationSurface } from "../context/types.js";
 import type { WorkspaceHookRuntimeAdmissionPort } from "../hooks/workspace-hook-runtime-admission.js";
+import type { PersonaCapturePort } from "../persona/index.js";
 
 // -----------------------------------------------
 // Agent Runtime
@@ -360,6 +361,11 @@ export interface AgentRuntimeDeps {
   mcpPort?: McpPort;
   subagentPort?: SubagentPort;
   coordinatorResponsePort?: CoordinatorResponsePort;
+  /**
+   * P0a 人格捕获端口：缺席即功能关闭，轮次保持原请求路径（spec §6）。
+   * 生产服务与执行许可门属于后续切片；测试经此注入受控捕获适配。
+   */
+  personaCapturePort?: PersonaCapturePort;
   /** 工作流 actor 提交终态结果的端口；存在即作为 submit_result 工具的注册门。 */
   workflowSubmitPort?: WorkflowSubmitPort;
   /**

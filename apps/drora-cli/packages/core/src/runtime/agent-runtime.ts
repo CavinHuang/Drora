@@ -72,6 +72,7 @@ import type {
   HookRunner,
   TurnId,
 } from "./deps.js";
+import type { PersonaCapturePort } from "../persona/index.js";
 import { installAgentRuntimeMethods } from "./methods/index.js";
 import type { StartSavedWorkflowRunResult } from "./methods/dynamic-workflow-run-start.js";
 import type {
@@ -207,6 +208,7 @@ export class AgentRuntime {
   private mcpToolsSignature?: string;
   private mcpToolListRevision?: number;
   private subagentPort?: SubagentPort;
+  private personaCapturePort?: PersonaCapturePort;
   private readonly getAgentDefinitions: GetAgentDefinitions;
   private readonly prepareAgentDefinitions: ReturnType<
     typeof createTurnAgentDefinitions
@@ -347,6 +349,7 @@ export class AgentRuntime {
     this.imageProcessorPort = deps.imageProcessorPort;
     this.pdfDocumentPort = deps.pdfDocumentPort;
     this.subagentPort = deps.subagentPort ?? runtime.createDefaultSubagentPort(deps);
+    this.personaCapturePort = deps.personaCapturePort;
     this.dynamicWorkflowRunPort = deps.dynamicWorkflowRunPort;
     // GUI「配置」解析子代理模型用的目录（与工具上下文拿的是同一个端口）。
     this.modelCatalogPort = deps.modelCatalogPort;

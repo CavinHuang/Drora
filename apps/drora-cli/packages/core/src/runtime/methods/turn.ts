@@ -57,6 +57,7 @@ import {
   maybeStartSessionTitleGeneration,
 } from "./session-title.js";
 import type { RegularTurnLoopState } from "./turn-loop-state.js";
+import { isPersonaEligibleMainRequest } from "../../persona/index.js";
 import { finishOutputTokenRecovery } from "./turn-output-token-continuation.js";
 import { recordTurnUsageFact } from "./usage-observability.js";
 import { persistStableForkCompletionBoundary } from "./stable-fork-boundary.js";
@@ -833,6 +834,15 @@ export async function executeTurnCommand(
             : {}),
           modelStepCount: 0,
           historyRoundCount: 0,
+          // 用途资格在 admission 同步冻结（PM34：旧模型冻结前无新增 await）；
+          // 捕获在首个合格主请求前执行一次，见 turn-persona-capture.ts。
+          personaMainRequestEligible: isPersonaEligibleMainRequest({
+            automationId: options?.automationId,
+            inputSource: options?.inputSource,
+            inputVisibility: options?.inputVisibility,
+            offPeakTaskId: options?.offPeakTaskId,
+          }),
+          personaCaptureSettled: false,
           reactiveCompactAttemptedInCurrentModelStep: false,
           repeatedToolCallSignature: undefined,
           repeatedToolCallStreakCount: 0,

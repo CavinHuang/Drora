@@ -37,3 +37,24 @@ export interface PersonaRequestProjection<
   sourceEntries: Array<Source | undefined>;
   diagnostics: Diagnostics;
 }
+
+/**
+ * Runtime-facing capture seam for one admitted main turn. The production service
+ * and its storage arrive in a later slice; an unregistered port means the
+ * feature is off and the turn keeps the original request path. The port owns
+ * permission, repository reads and its own bounded waiting budget.
+ */
+export interface PersonaTurnCaptureRequest {
+  readonly sessionId: string;
+  readonly turnId: string;
+  readonly signal: AbortSignal;
+}
+
+export type PersonaCaptureOutcome =
+  | { readonly status: "applied"; readonly contribution: PersonaContribution }
+  | { readonly status: "omitted"; readonly reason?: string }
+  | { readonly status: "cancelled"; readonly reason?: string };
+
+export interface PersonaCapturePort {
+  captureContribution(request: PersonaTurnCaptureRequest): Promise<PersonaCaptureOutcome>;
+}

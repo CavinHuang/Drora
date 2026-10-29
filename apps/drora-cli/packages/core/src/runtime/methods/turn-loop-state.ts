@@ -17,6 +17,7 @@ import type { ModelToolContract, SubagentRunOptions } from "@drora/contracts";
 import type { DrainedPendingInputDiagnostics, ModelExecutionContext } from "../types.js";
 import type { TurnMachineImpl } from "../deps.js";
 import type { RuntimeMessageEntry } from "../../agent/message-history.js";
+import type { PersonaContribution } from "../../persona/index.js";
 
 export type PendingStreamRecoveryRequest = ModelStreamRecoveryStatus;
 
@@ -111,6 +112,12 @@ export interface RegularTurnLoopState {
   highspeedFallbackSelection?: ModelSelection;
   /** Core Server 的前台 child Selection override；优先于 profile 与父模型继承。 */
   subagentModelOverride?: SubagentRunOptions["modelOverride"];
+  /** 本轮入口经用途资格表判定为真实用户主对话轮；admission 同步冻结，不在旧模型冻结前引入 await。 */
+  personaMainRequestEligible: boolean;
+  /** 人格捕获机会已结算（applied/omitted）；重试、工具续跑与 continuation 不再重新捕获。 */
+  personaCaptureSettled: boolean;
+  /** 当前轮冻结的人格贡献；omitted 整轮保持 undefined，不回写 canonical。 */
+  personaContribution?: PersonaContribution;
   modelStepCount: number;
   /** 当前 query 已成功写入 provider 可见持久历史的 assistant/compact 产物数量。 */
   historyRoundCount: number;

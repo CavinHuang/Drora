@@ -78,6 +78,7 @@ import { resolveAppRuntimeConfig, runtimeConfigLogContext } from "./runtime-conf
 import { resolveBundledSkillRoots } from "./bundled-skills.js";
 import { collectDynamicWorkflowDisabledSkillPaths } from "./dynamic-workflow-gate.js";
 import { gateAgentsTeamSkillPort } from "./agents-team-skill-gate/index.js";
+import { getOrCreateDroraPersonaSystem } from "./drora-persona/index.js";
 import { createWorkspaceHookRuntimeSecurity } from "./workspace-hook-trust.js";
 import { createScriptWorkflowBridge } from "./script-workflow-methods.js";
 import {
@@ -224,6 +225,13 @@ export async function createDroraApp(options: DroraAppOptions): Promise<DroraApp
   try {
     const storageRoot = resolvePath(configResult.config.storage.dir);
     const cliStorageRoot = getCliStorageRoot(storageRoot);
+    // P0 人格资料域的进程级绑定（spec §4 bootstrap/app/drora-persona）：纯内存绑定，不读库、
+    // 不起 worker、不阻塞 ready；库路径只来自可信 CLI 存储根（不用 project config 的
+    // storage.dir 派生域或 cwd）。P0b 无执行许可，capture 端口一律快速省略。
+    const personaSystem = getOrCreateDroraPersonaSystem({
+      trustedCliStorageRoot: cliStorageRoot,
+      logger,
+    });
     const modelIoDir = getModelIoDir(
       cliStorageRoot,
       resolveDroraRuntimeEnv(options.env ?? process.env) === "development",
@@ -914,6 +922,7 @@ export async function createDroraApp(options: DroraAppOptions): Promise<DroraApp
       topicResourcePort: options.topicResourcePort,
       appVersion,
       traceContext,
+      personaCapturePort: personaSystem.capturePort,
     };
     runtime = new AgentRuntime(sessionId, runtimeConfig, runtimeAgentDeps);
     // 接缝 α/3：构造后装配 Agents Team（hub/私有端口/派发通道；registry 缺席即灰度关，零开销）。

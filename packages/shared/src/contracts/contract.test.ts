@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
+  PERSONA_COMPILER_VERSION,
+  PERSONA_CORE_LIMITS,
+  PERSONA_ERROR_CODES,
+  PERSONA_RECEIPT_SCOPES,
+  PERSONA_STORE_SCHEMA_VERSION,
+  PERSONA_STORAGE_KEYS,
+  PERSONA_TEMPLATE_VERSION,
+} from "./persona.js";
+import {
   VOICE_BROADCAST_CLAIM_KEY,
   VOICE_INPUT_SOURCE_KIND,
   VOICE_SETTINGS_KEYS,
@@ -151,6 +160,60 @@ describe("voiceInputSourceSchema (strict, additive)", () => {
     expect(
       conversationInputSourceSchema.safeParse({ kind: "genUi", path: "a.ts" }).success,
     ).toBe(true);
+  });
+});
+
+describe("persona contract constants (Persona P0 切片 B 契约钉住)", () => {
+  it("pins the closed management error code enum (数据合同 §3)", () => {
+    // 15 个错误码封闭集合：值与合同 §3 逐字对齐（键为 camelCase 存取名，值即 wire/存储字面量）。
+    expect(Object.values(PERSONA_ERROR_CODES).sort()).toEqual(
+      [
+        "unsupported",
+        "unauthorized",
+        "authority_mismatch",
+        "validation_failed",
+        "revision_conflict",
+        "mutation_conflict",
+        "uninitialized",
+        "storage_unavailable",
+        "storage_capacity",
+        "outcome_unknown",
+        "schema_incompatible",
+        "source_unavailable",
+        "snapshot_conflict",
+        "budget_exhausted",
+        "cancelled",
+      ].sort(),
+    );
+    // 抽查 camelCase 键 → snake_case 值的映射（调用方引用常量，不重复写字面量）。
+    expect(PERSONA_ERROR_CODES.revisionConflict).toBe("revision_conflict");
+    expect(PERSONA_ERROR_CODES.outcomeUnknown).toBe("outcome_unknown");
+    expect(PERSONA_ERROR_CODES.schemaIncompatible).toBe("schema_incompatible");
+  });
+
+  it("pins receipt scopes (数据合同 §1/§2：receipt(scope,mutationId) 幂等键)", () => {
+    // P0 只有 authority 初始化与 core 变更两族；resultCode 词汇（created/saved/unchanged）
+    // 由 PersonaReceiptResultCode 类型钉住，无运行时值可断言。
+    expect(PERSONA_RECEIPT_SCOPES).toEqual({ authority: "authority", core: "core" });
+  });
+
+  it("pins the trusted storage location keys (spec §4：getCliStorageRoot 下 personas/persona.sqlite)", () => {
+    expect(PERSONA_STORAGE_KEYS).toEqual({ directory: "personas", database: "persona.sqlite" });
+  });
+
+  it("pins P0 version constants at their initial values (数据合同 §1)", () => {
+    expect(PERSONA_STORE_SCHEMA_VERSION).toBe(1);
+    expect(PERSONA_TEMPLATE_VERSION).toBe(1);
+    expect(PERSONA_COMPILER_VERSION).toBe(1);
+  });
+
+  it("pins core field limits in Unicode code points (数据合同 §1.1)", () => {
+    expect(PERSONA_CORE_LIMITS).toEqual({
+      displayNameMin: 1,
+      displayNameMax: 40,
+      selfDescriptionMax: 300,
+      compiledContributionMax: 4000,
+    });
   });
 });
 

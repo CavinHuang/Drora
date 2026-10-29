@@ -1,4 +1,7 @@
 import type { ModelInputMessage } from "@drora/contracts";
+// 版本字面量单一出处是 shared contracts（AGENTS.md）；类型经 typeof 引用同一常量，
+// 升级版本时本契约形状随常量自动演进，不再出现第二份手写字面量。
+import { PERSONA_COMPILER_VERSION, PERSONA_TEMPLATE_VERSION } from "@drora/shared";
 
 /** Pure, local P0a contract; not a wire schema or execution permission. */
 export interface PersonaCore {
@@ -12,8 +15,8 @@ export interface PersonaCore {
 export interface PersonaContribution {
   readonly content: string;
   readonly coreRevision: number;
-  readonly templateVersion: 1;
-  readonly compilerVersion: 1;
+  readonly templateVersion: typeof PERSONA_TEMPLATE_VERSION;
+  readonly compilerVersion: typeof PERSONA_COMPILER_VERSION;
 }
 
 export type PersonaCompileResult =

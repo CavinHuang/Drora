@@ -10,6 +10,10 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
+    "./persona": {
+      "types": "./dist/persona/index.d.ts",
+      "import": "./dist/persona/index.js"
+    },
     "./repl": {
       "types": "./dist/repl/node-repl-session.d.ts",
       "import": "./dist/repl/node-repl-session.js"

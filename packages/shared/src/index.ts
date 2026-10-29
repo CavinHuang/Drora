@@ -8,6 +8,7 @@ export type {
 export * from "./desktopPet.js";
 export * from "./contracts/desktopPet.js";
 export * from "./contracts/voice.js";
+export * from "./contracts/persona.js";
 
 export type {
   FileBinaryPreview,

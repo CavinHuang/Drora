@@ -270,6 +270,8 @@ G1=统一字段/owner/许可合同；G2=用途与诊断边界；G3=执行/恢复
 
 第二批提交（同日）落地 §6 的轮内捕获编排：cli-persona-domain 新增封闭世界入口资格表（任何合成来源、model-only 续跑、automation/off-peak 身份不合格，未知值拒绝）与 `PersonaCapturePort` 契约；Runtime 经可选 deps 端口注入，admission 同步冻结资格，首个合格主请求前捕获一次并整轮冻结，重试/工具续跑/输出 token continuation/同轮 compact 后主请求复用，omitted 终局，取消沿原 AbortSignal 传播，端口故障按省略降级；实际请求与 recordable 二次渲染使用同一冻结贡献。执行许可 E、生产 Persona 服务与资料库仍未注册，端口缺席即功能关闭。
 
+第三批（切片 B，同日）落地独立存储、服务与生产装配：shared/contracts 新增 `persona.ts` 作为存储键、错误码与限额常量的单一出处；adapters 登记 `cli-persona-store`——独立 SQLite 库 worker、`0001_persona_p0_base` 迁移建 `persona_authority`/`persona_core`/`persona_mutation_receipt` 三表、多进程短事务 CAS，首次默认与库损坏明确区分，模块内路径仅取自 `PERSONA_STORAGE_KEYS`，无 cwd/homedir/process.env/storage.dir 派生；bootstrap 登记 `cli-persona-service`——PersonaAppService 无会话管理 API（初始化幂等、CAS/`mutation_conflict`、校验拒绝、确定性预览且零存储访问）与版本化产品模板，并经 `create-app` 生产默认装配进程级绑定与 `personaCapturePort`。执行许可 E 仍未注册：生产 capture 统一快速返回 `omitted(permission_not_granted)`，不读库、不起 worker，取消返回 `cancelled`。未注册任何 Host 控制协议方法、能力发现或 UI 入口（`drora-protocol/` 全目录无 persona 字样），§4 的无会话 Host 链路与 §10 设置页仍属切片 C；旧 session/task 库 schema、任务活动时间与还原文件零变更。
+
 | 问题            | 本版处理                                                 |
 | --------------- | -------------------------------------------------------- |
 | R1 两套设计     | 本文唯一基线，A 标历史，原 P0 计划整体重写               |

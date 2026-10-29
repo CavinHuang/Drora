@@ -874,6 +874,7 @@ modules:
       - packages/shared/src/contracts/contract.ts
       - packages/shared/src/contracts/desktopPet.ts
       - packages/shared/src/contracts/voice.ts
+      - packages/shared/src/contracts/persona.ts
     layers:
       contract: .
     owner: drora
@@ -885,12 +886,44 @@ modules:
     managed: true
     requires:
       - drora-cli
+      - shared
     publicEntrypoints:
       - apps/drora-cli/packages/core/src/persona/index.ts
       - apps/drora-cli/packages/core/src/persona/contract.ts
     layers:
       domain: .
     owner: agent
+  # cli-persona-store：由 architecture:adopt 登记
+  - id: cli-persona-store
+    roots:
+      - apps/drora-cli/packages/adapters/src/storage/persona
+      - apps/drora-cli/packages/adapters/tests/persona
+    managed: true
+    requires:
+      - shared
+      - sqlite-migrations
+    publicEntrypoints:
+      - apps/drora-cli/packages/adapters/src/storage/persona/index.ts
+      - apps/drora-cli/packages/adapters/src/storage/persona/contract.ts
+    layers:
+      adapters: .
+  # cli-persona-service：由 architecture:adopt 登记
+  - id: cli-persona-service
+    roots:
+      - apps/drora-cli/packages/bootstrap/src/app/drora-persona
+      - apps/drora-cli/packages/bootstrap/tests/persona
+    managed: true
+    requires:
+      - cli-persona-domain
+      - cli-persona-store
+      - drora-cli
+      - shared
+    publicEntrypoints:
+      - apps/drora-cli/packages/bootstrap/src/app/drora-persona/index.ts
+      - apps/drora-cli/packages/bootstrap/src/app/drora-persona/contract.ts
+    layers:
+      app: .
+    owner: drora
 global:
   # 临时时间戳（2026-09-10）：unmanaged-new-file 只约束此日期之后首次入库的文件。
   # 基于领先 staging 很多的分支开工时，merge-base 之前的"新增"文件不应被追溯。

@@ -1,4 +1,5 @@
-export { compilePersonaCore, defaultPersonaCore } from "./compiler.js";
+export { compilePersonaCore, defaultPersonaCore, validatePersonaCoreFields } from "./compiler.js";
+export type { PersonaCoreFieldValidation } from "./compiler.js";
 export { applyPersonaContribution } from "./request-projection.js";
 export { isPersonaEligibleMainRequest } from "./eligibility.js";
 export type { PersonaMainRequestAdmission } from "./eligibility.js";

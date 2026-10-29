@@ -4,7 +4,7 @@
  */
 export const cliPersonaDomainModule = {
   id: "cli-persona-domain",
-  requires: ["drora-cli"],
+  requires: ["drora-cli", "shared"],
   provides: ["cli-persona-domain"],
   publicEntrypoints: ["index.ts", "contract.ts"],
 } as const;

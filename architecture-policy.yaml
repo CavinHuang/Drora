@@ -877,6 +877,20 @@ modules:
     layers:
       contract: .
     owner: drora
+  # cli-persona-domain：由 architecture:adopt 登记
+  - id: cli-persona-domain
+    roots:
+      - apps/drora-cli/packages/core/src/persona
+      - apps/drora-cli/packages/core/tests/persona
+    managed: true
+    requires:
+      - drora-cli
+    publicEntrypoints:
+      - apps/drora-cli/packages/core/src/persona/index.ts
+      - apps/drora-cli/packages/core/src/persona/contract.ts
+    layers:
+      domain: .
+    owner: agent
 global:
   # 临时时间戳（2026-09-10）：unmanaged-new-file 只约束此日期之后首次入库的文件。
   # 基于领先 staging 很多的分支开工时，merge-base 之前的"新增"文件不应被追溯。

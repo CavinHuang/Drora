@@ -1,6 +1,8 @@
 # Drora 拟人系统（Persona）
 
-Status: design（2026-10-29 裁定后起草，未实现）
+> 历史方案，2026-10-29 已由 [Persona v5 统一设计](drora-persona-system.md)替代。下文保留历史记录，不再作为实施合同；原 P0 计划也已改写为 v5 分期计划。文件权威、公共 section、env 开关、旧 Memory 绑定及复杂气泡不得与 v5 混用。
+
+Status: superseded（原 2026-10-29 设计记录，未实现；当前以 v5 为准）
 调研基础：六轮调研结论存档于项目记忆 `drora-persona-system-research`；本 spec 只沉淀设计，不复述调研。
 
 ## 0. 产品裁定（2026-10-29，用户四项）

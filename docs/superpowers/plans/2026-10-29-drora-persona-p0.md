@@ -1,231 +1,120 @@
-# Drora Persona P0 实施计划（注入链路）
+# Drora Persona v5 实施计划
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+日期：2026-10-29。状态：design-complete / P0a-in-progress。本文件整体替代原 ContextSection＋env 文件方案的 P0 计划；不得执行其旧步骤。依据[唯一主 spec](../../../specs/drora-persona-system.md)、[数据合同](../../design/drora-persona-data-contracts-2026-10-29.md)、[PM01–PM58](../../design/drora-persona-system-impact-2026-10-28.md)。
 
-**Goal:** 打通 personaEnabled 设置→env 桥→CLI 消费→persona 资产读取→system prompt 分节注入的完整链路（spec §3/§7/§8.2，验收 A1-A3、A9、A14、A15 的注入部分）。
+用户已于 2026-10-29 要求新建实施分支并建立一个专门 PR。整个功能统一使用 codex/drora-persona-system 分支和一个 Draft PR；下面的切片通过连续提交和同一 PR 的检查清单跟进，不拆到其他 PR。实施授权不等于模型费用实验、发布或合并授权。
 
-**Architecture:** 照 agents-team 灰度桥的已验模式（settings→`desktopRuntimeEnv`→spawn env 烘焙→CLI `resolveXxxEnabled`），在 context builder 增加 stable persona 分节（四装配门），资产文件落 `${dataRoot}/persona/`（读取带 containedPath+realpath 校验）。P1（记忆）、P2（mood/气泡）各自另出计划。
+## 1. 开工前
 
-**Tech Stack:** TypeScript monorepo（packages/shared·desktop·ui + apps/drora-cli core/contracts/bootstrap）、Zod、Vitest（CLI 测试必须在 `tests/` 目录）、Electron main。
+1. 运行 workspace freshness，使用 mise.toml 对应 Node 与当前 package.json 的 pnpm。
+2. 对本次实际代码diff使用 architecture-governance，先架构检查再取模块上下文；新的文件/契约登记遵守当前架构策略。
+3. 核对本计划源码基线与HEAD；重点复核主请求投影、runtime preferences、消息来源、model-io、voice、桌宠。恢复链路变化先更新矩阵。
+4. 先验证新旧端可兼容的能力发现路径。旧严格hello不能直接塞新字段；找不到合法接缝则该组合不开放，不用捕获未知错误代替能力协商。
+5. 确认P0的G1/G2合同已一致；实现中不临时恢复公共section、env开关或个人偏好依赖旧M。
 
-**Spec:** `specs/drora-persona.md`（本计划从 spec 立论，执行者须同时读 spec §3/§7/§8 与 §10 验收表）。
+## 2. 接缝与上游重放记录
 
-## Global Constraints
+以下均为候选改动位置，实施时按真实模块归属与diff hunk确认。主体放新模块，既有文件只转交可选端口；不得将特性逻辑内联进还原文件，也不以“最小接缝”绕过禁止特性修改的文件边界。
 
-- 所有 shell 命令先 `source /Users/cavinhuang/workspace/projects/Drora/.zcode/toolchain-env.sh`（pinned 工具链，裸 pnpm 会破坏 vendored node_modules）。
-- **测试命令（计划审查实测，勿改写）**：shared/desktop 包无独立 test script——`pnpm --filter @drora/shared vitest run ...` 会报 `ERR_PNPM_RECURSIVE_RUN_NO_SCRIPT`，用根目录 `pnpm exec vitest run <path>`；CLI core 用 `pnpm --dir apps/drora-cli/packages/core exec vitest run tests/<file>`（必须带 `exec`，且勿用 `run test -- <file>`——script 是 `vitest tests`，会跑全量 288 文件）。
-- CLI 测试只能放 `apps/drora-cli/packages/core/tests/`（bootstrap vitest 不收 `src/`）；**改 core 导出新符号后须先重建 core dist 再跑 bootstrap 相关测试**（stale dist 幻觉坑，同理 contracts/adapters）。
-- `DRORA_PERSONA` 是既有 `DRORA_PERSONAL_*` env 的前缀——全链 grep 时注意辨别误命中。
-- **`SANITIZED_RUNTIME_ENV_KEYS` 是剔除名单**：`DRORA_PERSONA_ENV` 只定义常量，绝不加入该名单（spec §7 反义措辞裁定）。
-- 契约键单一出处：所有键字面量只出现在 `contracts/persona.ts`/`runtimeEnv.ts`，消费方 import。
-- 不修改任何带「还原自发行 bundle」标记的文件；本计划涉及文件均经四轮审查确认无还原标记。
-- bugfix 中文注释说明原因与依据；commit 粒度=每任务一提交。
-- 门禁：根 `pnpm typecheck && pnpm lint && pnpm architecture:check --changed`；CLI 侧 `pnpm --dir apps/drora-cli check`（根 affected 不覆盖 apps/drora-cli）。
+| 接缝                                  | 新模块承担              | 原链路允许变化                        | 上游同步重放依据                       |
+| ------------------------------------- | ----------------------- | ------------------------------------- | -------------------------------------- |
+| Settings schema / runtime preferences | E的合同/能力门          | 默认false可选许可；新建/cold冻结      | schema字段＋启动请求装配，旧端字段缺省 |
+| create-app/进程组合                   | 惰性Persona工厂         | 注册通用可选端口，不阻塞ready         | 组合注册位置/依赖方向                  |
+| turn admission之后、首主请求之前      | 资格/capture编排        | 捕获一次，保留旧同步冻结与分流顺序    | 一个调用接缝，取消信号原样传递         |
+| turn-loop/provider-request helpers    | 纯贡献编译与投影adapter | 可选contribution、预算/recordable共用 | 缺参数原结果，entries仍canonical       |
+| 控制协议/Host服务注册                 | 独立管理API             | 能力发现后开放，无旧会话帧扩字段      | 新方法注册与代理                       |
+| UI Settings/对话菜单                  | 独立组件/hook           | 插入入口，不由UI读库                  | 组件组合点与原导航                     |
+| P1b成功轮机会通知                     | 学习消费者/仓储         | 原完成路径非阻塞有界通知              | 一个可选观察端口，无旧库outbox         |
+| P2桌宠render                          | 独立纯呈现映射          | 当前态文字/样式，不改动画/导航        | typed presentation组合，不推导历史     |
 
----
+每片提交在同一个 PR 记录实际文件/hunk、端口签名、默认关闭行为、上游替换条件；若官方已覆盖完整契约，则按当前 upstream 迁移规则评估，不因为名称相同直接替换。
 
-### Task 1: shared 契约层（persona.ts + 四处注册 + env 常量 + 设置键）
+## 3. 切片与退出条件
 
-**Files:**
-- Create: `packages/shared/src/contracts/persona.ts`
-- Modify: `packages/shared/src/contracts/module.ts`（publicEntrypoints）
-- Modify: `architecture-policy.yaml`（shared-contracts 段，与 module.ts 同步）
-- Modify: `packages/shared/src/index.ts`（barrel re-export）
-- Modify: `packages/shared/src/contracts/contract.ts:1-13`（头注释契约清单）
-- Modify: `packages/shared/src/runtimeEnv.ts`（新常量，**不进** `SANITIZED_RUNTIME_ENV_KEYS`，L224 `DRORA_AGENTS_TEAM_ENV` 旁）
-- Modify: `packages/shared/src/validationAppSettings.ts`（~L557 full schema 与 ~L692 patch schema 两处，`desktopPetEnabled` 邻位）
-- Test: `packages/shared/test/personaContract.test.ts`（新建）
+### A · P0a 纯合同与主请求实验
 
-**Interfaces (Produces):**
-- `PERSONA_CONTRACT.directory === "persona"`、`PERSONA_CONTRACT.soulFileName === "soul.md"`、`PERSONA_CONTRACT.worldviewFileName === "worldview.md"`、`PERSONA_CONTRACT.soulMaxChars === 4000`（草案值，spec §3.1）
-- `DRORA_PERSONA_ENV: string`（runtimeEnv.ts 导出，值 `"DRORA_PERSONA"`）
-- `AppSettings.personaEnabled: boolean`（default false）
+交付：共享schema/常量、Core纯编译/资格、测试内存贡献适配。先用受控端口证明接缝，不先写完整UI或学习库。
 
-- [ ] **Step 1: 写失败测试**
+验证：PM01/03–05/12/20/30/34/36/47/51；包括最终provider body、ToolSearch、sourceEntries、recordable二次渲染、continuation回写。原canonical不变；原Continue过滤等记录语义保留。直接辅助请求无contribution，新诊断仍如实。取消不能降级成继续运行。
 
-```ts
-// packages/shared/test/personaContract.test.ts
-import { describe, expect, it } from "vitest";
-import { PERSONA_CONTRACT, DRORA_PERSONA_ENV, sanitizeDroraRuntimeEnv } from "../src/index.js";
-import { appSettingsSchema } from "../src/validationAppSettings.js";
+退出：缺参数路径与基线等价；没有共享数组变异；不能满足则修spec和端口，禁止通过写公共历史简化。
 
-describe("persona contract", () => {
-  it("路径段与文件名收口为单一出处", () => {
-    expect(PERSONA_CONTRACT.directory).toBe("persona");
-    expect(PERSONA_CONTRACT.soulFileName).toBe("soul.md");
-    expect(PERSONA_CONTRACT.worldviewFileName).toBe("worldview.md");
-  });
-  it("DRORA_PERSONA_ENV 不在剔除名单（默认透传，spec §7）", () => {
-    const env = { [DRORA_PERSONA_ENV]: "1", PATH: "/bin" };
-    expect(sanitizeDroraRuntimeEnv(env)[DRORA_PERSONA_ENV]).toBe("1");
-  });
-  it("personaEnabled 默认 false，可 patch", () => {
-    expect(appSettingsSchema.parse({}).personaEnabled).toBe(false);
-    expect(appSettingsSchema.parse({ personaEnabled: true }).personaEnabled).toBe(true);
-  });
-});
-```
+### B · P0a 独立存储与服务生命周期
 
-- [ ] **Step 2: 跑测试确认失败**：根目录 `pnpm exec vitest run packages/shared/test/personaContract.test.ts`（预期 import 报错不存在；`sanitizeDroraRuntimeEnv` 经 index.ts 星号导出 `export * from "./runtimeEnv.js"` 可直接 import；`appSettingsSchema` 是 preprocess 包装导出名，默认值实体在 `appSettingsObjectSchema` ~L509 起）
-- [ ] **Step 3: 实现**——新建 `contracts/persona.ts`（照 desktopPet.ts 扁平 `as const` 风格：`export const PERSONA_CONTRACT = { directory: "persona", soulFileName: "soul.md", worldviewFileName: "worldview.md", soulMaxChars: 4000 } as const;`）；runtimeEnv.ts 加 `export const DRORA_PERSONA_ENV = "DRORA_PERSONA";`（注释：persona 灰度门 env 桥，不进剔除名单靠默认透传——照 DRORA_AGENTS_TEAM 语义）；validationAppSettings.ts 两处加 `personaEnabled: z.boolean().default(false)` / `personaEnabled: z.boolean().optional()`；四处注册（module.ts publicEntrypoints、architecture-policy.yaml、index.ts barrel、contract.ts 头注释）逐一补 `persona.ts`
-- [ ] **Step 4: 跑测试确认通过**；再跑 `pnpm knip` 确认无未消费导出红线（本任务内 runtimeEnv 常量尚无消费方，若 knip 报，Task 5 接线后复跑——commit message 注明）
-- [ ] **Step 5: Commit** `feat(shared): persona 契约常量、DRORA_PERSONA_ENV 与 personaEnabled 设置键`
+交付：PersonaAppService、adapters worker、P0三类表（authority/core/receipt）、版本化模板和逻辑管理API。
 
-### Task 2: desktop env 桥与 main 三段接线
+验证：PM06/16/19/21/27/53/55/57；多进程CAS、锁等待、迟到响应、outcome_unknown幂等；未启用不读库，显式管理不创建聊天；当前库损坏与首次默认明确区分；正式worker最低可运行验证。
 
-**Files:**
-- Modify: `packages/desktop/src/main/desktopRuntimeEnv.ts`（`resolveAgentsTeamHostEnv` ~L497-505 旁新增）
-- Modify: `packages/desktop/src/main/index.ts`（三段：快照+refresh ~L1109-1117 / patch 分支 ~L1133-1135 / spawnHostProcess spread ~L1913-1919，全部照 agents-team 邻位代码）
-- Test: `packages/desktop/test/desktopRuntimeEnv.test.ts`（扩展）
+退出：旧库schema/活动时间不变，扩展故障不退出CLI，不吞原错误。存储不兼容只停扩展。没有性能证据不得固定250ms为达标承诺。
 
-**Interfaces:**
-- Consumes: Task 1 的 `DRORA_PERSONA_ENV`
-- Produces: `resolvePersonaHostEnv(setting: boolean | undefined): Record<string, string>`（语义：`setting === true ? { [DRORA_PERSONA_ENV]: "1" } : {}`——无 dev shell 透传过渡，persona 无历史 env 负担；off 不写键=已烘焙 Host 维持原状，spec §3.3 已知语义）
+### C · P0b 许可、协议与设置
 
-- [ ] **Step 1: 写失败测试**（desktopRuntimeEnv.test.ts 追加；**坑：该文件顶部 `vi.mock("@drora/shared")` 用显式键表工厂（~L50 含 DRORA_AGENTS_TEAM_ENV），新用例前必须把 `DRORA_PERSONA_ENV` 加进 mock 工厂导出，否则测试里恒 undefined**——照 ~L804-820 既有扩展风格）
+交付：E、双层能力协商、设置编辑/确定性预览/恢复默认、独立application查询；新字段只有一个出处。
 
-```ts
-it("persona env 桥：开=下发 1，关/缺省=不写键（off 不清已烘焙值）", () => {
-  expect(resolvePersonaHostEnv(true)).toEqual({ [DRORA_PERSONA_ENV]: "1" });
-  expect(resolvePersonaHostEnv(false)).toEqual({});
-  expect(resolvePersonaHostEnv(undefined)).toEqual({});
-});
-```
+验证：PM13–15/19/29/33/35；新旧UI/Host/CLI交叉，warm/new/cold/fork；手机仍共享owner，不新增Agent；SSH/WSL不传资料；无模型也能管理；CAS冲突保留草稿、切authority迟到结果无效。E保存与初始化非跨库原子，UI如实显示资料不可用。
 
-- [ ] **Step 2: 确认失败**（函数未定义）→ **Step 3: 实现函数 + main/index.ts 三段接线**（每段照同文件 agents-team 邻位的写法：快照变量读 `AppSettings.personaEnabled`、patch 分支处理设置增量、spawn spread 合并 `resolvePersonaHostEnv` 结果；中文注释「persona 灰度 env 桥，生效单位=新 Host 进程（spec §3.3）」）
-- [ ] **Step 4: 跑 desktop 包测试通过** → **Step 5: Commit** `feat(desktop): persona env 桥接线（新 Host 生效语义）`
+退出：设置显示已保存不冒充当前轮应用；P0所有入口文案/主题/i18n与DESIGN一致。测试文件名和命令由实际目标包确定，不复制原Mac绝对路径。
 
-### Task 3: persona 共享内核 + CLI 资产读取（含路径对抗校验）
+### D · P0b 效果、发行与回退
 
-**Files:**
-- Create: `packages/shared/src/personaAssets.ts`（**共享内核：模板文案+回退判定+路径校验纯函数——经计划审查裁定单一出处，desktop main 侧 Task 6 复用，防模板双出处**）+ barrel 导出
-- Create: `apps/drora-cli/packages/core/src/persona/persona-assets.ts`（仅 IO 层：读盘+调 shared 纯函数）
-- Create: `apps/drora-cli/packages/core/src/persona/persona-config.ts`（`resolvePersonaEnabled`，照 bootstrap `resolveAgentsTeamEnabled`（实际在 `bootstrap/src/app/drora-team/install.ts:72`）逐字模式：`enabledOverride ?? process.env[DRORA_PERSONA_ENV] === "1"`）
-- Test: `apps/drora-cli/packages/core/tests/persona-assets.test.ts`（新建，含 A15 对抗用例）+ `packages/shared/test/personaAssets.test.ts`（纯函数）
+交付：冻结的模型对照样本、诊断边界说明、三平台打包检查记录。
 
-**Interfaces:**
-- Consumes: Task 1 `PERSONA_CONTRACT`
-- Produces（shared，两侧共用）:
-  - `DEFAULT_SOUL_TEMPLATE` / `DEFAULT_WORLDVIEW_TEMPLATE: string`（文案草案见下）
-  - `assertPersonaPathInside(dataRoot: string, filePath: string): boolean`（resolve+relative+预期双侧 realpath 语义的纯判定输入约定；IO 侧负责实际 realpath）
-  - `resolvePersonaContent(input: { soul?: string; worldview?: string; soulExceeded?: boolean }): { soul: string; worldview: string; soulSource: "user" | "default"; diagnostics: PersonaAssetDiagnostic[] }`（回退/超限判定纯函数；诊断码 `persona_soul_missing`/`persona_soul_exceeded`/`persona_soul_path_escape`）
-- Produces（core，仅 CLI）:
-  - `resolvePersonaEnabled(enabledOverride?: boolean): boolean`
-  - `loadPersonaAssets(dataRoot: string): Promise<ResolvedPersonaAssets>`（IO：stat/readFile，soul.md/worldview.md realpath 后必须位于 `dataRoot/persona/` 内——越界=拒绝读取回退默认；超限（> `soulMaxChars`）回退；返回类型与 shared `resolvePersonaContent` 结果同构）
+验证：PM47真实效果、PM57性能、PM35升级/关闭/旧版/再升级；G3–G5。旧Dream无新调度入口；不能用“handler当前不自动触发”宣称工具无法读日志。
 
-- [ ] **Step 1: 写失败测试**（用 `mkdtemp` 造临时 dataRoot：正常读取、缺失回退默认、symlink 指向目录外文件被拒、超限回退、JSON 损坏不影响 .md 读取——.md 无损坏概念，损坏=读异常）
+退出：固定阈值通过，默认关闭无旧行为变化；所有限制如实展示。P0只在结果记录齐全后标shipped；仅类型/lint通过最多说明对应检查，不是P0完成。
 
-```ts
-it("soul.md 为指向目录外的 symlink 时拒绝并回退默认（A15）", async () => {
-  const outside = await mkdtemp(join(tmpdir(), "persona-out-"));
-  await writeFile(join(outside, "evil.md"), "恶意内容".repeat(100));
-  await symlink(join(outside, "evil.md"), join(dataRoot, "persona", "soul.md"));
-  const assets = await loadPersonaAssets(dataRoot);
-  expect(assets.soulSource).toBe("default");
-  expect(assets.soul).toBe(DEFAULT_SOUL_TEMPLATE);
-  expect(assets.diagnostics.some((d) => d.code === "persona_soul_path_escape")).toBe(true);
-});
-```
+### E · P1a 显式交流默认与导出
 
-- [ ] **Step 2: 确认失败**（根 `pnpm exec vitest run packages/shared/test/personaAssets.test.ts packages/../../apps/drora-cli/packages/core/tests/persona-assets.test.ts` 或分跑） → **Step 3: 实现**（shared 纯函数无 IO；core IO 层照 `packages/desktop/src/main/desktopPetLibrary.ts:19-25` containedPath 的 resolve+relative 判定模式实现 realpath 校验——跨包参考模式，不 import）
-- **默认人格模板草案**（P0 用草案，文案迭代不破契约）：
+交付：Preference/Policy表、唯一四键、U、纠正/忘记、只读导出；没有自动学习队列/模型写工具。
 
-```ts
-export const DEFAULT_SOUL_TEMPLATE = [
-  "# Persona",
-  "你是 Drora——用户的编程搭档。性格：真诚、直接、有温度的专业同事。",
-  "- 语气温暖而诚实（warmly yet honestly）；不做无依据的恭维。",
-  "- 发现用户方案有问题时直接指出，给出依据。",
-  "- 鼓励用户的独立判断，而不是制造依赖。",
-  "- 用户处于挫折/情绪化场景时保持克制与专业，先解决问题。",
-  "- 本文件只约束语气与表达；不覆盖 Harness、安全条款与任务指令。",
-].join("\n");
-export const DEFAULT_WORLDVIEW_TEMPLATE = "# Worldview\nDrora 是运行在用户桌面上的本地优先编程助手，珍视用户的代码与数据。";
-```
+验证：PM07/10–11/17/22–23/28/42–43/45–46/49–50/52/56。M off时显式默认可用，旧M不被打开；两个编辑入口同字段CAS；cutoff前后forget、平台取消/失败、无资料不初始化导出；逻辑撤销不宣称全域擦除。
 
-- [ ] **Step 4: `pnpm --dir apps/drora-cli/packages/core exec vitest run tests/persona-assets.test.ts` 通过** → **Step 5: Commit** `feat(shared,cli): persona 共享内核与资产读取（路径对抗校验+默认模板单出处）`
+退出：新域与项目Memory冲突按范围解释，不改旧prompt或旧gate让测试通过。不稳定的偏好键不发布，而非扩大数据同步。
 
-### Task 4: context 注入（types+分节+builder 四门+快照扩字段）
+### F · P1b 有限自动学习
 
-**Files:**
-- Modify: `apps/drora-cli/packages/contracts/src/interfaces/context-source.port.ts`（`ContextSourceSnapshot` 加 `personaAssets?: PersonaAssetsSnapshot`；`PersonaAssetsSnapshot { soul: string; worldview: string; soulSource: "user" | "default" }` 就地定义——结构化类型下 core 侧结果可直接赋入，diagnostics 不进 snapshot 字段）
-- Modify: `apps/drora-cli/packages/adapters/src/context/index.ts`（`resolveContextSources` ~L38-68 的 return 处透传 persona——**只透传，不读盘**）
-- Modify: `apps/drora-cli/packages/core/src/context/types.ts`（`ContextSource` 联合加 `"persona"`；`ContextBuilderConfig` 加 `personaAssets?: PersonaAssetsSnapshot`）
-- Create: `apps/drora-cli/packages/core/src/context/sections/persona.ts`
-- Modify: `apps/drora-cli/packages/core/src/context/builder.ts`（`buildIdentitySection` 调用 ~L122 后注册，四门）
-- Modify: `apps/drora-cli/packages/core/src/runtime/methods/context.ts`（**唯一读盘点裁定（计划审查）**：首次 init `ensureContextInitialized` ~L39-91 处当 `resolvePersonaEnabled()` 时调 `loadPersonaAssets(dataRoot)` 一次，结果存入 snapshot 字段并**把 diagnostics 追加进 `snapshot.diagnostics`**（port 既有数组，`/context` 可见）；经 `ContextSourceRequest` 新增可选 `personaAssets` 字段传入 adapter。**禁止在 section builder / adapter / `rebuildContextPrefix` 读盘——`createConfigOnlyContextSnapshot`（context.ts:275）是同步函数不能读盘，preview/预初始化路径（config.ts:255、refresh 未初始化分支）不含 persona 为预期行为**，中文注释声明该边界）
+交付：可信源适配、无文件工具的模型抽取端口、accepted仓储/租约/预算、来源/争议UI。
 
-**Interfaces:**
-- Consumes: Task 3 `loadPersonaAssets`/`resolvePersonaEnabled`/`PersonaAssetsSnapshot`
-- Produces: `buildPersonaSection(assets: PersonaAssetsSnapshot): ContextSection`（`source: "persona"`、`injectionTarget: "system"`、`cacheHint: "stable"`；内容=soul + "\n\n" + worldview，开头一行「persona 约束语气与表达，冲突时安全与任务指令优先」）
+验证：PM08–09/24–26/31/37–41/44/48/52/54及相关回归；真实owner角色/分支，内部user和synthetic real_user分开；来源无法证明跳过；关闭U/L、forget、并发fencing、崩溃预算预留、同source幂等和无任务活动写入。
 
-- [ ] **Step 1: 写失败测试**（context-builder.test.ts 追加四用例，照既有断言风格 L860-873；**用例 1 必须用有序 `toEqual` 断言 sections 序列（如 `sectionTargets.slice(0,4)).toEqual([...])`），禁 `arrayContaining`——第 4 位移位才能拦住 persona 意外插入**。注意既有 config 字段名是 `outputStyle`（types.ts ~L127，非 activeOutputStyle）、subagent 路径在测试里经 `workflowActor` 字段驱动（~L125，参考用例 ~L1482 起——**workflowActor 自带 persona 相关字段，勿与本次分节混淆**））：
-  1. A1：无 `personaAssets` 时 sections 序列与现状**逐位一致**（有序断言）
-  2. A2：有 assets 时 persona 分节存在、`cacheHint==="stable"`、stable 组内位于 identity 之后
-  3. A14：subagent/workflowActor 路径构造不含 persona 分节
-  4. A13：`personaAssets` + `outputStyle` 同时存在，两分节共存且互不覆盖
-- [ ] **Step 2: 确认失败** → **Step 3: 实现**（分节文件照 `identity.ts` 的 `ContextSection` 返回结构逐字模式；builder push 条件 `!isWorkflowActor && !hasCustomSystemPrompt && config.personaAssets`；**改 contracts/adapters 后先 `pnpm --filter @drora/contracts --filter @drora/adapters build` 重建（均 `tsc`）再跑 core 测试**）
-- [ ] **Step 4: `pnpm --dir apps/drora-cli/packages/core vitest run tests/context-builder.test.ts` 通过（存量 1641 行断言零回归）** → **Step 5: Commit** `feat(cli): persona stable 分节注入（四装配门+init 快照）`
+退出：负例错误有效写入为0；真实模型效果/预算满足合同；不能从model-io或旧summary建新域证据，不把旧抽取工具全部复用给新学习。不可用的键保留P1a，不阻断已验证核心。
 
-### Task 5: CLI 装配接线（create-app→runtime config）
+### G · P2 当前态呈现
 
-**Files:**
-- Modify: `apps/drora-cli/packages/bootstrap/src/app/create-app.ts`（注意路径含 `/app/`；~L813 `resolveAgentsTeamEnabled(agentsTeamSetting)` 邻位：`persona: resolvePersonaEnabled()` 传入 RuntimeConfig）
-- Modify: `apps/drora-cli/packages/core/src/runtime/types.ts`（RuntimeConfig 加 `persona?: { enabled: boolean }`）
-- Test: `apps/drora-cli/packages/core/tests/persona-config.test.ts`（Task 3 已建文件追加装配用例；grep 参考命中：`tests/protocol-slash-commands.test.ts`、`tests/agents-team-skill-gate.test.ts` 为 bootstrap 侧邻域测试）
+交付：桌宠当前态表达的独立映射；原动画/交互/导航保持。
 
-**Interfaces:**
-- Consumes: Task 3 `resolvePersonaEnabled`；Task 4 config 字段
-- Produces: env `DRORA_PERSONA=1` 的桌面新 Host 会话 → `/context` 可见 Persona 分节（A2 全链路）
+验证：PM18/58及原桌宠E2E；中断结束不庆祝，重复error不算多次失败，attention不当作permission超时。语音仅兼容检查，不新增情绪输出链路。
 
-- [ ] **Step 1: 写失败测试**：`resolvePersonaEnabled` 三态（env "1"→true、缺省→false、override 显式优先）
-- [ ] **Step 2-4: 实现+通过**（create-app 接线一行 + types 扩展；**`resolvePersonaEnabled` 须从 core 的 index 导出且先重建 core dist（`pnpm --filter @drora/core build`）**——bootstrap 经 dist 引用 core；注释「persona 生效单位=新 Host 进程，env 烘焙语义见 spec §3.3」）
-- [ ] **Step 5: Commit** `feat(cli): persona env 装配进 RuntimeConfig`
+退出：无复杂主动气泡、日额度、持久情绪或人格反写。若要这些能力，先另立业务事实与呈现策略spec，不能在Main补计时猜任务时长。
 
-### Task 6: IPlatformService 只读四层链（设置页人格状态）
+## 4. 测试与检查执行合同
 
-**Files:**
-- Modify: `packages/shared/src/platform.ts`（~L913-920 可选方法邻位加 `readPersonaAssets?(): Promise<PersonaAssetsOverview | null>`，`PersonaAssetsOverview = { soulSource: "user" | "default"; soulPreview: string; directory: string }`——类型定义放 platform.ts 就地，soulPreview 截 200 字符）
-- Modify: `packages/desktop/src/drora-extensions/`（新实现文件 `personaAssetsExtension.ts`，调 main 的读取；**该目录属 managed 模块，新文件登记其 module.ts publicEntrypoints**）+ preload/renderer 桥接（`packages/desktop/src/preload/index.ts` ~L793 desktopPet 邻位 + renderer `desktopPlatform.ts`）
-- Test: `packages/desktop/test/personaAssetsExtension.test.ts`（新建）
+- 业务改动先补对应行为测试；交互改动按e2e-case-lifecycle建立manual-review，真实capture与审查后才能promotion。
+- 根必须运行 pnpm typecheck、pnpm lint；格式使用 pnpm fmt:check 或明确报告仅受影响文件检查范围。
+- 按实际代码范围执行架构检查及目标CLI/包的定向测试。根affected只覆盖选中的根UT，不代替CLI或E2E。
+- 不在未获用户要求时运行 pnpm test / pnpm test:unit 全量。
+- 每次验证记录HEAD、环境、命令、退出码、用例、产物、未跑原因；既有失败不能写通过。
+- 模型测试与replay fixture分开；真实模型可能产生成本，按已授权实施范围与冻结预算执行，不在本设计轮擅自调用。
+- 发行包验证包含worker资源和退出，不只测试开发目录能找到文件。
 
-**Interfaces:**
-- Consumes: Task 1 `PERSONA_CONTRACT`；Task 3 shared 内核（**desktop 无 CLI core 依赖——经计划审查裁定：main 侧 IO 自行读文件，模板/回退/校验全部调 shared `personaAssets.ts` 纯函数，无复制**）
-- Produces: hook `usePersonaAssets()`（packages/ui/src/hooks/）供设置行消费
+## 5. 交付与回退
 
-- [ ] **Step 1: 写失败测试**（路径校验纯函数两侧共用用例 + overview 截断）
-- [ ] **Step 2-4: 四层逐层实现并跑通单测**（Web 平台方法缺席=hook 返回 null，不报错——照桌宠 Web 无控件先例）
-- [ ] **Step 5: Commit** `feat(platform): persona 资产只读四层链（校验函数单一出处）`
+每片提交可独立 review，统一追加到同一个功能 PR；新能力默认 off。提交只包含功能相关文件，不裹挟本地 voice 等无关文档。PR 保持 Draft，直到全部约定交付范围及验收完成。
 
-### Task 7: 设置行 UI + i18n 双词典
+回退以停止注册/捕获新扩展为主，保留独立资料；不回滚旧session库、不恢复整库备份、不删除用户导出。发现旧数据不兼容或原执行被扩展阻断属于发布阻断，不加超时兜底掩盖一致性问题。
 
-**Files:**
-- Create: `packages/ui/src/settings/PersonaSettingsRow.tsx`（照 `DesktopPetSettingsRow` 结构：Switch + 状态文案「自定义人格/默认人格」+ 打开目录按钮；**外层 `isDesktop` 门由 SettingsPage 控制，与 DesktopPetSettingsRow 同位**）
-- Modify: `packages/ui/src/SettingsPage.tsx`（~L2252-2256 general 区、DesktopPetSettingsRow 后追加）
-- Modify: `packages/ui/src/i18n/locales/zh-CN.ts` + `en-US.ts`（键：`settings.persona`、`settings.personaDescription`、`settings.personaCustom`、`settings.personaDefault`、`settings.personaOpenFolder`；两文件同批加，漏加无 CI 兜底只显示 key id——测试断言双词典）
-- Test: `packages/ui/test/personaSettingsI18n.test.ts`（新建，照 `chatErrorBannerI18n` 双语断言惯例）
+## 6. 本轮状态
 
-- [ ] **Step 1: 写失败测试**（zh/en 两词典均含五键且值非空；组件渲染快照含开关与状态徽标）
-- [ ] **Step 2-4: 实现通过**（文案注明「开启后需新窗口/重启生效」——spec §3.3 生效粒度的用户可见文案）
-- [ ] **Step 5: Commit** `feat(ui): persona 设置行（isDesktop 门+双词典）`
+统一 spec、接口/存储/生命周期合同、58 项验收和本计划完成。P0a 首批已实现：托管 cli-persona-domain、五字段严格校验、确定性不可变核心贡献、可选请求 overlay、canonical/source/cache/user 索引对应、直接辅助调用隔离。没有注册 Runtime capture、执行许可或 UI，普通请求仍不传 contribution。
 
-### Task 8: 治理登记与 P0 门禁总验收
+- [x] P0a 核心编译与可选请求投影接缝；28 项新单测。
+- [x] 相关 MCS/ToolSearch 回归：4 文件、47 项测试通过。
+- [x] CLI core typecheck、架构 changed 检查通过；root lint 通过（395 个既有 warnings）。
+- [ ] P0a Runtime 轮内 capture、记录/预算实际接线、取消/续跑/恢复集成。
+- [ ] P0b 独立库 worker、无会话管理、执行许可/能力发现、设置 UI、应用状态。
+- [ ] P0b E2E、真实模型效果、跨平台发行与回退准入。
+- [ ] P1a 显式交流默认与逻辑忘记/导出。
+- [ ] P1b 有限自动学习、来源复验、预算/fencing。
+- [ ] P2 当前态呈现及原桌宠/语音回归。
 
-**Files:**
-- Modify: `specs/drora-divergence-ledger.md`（新条目：**「台账 9」**，现有至台账 8；四要素格式照旧）
-- Modify: `.agents/skills/feature-boundary-planner/references/drora-feature-graph.yaml`（**两个新节点**：`surface.persona` 与人格设置分区；**10 条 must-inspect 边**——spec §9 实列 10 条：app-settings 1 + project-memory 系 4 + env/host 3 + subagent 2）
-- Modify: `specs/drora-persona.md`（Status 行改 `P0 shipped`；范围裁剪回写两处：§11 P0 的「读写」改为「读」、**§10 A15 拆分为读侧（P0：symlink 拒绝+尺寸上限）与写侧（P1：设置页写入校验）**）
-
-- [ ] **Step 1: 登记 divergence ledger 与 feature-graph**（照两个文件既有条目格式逐字对齐）
-- [ ] **Step 2: 全量门禁**：`pnpm typecheck && pnpm lint && pnpm fmt:check && pnpm architecture:check --changed && pnpm --dir apps/drora-cli check && pnpm knip`——全部真实通过并记录输出（A10）
-- [ ] **Step 3: 手动验收 A2/A9**（dev 环境 `pnpm dev:desktop` 重启序=TaskStop→pgrep 停净→cd 仓库根；开关开→新窗口→会话 `/context` 见 Persona 分节；关→新窗口回基线）。**A2 为 P0 shipped 的硬性条件：本步未执行不得将 spec Status 标为 P0 shipped（可标 P0 code-complete 待手验）**
-- [ ] **Step 4: Commit** `chore(spec): persona divergence/feature-graph 登记与 P0 状态回写`
-
----
-
-## Self-Review 结论
-
-- **Spec 覆盖**：§3.1 资产=Task 3；§3.2 注入与四门=Task 4；§3.3 开关/env=Task 1/2/5；§7 契约=Task 1/6；§8.2 路径校验=Task 3/6；§8.3 agent 写 deny=P0 无 agent 写路径（结构性满足，P1 记忆任务再显式守护）；§9 登记=Task 8。验收 A1/A2/A3/A9/A14/A15 覆盖（A15 拆读写：读侧 P0/写侧 P1，随 Task 8 回写 spec）；A13 在 Task 4 顺带锁定。
-- **计划审查修订（两路 subagent）已并入**：3 个必爆命令修正（shared/desktop 用根 `pnpm exec vitest run`、CLI core 用 `--dir ... exec vitest run`）；Task 4 唯一读盘点裁定（core init 一次、adapter 只透传、`createConfigOnlyContextSnapshot` 同步路径不含 persona 为预期）；Task 3/6 共享内核方案（模板/回退/校验纯函数落 shared 单出处，IO 各自实现）；测试符号修正（`outputStyle` 非 activeOutputStyle、workflowActor 驱动 subagent 用例、有序 toEqual 断言）；vi.mock 键表坑、`/app/` 路径、core dist 重建、台账 9、10 边两节点、A2 shipped 硬条件。
-- **已知范围裁剪**（显式声明）：persona 文件**写**路径延至 P1（A15 拆分随 Task 8 回写 spec）；soul 文案为草案（Task 3，迭代不破契约）。
-- **类型一致性**：`PersonaAssetsSnapshot`（port 就地定义）与 core `ResolvedPersonaAssets` 结构兼容（diagnostics 只进 `snapshot.diagnostics` 不进分节）；`readPersonaAssets`/`usePersonaAssets` 命名 Task 6/7 对齐。
+整个清单只通过同一个分支/PR 更新，不能为后续切片另开功能 PR。首批测试前重建了过期的本地 contracts dist，使当前源码的 ToolSearch 常量可用；没有改相关业务源码。根 typecheck 仍在 relay-v2-server 的模块解析及相关类型处失败，未记为通过。根 lint 原先忽略整个 CLI，本次仅将新人格模块/测试和最小接缝纳回检查，不重新 lint 其他还原目录。

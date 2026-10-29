@@ -1,5 +1,7 @@
 # Drora 人格第二版：既有功能兼容性审查
 
+> 历史评审，源码基线与部分合同已更新。当前实施合同以 [v5 主 spec](../../specs/drora-persona-system.md)为准；不从本页恢复已撤回的逐轮绑定或存储方案。
+
 - 日期：2026-10-29。
 - 基线：`f1619365f2ad9e58e3ae784ddaaf32d9fe29efe9`。
 - 对象：[第二版设计](../../specs/drora-persona-system.md)、[候选验收](drora-persona-system-impact-2026-10-28.md)。

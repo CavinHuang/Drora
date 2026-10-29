@@ -1,5 +1,7 @@
 # Drora 人格方案可行性审查
 
+> 历史评审，反映当时版本的问题与判断。当前实施合同以 [v5 主 spec](../../specs/drora-persona-system.md)及其配套文档为准；本页不作为并行方案。
+
 - 日期：2026-10-28。
 - 对象：[设计草案](../../specs/drora-persona-system.md)与[影响分析](drora-persona-system-impact-2026-10-28.md)。
 - 方法：当前检出源码的定向静态审查；未改实现、未进行原型或真实模型效果实验。

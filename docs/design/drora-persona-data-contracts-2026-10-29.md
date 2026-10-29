@@ -1,228 +1,205 @@
-# Drora 个人资料归因、范围、导出与效果验收
+# Drora Persona v5 数据、接口与验收合同
 
-- 日期：2026-10-29；第四版设计专项合同，未实现。
-- 上位设计：[人格系统 spec](../../specs/drora-persona-system.md)。候选验收：[Impact Brief](drora-persona-system-impact-2026-10-28.md)。
-- 本文补齐归因、范围、导出和跨回合评测，不改变第三版的主请求投影、执行 gate、原恢复、独立库和 accepted 后恢复边界。
-- 用户已要求继续完成设计；以下为本轮明确的设计取舍，不将候选用例或原型视为已验证。
+- 日期：2026-10-29；与[唯一主 spec](../../specs/drora-persona-system.md)同步，未实现。
+- 本版替代本文件 v4；字段、错误语义、限制均为实施合同。方法名是逻辑 API，最终 wire 名称在共享常量区定义一次，不由各端另起别名。
+- 目标是可实现、可测试的有限资料域，不提前建设通用用户画像、知识图谱或自由文本经历库。
 
-## 1. 记忆归因与写入权威
+## 1. 数据模型与唯一字段
 
-### 1.1 分开三个问题
+所有业务时间由服务产生 UTC 时间，revision/epoch/generation 为非负单调整数；opaque ID 不从昵称、cwd 或用户文本推导。字符串先 NFC 规范化、trim，拒绝控制字符（自我描述只允许普通换行），长度按 Unicode code point 计算；限制超出报 validation_failed，不截断后静默保存。
 
-每条资料分别回答“谁在什么情况下说了什么”“系统如何解释它”“谁允许它成为持久默认”。用户原话明确，不代表用户已经通过设置保存；模型语义判断也不能升级成用户确认。
+| 对象/阶段          | 字段                                                                                                            | 合同                                                 |
+| ------------------ | --------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| Authority/P0       | authorityId、personaId、schemaVersion、createdAt                                                                | 首次显式启用/管理初始化原子生成；同可信根仅一份      |
+| Core/P0            | coreRevision、templateVersion、displayName、selfDescription、warmth、directness、humor                          | 当前核心，核心 revision 独立于偏好                   |
+| ProductTemplate/P0 | identityStatement、principles、capabilityHonesty、relationshipBoundary、情境示例、compilerVersion               | 随发行的只读资产；设置中可审阅，不接受自动学习 patch |
+| Policy/P1a         | policyRevision、policyEpoch、usePreferences                                                                     | 默认 false；执行开关 E 不存在这里                    |
+| Policy/P1b         | autoLearn、预算配置、learningGeneration                                                                         | 默认 false；关闭使用默认同时关闭学习                 |
+| Preference/P1a     | key、value、revision、keyGeneration、provenanceKind、epistemicStatus、status、pinned、autoSuppressed、updatedAt | 一个 authority＋key 只有一个当前值槽                 |
+| Evidence/P1b       | evidenceId、sourceHandle、evidenceRefs、源校验值                                                                | 引用原 owner，不保存聊天原文                         |
+| Candidate/P1b      | key、proposedValue、evidenceRefs、expectedGeneration、状态                                                      | 每键最多一项待确认                                   |
+| Work/P1b           | workId、evidenceId、policyEpoch、keyGenerations、状态、lease/fence、attempts、预算预留                          | accepted 后恢复；无原始聊天正文                      |
+| MutationReceipt/P0 | scope、mutationId、requestDigest、resultCode、resultRevision、createdAt                                         | 不含核心/偏好正文，重试幂等，不是审计转录            |
 
-| 概念           | 字段与来源                                                         | 规则                                                                                                                                             |
-| -------------- | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 资料主体       | subject，可信资料域 owner 绑定                                     | P1 仅支持当前个人资料域用户；不从消息中抽取一个新人的名字来替换主体                                                                              |
-| 消息作者与来源 | sourceRole、sourceOrigin，原消息 owner 和可信执行入口提供          | 模型不能指定；role=user 也不能证明消息来自人类本人，内部注入、自动化和转发须排除                                                                 |
-| 内容语义       | claimType，受限抽取候选                                            | self_statement、explicit_confirmation、assistant_suggestion、third_party_quote、hypothetical、ambiguous；引述和假设不能因外层 role=user 变成自述 |
-| 来源证据       | evidenceRefs，原始 session/turn/message ID、片段位置与内容摘要校验 | 由服务复核原消息及有效分支；模型只可引用本次提供的候选消息 ID，不可跨会话猜 ID                                                                   |
-| 来源与目标范围 | sourceScope、targetScope                                           | sourceScope 保留 workspace identity/分支用于隔离；targetScope 不能直接复制它，须按 §2 判定                                                       |
-| 写入方式       | provenanceKind=settings 或 extraction，服务提供                    | 设置事务产生 explicit/pinned；自动抽取一律 inferred/unpinned，不论原话看起来多明确                                                               |
-| 认识状态       | epistemicStatus=explicit/inferred/disputed                         | 与 claimType 分开；disputed 即使记录仍 active 也不得注入                                                                                         |
-| 记录生命周期   | status=active/superseded/forgotten 及 revision、epoch、generation  | 保留主 spec 的撤销、源复验和有限保留规则；不把 disputed 混进存储生命周期                                                                         |
+### 1.1 核心字段
 
-字段名是拟议合同，落地时统一定义在 shared/contracts 或所属 CLI contracts 的公开 schema 单一出处；不得在 UI、抽取 prompt 与仓储各写一套字面量。具体 wire 键在 P0/P1 对应切片实施前冻结。
+| 字段            | 允许值/上限                        | 默认                 |
+| --------------- | ---------------------------------- | -------------------- |
+| displayName     | 1–40 code point                    | Drora                |
+| selfDescription | 0–300 code point；作为资料而非指令 | 空，使用模板自我定位 |
+| warmth          | restrained / balanced / warm       | balanced             |
+| directness      | gentle / balanced / direct         | direct               |
+| humor           | off / light                        | light                |
 
-P1a 设置值没有伪造的聊天来源。其出处为用户提交的设置操作、提交时间与 mutationId；主 UI 显示“你设置的”。P1b 自动值显示“从对话中推测”，可查看有权限的原文，来源已失效时显示不可用并停止注入。设置值不因旧聊天被删除而消失，自动值仍按来源有效性处理。
+核心不包含 preferredAddress、replyLanguage、explanationDetail、collaborationStyle。最终核心编译贡献上限 4,000 code point；若产品模板本身超限，构建/模板测试失败，不能把责任推给用户编辑。
 
-### 1.2 可接受的证据与拒绝条件
+产品原则不随用户自我描述改变；表达配置不改变模型、工具、权限或执行范围。恢复产品默认是明确的 Core 更新，不删除偏好、不更改 U/L/E。P0 不存无界历史；当前与前一核心版本最多两份，回滚是以当前 revision 提交旧字段生成新 revision。
 
-1. 原成功轮通知只有机会意义；在独立库 accepted 后才进入可靠工作流。
-2. 消费者经旧 Session Store owner 的只读接口验证原提交边界、有效分支、原始消息角色与可信 origin。现有记录无法证明人类输入来源时跳过该机会，不增加旧库字段去补造证明。
-3. 只在受限原始消息窗口内抽取四个白名单键。摘要可辅助定位，不能单独作为证据；不得从 rolling summary、compact summary、工具结果或助手回复推导用户授权。
-4. 对候选做 schema/键/范围/值校验，再复核引用片段、角色、origin 和撤销世代。内容摘要用于检测源变更，不证明语义正确。
-5. 来源与 scope 资格明确且键无冲突时提交 inferred；无法区分本人陈述与引用、假设、反讽时丢弃，不用置信分数覆盖硬限制。
+### 1.2 四类交流默认
 
-初始限制：每次学习机会最多 4 条候选（每键最多 1 条），每条最多引用 4 条原始消息，每段用于核验的摘录最多 512 个 Unicode code point。超限或无法在窗口内消歧则不学习，不扩成全历史扫描。候选原文只在有界处理内存中使用；持久 evidenceRefs 存定位/校验信息，不复制整段聊天。被拒候选仅保留有界原因计数，不记录正文。
+| key                | value                                            | 默认未设置时         |
+| ------------------ | ------------------------------------------------ | -------------------- |
+| replyLanguage      | follow_user / zh-CN / en-US                      | 跟随当前任务与原行为 |
+| explanationDetail  | concise / balanced / detailed                    | 产品表达基线         |
+| preferredAddress   | 1–40 code point 的纯文本                         | 不强行称呼           |
+| collaborationStyle | direct_answer / explain_tradeoffs / step_by_step | 产品表达基线         |
 
-只有不含歧义的长期默认自述，以及用户在同一条原话中重述具体值与全局范围的明确确认，能进入自动候选。单独“好”“就这样”“记住这个”不解析成长期偏好；原对话仍照常响应，个人域不声称保存。要持久化这种省略表达，P1 用户可在设置明确填写。
+未知 key/value 拒绝，不把任意 JSON 转成指令。后续支持其他语言需要扩受控合同与兼容测试，不能自动保存 schema 不认识的 locale。collaborationStyle 只影响回答组织；step_by_step 不切 Plan mode，不增加工具审批或运行步数。
 
-结构校验可以确定性执行；自然语言语义归因仍可能出错，不能声称加几个字段就消除了模型误记。上线准入包含负例和真实模型实验；不达标的键留在 P1a 设置管理，不开放该键自动学习。
+设置提交产生 provenanceKind=settings、epistemicStatus=explicit、pinned=true，无伪造聊天 evidenceRefs。自动提交永远 extraction/inferred/unpinned，即使原话语气明确。不同 inferred 值冲突则 disputed，不按时间取最新；status 与认识状态分开（active/superseded/forgotten 不是置信度）。
 
-### 1.3 冲突与提交
+没有默认值时不写空 preference 伪装已学会。forgotten 槽保留 keyGeneration/autoSuppressed 等最小控制信息，不保留旧 value；一个字段的另一个 UI 入口不能恢复旧值。
 
-| 当前键                                | 新合格候选         | 新域处理                                                                                  |
-| ------------------------------------- | ------------------ | ----------------------------------------------------------------------------------------- |
-| 无值且允许学习                        | 合法全局默认       | CAS 提交 inferred，记录来源；下个合格新轮可读                                             |
-| active inferred                       | 同值               | 幂等去重；只保留有界有效来源，不累积成无限证据表                                          |
-| active inferred                       | 明确不同值且同范围 | 原值标 disputed，最多留一个待确认候选；停止该键新轮注入，设置页请求选择，不按时间自动覆盖 |
-| pinned                                | 任意不同值         | 保持 pinned；最多显示一个待确认建议，不改其有效性                                         |
-| disputed/待确认                       | 后续不同候选       | 不自动解锁或覆盖待确认内容；用户在设置保存/忘记才解决                                     |
-| autoSuppressed/旧 epoch 或 generation | 任意候选           | 拒绝，不能换措辞或重新编号复活                                                            |
+## 2. 持久化、并发与幂等
 
-当前轮仍消费已经冻结的贡献。冲突只影响下一次捕获，不中断任务、不主动发消息、不改项目 Memory。设置保存选定值后为 explicit/pinned；forget 同时清除该键待确认候选并抑制自动学习。候选在被用户查看或提交前同样须复验来源，失效候选不展示原文或自动回退到旧值。
+P0 只迁移 authority、core、mutation receipt 所需表；P1a 才增加 policy/preferences，P1b 才增加 source/candidate/work。具体 SQL 遵守现有 migration/schema 校验体系；每个阶段 schema 只由 adapters 仓储拥有，Host/UI 不执行 DDL。
+
+库唯一键包括 authority/persona singleton、preference(authorityId,key)、candidate(authorityId,key)、work(authorityId,evidenceId)、receipt(scope,mutationId)。Core/Policy/Preference 采用独立 revision，保存必须提供对应 expectedRevision。跨对象策略操作在本库单事务完成；对原 Session Store 只读复验发生在事务外。
+
+mutationId 每次用户提交生成；同作用域同 ID 同摘要返回先前结果，同 ID 不同摘要返回 mutation_conflict。权限/authority 校验先于 receipt 查询。保存成功回执可以返回 revision，需看最新内容时重新读取，不由 receipt 重新暴露已忘记正文。
+
+receipt 保留至少 7 天；正常上限 4,096 条/authority，达到上限且无过期项时拒绝新管理写入并返回 storage_capacity，不驱逐窗口内的幂等凭据。7 天外重复提交不保证回放原结果，仍须通过 expectedRevision；失效回执不能绕过 CAS。无内容变化的有效保存返回 unchanged，不制造新 revision；忘记/策略关闭仍执行必要 generation/epoch 屏障。
+
+SQLite 位于异步 worker，锁等待上限初始 100ms、管理请求总预算初始 5s、capture 总预算初始 250ms；均需在实施前性能实验验证。超时不意味着写未提交：写请求返回 outcome_unknown 时，UI 保留 mutationId 查询/重试，不显示失败后换新 ID 重写。capture 超时可省略；迟到写结果不能被 UI 取消当作回滚。
+
+多进程通过 DB 事务/CAS 同步；内存缓存只能缓存 immutable revision，不当写 owner。capture 必须读到当前已提交 policy/generation；不能仅用进程 TTL 缓存证明停学/忘记生效。迁移未知版本或损坏报扩展不可用，不降级写旧 schema、不恢复整库、不影响原 session ready。
+
+## 3. 管理与执行接口
+
+所有方法带严格 schema、requestId，鉴权后的控制域由服务绑定，不接受客户端任意文件路径/dataRoot。未知字段拒绝；业务 key 在共享合同单一出处。下面是逻辑签名，实际 RPC 注册须服从现有框架和能力发现。
+
+| 方法                         | 输入                                                              | 输出/副作用                                                     |
+| ---------------------------- | ----------------------------------------------------------------- | --------------------------------------------------------------- |
+| getPersonaOverview           | 无，已绑定 authority                                              | capability/schema、核心/策略版本或 uninitialized；不得暗建会话  |
+| initializePersona            | mutationId                                                        | 显式管理/启用时创建默认资料；并发幂等                           |
+| getPersonaCore               | 无                                                                | 当前可编辑字段＋产品只读模板说明；未初始化返回 built_in_preview |
+| updatePersonaCore            | expectedRevision、patch、mutationId                               | saved/unchanged/conflict；只允许五个核心字段                    |
+| resetPersonaCore             | expectedRevision、mutationId                                      | 恢复产品字段默认，其他域不动                                    |
+| previewPersona               | 有界核心草稿、可选受控情境                                        | 本地确定性文本；不写库、不用模型                                |
+| setPersonalPolicy            | expectedRevision、usePreferences/autoLearn/预算 patch、mutationId | 新 revision/epoch；策略屏障按 §4                                |
+| savePreference               | key、value、expectedRevision、mutationId                          | explicit/pinned；清该键候选，生成新 generation                  |
+| forgetPreference             | key、expectedRevision、mutationId                                 | 清应用持有正文、抑制、generation++                              |
+| allowLearningForKey          | key、expectedGeneration、mutationId                               | 清抑制并生成新 generation；不恢复旧源/旧值                      |
+| listPreferences              | 无                                                                | 当前值、来源类别、有效性/争议状态；无原文复制                   |
+| getPreferenceSource          | key、revision、sourceRef                                          | 经源 owner 权限/分支验证后的有界展示；不可用不补造              |
+| getPersonaApplication        | sessionId、turnIdentity                                           | 当前 Runtime 的 applied/omitted/not_available；不伪造冷历史     |
+| preparePersonaExport         | requestId、AbortSignal                                            | §7 的冻结 JSON payload 与 cutoff                                |
+| captureContribution（内部）  | trustedExecution、turnIdentity、modelBudget、AbortSignal          | applied/omitted/cancelled                                       |
+| acceptLearningSource（内部） | trustedSourceHandle、admissionPolicy                              | accepted/already_accepted/rejected；外部 UI 不可调用            |
+
+管理取消不能回滚已提交事务；UI 的 request generation 防止旧响应覆盖新 authority/页面。来源详情最多展示 4 段、每段 512 code point；权限失败不泄漏旧缓存正文。
+
+返回错误枚举：unsupported、unauthorized、authority_mismatch、validation_failed、revision_conflict、mutation_conflict、uninitialized、storage_unavailable、storage_capacity、outcome_unknown、schema_incompatible、source_unavailable、snapshot_conflict、budget_exhausted、cancelled。正常 omitted reason 与管理错误分开；故障日志只记固定类别/ID/耗时，不落个人正文。
+
+E 仍由原 Settings 更新接口保存。开启 E 后可触发独立 initialize；两域没有跨库事务，初始化失败显示“已允许，资料暂不可用”，capture 省略，不撤销其他设置。未保存自定义资料时允许明确的内置默认；资料损坏不能用同样文案伪装为默认状态。
+
+## 4. 许可与线性化时点
+
+### 4.1 已核对的能力发现路径
+
+CLI↔Host 采用现有 droraProtocolMethods.runtimeCapabilities（runtime/capabilities）。当前 schema 位于 packages/shared/src/drora-protocol/index.ts:138，server.ts:816 已响应该方法，services 的 independentPlanSupport.ts 已示范调用。新增可选 personaControlV1=true 表示控制合同 v1 可识别；缺失、method-not-found 或断线均视为不可用，原会话继续，不试发 persona 方法。能力缓存按 CLI 连接实例保存，重连重新查，不按 workspacePath 全局缓存。
+
+Host↔UI 采用既有 hello.capabilities（transport.ts 的 hostCapabilitiesSchema 为非 strict 对象）广告可选 personaControlV1；该位只表示 Host 注册了管理路由，UI 仍须由 overview 确认目标本地 CLI 的支持和服务状态。P0/P1 对手机/远端不广告管理能力。不增加 clientHello 的新键，不改其 strict schema，不新增推送帧；旧客户端可以忽略未知 Host 能力。
+
+新 Host 只有确认 CLI 能力后才在既有 session/requestRuntimePreferences 的响应中附加可选 personaEnabled；旧 CLI 不收到该字段，新 CLI 对缺失值按 false。这分别处理新 Host/旧 CLI、旧 Host/新 CLI，不把 App 版本当能力证明。
+
+personaControlV1、personaEnabled 及实际 persona/\* 方法字面量只在 shared/contracts 常量区声明，通过现有协议公开入口引用。personaControlV1 不是启用、授权、资料健康或已应用状态；只打开页面后还要走受信管理鉴权和独立初始化。真实旧端回归仍为 PM15/33 的准入，源码兼容推理不替代执行证据。
+
+### 4.2 提交与捕获时点
+
+| 操作                | 本库事务内                                                 | 对当前执行的效果                           |
+| ------------------- | ---------------------------------------------------------- | ------------------------------------------ |
+| 核心保存            | CAS＋新 coreRevision＋receipt                              | 下一新轮，当前冻结值不变                   |
+| U=false             | policyEpoch++、L=false、撤销全部学习租约、清工作负载/候选  | 新 capture 不读偏好；在飞抽取不能提交      |
+| L=false             | policyEpoch++、撤销租约、清未提交候选/工作负载             | 停止新接收/提交，已存有效值可继续被 U 读取 |
+| forget(key)         | generation++、suppressed、清 value/版本/候选、失效相关工作 | 新 capture 不提供该键；当前轮不追溯改写    |
+| 显式保存(key)       | generation++、pinned、新值、清候选                         | 后续旧工作不能覆盖                         |
+| allowLearningForKey | generation++、解除抑制                                     | 只接受之后的新机会；不重新扫描旧历史       |
+
+关闭 L 的“未提交候选”含自动生成的待确认候选；已存 inferred 值不自动删除。U/L 开启不自动调用模型、不扫描历史；无新合格机会则零工作。
+
+capture 在短事务读取 core/policy/偏好版本；inferred 在事务外验证源，再短事务确认上述版本未变，变更重试一次，否则省略。成功最终复核为资料 cutoff。此后提交的 forget/核心更新影响下一 capture。源查询返回自己的 snapshot/version，和 Persona 库没有原子共同截止点；源在复验之后变化的窗口如实承认，不宣称跨库强线性一致。
+
+已冻结轮仅对同一存活执行成立。原恢复丢失 contribution 时省略；不把管理 revision 记录附加到旧 session_entry 以“修补”回放。
+
+## 5. 编译、用途和记录
+
+编译输入为产品 templateVersion/compilerVersion、Core revision、当前通过许可/来源校验的交流默认、受控情境参数；顺序和编码确定，同输入产生同摘要。摘要只作内容一致性诊断，不可当权限或隐私证明。禁止随机人名/背景、随机价值片段或从环境文件自动扩核心。
+
+合并顺序只定义默认的适用关系：当前用户/格式要求与 Output Style、明确项目规则、显式交流默认、可用推测、产品基线。既有更高层权限及安全规则不改变。编译贡献标注为默认表达资料；对原自由文本冲突的解释仍需真实模型验收。
+
+主请求 overlay 不污染 canonical。记录投影在原自动 Continue 过滤等既有规则基础上附加同一贡献；“一致”指贡献与最终有效请求对应，不把原记录投影的既有差异抹平。原 token/媒体预算计算含贡献，catalog/ToolSearch 与 source mapping 不变。
+
+原始贡献可能进入 ModelRequest 内存事件及 model-io 文件；当前默认 eventStore 不据此认定为旧 session 持久表。原日志脱敏/轮转不保证人格正文不可恢复。设置需说明个性化内容会发送给当前选择的模型，并可能随原诊断保留；这不是额外上传通道或后台模型调用。
+
+辅助请求没有 contribution 参数。新学习只接受源 owner 的消息窗口，无 file/Read/Bash/MCP 工具，不能把日志当来源。旧 Memory 文件能力保持；Dream 不启用；仅凭哨兵出现在真实聊天或获准诊断工具结果中不能宣称“直接注入隔离失败”，测试须区分来源。
+
+## 6. P1b 来源、工作与预算
+
+sourceHandle 最少包含 authorityId、workspaceKey、sessionId、productTurnId/sourceCommandId、原始消息边界、活动分支证据、源版本校验、可信 origin、接收时 policyEpoch/keyGenerations、合格执行许可描述。workspaceKey 使用 workspaceIdentity?.trim() || workspacePath；remoteSessionId 如来源契约要求则贯穿，不按相同路径串域。
+
+源 owner 必须能够证明成功持久边界；仅有 lastOutcome、任意 assistant 或模型给出的 user 标签不够。现有接口不能证明则拒绝，不在旧库添加来源字段。本地同控制域的共享手机输入可合格；远端 authority 的输入不迁入桌面个人域。
+
+同一来源唯一 evidenceId 由服务对稳定源身份/分支/边界构造；不可由模型生成。通知最多 64 个待接收项/进程，超出丢机会并计数；DB 非终态最多 128 个/authority，满时拒绝接收。未 accepted 允许漏学，accepted 后至少一次处理、至多一次提交效果。
+
+每项抽取输入最多 8 条相关原始人类消息、合计 8,000 code point；不读助手/工具/summary 作为事实来源。合格新轮的原话必须直接重述值与全局范围；对需助手上下文才能消歧的省略表达拒绝学习。每项最多 4 候选，每候选最多 4 evidenceRefs；引用片段最多 512 code point。取不到足够上下文则跳过，不扩全历史扫描。
+
+工作状态：accepted → running → applied/no_change/rejected/retry_wait；租约过期可重新领取，fencing 单调递增。worker 最多并发 1 个/authority；同进程不能独占其他进程的租约。P1b 模型端口独立于已关闭 Runtime，按明确允许配置调用，不启动占位聊天；配置不可用暂停，不换模型绕过用户选择。
+
+首个预算方案：每日最多 10 次模型尝试、总输入 32,000 token、总输出 4,000 token；失败尝试计入，调用前在 DB 预留硬上界。租约并发共享额度；崩溃无法确认用量时保守不退预留。UTC 日窗口服务侧记录，时钟倒退不重复补额度；达到上限推迟，最长工作有效期 24 小时，最多 2 次尝试。用户关闭策略立即取消在飞并阻止提交，不能靠预算重试复活。
+
+model 返回后重验源、epoch、keyGeneration、pinned、revision、fence，再单库提交；模型不得自报 sourceRole/origin。同值 inferred 可合并有界有效来源（最多 4）；不同值 disputed；pinned 保持且最多一个待确认建议。被拒候选不留正文。终态工作保留最小 ID/原因最多 7 天；receipt/证据清理独立于旧任务活动时间。
+
+这些预算是首版上界，真实模型实验可在发布前重新冻结并记录理由；不允许运行中自动扩大预算。新旧两条抽取的总成本一并报告。
+
+## 7. 导出与逻辑忘记
+
+JSON envelope：format=drora-persona-export、formatVersion=1、capturedAt、coreRevision、policyRevision、core（当前允许字段和只读模板版本）、preferences（key/value/revision/provenanceKind/epistemicStatus）、omittedCounts、limitations。不导出 authorityId、工作来源定位、聊天原文、历史值、候选、抑制内部记录、令牌、执行/学习授权。pinned 等内部控制态不能被未来导入误当许可。
+
+导出不创建默认资料；无资料返回 uninitialized。U/E/M/L off 不妨碍已存在资料的本地管理导出。只含未忘记且有效的当前值；inferred 源不可验证则省略，显式值不因聊天删除消失。总 UTF-8 bytes ≤256KiB，超限报 validation_failed，不交付截断 JSON。
 
 ```mermaid
 sequenceDiagram
-    participant S as 原消息 owner
+    participant U as 设置页
     participant P as Persona 服务
-    participant X as 独立抽取端口
-    participant D as Persona DB worker
-    S-->>P: 有界机会通知（原任务不等待）
-    P->>S: 只读核验提交边界、origin、原文
-    P->>D: evidenceId 接收 accepted
-    P->>X: 有界原文与允许的键
-    X-->>P: 候选值、语义分类、引用位置
-    P->>S: 复验引用和有效分支
-    P->>D: 条件提交：epoch/generation/revision/fencing
-    alt 无冲突且合法
-        D-->>P: inferred 生效
-    else 冲突、失效或撤销
-        D-->>P: 待确认或拒绝，不改旧任务
-    end
-```
-
-接受工作与确认事实是两个时点。accepted 不意味着候选正确、一定产生记忆或用户已授权该值；最终可拒绝或完成为无变更。整个链路保留跨库只读复验的局限，不声称消息源与 Persona DB 具有共同事务。
-
-## 2. 偏好范围与人格表达
-
-### 2.1 范围判定表
-
-| 原话或来源                                       | 目标范围                  | P1 个人域行为                                          |
-| ------------------------------------------------ | ------------------------- | ------------------------------------------------------ |
-| 设置中选择“默认使用中文回复”                     | 同 authority 全局协作默认 | 显式保存 pinned，受当前读取 gate 约束                  |
-| “以后和我交流默认用中文”                         | 明确全局默认              | 学习开启且证据有效时可成为 inferred                    |
-| “这次只给结论”                                   | 当前任务/回合             | 不入个人域，沿原指令执行                               |
-| “这个仓库的文档用英文”                           | 当前项目                  | 不提升全局，也不从 Persona 写回项目 Memory             |
-| “换一个项目我也喜欢这样”                         | 指代/范围仍待消歧         | 不凭重复出现自动扩大 scope                             |
-| “同事希望解释详细一点”                           | 第三人                    | 不形成当前用户偏好                                     |
-| “假如我更喜欢简短回答呢”                         | 假设                      | 不入库                                                 |
-| 助手推荐“以后先列计划”后用户只说“好”             | 省略确认                  | 不形成长期默认                                         |
-| “以后请把解释改为详细；我确认这是所有项目的默认” | 明确全局确认              | 可成 inferred；遇已有不同值按 §1.3 处理，不覆盖 pinned |
-
-workspaceIdentity?.trim() || workspacePath 标识来源边界，不等于用户本人身份，也不自动决定目标偏好的作用域。同一路径的不同远端 identity 不能共用证据。P1 不支持替其他用户建画像；可信多用户身份或远端共享需单列后续设计。
-
-### 2.2 默认与当前要求的优先关系
-
-延续主 spec §7.2：当前明确指令、仍适用的项目规则、全局明确默认、可用推测分别按适用范围处理。四个键只影响回复语言、解释程度、称呼和协作表达；“主动一点”不能授权后台执行，“少问我”不能绕过工具权限，“详细一点”不能改变工具调用额度或模型选择。
-
-若当前任务覆盖了全局默认，只对该任务使用覆盖值，不能反向写回偏好。P1 不设临时偏好 TTL、跨项目计数晋升或自动关系等级。自然语言中无法可靠确定范围时保持原对话执行，放弃个人域学习。
-
-### 2.3 人格表达的稳定输入
-
-核心身份、价值原则与表达政策是版本化产品资料。首版提供工作、日常、异议、纠正等受控示例，由确定性规则依据可信模式或明确用户设置选择；来源不充分时采用中性默认，不增加场景分类模型调用。共同身份始终保留，场景切换不新增 personaId。
-
-禁止随机抽取核心段、靠随机人名制造经历，或让桌宠状态反向写人格。LLM 输出的自然多样性与编译输入的确定性分别评测。Output Style 与当前任务约束仍按原规则生效，人格不覆盖格式要求。
-
-## 3. 只读导出合同
-
-### 3.1 内容与格式
-
-P0 冻结格式与测试样例；P1a 开放本地 Desktop 导出。UTF-8、缩进 JSON，固定建议文件名 drora-persona-export.json。文件名不拼用户称呼、项目路径或私有标识；用户通过平台对话框选位置。初始 payload 上限 256 KiB，最多四个有效偏好键；超限返回资料错误，不静默截断正文或改用整库导出。
-
-| 字段组                | 内容                                                                      | 排除项                                                              |
-| --------------------- | ------------------------------------------------------------------------- | ------------------------------------------------------------------- |
-| formatVersion         | 独立导出格式版本，首版 1                                                  | 不使用 SQLite user_version 代替                                     |
-| exportId / capturedAt | 一次导出的随机标识、UTC 时点                                              | 不作为导入授权或学习来源                                            |
-| revisions             | coreRevision、preferencesRevision、policyEpoch                            | 不携带执行许可、预算和权限令牌                                      |
-| persona               | personaId、当前核心可编辑字段与表达设置、产品模板版本                     | 旧核心版本、完整编译 system prompt、运行中贡献                      |
-| preferences           | 当前值、全局范围、explicit/inferred、pinned、来源类别/claimType、更新时间 | forgotten/superseded/disputed、待确认候选、被抑制值                 |
-| provenance            | 每项必要的来源类别及观察时间；自动项的本次核验时点                        | 原话摘录、聊天全文、绝对路径、内部 session/message ID、其他人的资料 |
-| omissions             | 无效或不可复验推测的数量与固定原因类别                                    | 被省略的旧值、旧原文、可反查敏感正文的自由文本错误                  |
-| limitations           | 资料快照、非执行备份、忘记不撤回副本的固定说明                            | 不宣称完整历史、全域遗忘或模型可用性保证                            |
-
-不扫描凭据配置或旧聊天。用户自己写入核心字段的文字按可见资料原样导出，不能保证自由文本天然不含其主动填写的敏感内容；设置页给出导出范围说明，不增加后台内容扫描或模型调用。
-
-格式只承诺可阅读、可供后续转换使用；P1 不接受文件回灌。将来导入须逐字段校验、冲突预览并经当前 owner 提交，不能恢复 enabled、学习授权或旧 generation；具体导入合同不在本版。
-
-### 3.2 一致性与删除边界
-
-Persona worker 在单库读事务中读取当前核心、偏好与单调递增的资料 revision，释放事务后只读核验 inferred 的来源。来源不可用/已撤销则省略该条；系统性校验失败仍可导出明确值，但必须报告省略，不伪装完整导出。P1a 没有 inferred 时无须访问 Session Store。
-
-序列化前在新库短读事务复核 revision、policyEpoch 与键 generation。任何相关值变化则重读一次，持续变化返回 snapshot_conflict；不无限重试，不持有旧库锁，不让用户任务等待导出。最终成功复核后冻结 payload，此时为 capturedAt 所描述的资料快照截止点。
-
-来源核验与新库复核不是原子操作。导出仅保证自动项在各自核验时点有效，并标核验时点；不承诺保存到磁盘的瞬间原会话还存在。无法取得必要证据则省略，不把推测伪装为显式资料。
-
-forget 在截止点之前完成：新快照不得含该值。forget 在截止点之后完成：冻结 payload/用户文件可能仍含此前的值，应用内删除不能追溯撤回它。用户可取消保存、重新生成。其他窗口的变更不会通过写文件竞态重写已交付副本。
-
-### 3.3 接入、状态与失败
-
-资料 owner 是 CLI Persona 服务；UI 只保留一次导出的内存结果，Host 代理独立查询，平台负责目标文件。服务端不接受调用方传入任意导出路径、不为导出创建聊天、不读模型配置、不修改资料 revision/任务活动时间。
-
-当前可复用的接口是 packages/shared/src/platform.ts 的 IPlatformService.saveFile(data, suggestedName)，Desktop 实现在 packages/desktop/src/main/desktopSaveFile.ts；现有实现先打开对话框再写 bytes。未来调用必须走 hook/service 与平台依赖注入，不直接调用 window.drora。
-
-```mermaid
-sequenceDiagram
-    participant U as 本地设置 UI/hook
-    participant P as Persona 服务/worker
     participant S as 原消息 owner
-    participant F as IPlatformService/Main
-    U->>P: preparePersonaExport(signal)
-    P->>P: 单库读快照，释放事务
-    opt P1b 自动推测
-        P->>S: 有界只读核验来源
-        S-->>P: 有效或省略原因
-    end
-    P->>P: 最终复核 revision，至多一次重读
-    P-->>U: 冻结 bytes、capturedAt、省略数量
-    U->>F: saveFile(data, suggestedName)
-    Note over U,F: 不持数据库锁；对话框期间更正不重写 bytes
-    F-->>U: success / canceled / error
-    U->>U: 展示真实结果，释放 payload 引用
+    participant D as 独立库
+    participant F as 平台 saveFile
+    U->>P: prepareExport
+    P->>D: 读资料快照并释放事务
+    P->>S: 仅复验 inferred 来源
+    P->>D: 复核 revision/epoch/generation
+    Note over P,D: 变化最多重读一次；持续变化返回 snapshot_conflict
+    P-->>U: 冻结 payload/capturedAt
+    U->>F: 原保存对话框＋data
+    F-->>U: success/canceled/error
 ```
 
-状态为 idle → preparing → saving → saved/canceled/failed；preparing 可取消，之后原生对话框遵循已有平台取消结果。一个页面同时只允许一份导出，完成/失败/取消后清除 payload 引用，不进 Zustand 持久化、日志或任务消息。JS 引用释放不等于安全擦除内存，不作此承诺。
+成功复核后冻结 payload。forget 在 cutoff 前成功则不包含；之后无法撤回内存副本或已保存文件。取消准备传播 AbortSignal；保存阶段沿原平台语义，页面关闭不保证已发出的原生保存被撤回。只有 success 显示已保存；不自动重试、上传或写聊天附件。旧 saveFile 不承诺原子替换，失败可能留不完整用户文件。
 
-若用户关闭设置或切换资料域，尚未调用 saveFile 的结果按 requestId/authority 丢弃；已交给平台的保存可能继续完成，不声称 UI 卸载能撤回文件。旧结果不能显示在新资料域。双窗口各自导出可以成功，各有独立时点。
+逻辑忘记清除应用可访问的 value/历史正文/候选/工作负载并设置 generation 屏障；不承诺 SQLite 页/WAL/系统备份安全擦除。源聊天、旧项目记忆、原诊断与用户导出继续其既有生命周期。恢复核心默认、重新启用 U/L、重装较旧版本不能成为新域旧工作绕过撤销的支持路径；降级不兼容新库时只停扩展。
 
-Memory/Persona 执行关闭不阻止管理导出，但资料服务鉴权与双层能力发现仍有效。平台无 saveFile 或远端/手机入口不在范围时不显示可用按钮；不绕行云上传、剪贴板或聊天附件。P2 再设计浏览器下载和手机保存。
+## 8. 真实模型与性能验收
 
-服务错误只显示固定原因；保存取消不报错；saveFile success 才显示路径。现有保存端口不是原子写入，磁盘失败可能留下部分目标文件，UI 说明未完成且允许用户主动重试，不暗中删除用户选择的文件或覆盖第二次。没有后台重试、常驻导出缓存或应用管理的临时副本。
+确定性测试负责 schema、CAS、mutationId、cancel、用途投影、source mapping、源复验、epoch/generation/fence、导出 cutoff。模型实验负责语义归因、人格自然度和任务质量，不能互相替代。
 
-## 4. 用户体验与能力承诺
+P0：工作、日常、异议、纠正、结构化输出、连续身份六类，每类至少 5 个固定场景；两个实际支持模型，各 3 次重复，并跑同配置无人格基线。隐藏配置标签评审；场景是独立样本单位，重复运行不能夸大独立样本数。模型版本/参数/模板/编译版本/语料冻结，报告每模型结果和不确定性。
 
-| 场景                 | 用户看到的行为                                                               |
-| -------------------- | ---------------------------------------------------------------------------- |
-| P0 只有身份          | 能编辑少量人格字段；不出现“已记住你的偏好”或未实现的经历入口                 |
-| P1a 对话说“记住这个” | 当前轮按原指令响应；个人域没有成功写入凭据，不能声称永久保存，可指向设置入口 |
-| P1a 设置保存         | 成功后显示“已保存”；另显示当前会话是否可使用，避免 gate 未生效却承诺即时改变 |
-| P1b 自动学到         | 设置页标“从对话推测”；不为每条学习主动发消息，不触发任务未读                 |
-| 不同推测冲突         | “这项偏好需要你确认”；不强制中断对话，设置内选择或忘记                       |
-| 查看来源             | 有权限且原文有效时导航原消息；不可用时说明原因，不展示持久化的替代原文副本   |
-| 导出                 | 显示范围、快照时间与省略数量；保存失败/取消如实反馈，不把导出叫完整备份      |
+P1b 增加 12 条固定序列，每条 4–8 回合，两个配置各重复 3 次（72 次序列，基线另跑）；覆盖全局/项目/临时、第三人、假设/否定、裸确认、重述确认、冲突、pinned、纠正、忘记旧源、跨项目/模型。
 
-以上文案是语义要求，实际 UI 遵循 DESIGN.md、主题与国际化。管理页复用现有设置组件，不用人格数值仪表盘解释内部机制。
+| 指标            | 发布前合同                                                                                         |
+| --------------- | -------------------------------------------------------------------------------------------------- |
+| 任务质量        | 关键事实/结构化输出不新增失败；汇总成功率下降超过 5 个百分点不发布；分模型及样本不确定性报告       |
+| 自然度/稳定身份 | 盲评 1–5 分均值至少 4 且不低于基线；无虚构真实经历关键违例                                         |
+| 权限/干扰       | 越权、无授权主动消息、人格破坏指定输出为关键失败                                                   |
+| 自动归因        | 固定禁止学习负例有效写入为 0；失败键不开放自动学习                                                 |
+| 有效学习        | 合格 accepted 且无冲突机会正确写入≥90%；同时报告总机会/丢弃/accepted/拒绝分母                      |
+| 捕获可用性      | 受控健康环境热态 applied≥99%；冷首次 applied≥95%；失败报告原因与恢复率，不能只看任务成功           |
+| 时延            | capture 总等待初始上限250ms；健康热态 p95≤50ms，冷态/锁竞争/取消分别报告；实际模型 TTFT 与缓存单列 |
+| 成本            | P0 背景模型调用0；按轮报告额外 token，新旧抽取合计预算单列                                         |
 
-## 5. 验收与发布门槛
+百分比不是实测结果；每类 capture 至少 100 次受控样本，OS/冷暖分组，不用整体平均掩盖失败。未达冷启动指标应优化初始化/打包再测，不能静默称开启成功。阈值若需调整必须在下一实验前说明版本与原因，不看结果临时降线。
 
-### 5.1 确定性合同
+## 9. 当前完成与未完成
 
-新增 PM37–PM48，见 Impact Brief。每项包含 setup/action/assertion 和非 UI 证据；全部仍为候选、planned/missing。schema、来源校验、键范围、冲突、撤销、导出 cutoff/取消/失败、编译确定性可以用受控 fixture 验证，不能靠真实模型偶然给对答案代替。
-
-至少覆盖：助手建议/用户引用/内部 user 消息不能造偏好；裸“好”不能确认；当前任务与项目约定不能提升全局；不同推测不自动覆盖；forget 在导出截止点两侧；来源不可验证时只省略推测；旧库/任务事件差分；跨窗口与 authority 切换。
-
-### 5.2 跨回合真实模型实验
-
-沿用主 spec 六类场景、每类至少 5 个、两个实际支持模型、每场景 3 次重复和同配置无人格基线。P1b 在此之外增加 12 条固定序列，每条 4–8 回合，两个配置各重复 3 次；共 72 次序列实验，基线另跑相同序列。固定语料、种子（若 provider 支持）、模型实际版本、配置、compiler/core revision 与评分表；生成过程中的手工改题须记录，不以换题掩盖失败。
-
-12 条序列覆盖：直接全局默认、临时要求、项目限定、第三方引用、假设与否定、助手建议＋裸确认、重述式确认、两次不同推测、pinned 与自动冲突、纠正后的下一轮、忘记后的旧来源重放、跨项目及模型切换。未开放的自动学习键按不学习断言评估。
-
-| 指标                | 定义与准入                                                                                                                      |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| 误归因/错误扩大范围 | 禁止学习场景中发生持久有效写入的次数；固定负例集要求 0，否则该键自动学习不发布                                                  |
-| 有效学习            | 合格且被 accepted 的无冲突机会中，正确写入比例；初始门槛 ≥90%，同时报告全部机会的通知丢失/accepted/拒绝分母，不能筛掉难例       |
-| 纠正与忘记          | 设置已提交、有效 gate 的下一新轮应服从；不得以旧推测重新写回；固定合同 fixture 必须全通过，真实模型关键违例阻止发布             |
-| 任务质量            | 按预先冻结的任务事实断言，关键场景不能新增失败；汇总成功率比同配置基线下降超过 5 个百分点则不放行；报告样本数与不确定性         |
-| 自然度与身份一致性  | 去除配置标签后评审，1 分=明显违背，3 分=可接受但机械/不稳定，5 分=自然且持续；各模型均分至少 4 且不低于基线，无虚构经历关键违例 |
-| 干扰                | 无授权主动消息、人格强行插入结构化输出、权限越界均为关键失败；不以更长对话或留存提升抵消                                        |
-| 成本                | 报告额外输入 token、首响应时间分布、worker 延迟和学习模型调用；P0 背景模型调用为 0，P1b 失败调用同样计入预算                    |
-
-上述数值是实验前的初始发布门槛，尚未测量；调整必须记录理由和版本，不能看结果后降低门槛宣布通过。报告按模型分组，不用均值掩盖某模型失败。固定样本零失败不代表普遍零风险；暂不能达标的键保留设置管理，不拖累已通过的身份能力。
-
-本轮不新增临床指标、好感度或参与度目标；不把外部产品营销转化率当 Drora 可达指标。性能 deadline 按主 spec P0a 实验冻结，无数据时不填写达标结论。
-
-## 6. 调研证据的采纳与不采纳
-
-以下为上一轮定向核验后采用的有限事实。链接指向可变文档/main，不是固定发行版本保证；实施引用源码前应记录实际 commit/路径。用户提供的调研笔记是发现线索，不作为全量事实来源。
-
-| 线索                                                                                                                                                                                                                                | 核验边界                                                  | 本版决策                                                                       |
-| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- | ------------------------------------------------------------------------------ |
-| [Letta read-only blocks](https://docs.letta.com/v1-sdk/memory/memory-blocks)                                                                                                                                                        | 文档支持 read_only；不证明 Drora 已有同类权限             | 核心写权限由端口和仓储约束，不仅写在提示词                                     |
-| [OpenHanako #2053](https://github.com/liliMozi/openhanako/issues/2053)                                                                                                                                                              | 具体问题报告，不能当作所有版本必现或已复现                | 将归因丢失转为原文/角色/scope 合同与负例                                       |
-| [OpenHanako rolling-summary-format](https://raw.githubusercontent.com/liliMozi/openhanako/main/lib/memory/rolling-summary-format.ts) 与 [compile](https://raw.githubusercontent.com/liliMozi/openhanako/main/lib/memory/compile.ts) | 可见摘要格式和日/近期/长期编译层，未核验整套运行效果      | 摘要只作派生材料；本版不复制记忆传送带                                         |
-| [OpenClaw Heartbeat](https://docs.openclaw.ai/heartbeat)                                                                                                                                                                            | 当前文档描述自动化调度和 NO_REPLY，参数会变               | 不照抄笔记中的静默 token、周期或权重，不新增人格调度器                         |
-| Vault / OffPeak / 桌宠映射                                                                                                                                                                                                          | 当前仓库的检索、任务执行、sessions-index 投影是不同 owner | 不凭相似命名复用状态；保持主 spec 边界                                         |
-| 商业停服、营收、留存、泄露提示词                                                                                                                                                                                                    | 本轮未逐一核实，部分粘贴内容损坏                          | 仅保留资料可迁移、避免单一参与度指标的设计动机，不把数据或因果推断写成产品事实 |
-
-共同经历、语音、持久情绪、多角色、自动 Dream 和关系数值继续单列后续。本文不会恢复第二版的逐轮旧库快照、学习 outbox 或人格失败阻止任务的方案。
+字段归属、许可、版本时点、逻辑 API、错误/幂等/取消、来源、预算、导出和评测合同已在本版确定。SQL migration、RPC wire 注册、provider 接缝、UI 和用例代码均未编写。能力发现与实际打包属于实施准入验证；发现不满足现有模块边界时修订 spec，再实现，不能凭本文假设已存在接口。

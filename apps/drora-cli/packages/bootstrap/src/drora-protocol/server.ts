@@ -1,7 +1,11 @@
 import { querySessionDebug } from "./session-debug.js";
 import { offPeakControlParamsSchema, offPeakControlResultSchema } from "@drora/shared";
 import { createNodeNetworkCapture } from "@drora/shared/node";
-import { networkCaptureControlSchema, droraProtocolNotifications } from "@drora/shared";
+import {
+  PERSONA_PROTOCOL_CAPABILITY_CONTROL_V1,
+  networkCaptureControlSchema,
+  droraProtocolNotifications,
+} from "@drora/shared";
 import {
   droraPluginsCancelOperationParamsSchema,
   droraProtocolMethods,
@@ -39,14 +43,20 @@ import {
   createSession,
   forkSession,
   generateWorkspaceText,
+  getPersonaApplicationOp,
+  getPersonaCoreOp,
+  getPersonaOverviewOp,
   goalSession,
   getTaskTokenUsage,
   getUsageStats,
+  initializePersonaOp,
   listSessions,
   listSessionSubagents,
+  previewPersonaOp,
   readEvents,
   readMessages,
   readSession,
+  resetPersonaCoreOp,
   resumeSession,
   sendPrompt,
   setMode,
@@ -54,6 +64,7 @@ import {
   setThoughtLevel,
   stopSession,
   subscribeSession,
+  updatePersonaCoreOp,
 } from "./server-operations.js";
 import { listChildProcesses } from "./process-child-processes.js";
 import { ProtocolRuntimeResources } from "./runtime-resources.js";
@@ -814,7 +825,33 @@ export class DroraProtocolAgentServer {
       case droraProtocolMethods.processChildProcesses:
         return listChildProcesses(this.context.deps.mcpTelemetry?.listProcesses() ?? []);
       case droraProtocolMethods.runtimeCapabilities:
-        return { independentPlanState: true, historyFirst: true };
+        // Persona 控制位（合同 §4.1）：仅在本 server 已注册 persona 控制路由
+        // （deps.personaControl 端口在装配层注入）时为 true；缺席即整个键缺席，
+        // 旧 Host 视角等价于「无该能力」。键引用 shared contracts 常量（契约键单一
+        // 出处，AGENTS.md）：schema 侧（droraRuntimeCapabilitiesSchema 计算键）与本
+        // 生产点引用同一字面量，手写第二份会在拼错时被非 strict schema 静默剥键。
+        return {
+          independentPlanState: true,
+          historyFirst: true,
+          ...(this.context.deps.personaControl
+            ? { [PERSONA_PROTOCOL_CAPABILITY_CONTROL_V1]: true }
+            : {}),
+        };
+      // ── Persona P0 无会话管理（spec §4/§10）：不触碰会话表，控制域由服务绑定 ──
+      case droraProtocolMethods.personaGetOverview:
+        return await getPersonaOverviewOp(this.context);
+      case droraProtocolMethods.personaInitialize:
+        return await initializePersonaOp(this.context, request.params);
+      case droraProtocolMethods.personaGetCore:
+        return await getPersonaCoreOp(this.context, request.params);
+      case droraProtocolMethods.personaUpdateCore:
+        return await updatePersonaCoreOp(this.context, request.params);
+      case droraProtocolMethods.personaResetCore:
+        return await resetPersonaCoreOp(this.context, request.params);
+      case droraProtocolMethods.personaPreview:
+        return await previewPersonaOp(this.context, request.params);
+      case droraProtocolMethods.personaGetApplication:
+        return await getPersonaApplicationOp(this.context, request.params);
       case droraProtocolMethods.pluginsMarketplaceAdd:
         return await this.withPluginOperationSignal(request, (signal) =>
           addPluginMarketplace(this.context, request.params, signal),

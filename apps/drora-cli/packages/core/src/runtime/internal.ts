@@ -35,7 +35,7 @@ import type {
   ContextBuilder,
   ContextBuildResult,
 } from "./deps.js";
-import type { PersonaCapturePort } from "../persona/index.js";
+import type { PersonaCapturePort, PersonaSettledTurnApplication } from "../persona/index.js";
 import type {
   ActiveTurnSteeringState,
   ActiveTurnStartReservation,
@@ -120,6 +120,12 @@ export interface AgentRuntimeInternal
   subagentPort?: SubagentPort;
   /** P0a 人格捕获端口；缺席即功能关闭，轮次保持原请求路径。 */
   personaCapturePort?: PersonaCapturePort;
+  /**
+   * 本 Runtime 最近一次已结算的轮内人格应用记录（切片 C 查询口 getPersonaTurnApplication
+   * 的事实来源；捕获一次性结算时写入）。只在存活 Runtime 内存中，重启即消失——
+   * getPersonaApplication 对无记录的 turnId 如实返回 not_available，不伪造冷历史。
+   */
+  personaTurnApplication?: PersonaSettledTurnApplication;
   getAgentDefinitions: NonNullable<AgentRuntimeDeps["getAgentDefinitions"]>;
   prepareAgentDefinitions: (input: {
     signal: AbortSignal;

@@ -653,6 +653,7 @@ describe("persona 存储默认值与迁移清单", () => {
   it("默认预算/容量与合同 §2 初始值一致", () => {
     expect(PERSONA_STORE_DEFAULTS.lockWaitTimeoutMs).toBe(100);
     expect(PERSONA_STORE_DEFAULTS.adminRequestBudgetMs).toBe(5000);
+    expect(PERSONA_STORE_DEFAULTS.captureBudgetMs).toBe(250);
     expect(PERSONA_STORE_DEFAULTS.receiptRetentionMs).toBe(7 * 24 * 60 * 60 * 1000);
     expect(PERSONA_STORE_DEFAULTS.receiptMaxPerAuthority).toBe(4096);
   });

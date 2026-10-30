@@ -46,6 +46,13 @@ export interface ParamsSchema<T> {
 export interface DroraProtocolAgentDependencies {
   createDroraApp(options?: Omit<DroraAppOptions, "providerRegistry">): DroraApp | Promise<DroraApp>;
   /**
+   * 切片 C：Persona 无会话管理的独立组合端口（spec §4；contracts/cli-persona-service 的
+   * PersonaControlPort）。由 entrypoint 在进程组合层注入，控制处理器不经 AgentRuntime 取
+   * 仓储。缺席 → persona 控制路由不注册、runtimeCapabilities 不广告 personaControlV1
+   * （fail-closed）；已注册路由对缺席端口的行为是类型不可能，不另设运行时兜底。
+   */
+  personaControl?: import("../app/drora-persona/index.js").PersonaControlPort;
+  /**
    * 每个 session record 的内存 event store 工厂。
    * 默认 turn 窗口保留策略；测试可注入 spy 或 unbounded 实现做对照。
    */
@@ -97,6 +104,12 @@ export interface DroraProtocolSessionRecord {
   app: DroraApp;
   subagentRuntimeConfigEnabled?: boolean;
   memoryEnabled: boolean;
+  /**
+   * 执行许可 E（spec §5）：本 record 的 Runtime 新建/cold materialization 时由
+   * session/requestRuntimePreferences 响应冻结；warm 不重读，普通 fork 经
+   * resolveSessionStartupPreferences 的 inherit 分支继承父 record 值。
+   */
+  personaEnabled: boolean;
   nativeSearchEnhancementsEnabled: boolean;
   toolSearchMode: AppToolSearchMode;
   modelContextBudgetStrategy: DroraModelContextBudgetStrategy;

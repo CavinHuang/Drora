@@ -132,6 +132,11 @@ export default defineConfig({
             // + VoiceSection 开关读写往返/S1 baseUrl 校验交互 + AnnouncementIndicator）。
             "packages/ui/src/voice/**/*.test.tsx",
             "packages/ui/src/settings/VoiceSection.test.tsx",
+            // Drora 人格设置分区（specs/drora-persona-system.md §10）：组件交互守护
+            // （五字段草稿/CAS/预览/应用情况/E 文案）与 hello 能力门 hook，同理登记
+            // 进默认单测通道，否则 pnpm test / pre-push affected 永不执行。
+            "packages/ui/src/drora-persona/PersonaSettingsSection.test.tsx",
+            "packages/ui/src/drora-persona/usePersonaControlAvailability.test.tsx",
             "packages/ui/src/voice/AnnouncementIndicator.test.tsx",
             "packages/ui/src/store/voiceSessionStore.test.ts",
             "packages/ui/src/v4/composer/composerTextAppend.test.ts",

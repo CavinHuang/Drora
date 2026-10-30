@@ -31,6 +31,12 @@ import type {
   DroraMcpListResult,
   DroraPluginsListResult,
   DroraPluginsOverviewResult,
+  DroraPersonaCoreResult,
+  DroraPersonaGetApplicationResult,
+  DroraPersonaInitializeResult,
+  DroraPersonaOverviewResult,
+  DroraPersonaPreviewResult,
+  DroraPersonaCoreMutationResult,
   DroraPluginsMarketplaceMutationResult,
   DroraPluginsInstallResult,
   DroraPluginsReferenceCatalogResult,
@@ -765,6 +771,28 @@ export interface IDroraAgentService {
     operationId: string,
   ): Event<DroraPluginOperationProgressNotification>;
   getPluginsOverview(params: DroraAgentPluginViewParams): Promise<DroraPluginsOverviewResult>;
+  // Persona P0 无会话管理代理（spec §10、合同 §3/§4.1）：走本机 CLI 控制连接；
+  // 控制域由 CLI 服务绑定，UI 先经 hello.capabilities.personaControlV1 判断再调用。
+  getPersonaOverview(): Promise<DroraPersonaOverviewResult>;
+  initializePersona(params: { mutationId: string }): Promise<DroraPersonaInitializeResult>;
+  getPersonaCore(): Promise<DroraPersonaCoreResult>;
+  updatePersonaCore(params: {
+    expectedRevision: number;
+    patch: Record<string, unknown>;
+    mutationId: string;
+  }): Promise<DroraPersonaCoreMutationResult>;
+  resetPersonaCore(params: {
+    expectedRevision: number;
+    mutationId: string;
+  }): Promise<DroraPersonaCoreMutationResult>;
+  previewPersona(params: {
+    draft: Record<string, unknown>;
+    situationId?: string;
+  }): Promise<DroraPersonaPreviewResult>;
+  /** 独立应用状态查询（合同 §3）：随目标会话所在 CLI 连接代理；重启后 CLI 如实 not_available。 */
+  getPersonaApplication(
+    params: DroraAgentSessionTarget & { turnId: string },
+  ): Promise<DroraPersonaGetApplicationResult>;
   /**
    * 资源管理器：枚举本 Host 内全部本地 Agent 进程（含 plugin / mcp-status 泳道），
    * 并向每个存活 runtime 请求 `process/childProcesses`；单个 runtime 失败只让它的 children 为空。

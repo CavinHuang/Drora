@@ -227,7 +227,7 @@ export async function createDroraApp(options: DroraAppOptions): Promise<DroraApp
     const cliStorageRoot = getCliStorageRoot(storageRoot);
     // P0 人格资料域的进程级绑定（spec §4 bootstrap/app/drora-persona）：纯内存绑定，不读库、
     // 不起 worker、不阻塞 ready；库路径只来自可信 CLI 存储根（不用 project config 的
-    // storage.dir 派生域或 cwd）。P0b 无执行许可，capture 端口一律快速省略。
+    // storage.dir 派生域或 cwd）。切片 C 起 capture 端口按 Runtime 冻结的执行许可 E 绑定。
     const personaSystem = getOrCreateDroraPersonaSystem({
       trustedCliStorageRoot: cliStorageRoot,
       logger,
@@ -922,7 +922,12 @@ export async function createDroraApp(options: DroraAppOptions): Promise<DroraApp
       topicResourcePort: options.topicResourcePort,
       appVersion,
       traceContext,
-      personaCapturePort: personaSystem.capturePort,
+      // 切片 C（spec §5）：capture 端口按本 Runtime 冻结的执行许可 E 绑定——E 值随
+      // runtimeConfig 在新建/cold materialization 时固定，warm 不重读，fork 由协议启动
+      // 偏好继承。off → 零 IO 快速省略；on → 真实存储捕获。
+      personaCapturePort: personaSystem.capturePortForPermission(
+        runtimeConfig.persona?.enabled === true,
+      ),
     };
     runtime = new AgentRuntime(sessionId, runtimeConfig, runtimeAgentDeps);
     // 接缝 α/3：构造后装配 Agents Team（hub/私有端口/派发通道；registry 缺席即灰度关，零开销）。

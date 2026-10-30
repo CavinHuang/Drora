@@ -7,6 +7,7 @@ import {
   Package,
   Bot,
   Palette,
+  Sparkles,
   Sun,
   BarChart3,
   Terminal,
@@ -83,6 +84,15 @@ const BASE_SETTINGS_SECTIONS: SettingsSectionDefinition[] = [
     id: "memory",
     icon: Brain,
     titleId: "settings.memory",
+    groupId: "agentCapabilities",
+  },
+  // Drora 人格资料管理（specs/drora-persona-system.md §10）：只确认 hello
+  // personaControlV1 能力且本地桌面连接时由 createSettingsPageConfig 动态加入；
+  // 手机/远端/独立 Web 不出现该入口，原功能不受影响。
+  {
+    id: "drora",
+    icon: Sparkles,
+    titleId: "settings.drora.title",
     groupId: "agentCapabilities",
   },
   // 知识问答（VaultView 智能问库）：Jev 出站决策配置；V1 仅桌面本地 Host 装配，
@@ -206,6 +216,9 @@ export const SETTINGS_SECTIONS = BASE_SETTINGS_SECTIONS.filter(
   (section) =>
     section.id !== "computerUse" &&
     section.id !== "knowledge" &&
+    // Drora 人格入口依赖运行时能力发现（hello personaControlV1），
+    // 静态只读导出代表无能力协商的视图，不包含它。
+    section.id !== "drora" &&
     isSettingsSectionEnabled(section.id),
 );
 
@@ -213,12 +226,15 @@ export interface SettingsPageConfigOptions {
   isDesktop?: boolean;
   isMacDesktop?: boolean;
   isWindowsDesktop?: boolean;
+  /** Drora 人格入口（specs/drora-persona-system.md §10）：能力发现确认后才为 true。 */
+  showDroraPersona?: boolean;
 }
 
 export function createSettingsPageConfig({
   isDesktop = false,
   isMacDesktop = false,
   isWindowsDesktop = false,
+  showDroraPersona = false,
 }: SettingsPageConfigOptions = {}) {
   const showComputerUse = isDesktop || isMacDesktop || isWindowsDesktop;
   // 知识问答分区与 computerUse 同一桌面门控：Jev 装配 V1 只在 desktop local host 生效。
@@ -226,6 +242,8 @@ export function createSettingsPageConfig({
   const settingsSections = BASE_SETTINGS_SECTIONS.filter((section) => {
     if (section.id === "computerUse" && !showComputerUse) return false;
     if (section.id === "knowledge" && !showKnowledge) return false;
+    // 手机/远端/独立 Web/旧 Host 不广告 personaControlV1：入口不出现，原功能不受影响。
+    if (section.id === "drora" && !showDroraPersona) return false;
     return isSettingsSectionEnabled(section.id);
   });
   const settingsSectionGroups = BASE_SETTINGS_SECTION_GROUPS.map((group) => ({

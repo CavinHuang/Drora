@@ -8,9 +8,12 @@
  * 先全链 grep 生产与消费。结构照 contracts/desktopPet.ts / voice.ts 先例
  * （对象常量 + 严格只读类型）。
  *
+ * 切片 C（许可与协议）在文末补齐 personaControlV1 能力位、personaEnabled 运行偏好键与
+ * persona/* wire 方法名（spec §10、合同 §4.1：三层字面量只在 shared/contracts 常量区声明一次，
+ * CLI runtimeCapabilities、Host hello.capabilities、session/requestRuntimePreferences 响应与
+ * 实际 persona/* 方法注册全部引用同一常量）。
+ *
  * 明确不进本文件：
- * - personaControlV1 / personaEnabled 能力位与 persona/* wire 方法名：切片 C 协议注册时
- *   与生产消费两侧一起落 shared/contracts（合同 §4.1），本层不提前发明尚无生产方的键；
  * - P1a policy/preference 与 P1b evidence/candidate/work 的键与字段：对应分期才建（合同 §2）；
  * - mutation receipt 行 schema 与 SQL 迁移：adapters 仓储所有（合同 §2），本文件只固定
  *   scope/resultCode 词汇与库位置键。
@@ -206,3 +209,73 @@ export interface PersonaPreviewResult {
   readonly templateVersion: number;
   readonly compilerVersion: number;
 }
+
+// ---------------------------------------------------------------------------
+// 切片 C：协议能力位、运行偏好键与 wire 方法名（spec §10「两层能力发现」、
+// 合同 §4.1「已核对的能力发现路径」：字面量只在 shared contracts 常量区声明一次，
+// 生产（CLI server）与消费（Host services / UI）两侧引用同一常量，禁止两处独立写）
+// ---------------------------------------------------------------------------
+
+/**
+ * personaControlV1 能力位字面量（合同 §4.1）：
+ * - CLI↔Host：droraProtocolMethods.runtimeCapabilities 响应的可选布尔；
+ * - Host↔UI：hello.capabilities（hostCapabilitiesSchema，非 strict）的可选布尔。
+ * 该位只表示「对端注册/识别控制合同 v1」，不是启用、授权、资料健康或已应用状态；
+ * 缺失、method-not-found 或断线均视为不可用，原会话继续，不试发 persona 方法。
+ */
+export const PERSONA_PROTOCOL_CAPABILITY_CONTROL_V1 = "personaControlV1";
+
+/**
+ * personaEnabled 运行偏好键＝执行许可 E（spec §5）。字面量被三处引用同一常量：
+ * 原 AppSettings/SharedSettings 保存字段、session/requestRuntimePreferences 响应可选字段。
+ * 语义：默认 false；只在 Runtime 新建/cold materialization 冻结，warm 不重读，普通 fork 继承。
+ */
+export const PERSONA_RUNTIME_PREFERENCE_ENABLED = "personaEnabled";
+
+/** persona 管理方法 wire 名（合同 §3 方法表 P0 子集＋独立应用状态查询）。 */
+export const PERSONA_PROTOCOL_METHODS = {
+  getOverview: "persona/getPersonaOverview",
+  initialize: "persona/initializePersona",
+  getCore: "persona/getPersonaCore",
+  updateCore: "persona/updatePersonaCore",
+  resetCore: "persona/resetPersonaCore",
+  preview: "persona/previewPersona",
+  getApplication: "persona/getPersonaApplication",
+} as const;
+
+export type PersonaProtocolMethod =
+  (typeof PERSONA_PROTOCOL_METHODS)[keyof typeof PERSONA_PROTOCOL_METHODS];
+
+// ---------------------------------------------------------------------------
+// getPersonaApplication 应用状态（合同 §3：当前 Runtime 的 applied/omitted/not_available；
+// 不伪造冷历史——重启后无内存记录即 not_available。独立查询方法，不进旧 snapshot/delta/index）
+// ---------------------------------------------------------------------------
+
+export type PersonaApplicationWireStatus = "applied" | "omitted" | "not_available";
+
+/** getPersonaApplication 输出：omitted 携带省略原因（正常 omitted reason 与管理错误分开）。 */
+export type PersonaApplicationResult =
+  | { readonly status: "applied"; readonly turnId: string }
+  | {
+      readonly status: "omitted";
+      readonly turnId: string;
+      readonly reason?: string;
+    }
+  | { readonly status: "not_available" };
+
+// ---------------------------------------------------------------------------
+// capture 正常省略原因（合同 §3「正常 omitted reason 与管理错误分开」）。wire 词汇单一
+// 出处（AGENTS.md 契约键单一出处）：生产方（bootstrap drora-persona 服务/E 门端口）与
+// 消费方（UI 省略原因文案映射）引用同一常量；UI 不能反向 import bootstrap 内部模块，
+// 字面量必须在 shared 常量区定义一次。reason 字段本身是不透明字符串：未知值原样展示。
+// ---------------------------------------------------------------------------
+
+export const PERSONA_CAPTURE_OMITTED_REASONS = {
+  /** 执行许可 E off 的零 IO 快速省略（spec §5）。 */
+  permissionNotGranted: "permission_not_granted",
+  /** 已存自定义核心编译失败（模板/编译器版本漂移）：只省略扩展，不静默换默认身份（spec §6）。 */
+  compileFailed: "compile_failed",
+} as const;
+
+export type PersonaCaptureOmittedReason =
+  (typeof PERSONA_CAPTURE_OMITTED_REASONS)[keyof typeof PERSONA_CAPTURE_OMITTED_REASONS];

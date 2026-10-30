@@ -14,7 +14,6 @@ import {
   type PersonaEditableCore,
 } from "@drora/shared";
 import { PersonaAppServiceImpl } from "../../src/app/drora-persona/persona-app-service.js";
-import { PERSONA_CAPTURE_OMITTED_PERMISSION_NOT_GRANTED } from "../../src/app/drora-persona/contract.js";
 import type { PersonaAppServiceOptions } from "../../src/app/drora-persona/contract.js";
 
 const NOW = 1_700_000_000_000;
@@ -409,25 +408,117 @@ describe("PersonaAppService（切片 B 服务层）", () => {
     });
   });
 
-  describe("captureContribution（内部）", () => {
-    it("P0b 无执行许可：一律快速 omitted(permission_not_granted) 且零存储访问；已取消返回 cancelled", async () => {
+  describe("captureContribution（切片 C：E on 的真实存储捕获路径）", () => {
+    it("未初始化：omitted(uninitialized)，不自动建资料；已取消返回 cancelled", async () => {
       const openStore = vi.fn((path: string) => openPersonaStore({ dbPath: path }));
       const service = createService((path) => openStore(path));
       try {
         const controller = new AbortController();
         await expect(
           service.captureContribution({ sessionId: "s", turnId: "t", signal: controller.signal }),
-        ).resolves.toEqual({
-          status: "omitted",
-          reason: PERSONA_CAPTURE_OMITTED_PERMISSION_NOT_GRANTED,
-        });
+        ).resolves.toEqual({ status: "omitted", reason: PERSONA_ERROR_CODES.uninitialized });
         controller.abort();
         // 取消沿原 AbortSignal 语义，不把 cancelled 伪装成 omitted（spec §6）。
         await expect(
           service.captureContribution({ sessionId: "s", turnId: "t", signal: controller.signal }),
         ).resolves.toEqual({ status: "cancelled" });
-        // 不得读库、不得起 worker：存储工厂从未被调用。
-        expect(openStore).not.toHaveBeenCalled();
+        // 未初始化路径不写资料：authority 单例仍缺席（显式 initialize 才建，合同 §3）。
+        await expect(service.getPersonaOverview()).resolves.toEqual({
+          ok: true,
+          value: { state: "uninitialized" },
+        });
+        // 打开即迁移的存储工厂被调用过一次（惰性打开），authority 建立从未发生。
+        expect(openStore).toHaveBeenCalledTimes(1);
+        await expect(service.initializePersona({ mutationId: "probe" })).resolves.toMatchObject({
+          ok: true,
+          value: { status: "created" },
+        });
+      } finally {
+        await service.close();
+      }
+    });
+
+    it("已初始化：返回 applied，贡献为当前核心 revision 的确定性编译结果", async () => {
+      const openStore = vi.fn((path: string) => openPersonaStore({ dbPath: path }));
+      const service = createService((path) => openStore(path));
+      try {
+        const initialized = await service.initializePersona({ mutationId: "mut-1" });
+        expect(initialized.ok).toBe(true);
+        if (!initialized.ok) throw new Error("initialize failed");
+        const controller = new AbortController();
+        const outcome = await service.captureContribution({
+          sessionId: "s",
+          turnId: "t",
+          signal: controller.signal,
+        });
+        expect(outcome.status).toBe("applied");
+        if (outcome.status !== "applied") throw new Error("expected applied");
+        expect(outcome.contribution.coreRevision).toBe(initialized.value.coreRevision);
+        expect(outcome.contribution.compilerVersion).toBe(initialized.value.compilerVersion);
+        expect(outcome.contribution.content.length).toBeGreaterThan(0);
+      } finally {
+        await service.close();
+      }
+    });
+
+    it("存储环境故障按封闭错误码省略扩展，不向轮次抛出（PM16）", async () => {
+      const openStore = vi.fn(async (): Promise<PersonaStorePort> => {
+        throw new PersonaStoreError("simulated capture failure", {
+          code: PERSONA_ERROR_CODES.storageUnavailable,
+        });
+      });
+      const service = createService(() => openStore());
+      try {
+        const controller = new AbortController();
+        await expect(
+          service.captureContribution({ sessionId: "s", turnId: "t", signal: controller.signal }),
+        ).resolves.toEqual({
+          status: "omitted",
+          reason: PERSONA_ERROR_CODES.storageUnavailable,
+        });
+      } finally {
+        await service.close();
+      }
+    });
+
+    it("打开库挂起不返回：capture 总预算内按 budget_exhausted 省略，原任务继续（合同 §2/PM16）", async () => {
+      // 评审发现的「挂起不返回」用例：openStore 永不结算（慢盘/迁移/worker 卡死），
+      // E on 捕获必须在预算内省略扩展，不能无上界延迟首个合格主请求（spec §6）。
+      const service = new PersonaAppServiceImpl({
+        dbPath,
+        captureBudgetMs: 20,
+        openStore: () => new Promise<PersonaStorePort>(() => {}),
+      });
+      const controller = new AbortController();
+      const startedAt = Date.now();
+      try {
+        await expect(
+          service.captureContribution({ sessionId: "s", turnId: "t", signal: controller.signal }),
+        ).resolves.toEqual({ status: "omitted", reason: PERSONA_ERROR_CODES.budgetExhausted });
+        expect(Date.now() - startedAt).toBeLessThan(1_000);
+      } finally {
+        await service.close();
+      }
+    });
+
+    it("预算结算后迟到的 store 打开失败被吞掉，不产生 unhandled rejection", async () => {
+      const service = new PersonaAppServiceImpl({
+        dbPath,
+        captureBudgetMs: 20,
+        openStore: () =>
+          new Promise<PersonaStorePort>((_, reject) => {
+            // 预算（20ms）先到，40ms 后打开库才失败：迟到拒绝必须被预算竞速吞掉，
+            // 否则本文件会以 unhandled rejection 失败。
+            setTimeout(() => reject(new Error("late store open failure")), 40);
+          }),
+      });
+      const controller = new AbortController();
+      try {
+        await expect(
+          service.captureContribution({ sessionId: "s", turnId: "t", signal: controller.signal }),
+        ).resolves.toEqual({ status: "omitted", reason: PERSONA_ERROR_CODES.budgetExhausted });
+        // 留出迟到拒绝的窗口，让潜在 unhandled rejection 在本用例内暴露。
+        await new Promise((resolve) => setTimeout(resolve, 120));
       } finally {
         await service.close();
       }
@@ -545,16 +636,13 @@ describe("PersonaAppService（切片 B 服务层）", () => {
     });
   });
 
-  it("未启用且未进入资料管理时不创建库文件（构造即注入也不打开）", async () => {
+  it("未启用且未进入资料管理时不创建库文件（构造即注入也不打开；零存储路径只剩预览）", async () => {
     const openStore = vi.fn((path: string) => openPersonaStore({ dbPath: path }));
     const service = createService((path) => openStore(path));
-    // 构造与预览/捕获这些无存储路径都不会打开库：目录不该被创建。
+    // 构造与预览（无存储路径）不打开库：目录不该被创建。切片 C 起捕获的零 IO 语义
+    // 由执行许可端口层承担（capturePortForPermission(false)，见 persona-system.test.ts），
+    // 服务方法本身是 E on 的真实存储捕获路径。
     await service.previewPersona({ draft: customCore() });
-    await service.captureContribution({
-      sessionId: "s",
-      turnId: "t",
-      signal: new AbortController().signal,
-    });
     expect(openStore).not.toHaveBeenCalled();
     await service.close();
   });

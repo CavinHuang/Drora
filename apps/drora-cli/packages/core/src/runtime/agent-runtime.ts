@@ -72,7 +72,7 @@ import type {
   HookRunner,
   TurnId,
 } from "./deps.js";
-import type { PersonaCapturePort } from "../persona/index.js";
+import type { PersonaCapturePort, PersonaTurnApplicationQuery } from "../persona/index.js";
 import { installAgentRuntimeMethods } from "./methods/index.js";
 import type { StartSavedWorkflowRunResult } from "./methods/dynamic-workflow-run-start.js";
 import type {
@@ -410,6 +410,8 @@ export interface AgentRuntime {
     selection: ExecutionShellSelection | (() => ExecutionShellSelection),
   ): boolean;
   getSessionShellSelection(): ExecutionShellSelection | undefined;
+  /** 切片 C：轮内人格应用状态查询口（合同 §3；turnId 不匹配或重启后如实 not_available）。 */
+  getPersonaTurnApplication(input: { turnId: string }): PersonaTurnApplicationQuery;
   getMode(): CollaborationMode;
   getPlanEnabled(): boolean;
   grantPermissionFullAccess(interactionId: string, signal?: AbortSignal): Promise<string>;

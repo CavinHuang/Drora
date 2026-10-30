@@ -1,4 +1,4 @@
-import { createConfig } from "@drora/adapters/config";
+import { createConfig, resolvePath } from "@drora/adapters/config";
 import type { McpElicitationPort, McpNotificationPort } from "@drora/contracts";
 import { createNodeModelSelectionFacade } from "@drora/provider-node";
 import { createNodeLoggerFactory } from "@drora/adapters/logging";
@@ -51,6 +51,10 @@ import { acquireProtocolStartupResource } from "./drora-protocol/startup-resourc
 import { prepareDroraTelemetryEnv, shutdownDroraTelemetry } from "./telemetry-bootstrap.js";
 import type { DroraProcessResourceSampler } from "./process-resource-sampler.js";
 import { createKnowledgeEvidenceGate } from "./knowledge-evidence/evidence-gate.js";
+// Persona 无会话管理的独立组合端口（spec §4）：与 create-app 共享进程级 holder，
+// 首个管理调用才绑定，不经 AgentRuntime 取仓储。
+import { createPersonaControlPort } from "./app/drora-persona/index.js";
+import { getCliStorageRoot } from "./app/paths.js";
 
 export function applyProtocolPresentationSurface(
   options: Omit<DroraAppOptions, "providerRegistry">,
@@ -325,6 +329,13 @@ export async function runDroraProtocolAgent(
       // （只读）+ 当前 Vault 文件；sendText/sendQueuedNow 在 admission/提升前调用。
       knowledgeEvidenceVerifier: createKnowledgeEvidenceGate(),
       version: options.version,
+      // Persona 无会话管理（spec §4）：进程组合层惰性端口；库根与 create-app 用同一份
+      // CLI 配置的 storage.dir 派生（resolveEffectiveConfigResult 只覆盖 ui.locale，不触
+      // storage），同进程同一 holder。首个 persona 管理调用才绑定，不读库、不起 worker。
+      personaControl: createPersonaControlPort({
+        trustedCliStorageRoot: getCliStorageRoot(resolvePath(configResult.config.storage.dir)),
+        logger,
+      }),
     }));
     officialMcpAuthContext = server.officialMcpAuthRequestContext;
     elicitationServer = server;

@@ -15,10 +15,15 @@ resetPersonaCore / previewPersona＋内部 captureContribution），是独立库
   字面量出处 shared `PERSONA_STORAGE_KEYS`）；不接受 project config `storage.dir` 或 cwd。
 - 构造与绑定零 IO：首个显式管理调用才打开库（打开即迁移）；`getPersonaOverview` 未初始化
   时如实返回 `uninitialized`，不暗建会话/身份（PM19）。
-- P0b 无执行许可 E（spec §5，切片 C 注册）：`captureContribution` 一律快速
-  `omitted(permission_not_granted)`，不读库、不起 worker；signal 已取消返回 `cancelled`，
-  不把 cancelled 伪装成 omitted。端口经 `AgentRuntimeDeps.personaCapturePort` 注入，
-  注册不阻塞 runtime ready。
+- 执行许可 E（spec §5，切片 C 起）：权限判定由 `capturePortForPermission(personaEnabled)`
+  在装配时冻结进端口——E off 一律快速 `omitted(permission_not_granted)`，不读库、不起
+  worker；E on 走真实存储捕获，资料未初始化省略且不自动建库（显式 initialize 才建），
+  signal 已取消返回 `cancelled`，不把 cancelled 伪装成 omitted，不吞原 session/provider
+  错误。端口经 `AgentRuntimeDeps.personaCapturePort` 注入，注册不阻塞 runtime ready；
+  warm Runtime 不重读 E，普通 fork 由协议启动偏好继承原许可。
+- 无会话管理端口（spec §4，切片 C 起）：`createPersonaControlPort` 在进程组合层惰性
+  取得服务，控制处理器不经构造 AgentRuntime 取仓储；端口缺席时协议侧不注册控制路由、
+  不广告 `personaControlV1` 能力位。
 
 ## 不变量
 
@@ -43,7 +48,10 @@ resetPersonaCore / previewPersona＋内部 captureContribution），是独立库
 ## 交集 hook 点
 
 - Runtime：`AgentRuntimeDeps.personaCapturePort`（core 既接缝）；资格表在
-  cli-persona-domain，编排在 turn-loop，本模块只提供端口实现。
+  cli-persona-domain，编排在 turn-loop，本模块只提供按冻结 E 绑定的端口实现；
+  轮内应用记录与 `getPersonaTurnApplication` 查询口在 core Runtime。
 - 存储：`openPersonaStore`（cli-persona-store 契约端口），经 `openStore` 选项注入，
   测试可替换；生产不得绕过其迁移/事务语义。
-- 协议/UI：P0 不注册 wire 方法与设置 UI（切片 C）；本模块现无 Host/协议消费方。
+- 协议/UI（切片 C）：协议 server 的控制处理器经 `createPersonaControlPort` 取管理 API
+  （drora-protocol/server-types 的 `personaControl` 依赖，entrypoint 装配）；设置 UI 经
+  Host 服务代理，本模块不感知 UI。

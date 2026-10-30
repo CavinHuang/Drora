@@ -11,8 +11,11 @@
  *   PERSONA_STORAGE_KEYS），不接受 project config 的 storage.dir 或 cwd。
  * - 服务构造与进程绑定不做任何 IO；只有显式管理调用才惰性打开库（打开即迁移）。
  *   getPersonaOverview 在未初始化时如实返回 uninitialized 语义，不暗建会话/身份。
- * - P0b 没有执行许可 E（spec §5，切片 C 才注册）：captureContribution 一律快速返回
- *   omitted(permission_not_granted)，不读库、不起 worker、不吞原 session/provider 错误。
+ * - P0b 切片 C 起执行许可 E 生效（spec §5）：capture 权限判定由进程组合层经
+ *   `capturePortForPermission(personaEnabled)` 冻结进端口——E off 一律快速
+ *   `omitted(permission_not_granted)`，不读库、不起 worker；E on 走真实存储捕获，
+ *   资料未初始化省略且不自动建库（显式 initialize 才建），取消返回 `cancelled`，
+ *   不吞原 session/provider 错误。
  * - 同根多进程共享靠库事务/CAS；本模块不提供内存锁，进程内服务是惰性单例。
  */
 import type {
@@ -22,7 +25,7 @@ import type {
 } from "@drora/core/persona";
 import type { Logger } from "@drora/contracts";
 import type { PersonaStorePort } from "@drora/adapters/storage/persona";
-import { PERSONA_STORAGE_KEYS } from "@drora/shared";
+import { PERSONA_CAPTURE_OMITTED_REASONS, PERSONA_STORAGE_KEYS } from "@drora/shared";
 import { join } from "node:path";
 import type {
   PersonaCoreMutationResult,
@@ -38,11 +41,18 @@ import type {
 } from "@drora/shared";
 
 // ---------------------------------------------------------------------------
-// capture 正常省略原因（合同 §3「正常 omitted reason 与管理错误分开」；P0b 进程内词汇，
-// 执行许可 E 与 wire 能力位属切片 C，届时若需跨进程再进 shared contracts 常量区）
+// capture 正常省略原因（合同 §3「正常 omitted reason 与管理错误分开」）。
+// wire 词汇单一出处（AGENTS.md 契约键单一出处）：字面量只在 shared contracts 的
+// PERSONA_CAPTURE_OMITTED_REASONS 定义一次，本包生产方与 UI 消费方（不能反向 import
+// bootstrap 内部模块）引用同一常量；下面的包内名字是既有装配点/测试的兼容别名。
+// 执行许可 E（切片 C，spec §5）由装配层经 capturePortForPermission 传入：
+// off → permission_not_granted 快速省略（零 IO）；on 时走真实存储捕获，未初始化省略
+// 不建库（显式 initialize 才建），环境故障按 storage 类错误码省略并如实记录。
 // ---------------------------------------------------------------------------
 
-export const PERSONA_CAPTURE_OMITTED_PERMISSION_NOT_GRANTED = "permission_not_granted";
+export const PERSONA_CAPTURE_OMITTED_PERMISSION_NOT_GRANTED =
+  PERSONA_CAPTURE_OMITTED_REASONS.permissionNotGranted;
+export const PERSONA_CAPTURE_OMITTED_COMPILE_FAILED = PERSONA_CAPTURE_OMITTED_REASONS.compileFailed;
 
 // ---------------------------------------------------------------------------
 // 服务端口（合同 §3 方法表的 P0 子集；管理方法以 PersonaManagementResult 值返回封闭
@@ -68,7 +78,9 @@ export interface PersonaAppService {
   ): Promise<PersonaManagementResult<PersonaCoreMutationResult>>;
   /** 本地确定性预览：不写库、不请求模型、同输入同输出。 */
   previewPersona(input: PersonaPreviewInput): Promise<PersonaManagementResult<PersonaPreviewResult>>;
-  /** 内部捕获（合同 §3）；P0b 无执行许可：cancelled/omitted 快速返回，零存储访问。 */
+  /** 内部捕获（合同 §3）：E 门在 capturePortForPermission 端口层；本方法实现真实存储
+   *  捕获路径（未初始化省略不建库；取消 cancelled；超 capture 总预算按 budget_exhausted
+   *  省略；环境故障按错误码省略）。 */
   captureContribution(request: PersonaTurnCaptureRequest): Promise<PersonaCaptureOutcome>;
   /** 关闭已打开的库连接（幂等）。进程生命周期内不要求显式调用；测试用于释放句柄。 */
   close(): Promise<void>;
@@ -79,6 +91,13 @@ export interface PersonaAppServiceOptions {
   readonly dbPath: string;
   /** 业务时间（合同 §1：服务产生 UTC 时间）；缺省 Date.now。 */
   readonly now?: () => number;
+  /**
+   * capture 总预算毫秒（合同 §2「capture 总预算初始 250ms」、spec §6）：打开库+迁移+
+   * 读快照的整个捕获路径限时；超预算按 budget_exhausted 省略扩展、原任务继续（PM16），
+   * 不让慢盘/迁移/worker 卡死无上界延迟首个合格主请求。缺省取
+   * PERSONA_STORE_DEFAULTS.captureBudgetMs。
+   */
+  readonly captureBudgetMs?: number;
   /**
    * 存储端口工厂；缺省 openPersonaStore。测试注入受控实现以演练环境级故障；
    * 生产代码不得用它绕过 cli-persona-store 的迁移/事务语义。
@@ -99,12 +118,41 @@ export interface PersonaSystemBinding {
   readonly logger?: Logger;
 }
 
+/**
+ * 进程组合层工厂：惰性绑定进程级 Persona 系统，返回无会话管理端口（不做任何 IO）。
+ * 协议 server（entrypoint 装配）经它取得控制处理器用的 Persona 服务，不经 AgentRuntime
+ * 取仓储（spec §4）；实现放 persona-system.ts（进程级 holder 的同文件），避免契约模块
+ * 反向依赖组合实现。
+ */
+export interface PersonaControlPortFactory {
+  (binding: PersonaSystemBinding): PersonaControlPort;
+}
+
 export interface DroraPersonaSystem {
   /** 进程内惰性服务单例；构造无 IO，首显式管理调用才打开库。 */
   readonly appService: () => PersonaAppService;
-  /** AgentRuntimeDeps.personaCapturePort 的生产默认装配（P0b 一律 omitted）。 */
-  readonly capturePort: PersonaCapturePort;
+  /**
+   * 按执行许可 E 冻结的捕获端口（spec §5）：每个新建 Runtime 用自己的 E 值绑定一次，
+   * warm Runtime 不重读；普通 fork 由协议启动偏好继承原许可。E off 一律快速
+   * omitted(permission_not_granted)（零 IO、不起 worker）；E on 走真实存储捕获。
+   */
+  readonly capturePortForPermission: (personaEnabled: boolean) => PersonaCapturePort;
 }
+
+/**
+ * 无会话管理的独立组合端口（spec §4「新控制处理器在进程组合层惰性取得 Persona 服务，
+ * 不能通过构造 AgentRuntime 来取得仓储」）：协议 server 的控制处理器只经装配层注入的
+ * 该端口访问管理 API；端口缺席时控制路由不注册、能力位不广告（合同 §3 unsupported）。
+ */
+export type PersonaControlPort = Pick<
+  PersonaAppService,
+  | "getPersonaOverview"
+  | "initializePersona"
+  | "getPersonaCore"
+  | "updatePersonaCore"
+  | "resetPersonaCore"
+  | "previewPersona"
+>;
 
 /**
  * 把可信 CLI 存储根解析为 persona.sqlite 路径（单一出处：shared PERSONA_STORAGE_KEYS；

@@ -204,6 +204,14 @@ export interface AgentRuntimeConfig {
   /** 根 Session runtime 创建时固定；false 只关闭 Bash 的 bfs/ugrep prelude。 */
   nativeSearchEnhancementsEnabled?: boolean;
   memory?: MemoryRuntimeConfig;
+  /**
+   * Persona 执行许可与配置（spec §5）：E 值在 Runtime 新建/cold materialization 时冻结，
+   * warm Runtime 不重新读取；普通 fork 由协议启动偏好继承原值。capture 的权限判定由
+   * bootstrap 装配层把该值传给 capture 端口，core 只经端口感知，不重复存第二份许可事实。
+   */
+  persona?: {
+    enabled?: boolean;
+  };
   /** 历史恢复允许未绑定；只有完整选择才能创建本轮执行 Model。 */
   modelSelection?: ModelSelection;
   titleGeneration?: {

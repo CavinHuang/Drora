@@ -420,3 +420,161 @@ describe("persona runtime turn capture", () => {
     expect(sentinelCount(requests[1]?.messages ?? [])).toBe(1);
   });
 });
+
+describe("persona turn application query (切片 C：getPersonaApplication 的 Runtime 侧三态)", () => {
+  it("reports applied for the settled turn and not_available for any other turnId", async () => {
+    const { calls, port } = createScriptedCapturePort([
+      { status: "applied", contribution: SENTINEL },
+    ]);
+    const runtime = createRuntime({
+      id: "persona-query-applied",
+      config: { mode: "yolo" },
+      deps: { personaCapturePort: port },
+      modelAdapter: {
+        async generateText() {
+          return stopResult("done", 2);
+        },
+      },
+    });
+
+    await runtime.executeTurn("hello");
+
+    const turnId = calls[0]?.turnId;
+    expect(turnId).toBeTruthy();
+    // 当前轮已应用：按 turnId 精确命中。
+    expect(runtime.getPersonaTurnApplication({ turnId })).toEqual({
+      status: "applied",
+      turnId,
+    });
+    // 其余 turnId（更早轮/未知轮）不冒充已应用。
+    expect(runtime.getPersonaTurnApplication({ turnId: "some-other-turn" })).toEqual({
+      status: "not_available",
+    });
+  });
+
+  it("reports omitted with the settled reason for the settled turn", async () => {
+    const { calls, port } = createScriptedCapturePort([
+      { status: "omitted", reason: "permission_not_granted" },
+    ]);
+    const runtime = createRuntime({
+      id: "persona-query-omitted",
+      config: { mode: "yolo" },
+      deps: { personaCapturePort: port },
+      modelAdapter: {
+        async generateText() {
+          return stopResult("done", 2);
+        },
+      },
+    });
+
+    await runtime.executeTurn("hello");
+
+    const turnId = calls[0]?.turnId;
+    expect(runtime.getPersonaTurnApplication({ turnId })).toEqual({
+      status: "omitted",
+      turnId,
+      reason: "permission_not_granted",
+    });
+  });
+
+  it("keeps cancelled out of the application record: turn continues, query answers not_available", async () => {
+    // spec §6「不能将 cancelled 当 omitted 继续请求」：编排层不再把端口侧 cancelled
+    // 记成省略——轮次继续但无贡献，查询口按无记录如实 not_available。
+    const { calls, port } = createScriptedCapturePort([
+      { status: "cancelled", reason: "stale" },
+    ]);
+    const requests: ModelRequest[] = [];
+    const runtime = createRuntime({
+      id: "persona-query-cancelled",
+      config: { mode: "yolo" },
+      deps: { personaCapturePort: port },
+      modelAdapter: {
+        async generateText(request: ModelRequest) {
+          requests.push(request);
+          return stopResult("done", 2);
+        },
+      },
+    });
+
+    const result = await runtime.executeTurn("hello");
+
+    expect(result.response).toBe("done");
+    expect(sentinelCount(requests[0]?.messages ?? [])).toBe(0);
+    const turnId = calls[0]?.turnId;
+    expect(runtime.getPersonaTurnApplication({ turnId })).toEqual({ status: "not_available" });
+  });
+
+  it("records a reason-less omission when the port throws but the turn still runs", async () => {
+    // 端口抛错＝该轮执行过且贡献已省略：如实落 omitted（原因未知），查询口不把
+    // 「执行过且省略」的轮误报成 not_available（合同 §3 三态）。
+    const { calls, port } = createScriptedCapturePort([new Error("worker unavailable")]);
+    const runtime = createRuntime({
+      id: "persona-query-port-throw",
+      config: { mode: "yolo" },
+      deps: { personaCapturePort: port },
+      modelAdapter: {
+        async generateText() {
+          return stopResult("done", 2);
+        },
+      },
+    });
+
+    const result = await runtime.executeTurn("hello");
+
+    expect(result.response).toBe("done");
+    const turnId = calls[0]?.turnId;
+    expect(runtime.getPersonaTurnApplication({ turnId })).toEqual({
+      status: "omitted",
+      turnId,
+    });
+  });
+
+  it("keeps only the latest settled turn: a newer turn supersedes the previous record", async () => {
+    const { calls, port } = createScriptedCapturePort([
+      { status: "applied", contribution: SENTINEL },
+      { status: "omitted", reason: "stale" },
+    ]);
+    const runtime = createRuntime({
+      id: "persona-query-latest",
+      config: { mode: "yolo" },
+      deps: { personaCapturePort: port },
+      modelAdapter: {
+        async generateText() {
+          return stopResult("done", 2);
+        },
+      },
+    });
+
+    await runtime.executeTurn("first");
+    await runtime.executeTurn("second");
+
+    expect(calls).toHaveLength(2);
+    const [firstTurnId, secondTurnId] = calls.map((call) => call.turnId);
+    // 查询口只持有最近一次结算记录：旧轮如实 not_available，不回放历史。
+    expect(runtime.getPersonaTurnApplication({ turnId: firstTurnId })).toEqual({
+      status: "not_available",
+    });
+    expect(runtime.getPersonaTurnApplication({ turnId: secondTurnId })).toEqual({
+      status: "omitted",
+      turnId: secondTurnId,
+      reason: "stale",
+    });
+  });
+
+  it("answers not_available on a fresh runtime for a turnId it never settled (重启不伪造冷历史)", async () => {
+    const runtime = createRuntime({
+      id: "persona-query-fresh",
+      config: { mode: "yolo" },
+      modelAdapter: {
+        async generateText() {
+          return stopResult("done", 2);
+        },
+      },
+    });
+
+    // 无端口的 Runtime（功能关闭）对任何 turnId 都没有内存记录。
+    expect(runtime.getPersonaTurnApplication({ turnId: "cold-turn-after-restart" })).toEqual({
+      status: "not_available",
+    });
+  });
+});

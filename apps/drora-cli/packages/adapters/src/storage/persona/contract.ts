@@ -36,6 +36,12 @@ export const PERSONA_STORE_DEFAULTS = {
   lockWaitTimeoutMs: 100,
   /** 单个管理请求总预算（合同 §2「管理请求总预算初始 5s」）。 */
   adminRequestBudgetMs: 5000,
+  /**
+   * capture 总预算（合同 §2「capture 总预算初始 250ms」、spec §6「运行中不能无限等
+   * worker」）：打开库+迁移+读快照的整个捕获路径限时；超预算按 budget_exhausted 省略
+   * 扩展、原任务继续（PM16）。默认值由服务层（PersonaAppService）消费，本仓储不使用。
+   */
+  captureBudgetMs: 250,
   /** mutation receipt 保留窗口（合同 §2「receipt 保留至少 7 天」）。 */
   receiptRetentionMs: 7 * 24 * 60 * 60 * 1000,
   /** mutation receipt 每 authority 正常上限（合同 §2「正常上限 4,096 条/authority」）。 */

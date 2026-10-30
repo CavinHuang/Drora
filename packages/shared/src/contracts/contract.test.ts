@@ -1,13 +1,23 @@
 import { describe, expect, it } from "vitest";
 import {
+  PERSONA_CAPTURE_OMITTED_REASONS,
   PERSONA_COMPILER_VERSION,
   PERSONA_CORE_LIMITS,
   PERSONA_ERROR_CODES,
+  PERSONA_PROTOCOL_CAPABILITY_CONTROL_V1,
+  PERSONA_PROTOCOL_METHODS,
   PERSONA_RECEIPT_SCOPES,
+  PERSONA_RUNTIME_PREFERENCE_ENABLED,
   PERSONA_STORE_SCHEMA_VERSION,
   PERSONA_STORAGE_KEYS,
   PERSONA_TEMPLATE_VERSION,
 } from "./persona.js";
+import {
+  droraProtocolMethods,
+  droraRuntimeCapabilitiesSchema,
+  droraSessionRuntimePreferencesResultSchema,
+} from "../drora-protocol/index.js";
+import { hostCapabilitiesSchema, hostSupportsPersonaControlV1 } from "../drora-protocol-v4/transport.js";
 import {
   VOICE_BROADCAST_CLAIM_KEY,
   VOICE_INPUT_SOURCE_KIND,
@@ -217,6 +227,44 @@ describe("persona contract constants (Persona P0 切片 B 契约钉住)", () => 
   });
 });
 
+describe("persona protocol literals (切片 C：能力位/偏好键/wire 方法单一出处)", () => {
+  // 合同 §4.1/§3：三层字面量（含 capture 省略原因）只在 shared contracts 常量区声明一次；协议 schema（CLI
+  // runtimeCapabilities、Host hello.capabilities、requestRuntimePreferences 响应）
+  // 与方法表引用同一常量，从两侧消费面反查，防止任何一侧另写。
+  const legacyHello = { nativeDialogs: true, localTerminal: true, binaryFrames: false, compression: "none" } as const;
+
+  it("pins capability/preference keys and the P0 wire method names (合同 §3/§4.1)", () => {
+    expect(PERSONA_PROTOCOL_CAPABILITY_CONTROL_V1).toBe("personaControlV1");
+    expect(PERSONA_RUNTIME_PREFERENCE_ENABLED).toBe("personaEnabled");
+    expect(PERSONA_PROTOCOL_METHODS).toEqual({
+      getOverview: "persona/getPersonaOverview",
+      initialize: "persona/initializePersona",
+      getCore: "persona/getPersonaCore",
+      updateCore: "persona/updatePersonaCore",
+      resetCore: "persona/resetPersonaCore",
+      preview: "persona/previewPersona",
+      getApplication: "persona/getPersonaApplication",
+    });
+    expect(Object.values(droraProtocolMethods).filter((m) => m.startsWith("persona/"))).toEqual(
+      Object.values(PERSONA_PROTOCOL_METHODS),
+    );
+    expect(PERSONA_CAPTURE_OMITTED_REASONS).toEqual({ permissionNotGranted: "permission_not_granted", compileFailed: "compile_failed" });
+  });
+
+  it("keeps the new keys optional for old peers (缺失即不可用/false；helper 只认 === true)", () => {
+    expect(droraRuntimeCapabilitiesSchema.safeParse({}).success).toBe(true);
+    expect(droraRuntimeCapabilitiesSchema.safeParse({ personaControlV1: true }).success).toBe(true);
+    expect(hostCapabilitiesSchema.safeParse(legacyHello).success).toBe(true);
+    expect(hostCapabilitiesSchema.safeParse({ ...legacyHello, personaControlV1: true }).success).toBe(true);
+    expect(hostSupportsPersonaControlV1(hostCapabilitiesSchema.parse(legacyHello))).toBe(false);
+    expect(hostSupportsPersonaControlV1(hostCapabilitiesSchema.parse({ ...legacyHello, personaControlV1: true }))).toBe(true);
+    const preferences = (extra: Record<string, unknown>) =>
+      droraSessionRuntimePreferencesResultSchema.parse({ nativeSearchEnhancementsEnabled: true, ...extra });
+    expect(preferences({ personaEnabled: true }).personaEnabled).toBe(true);
+    expect(preferences({}).personaEnabled).toBeUndefined();
+  });
+});
+
 describe("conversationInputIntentSchema.source with voice member", () => {
   const baseIntent = {
     sourceCommandId: "cmd-1",
@@ -246,9 +294,6 @@ describe("conversationInputIntentSchema.source with voice member", () => {
   });
 
   it("rejects an intent whose source has an unknown kind", () => {
-    expect(
-      conversationInputIntentSchema.safeParse({ ...baseIntent, source: { kind: "nope" } })
-        .success,
-    ).toBe(false);
+    expect(conversationInputIntentSchema.safeParse({ ...baseIntent, source: { kind: "nope" } }).success).toBe(false);
   });
 });

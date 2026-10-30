@@ -292,6 +292,21 @@ modules:
     layers: { app: "." }
     owner: drora
 
+  # Drora 人格设置分区（ui-drora-persona）：身份五字段草稿/CAS/预览/应用情况/E 开关；
+  # 入口由 hello personaControlV1 + 本地桌面门控，边界见 CONTRACT.md。
+  - id: ui-drora-persona
+    roots: [packages/ui/src/drora-persona]
+    managed: true
+    requires: [ui, shared, services]
+    publicEntrypoints:
+      [
+        packages/ui/src/drora-persona/contract.ts,
+        packages/ui/src/drora-persona/PersonaSettingsSection.tsx,
+        packages/ui/src/drora-persona/usePersonaControlAvailability.ts,
+      ]
+    layers: { app: "." }
+    owner: drora
+
   # Agents Team 面板（ui-team）：消费 v4 team 投影的唯一 UI 面；边界见 CONTRACT.md。
   - id: ui-team
     roots: [packages/ui/src/team]

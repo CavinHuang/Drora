@@ -2,6 +2,7 @@ import type { ModelInputMessage } from "@drora/contracts";
 // 版本字面量单一出处是 shared contracts（AGENTS.md）；类型经 typeof 引用同一常量，
 // 升级版本时本契约形状随常量自动演进，不再出现第二份手写字面量。
 import { PERSONA_COMPILER_VERSION, PERSONA_TEMPLATE_VERSION } from "@drora/shared";
+import type { PersonaApplicationResult } from "@drora/shared";
 
 /** Pure, local P0a contract; not a wire schema or execution permission. */
 export interface PersonaCore {
@@ -61,3 +62,15 @@ export type PersonaCaptureOutcome =
 export interface PersonaCapturePort {
   captureContribution(request: PersonaTurnCaptureRequest): Promise<PersonaCaptureOutcome>;
 }
+
+/**
+ * 本 Runtime 最近一次已结算的轮内应用记录（切片 C 的 getPersonaApplication 查询口事实来源）。
+ * 只在存活 Runtime 内存中；重启即消失，查询按 not_available 如实回答（合同 §3「不伪造冷历史」）。
+ */
+export type PersonaSettledTurnApplication = Extract<
+  PersonaApplicationResult,
+  { status: "applied" | "omitted" }
+>;
+
+/** getPersonaApplication 查询（合同 §3）：turnId 不匹配或无记录时如实 not_available。 */
+export type PersonaTurnApplicationQuery = PersonaApplicationResult;

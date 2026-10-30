@@ -2,6 +2,7 @@
 // V4 connection-scoped service facade：每个 RPC attachment 独立持有 subscription
 // ownership；base service 仍只转发 CLI 事实，不在 host/main/relay 复制业务状态。
 import { Emitter, Event as RpcEvent, type Event, type IDisposable } from "@drora/rpc";
+import { PERSONA_PROTOCOL_CAPABILITY_CONTROL_V1 } from "@drora/shared";
 import {
   V4_WIRE_PROTOCOL_VERSION,
   clientHelloSchema,
@@ -225,6 +226,10 @@ function createHello(context: DroraAgentV4ConnectionContext): HelloMessage {
       // （那个 capabilities 是 .strict() 的，反过来会让老 Host 握不上手）。
       workflowRunDeltas: true,
       historyFirst: true,
+      // Persona 管理路由广告位（spec §10、合同 §4.1）：true 只表示本 Host 注册了管理路由，
+      // UI 仍须由 overview 确认目标本地 CLI 的支持和服务状态。P0/P1 对手机/远端连接
+      // （web-remote-replayable）不广告——本位沿连接类型判断，只在 desktop-continuous 出现。
+      ...(continuous ? { [PERSONA_PROTOCOL_CAPABILITY_CONTROL_V1]: true } : {}),
     },
     auth: {},
   };

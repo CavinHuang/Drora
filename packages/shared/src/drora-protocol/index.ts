@@ -55,6 +55,15 @@ export * from "../background-bash-output.js";
 export * from "../process-diagnostic.js";
 export { attachmentSourceKindSchema, type AttachmentSourceKind } from "../attachment-source.js";
 import { PROTOCOL_V4_LIMITS } from "../drora-protocol-v4/core.js";
+// Persona P0 契约键单一出处（AGENTS.md）：能力位/偏好键/方法 wire 名引用 contracts 常量，
+// 不在本文件另写字面量（合同 §4.1）。
+import {
+  PERSONA_ERROR_CODES,
+  PERSONA_PROTOCOL_CAPABILITY_CONTROL_V1,
+  PERSONA_PROTOCOL_METHODS,
+  PERSONA_RUNTIME_PREFERENCE_ENABLED,
+  type PersonaErrorCode,
+} from "../contracts/persona.js";
 
 export const droraTopicResourceReadParamsSchema = z
   .object({
@@ -138,6 +147,10 @@ export const DRORA_PROTOCOL_V4_WIRE_VERSION = 3 as const;
 export const droraRuntimeCapabilitiesSchema = z.object({
   historyFirst: z.boolean().optional(),
   independentPlanState: z.boolean().optional(),
+  // Persona 控制合同 v1（合同 §4.1）：CLI 仅在 persona 控制路由已注册时为 true；
+  // 缺失/method-not-found/断线一律视为不可用，原会话继续，不试发 persona 方法。
+  // 键引用 contracts 常量，与 Host↔UI 的 hello.capabilities 同一字面量。
+  [PERSONA_PROTOCOL_CAPABILITY_CONTROL_V1]: z.boolean().optional(),
 });
 export const droraProtocolErrorCodes = {
   sessionUnavailable: -32004,
@@ -2099,6 +2112,9 @@ export const droraSessionRuntimePreferencesResultSchema = z
     modelContextBudgetStrategy: droraModelContextBudgetStrategySchema.default(
       DEFAULT_DRORA_MODEL_CONTEXT_BUDGET_STRATEGY,
     ),
+    // 执行许可 E（spec §5）：新 Host 确认 CLI 的 personaControlV1 能力后才附加；
+    // 旧 CLI 不收到该字段，新 CLI 对缺失值按 false（`=== true` 判定，缺省即关闭）。
+    [PERSONA_RUNTIME_PREFERENCE_ENABLED]: z.boolean().optional(),
   })
   .strict();
 export type DroraSessionRuntimePreferencesResult = z.infer<
@@ -4184,6 +4200,171 @@ export const droraKnowledgeSearchResultSchema = z
   .strict();
 export type DroraKnowledgeSearchProtocolResult = z.infer<typeof droraKnowledgeSearchResultSchema>;
 
+// ── Persona P0 管理方法（spec §4/§10、合同 §3/§4.1；wire 名单一出处 contracts/persona.ts）──
+// 无会话管理：方法在 CLI 协议 server 注册，经 Host 的 CLI 控制连接代理；不 session/create、
+// 不生成占位会话；控制域由服务绑定，params 不接受任意文件路径/dataRoot。未知字段拒绝（strict）。
+// 管理结果统一 PersonaManagementResult 信封（ok/value | ok/code），code 取 contracts
+// PERSONA_ERROR_CODES 封闭枚举；capture 的正常 omitted reason 不走管理错误通道。
+
+const personaErrorCodeSchema = z.enum(
+  Object.values(PERSONA_ERROR_CODES) as [PersonaErrorCode, ...PersonaErrorCode[]],
+);
+
+function personaManagementResultSchema<Value extends z.ZodType>(value: Value) {
+  return z.union([
+    z.object({ ok: z.literal(true), value }).strict(),
+    z.object({ ok: z.literal(false), code: personaErrorCodeSchema }).strict(),
+  ]);
+}
+
+const personaEditableCoreSchema = z
+  .object({
+    displayName: z.string(),
+    selfDescription: z.string(),
+    warmth: z.enum(["restrained", "balanced", "warm"]),
+    directness: z.enum(["gentle", "balanced", "direct"]),
+    humor: z.enum(["off", "light"]),
+  })
+  .strict();
+
+const personaOverviewSchema = z.union([
+  z
+    .object({
+      state: z.literal("initialized"),
+      personaId: z.string().min(1),
+      schemaVersion: z.number().int().nonnegative(),
+      coreRevision: z.number().int().nonnegative(),
+      templateVersion: z.number().int().nonnegative(),
+      compilerVersion: z.number().int().nonnegative(),
+    })
+    .strict(),
+  z.object({ state: z.literal("uninitialized") }).strict(),
+]);
+
+const personaCoreSnapshotSchema = z.union([
+  z
+    .object({
+      state: z.literal("current"),
+      coreRevision: z.number().int().nonnegative(),
+      core: personaEditableCoreSchema,
+      template: z
+        .object({
+          templateVersion: z.number().int().nonnegative(),
+          compilerVersion: z.number().int().nonnegative(),
+          identityStatement: z.string(),
+          principles: z.array(z.string()),
+          capabilityHonesty: z.string(),
+          relationshipBoundary: z.string(),
+        })
+        .strict(),
+    })
+    .strict(),
+  z
+    .object({
+      state: z.literal("built_in_preview"),
+      core: personaEditableCoreSchema,
+      template: z
+        .object({
+          templateVersion: z.number().int().nonnegative(),
+          compilerVersion: z.number().int().nonnegative(),
+          identityStatement: z.string(),
+          principles: z.array(z.string()),
+          capabilityHonesty: z.string(),
+          relationshipBoundary: z.string(),
+        })
+        .strict(),
+    })
+    .strict(),
+]);
+
+const personaCoreMutationResultSchema = z.union([
+  z
+    .object({ status: z.literal("saved"), coreRevision: z.number().int().nonnegative() })
+    .strict(),
+  z.object({ status: z.literal("unchanged") }).strict(),
+]);
+
+const personaInitializeResultSchema = z.intersection(
+  personaOverviewSchema,
+  z.object({ status: z.enum(["created", "unchanged"]) }).strict(),
+);
+
+const personaPreviewResultSchema = z
+  .object({
+    text: z.string(),
+    templateVersion: z.number().int().nonnegative(),
+    compilerVersion: z.number().int().nonnegative(),
+  })
+  .strict();
+
+export const droraPersonaGetOverviewParamsSchema = z.object({}).strict();
+export const droraPersonaGetOverviewResultSchema = personaManagementResultSchema(
+  personaOverviewSchema,
+);
+export type DroraPersonaOverviewResult = z.infer<typeof droraPersonaGetOverviewResultSchema>;
+
+export const droraPersonaInitializeParamsSchema = z
+  .object({ mutationId: nonEmptyString })
+  .strict();
+export const droraPersonaInitializeResultSchema = personaManagementResultSchema(
+  personaInitializeResultSchema,
+);
+export type DroraPersonaInitializeResult = z.infer<typeof droraPersonaInitializeResultSchema>;
+
+export const droraPersonaGetCoreParamsSchema = z.object({}).strict();
+export const droraPersonaGetCoreResultSchema =
+  personaManagementResultSchema(personaCoreSnapshotSchema);
+export type DroraPersonaCoreResult = z.infer<typeof droraPersonaGetCoreResultSchema>;
+
+export const droraPersonaUpdateCoreParamsSchema = z
+  .object({
+    expectedRevision: z.number().int().nonnegative(),
+    patch: personaEditableCoreSchema.partial(),
+    mutationId: nonEmptyString,
+  })
+  .strict();
+export const droraPersonaUpdateCoreResultSchema =
+  personaManagementResultSchema(personaCoreMutationResultSchema);
+export type DroraPersonaCoreMutationResult = z.infer<typeof droraPersonaUpdateCoreResultSchema>;
+
+export const droraPersonaResetCoreParamsSchema = z
+  .object({
+    expectedRevision: z.number().int().nonnegative(),
+    mutationId: nonEmptyString,
+  })
+  .strict();
+export const droraPersonaResetCoreResultSchema = droraPersonaUpdateCoreResultSchema;
+
+export const droraPersonaPreviewParamsSchema = z
+  .object({
+    draft: personaEditableCoreSchema,
+    situationId: nonEmptyString.optional(),
+  })
+  .strict();
+export const droraPersonaPreviewResultSchema =
+  personaManagementResultSchema(personaPreviewResultSchema);
+export type DroraPersonaPreviewResult = z.infer<typeof droraPersonaPreviewResultSchema>;
+
+// 独立应用状态查询（合同 §3 getPersonaApplication）：sessionId+turnId 寻址当前 Runtime；
+// 重启后无内存记录即 not_available，不伪造冷历史。Host 代理走该会话的 CLI 连接。
+export const droraPersonaGetApplicationParamsSchema = z
+  .object({ sessionId: nonEmptyString, turnId: nonEmptyString })
+  .strict();
+export const droraPersonaGetApplicationResultSchema = z
+  .object({
+    status: z.enum(["applied", "omitted", "not_available"]),
+    turnId: nonEmptyString.optional(),
+    reason: z.string().max(256).optional(),
+  })
+  .strict();
+export type DroraPersonaGetApplicationParams = z.infer<
+  typeof droraPersonaGetApplicationParamsSchema
+>;
+export type DroraPersonaGetApplicationResult = z.infer<
+  typeof droraPersonaGetApplicationResultSchema
+>;
+
+
 export const droraProtocolMethods = {
   runtimeCapabilities: "runtime/capabilities",
   computerUseOperationEvent: "computer-use/operation-event",
@@ -4320,6 +4501,15 @@ export const droraProtocolMethods = {
   // agent 只读 vault 检索（VaultSearch 工具，obsidian-knowledge.md §5f）：CLI→host，
   // host 分发到进程内 knowledge query 服务；无 knowledge 服务的 host 结构化报不可用。
   knowledgeSearch: "knowledge/search",
+  // Persona P0 无会话管理（spec §4/§10、合同 §3/§4.1）：Host 经 CLI 控制连接代理，
+  // 不 session/create、不生成占位会话；wire 名单一出处 contracts/persona.ts。
+  personaGetOverview: PERSONA_PROTOCOL_METHODS.getOverview,
+  personaInitialize: PERSONA_PROTOCOL_METHODS.initialize,
+  personaGetCore: PERSONA_PROTOCOL_METHODS.getCore,
+  personaUpdateCore: PERSONA_PROTOCOL_METHODS.updateCore,
+  personaResetCore: PERSONA_PROTOCOL_METHODS.resetCore,
+  personaPreview: PERSONA_PROTOCOL_METHODS.preview,
+  personaGetApplication: PERSONA_PROTOCOL_METHODS.getApplication,
 } as const;
 
 export type DroraProtocolMethod = (typeof droraProtocolMethods)[keyof typeof droraProtocolMethods];

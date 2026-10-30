@@ -1,4 +1,5 @@
 import type { KnowledgeJevProvider } from "./knowledge-jev.js";
+import { PERSONA_RUNTIME_PREFERENCE_ENABLED } from "./contracts/persona.js";
 import type { RemoteAssetInstallMode } from "./remoteAssetInstallMode.js";
 import type { RemoteResourcePackageSelection } from "./remoteResourcePackages.js";
 import type { ProviderFamilyDomain } from "./model-provider-family.js";
@@ -393,6 +394,13 @@ export interface AppSettings {
   toolSearchMode?: AppToolSearchMode;
   /** 新建或冷恢复 Session 是否启用 Memory；默认关闭。 */
   memoryEnabled?: boolean;
+  /**
+   * Persona 执行许可 E（specs/drora-persona-system.md §5；键字面量单一出处
+   * contracts PERSONA_RUNTIME_PREFERENCE_ENABLED）。默认 false；只在 Runtime 新建或
+   * cold materialization 冻结，warm Runtime 不重读；UI 文案必须说明「用于新建或真正
+   * 重新加载的会话」，不得显示「当前会话已关闭」。
+   */
+  [PERSONA_RUNTIME_PREFERENCE_ENABLED]?: boolean;
   onboardingOccupation?:
     | "office"
     | "developer"

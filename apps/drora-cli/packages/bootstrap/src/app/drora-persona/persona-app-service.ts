@@ -16,8 +16,10 @@
  *   PersonaStoreError 按 code 映射；未知异常归类 storage_unavailable 并记固定类别日志
  *   （只记类别/操作/耗时，不落个人正文）。不抛裸字符串。
  * - 预览零副作用：previewPersona 不触碰存储端口、不请求模型（PM20「preview 不写执行」）。
- * - P0b 捕获：无执行许可 E（spec §5，切片 C 注册）——captureContribution 一律快速省略，
- *   不得读库、不得起 worker；原 session/provider/权限错误不经本服务吞掉。
+ * - 捕获（切片 C 起）：本方法实现 E on 的真实存储捕获路径——未初始化省略不建库、取消返回
+ *   cancelled、超 capture 总预算（合同 §2 初始 250ms，PERSONA_STORE_DEFAULTS.captureBudgetMs）
+ *   按 budget_exhausted 省略、环境故障按封闭错误码省略；E off 的零 IO 快速省略在
+ *   persona-system.ts 的 capturePortForPermission 端口层冻结，不经本方法。
  */
 import { createHash } from "node:crypto";
 import type {
@@ -32,8 +34,10 @@ import {
 import {
   isPersonaStoreError,
   openPersonaStore,
+  PERSONA_STORE_DEFAULTS,
   PersonaStoreError,
   type PersonaStorePort,
+  type PersonaStoreSnapshot,
 } from "@drora/adapters/storage/persona";
 import {
   PERSONA_ERROR_CODES,
@@ -52,7 +56,7 @@ import {
   type PersonaUpdateCoreInput,
 } from "@drora/shared";
 import {
-  PERSONA_CAPTURE_OMITTED_PERMISSION_NOT_GRANTED,
+  PERSONA_CAPTURE_OMITTED_COMPILE_FAILED,
   type PersonaAppService,
   type PersonaAppServiceOptions,
 } from "./contract.js";
@@ -99,6 +103,38 @@ function isValidMutationId(mutationId: unknown): mutationId is string {
   );
 }
 
+/**
+ * capture 总预算竞速（合同 §2「capture 总预算初始 250ms」、spec §6「运行中不能无限等
+ * worker」）：预算先到返回 { settled: false }，操作先到返回其值。预算获胜时底层操作
+ * 可能仍在挂起——给它的 promise 挂 no-op catch，避免迟到的打开/迁移失败变成
+ * unhandled rejection；其结果（无论成败）不再被消费：预算外的迟到快照不进本轮请求，
+ * 同轮迟到的身份突然出现会违反「omitted 终局」（spec §6）。
+ */
+async function raceWithinCaptureBudget<T>(
+  budgetMs: number,
+  operation: () => Promise<T>,
+): Promise<{ settled: true; value: T } | { settled: false }> {
+  if (!Number.isFinite(budgetMs) || budgetMs <= 0) {
+    return { settled: true, value: await operation() };
+  }
+  let clearBudgetTimer = (): void => {};
+  const budgetElapsed = new Promise<{ settled: false }>((resolve) => {
+    const timer = setTimeout(() => resolve({ settled: false }), budgetMs);
+    clearBudgetTimer = () => clearTimeout(timer);
+  });
+  const operationOutcome = operation();
+  try {
+    return await Promise.race([
+      budgetElapsed,
+      operationOutcome.then((value) => ({ settled: true as const, value })),
+    ]);
+  } finally {
+    clearBudgetTimer();
+    // 预算先到时操作仍在挂起：吞掉其迟到失败，避免 unhandled rejection。
+    void operationOutcome.catch(() => {});
+  }
+}
+
 function isExpectedRevision(value: unknown): value is number {
   return typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
 }
@@ -115,6 +151,7 @@ function isCorePatch(value: unknown): value is PersonaCorePatch {
 export class PersonaAppServiceImpl implements PersonaAppService {
   private readonly dbPath: string;
   private readonly now: () => number;
+  private readonly captureBudgetMs: number;
   private readonly openStore: (dbPath: string) => Promise<PersonaStorePort>;
   private readonly logger: PersonaAppServiceOptions["logger"];
   private store: PersonaStorePort | undefined;
@@ -129,6 +166,8 @@ export class PersonaAppServiceImpl implements PersonaAppService {
     }
     this.dbPath = options.dbPath;
     this.now = options.now ?? Date.now;
+    // capture 总预算缺省取 adapters 合同的初始值（合同 §2），不在此手写字面量。
+    this.captureBudgetMs = options.captureBudgetMs ?? PERSONA_STORE_DEFAULTS.captureBudgetMs;
     this.openStore =
       options.openStore ?? ((path) => openPersonaStore({ dbPath: path }));
     this.logger = options.logger;
@@ -324,12 +363,52 @@ export class PersonaAppServiceImpl implements PersonaAppService {
     if (request.signal.aborted) {
       return { status: "cancelled" };
     }
-    // P0b 没有执行许可 E（spec §5；切片 C 才注册可信许可来源）：生产捕获一律快速省略，
-    // 不读库、不起 worker。人格故障只降级扩展，本路径不会产生也不会吞原执行错误。
-    return {
-      status: "omitted",
-      reason: PERSONA_CAPTURE_OMITTED_PERMISSION_NOT_GRANTED,
-    };
+    // 执行许可 E 的门在 capturePortForPermission 端口层（persona-system.ts，装配时冻结）；
+    // 到达这里即 E on：走真实存储捕获。资料未初始化省略且不自动建库——显式 initialize 才建
+    // （合同 §3/PM55：明确默认预览与不可用区别，不暗建身份）。管理域语义照旧：schema_incompatible
+    // 是进程内终态、环境故障按封闭错误码省略，原 session/provider 错误不经本服务。
+    const startedAt = Date.now();
+    try {
+      // capture 总预算（合同 §2）：打开库+迁移+读快照整体限时；超预算按 budget_exhausted
+      // 省略扩展、原任务继续（PM16），首个合格主请求不被慢盘/迁移/worker 卡死无上界延迟。
+      // 竞速在 try 内：操作先于预算失败时仍走下方封闭错误码映射（原语义）。
+      const raced = await raceWithinCaptureBudget(this.captureBudgetMs, () =>
+        this.readCaptureSnapshot(),
+      );
+      if (!raced.settled) {
+        this.logger?.warn("persona capture exceeded its total budget; omitting extension", {
+          budgetMs: this.captureBudgetMs,
+          durationMs: Date.now() - startedAt,
+          event: "persona.capture.budget_exhausted",
+          module: "drora-persona",
+        });
+        return { status: "omitted", reason: PERSONA_ERROR_CODES.budgetExhausted };
+      }
+      const snapshot = raced.value;
+      if (snapshot.state === "uninitialized") {
+        return { status: "omitted", reason: PERSONA_ERROR_CODES.uninitialized };
+      }
+      const compiled = compilePersonaCore(snapshot.core.core, snapshot.core.coreRevision);
+      if (compiled.status === "invalid") {
+        // 已存自定义核心编译失败（模板/编译器版本漂移）：只省略扩展，不静默换默认身份（spec §6）。
+        this.logger?.warn("persona capture omitted: stored core failed to compile", {
+          event: "persona.capture.compile_failed",
+          field: compiled.field,
+          module: "drora-persona",
+        });
+        return { status: "omitted", reason: PERSONA_CAPTURE_OMITTED_COMPILE_FAILED };
+      }
+      return { status: "applied", contribution: compiled.contribution };
+    } catch (error) {
+      // 故障只省略扩展（spec §6、PM16）；日志只记固定类别，不落个人正文。
+      const code = isPersonaStoreError(error) ? error.code : PERSONA_ERROR_CODES.storageUnavailable;
+      this.logger?.warn("persona capture omitted by storage failure", {
+        code,
+        event: "persona.capture.storage_failed",
+        module: "drora-persona",
+      });
+      return { status: "omitted", reason: code };
+    }
   }
 
   async close(): Promise<void> {
@@ -345,6 +424,11 @@ export class PersonaAppServiceImpl implements PersonaAppService {
   // ---------------------------------------------------------------------------
   // 惰性存储与错误通道
   // ---------------------------------------------------------------------------
+
+  /** capture 路径的存储读取（受 captureBudgetMs 总预算竞速包裹）。 */
+  private readCaptureSnapshot(): Promise<PersonaStoreSnapshot> {
+    return this.requireStore().then((store) => store.readSnapshot());
+  }
 
   private requireStore(): Promise<PersonaStorePort> {
     if (this.closed) {

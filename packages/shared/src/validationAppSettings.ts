@@ -6,6 +6,7 @@ import {
   desktopPetCornerSchema,
 } from "./desktopPet.js";
 import { appToolSearchModeSchema } from "./app-runtime-preferences.js";
+import { PERSONA_RUNTIME_PREFERENCE_ENABLED } from "./contracts/persona.js";
 import type { AppSettings } from "./protocol.js";
 import { REMOTE_ASSET_INSTALL_MODES } from "./remoteAssetInstallMode.js";
 import { isKnownRemoteResourcePackageId } from "./remoteResourcePackages.js";
@@ -593,6 +594,9 @@ const appSettingsObjectSchema = z.object({
   onboardingOccupation: appSettingsOccupationSchema.nullish(),
   proactiveSuggestionsEnabled: z.boolean().optional(),
   memoryEnabled: z.boolean().default(false),
+  // Persona 执行许可 E（specs/drora-persona-system.md §5）：原 Settings 保存，默认 false；
+  // 只在 Runtime 新建/cold materialization 冻结，warm 不重读。键引用 contracts 常量单一出处。
+  [PERSONA_RUNTIME_PREFERENCE_ENABLED]: z.boolean().default(false),
   lastWorkspaceSession: z.array(appWorkspaceSessionEntrySchema).default([]),
   lastActiveWorkspace: appWorkspaceSessionEntrySchema.nullable().optional(),
   remoteConversationWorkspaceBySourceServerId: z
@@ -740,6 +744,8 @@ export const appSettingsPatchSchema = z.object({
     .nullish(),
   proactiveSuggestionsEnabled: z.boolean().optional(),
   memoryEnabled: z.boolean().optional(),
+  // Persona 执行许可 E 的更新补丁（全可选；默认 false 在完整 schema 拥有）。
+  [PERSONA_RUNTIME_PREFERENCE_ENABLED]: z.boolean().optional(),
   lastWorkspaceSession: z.array(appWorkspaceSessionEntrySchema).optional(),
   lastActiveWorkspace: appWorkspaceSessionEntrySchema.nullable().optional(),
   remoteConversationWorkspaceBySourceServerId: z

@@ -4,6 +4,7 @@ import { localTtftFactsSchema } from "../localTtft.js";
 // 阶段为类型占位（后半接通道层时启用），数据形状已按规范定稿。
 import { z } from "zod";
 import { APP_USAGE_RANGES, appUsageSnapshotSchema } from "../usage-stats.js";
+import { PERSONA_PROTOCOL_CAPABILITY_CONTROL_V1 } from "../contracts/persona.js";
 import { droraWorkspaceRefSchema } from "../drora-protocol-legacy-types.js";
 import {
   PROTOCOL_V4_LIMITS,
@@ -36,6 +37,9 @@ export const hostCapabilitiesSchema = z.object({
    */
   workflowRunDeltas: z.boolean().optional(),
   historyFirst: z.boolean().optional(),
+  // Persona 管理路由广告位（合同 §4.1）：非 strict 对象的可选布尔；P0/P1 对手机/远端
+  // 连接不广告。键引用 contracts 常量，与 CLI↔Host runtimeCapabilities 同一字面量。
+  [PERSONA_PROTOCOL_CAPABILITY_CONTROL_V1]: z.boolean().optional(),
 });
 export type HostCapabilities = z.infer<typeof hostCapabilitiesSchema>;
 
@@ -105,6 +109,16 @@ export function hostSupportsWorkflowRunDeltas(capabilities: HostCapabilities): b
 
 export function clientSupportsWorkflowRunDeltas(clientHello: ClientHello): boolean {
   return clientHello.capabilities?.workflowRunDeltas === true;
+}
+
+/**
+ * Persona 控制路由广告位（合同 §4.1）：true 只表示 Host 注册了 persona 管理路由，
+ * 不是启用、授权、资料健康或已应用状态；UI 仍须由 overview 确认目标本地 CLI 的支持
+ * 和服务状态。键字面量单一出处 contracts PERSONA_PROTOCOL_CAPABILITY_CONTROL_V1。
+ * Wire-compatible：旧 Host 缺失等价于 false；调用方必须用 === true 判断。
+ */
+export function hostSupportsPersonaControlV1(capabilities: HostCapabilities): boolean {
+  return capabilities[PERSONA_PROTOCOL_CAPABILITY_CONTROL_V1] === true;
 }
 
 // ── §3.1 订阅 ──

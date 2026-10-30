@@ -308,6 +308,25 @@ describe("DroraAgent connection-scoped service facade", () => {
       capabilities: { workspaceHookReview: true },
     });
   });
+
+  // Persona 管理路由广告位（spec §10、合同 §4.1）：true 只表示 Host 注册了管理路由；
+  // P0/P1 对手机/远端连接（web-remote-replayable）不广告——沿连接类型判断。
+  it("hello 的 personaControlV1 只在 desktop-continuous 出现，手机/远端连接不广告", async () => {
+    const { base } = setupBase();
+    const desktop = createDroraAgentConnectionScope(base, {
+      connectionId: "persona-desktop-hello",
+      clientMode: "desktop-continuous",
+    });
+    const mobile = createDroraAgentConnectionScope(base, {
+      connectionId: "persona-mobile-hello",
+      clientMode: "web-remote-replayable",
+    });
+
+    const desktopHello = await desktop.service.helloConversationV4();
+    expect(desktopHello.capabilities).toMatchObject({ personaControlV1: true });
+    const mobileHello = await mobile.service.helloConversationV4();
+    expect(mobileHello.capabilities).not.toHaveProperty("personaControlV1");
+  });
   // 增量能力是一条**单向**握手（shared transport.ts）：Host 先在 hello 里宣告，客户端才敢在
   // `.strict()` 的 clientHello capabilities 里回声明；host 再把这条连接的声明当可信位注入订阅。
   it("hello 宣告 workflowRunDeltas，clientHello 声明后才成为订阅上的可信位", async () => {

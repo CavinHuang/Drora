@@ -68,6 +68,7 @@ describe("cli-persona-store contract", () => {
   it("默认预算/容量钉在合同 §2 初始值；阈值调整必须显式改这里", () => {
     expect(PERSONA_STORE_DEFAULTS.lockWaitTimeoutMs).toBe(100);
     expect(PERSONA_STORE_DEFAULTS.adminRequestBudgetMs).toBe(5000);
+    expect(PERSONA_STORE_DEFAULTS.captureBudgetMs).toBe(250);
     expect(PERSONA_STORE_DEFAULTS.receiptRetentionMs).toBe(7 * 24 * 60 * 60 * 1000);
     expect(PERSONA_STORE_DEFAULTS.receiptMaxPerAuthority).toBe(4096);
     expect(PERSONA_STORE_SCHEMA_VERSION).toBe(1);

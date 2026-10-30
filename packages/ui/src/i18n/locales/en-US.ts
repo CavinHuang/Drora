@@ -3339,6 +3339,107 @@ const enUS: Record<string, string> = {
     "Use enhanced Find and Grep in new sessions and sessions restored after an app restart. Active sessions keep their current setting; Find remains unchanged on Windows.",
   "settings.memory": "Memory",
   "settings.memory.workspaceMemory": "Workspace Memory",
+  // Drora persona section (specs/drora-persona-system.md §10): saved / applied /
+  // unavailable are three different facts; copy must not conflate them. The E switch
+  // must say "applies to new or truly reloaded sessions".
+  "settings.drora.title": "Drora Persona",
+  "settings.drora.loading": "Loading Drora persona…",
+  "settings.drora.unavailable": "Persona management is not supported on this connection.",
+  "settings.drora.retry": "Retry",
+  "settings.drora.refresh": "Reload",
+  "settings.drora.execution.label": "Enable Drora persona in sessions",
+  "settings.drora.execution.description":
+    "Applies to new or truly reloaded sessions. Sessions already open keep the permission they were started with and are not changed by this switch.",
+  "settings.drora.execution.privacy":
+    "When enabled, Drora's personalized content is sent to the currently selected model and may be retained with the original diagnostics.",
+  "settings.drora.identity.title": "Identity",
+  "settings.drora.identity.description":
+    "Only the five controlled fields below are editable. Identity, principles and boundaries come from the product template and can be reviewed in the preview; free-form prompt editing is not available.",
+  "settings.drora.identity.savedRevision": "Saved version: revision {revision}",
+  "settings.drora.identity.uninitialized": "Not initialized yet; the built-in product persona is in use",
+  "settings.drora.identity.initialize": "Initialize persona",
+  "settings.drora.identity.initializing": "Initializing…",
+  "settings.drora.identity.initializeHint":
+    "Custom fields can be saved after initialization. Opening this page alone neither initializes nor enables execution.",
+  "settings.drora.identity.displayName": "Name",
+  "settings.drora.identity.displayNameDescription":
+    "The name Drora uses for itself in conversations.",
+  "settings.drora.identity.selfDescription": "Self description",
+  "settings.drora.identity.selfDescriptionDescription":
+    "Used as material, not instructions: describe how you want Drora to position itself. Leave empty to use the template's self positioning.",
+  "settings.drora.identity.warmth": "Warmth",
+  "settings.drora.identity.warmthDescription": "How close the conversation feels.",
+  "settings.drora.identity.warmth.restrained": "Restrained",
+  "settings.drora.identity.warmth.balanced": "Balanced",
+  "settings.drora.identity.warmth.warm": "Warm",
+  "settings.drora.identity.directness": "Directness",
+  "settings.drora.identity.directnessDescription":
+    "How directly conclusions and disagreements are stated.",
+  "settings.drora.identity.directness.gentle": "Gentle",
+  "settings.drora.identity.directness.balanced": "Balanced",
+  "settings.drora.identity.directness.direct": "Direct",
+  "settings.drora.identity.humor": "Humor",
+  "settings.drora.identity.humorDescription": "How much light-hearted expression is allowed.",
+  "settings.drora.identity.humor.off": "Off",
+  "settings.drora.identity.humor.light": "Light",
+  "settings.drora.identity.counter": "{count}/{max}",
+  "settings.drora.identity.save": "Save",
+  "settings.drora.identity.saving": "Saving…",
+  "settings.drora.identity.cancel": "Discard changes",
+  "settings.drora.identity.resetDefaults": "Restore product defaults",
+  "settings.drora.identity.resetting": "Restoring…",
+  "settings.drora.notice.saved":
+    "Saved. Takes effect on the next new turn; turns already in progress are not rewritten.",
+  "settings.drora.notice.unchanged": "Content unchanged; no new revision was created.",
+  "settings.drora.notice.initialized": "Persona initialized.",
+  "settings.drora.notice.conflict":
+    "Save conflict: the service already has a newer version. Your draft was kept; compare and choose to keep or discard it.",
+  "settings.drora.notice.uninitialized":
+    "The persona is not initialized yet. Initialize it before saving.",
+  "settings.drora.notice.code": "Operation failed ({code}).",
+  "settings.drora.notice.rpc": "Operation failed: {message}",
+  "settings.drora.notice.outcomeUnknown":
+    "Save outcome is unknown (outcome_unknown): the result was not confirmed. Saving again reuses the same mutation id for an idempotent replay instead of writing twice; edit the content first if you want to abandon it.",
+  "settings.drora.divergence.title": "The service has a newer version",
+  "settings.drora.divergence.description":
+    "The saved version is revision {latest}; your draft is based on revision {base}. Keep editing the draft, or discard it and load the latest.",
+  "settings.drora.divergence.savedValue": "Saved",
+  "settings.drora.divergence.draftValue": "Draft",
+  "settings.drora.divergence.keepDraft": "Keep draft and continue editing",
+  "settings.drora.divergence.discardDraft": "Discard draft and load latest",
+  "settings.drora.reset.confirmTitle": "Restore product defaults?",
+  "settings.drora.reset.confirmDescription":
+    "The five fields will be reset to the product defaults and a new revision is created. This does not change the execution permission, communication defaults or other settings.",
+  "settings.drora.reset.confirmAction": "Restore defaults",
+  "settings.drora.preview.title": "Preview",
+  "settings.drora.preview.disclaimer":
+    "Deterministic compilation of the local template; no model requests. The preview is not a guarantee of actual output.",
+  "settings.drora.preview.empty": "Generating preview…",
+  "settings.drora.preview.failed": "Preview failed ({code}).",
+  "settings.drora.application.title": "Application status",
+  "settings.drora.application.savedVersion":
+    "Saved version: revision {revision} (template v{template})",
+  "settings.drora.application.savedVersionHint":
+    "Saving only updates the material; sessions apply it when a new turn is captured. Turns already frozen stay unchanged.",
+  "settings.drora.application.uninitialized":
+    "Not initialized yet; sessions use the built-in product persona while executing.",
+  "settings.drora.application.turnTitle": "Application status of a specific session/turn",
+  "settings.drora.application.turnDescription":
+    "Check whether the specified session and turn applied the Drora persona while executing. Execution records exist only at runtime and show as not applied after a restart.",
+  "settings.drora.application.sessionPlaceholder": "Session ID",
+  "settings.drora.application.turnPlaceholder": "Turn ID",
+  "settings.drora.application.query": "Check",
+  "settings.drora.application.applied": "Applied",
+  "settings.drora.application.omittedWithReason": "Omitted: {reason}",
+  "settings.drora.application.notApplied": "Not applied (no available execution record)",
+  "settings.drora.application.omittedReasonPermission": "Execution permission not granted",
+  "settings.drora.application.omittedReasonUninitialized": "Persona not initialized",
+  "settings.drora.application.omittedReasonCompileFailed":
+    "Stored persona failed to compile (this turn used the built-in product persona)",
+  "settings.drora.application.omittedReasonUnknown": "Unknown reason",
+  "settings.drora.application.queryFailed": "Query failed: {message}",
+  "settings.drora.application.noWorkspace":
+    "Open a local workspace to check session application status.",
   "settings.memoryDescription":
     "Save and reuse long-term context in workspaces. Applies to new sessions and may increase model requests and token costs.",
   "settings.memory.viewer.disabled": "Enable Workspace Memory to view saved memories.",

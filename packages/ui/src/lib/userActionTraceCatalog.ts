@@ -97,6 +97,11 @@ export const SETTINGS_USER_ACTION_FEATURES = {
     "keep_persona_draft",
     "discard_persona_draft",
     "query_persona_application",
+    // P1a 交流默认与导出（spec §9/§10）：偏好保存/忘记、U 使用许可切换与只读导出。
+    "save_persona_preference",
+    "forget_persona_preference",
+    "set_persona_policy",
+    "export_persona_snapshot",
   ],
   "settings.knowledge": [
     "toggle_knowledge_jev",

@@ -77,9 +77,19 @@ import {
   droraPersonaGetOverviewResultSchema,
   droraPersonaInitializeParamsSchema,
   droraPersonaInitializeResultSchema,
+  droraPersonaListPreferencesParamsSchema,
+  droraPersonaListPreferencesResultSchema,
+  droraPersonaForgetPreferenceParamsSchema,
+  droraPersonaForgetPreferenceResultSchema,
+  droraPersonaPrepareExportParamsSchema,
+  droraPersonaPrepareExportResultSchema,
   droraPersonaPreviewParamsSchema,
   droraPersonaPreviewResultSchema,
   droraPersonaResetCoreParamsSchema,
+  droraPersonaSavePreferenceParamsSchema,
+  droraPersonaSavePreferenceResultSchema,
+  droraPersonaSetPolicyParamsSchema,
+  droraPersonaSetPolicyResultSchema,
   droraPersonaUpdateCoreParamsSchema,
   droraPersonaUpdateCoreResultSchema,
   droraTaskTokenUsageParamsSchema,
@@ -4321,6 +4331,60 @@ export async function previewPersonaOp(
   const input = parseParams(droraPersonaPreviewParamsSchema, params);
   return droraPersonaPreviewResultSchema.parse(
     await requirePersonaControl(context).previewPersona(input),
+  );
+}
+
+// ── P1a 使用策略/交流默认/导出（合同 §1.2/§3/§4.2/§7）：与核心管理同走
+// deps.personaControl 端口；错误码语义由服务层给出，wire 层 strict schema 只做形状校验。
+
+export async function setPersonalPolicyOp(
+  context: DroraProtocolAgentServerContext,
+  params: unknown,
+) {
+  const input = parseParams(droraPersonaSetPolicyParamsSchema, params);
+  return droraPersonaSetPolicyResultSchema.parse(
+    await requirePersonaControl(context).setPersonalPolicy(input),
+  );
+}
+
+export async function savePreferenceOp(
+  context: DroraProtocolAgentServerContext,
+  params: unknown,
+) {
+  const input = parseParams(droraPersonaSavePreferenceParamsSchema, params);
+  return droraPersonaSavePreferenceResultSchema.parse(
+    await requirePersonaControl(context).savePreference(input),
+  );
+}
+
+export async function forgetPreferenceOp(
+  context: DroraProtocolAgentServerContext,
+  params: unknown,
+) {
+  const input = parseParams(droraPersonaForgetPreferenceParamsSchema, params);
+  return droraPersonaForgetPreferenceResultSchema.parse(
+    await requirePersonaControl(context).forgetPreference(input),
+  );
+}
+
+export async function listPreferencesOp(
+  context: DroraProtocolAgentServerContext,
+  params: unknown,
+) {
+  parseParams(droraPersonaListPreferencesParamsSchema, params);
+  const result = await requirePersonaControl(context).listPreferences();
+  return droraPersonaListPreferencesResultSchema.parse(
+    result.ok ? { ok: true, value: { preferences: result.value } } : result,
+  );
+}
+
+export async function preparePersonaExportOp(
+  context: DroraProtocolAgentServerContext,
+  params: unknown,
+) {
+  parseParams(droraPersonaPrepareExportParamsSchema, params);
+  return droraPersonaPrepareExportResultSchema.parse(
+    await requirePersonaControl(context).preparePersonaExport(),
   );
 }
 

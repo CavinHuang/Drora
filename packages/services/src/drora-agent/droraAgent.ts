@@ -37,6 +37,11 @@ import type {
   DroraPersonaOverviewResult,
   DroraPersonaPreviewResult,
   DroraPersonaCoreMutationResult,
+  DroraPersonaForgetPreferenceResult,
+  DroraPersonaListPreferencesResult,
+  DroraPersonaPrepareExportResult,
+  DroraPersonaSavePreferenceResult,
+  DroraPersonaSetPolicyResult,
   DroraPluginsMarketplaceMutationResult,
   DroraPluginsInstallResult,
   DroraPluginsReferenceCatalogResult,
@@ -793,6 +798,26 @@ export interface IDroraAgentService {
   getPersonaApplication(
     params: DroraAgentSessionTarget & { turnId: string },
   ): Promise<DroraPersonaGetApplicationResult>;
+  // P1a 使用策略/交流默认/导出（合同 §1.2/§3/§4.2/§7）：同一本机 CLI 控制连接代理；
+  // 错误码语义由 CLI 服务层给出，本层只透传。
+  setPersonalPolicy(params: {
+    expectedPolicyRevision: number;
+    usePreferences: boolean;
+    mutationId: string;
+  }): Promise<DroraPersonaSetPolicyResult>;
+  savePreference(params: {
+    key: string;
+    value: string;
+    expectedRevision: number;
+    mutationId: string;
+  }): Promise<DroraPersonaSavePreferenceResult>;
+  forgetPreference(params: {
+    key: string;
+    expectedRevision: number;
+    mutationId: string;
+  }): Promise<DroraPersonaForgetPreferenceResult>;
+  listPreferences(): Promise<DroraPersonaListPreferencesResult>;
+  preparePersonaExport(): Promise<DroraPersonaPrepareExportResult>;
   /**
    * 资源管理器：枚举本 Host 内全部本地 Agent 进程（含 plugin / mcp-status 泳道），
    * 并向每个存活 runtime 请求 `process/childProcesses`；单个 runtime 失败只让它的 children 为空。

@@ -22,7 +22,12 @@ import {
   droraPersonaGetCoreResultSchema,
   droraPersonaGetOverviewResultSchema,
   droraPersonaInitializeResultSchema,
+  droraPersonaForgetPreferenceResultSchema,
+  droraPersonaListPreferencesResultSchema,
+  droraPersonaPrepareExportResultSchema,
   droraPersonaPreviewResultSchema,
+  droraPersonaSavePreferenceResultSchema,
+  droraPersonaSetPolicyResultSchema,
   droraPersonaUpdateCoreResultSchema,
 } from "@drora/shared";
 import { MCP_APPS_SAMPLING_TRANSPORT_TIMEOUT_MS } from "@drora/shared/mcp-apps";
@@ -5131,6 +5136,64 @@ export function createDroraAgentService(
         droraProtocolMethods.personaPreview,
         params,
         droraPersonaPreviewResultSchema,
+        { timeoutMs: PERSONA_MANAGEMENT_REQUEST_TIMEOUT_MS },
+      );
+    },
+
+    // ── P1a 使用策略/交流默认/导出（合同 §1.2/§3/§4.2/§7）：同一控制连接代理，只透传 ──
+
+    async setPersonalPolicy(
+      params: { expectedPolicyRevision: number; usePreferences: boolean; mutationId: string },
+    ) {
+      const client = await getPersonaControlClient();
+      return client.request(
+        droraProtocolMethods.personaSetPolicy,
+        params,
+        droraPersonaSetPolicyResultSchema,
+        { timeoutMs: PERSONA_MANAGEMENT_REQUEST_TIMEOUT_MS },
+      );
+    },
+
+    async savePreference(
+      params: { key: string; value: string; expectedRevision: number; mutationId: string },
+    ) {
+      const client = await getPersonaControlClient();
+      return client.request(
+        droraProtocolMethods.personaSavePreference,
+        params,
+        droraPersonaSavePreferenceResultSchema,
+        { timeoutMs: PERSONA_MANAGEMENT_REQUEST_TIMEOUT_MS },
+      );
+    },
+
+    async forgetPreference(
+      params: { key: string; expectedRevision: number; mutationId: string },
+    ) {
+      const client = await getPersonaControlClient();
+      return client.request(
+        droraProtocolMethods.personaForgetPreference,
+        params,
+        droraPersonaForgetPreferenceResultSchema,
+        { timeoutMs: PERSONA_MANAGEMENT_REQUEST_TIMEOUT_MS },
+      );
+    },
+
+    async listPreferences() {
+      const client = await getPersonaControlClient();
+      return client.request(
+        droraProtocolMethods.personaListPreferences,
+        {},
+        droraPersonaListPreferencesResultSchema,
+        { timeoutMs: PERSONA_MANAGEMENT_REQUEST_TIMEOUT_MS },
+      );
+    },
+
+    async preparePersonaExport() {
+      const client = await getPersonaControlClient();
+      return client.request(
+        droraProtocolMethods.personaPrepareExport,
+        {},
+        droraPersonaPrepareExportResultSchema,
         { timeoutMs: PERSONA_MANAGEMENT_REQUEST_TIMEOUT_MS },
       );
     },

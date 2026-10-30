@@ -56,9 +56,12 @@ export * from "../process-diagnostic.js";
 export { attachmentSourceKindSchema, type AttachmentSourceKind } from "../attachment-source.js";
 import { PROTOCOL_V4_LIMITS } from "../drora-protocol-v4/core.js";
 // Persona P0 契约键单一出处（AGENTS.md）：能力位/偏好键/方法 wire 名引用 contracts 常量，
-// 不在本文件另写字面量（合同 §4.1）。
+// 不在本文件另写字面量（合同 §4.1）。P1a 的受控四键与受控值集合同样引用单一出处。
 import {
   PERSONA_ERROR_CODES,
+  PERSONA_EXPORT_FORMAT,
+  PERSONA_EXPORT_FORMAT_VERSION,
+  PERSONA_PREFERENCE_KEYS,
   PERSONA_PROTOCOL_CAPABILITY_CONTROL_V1,
   PERSONA_PROTOCOL_METHODS,
   PERSONA_RUNTIME_PREFERENCE_ENABLED,
@@ -4364,6 +4367,148 @@ export type DroraPersonaGetApplicationResult = z.infer<
   typeof droraPersonaGetApplicationResultSchema
 >;
 
+// ── P1a 使用策略/交流默认/导出（合同 §1.2/§2/§3/§4.2/§7；spec §5/§8/§9）──
+// 受控四键与枚举值引用 shared contracts 单一出处；未知 key/value 由服务层 validation_failed
+// 拒绝。忘记是逻辑撤销屏障（generation++），无 unchanged 终态；导出无资料返回 uninitialized
+// 且不为导出初始化默认身份。
+
+const personaPreferenceKeySchema = z.enum([
+  PERSONA_PREFERENCE_KEYS.replyLanguage,
+  PERSONA_PREFERENCE_KEYS.explanationDetail,
+  PERSONA_PREFERENCE_KEYS.preferredAddress,
+  PERSONA_PREFERENCE_KEYS.collaborationStyle,
+]);
+
+export const droraPersonaSetPolicyParamsSchema = z
+  .object({
+    expectedPolicyRevision: z.number().int().nonnegative(),
+    usePreferences: z.boolean(),
+    mutationId: nonEmptyString,
+  })
+  .strict();
+export const droraPersonaSetPolicyResultSchema = personaManagementResultSchema(
+  z.union([
+    z
+      .object({
+        status: z.literal("saved"),
+        policyRevision: z.number().int().nonnegative(),
+        policyEpoch: z.number().int().nonnegative(),
+      })
+      .strict(),
+    z.object({ status: z.literal("unchanged") }).strict(),
+  ]),
+);
+export type DroraPersonaSetPolicyResult = z.infer<typeof droraPersonaSetPolicyResultSchema>;
+
+export const droraPersonaSavePreferenceParamsSchema = z
+  .object({
+    key: personaPreferenceKeySchema,
+    value: z.string().max(512),
+    expectedRevision: z.number().int().nonnegative(),
+    mutationId: nonEmptyString,
+  })
+  .strict();
+export const droraPersonaSavePreferenceResultSchema = personaManagementResultSchema(
+  z.union([
+    z
+      .object({
+        status: z.literal("saved"),
+        revision: z.number().int().nonnegative(),
+        keyGeneration: z.number().int().nonnegative(),
+      })
+      .strict(),
+    z.object({ status: z.literal("unchanged") }).strict(),
+  ]),
+);
+export type DroraPersonaSavePreferenceResult = z.infer<
+  typeof droraPersonaSavePreferenceResultSchema
+>;
+
+export const droraPersonaForgetPreferenceParamsSchema = z
+  .object({
+    key: personaPreferenceKeySchema,
+    expectedRevision: z.number().int().nonnegative(),
+    mutationId: nonEmptyString,
+  })
+  .strict();
+export const droraPersonaForgetPreferenceResultSchema = personaManagementResultSchema(
+  z
+    .object({
+      status: z.literal("forgotten"),
+      revision: z.number().int().nonnegative(),
+      keyGeneration: z.number().int().nonnegative(),
+    })
+    .strict(),
+);
+export type DroraPersonaForgetPreferenceResult = z.infer<
+  typeof droraPersonaForgetPreferenceResultSchema
+>;
+
+export const droraPersonaListPreferencesParamsSchema = z.object({}).strict();
+export const droraPersonaListPreferencesResultSchema = personaManagementResultSchema(
+  z
+    .object({
+      preferences: z
+        .array(
+          z
+            .object({
+              key: personaPreferenceKeySchema,
+              // active 槽为当前值；forgotten 槽为空串（应用可访问正文已清）。
+              value: z.string(),
+              revision: z.number().int().nonnegative(),
+              keyGeneration: z.number().int().nonnegative(),
+              provenanceKind: z.literal("settings"),
+              epistemicStatus: z.literal("explicit"),
+              pinned: z.boolean(),
+              updatedAt: z.number().int().nonnegative(),
+              status: z.enum(["active", "forgotten"]),
+            })
+            .strict(),
+        )
+        .max(16),
+    })
+    .strict(),
+);
+export type DroraPersonaListPreferencesResult = z.infer<
+  typeof droraPersonaListPreferencesResultSchema
+>;
+
+export const droraPersonaPrepareExportParamsSchema = z.object({}).strict();
+export const droraPersonaPrepareExportResultSchema = personaManagementResultSchema(
+  z
+    .object({
+      format: z.literal(PERSONA_EXPORT_FORMAT),
+      formatVersion: z.literal(PERSONA_EXPORT_FORMAT_VERSION),
+      capturedAt: nonEmptyString,
+      coreRevision: z.number().int().nonnegative(),
+      policyRevision: z.number().int().nonnegative(),
+      core: personaEditableCoreSchema,
+      templateVersion: z.number().int().nonnegative(),
+      compilerVersion: z.number().int().nonnegative(),
+      preferences: z
+        .array(
+          z
+            .object({
+              key: personaPreferenceKeySchema,
+              value: z.string(),
+              revision: z.number().int().nonnegative(),
+              provenanceKind: z.literal("settings"),
+              epistemicStatus: z.literal("explicit"),
+            })
+            .strict(),
+        )
+        .max(16),
+      omittedCounts: z
+        .object({ inferredOmittedUnverifiable: z.number().int().nonnegative() })
+        .strict(),
+      limitations: z.array(z.string()),
+    })
+    .strict(),
+);
+export type DroraPersonaPrepareExportResult = z.infer<
+  typeof droraPersonaPrepareExportResultSchema
+>;
+
 
 export const droraProtocolMethods = {
   runtimeCapabilities: "runtime/capabilities",
@@ -4510,6 +4655,11 @@ export const droraProtocolMethods = {
   personaResetCore: PERSONA_PROTOCOL_METHODS.resetCore,
   personaPreview: PERSONA_PROTOCOL_METHODS.preview,
   personaGetApplication: PERSONA_PROTOCOL_METHODS.getApplication,
+  personaSetPolicy: PERSONA_PROTOCOL_METHODS.setPolicy,
+  personaSavePreference: PERSONA_PROTOCOL_METHODS.savePreference,
+  personaForgetPreference: PERSONA_PROTOCOL_METHODS.forgetPreference,
+  personaListPreferences: PERSONA_PROTOCOL_METHODS.listPreferences,
+  personaPrepareExport: PERSONA_PROTOCOL_METHODS.prepareExport,
 } as const;
 
 export type DroraProtocolMethod = (typeof droraProtocolMethods)[keyof typeof droraProtocolMethods];

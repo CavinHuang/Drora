@@ -59,4 +59,65 @@ export const PERSONA_MIGRATIONS: readonly SqliteMigration[] = [
         on persona_mutation_receipt(scope, time_created);
     `,
   },
+  {
+    id: "0002_persona_p1a_policy_preference",
+    appVersion: "3.16.1",
+    touchedTables: [
+      "persona_policy",
+      "persona_preference",
+      "persona_mutation_receipt",
+    ],
+    sql: `
+      -- Policy/P1a 单例（合同 §1）：policyRevision/policyEpoch/usePreferences。执行许可 E
+      -- 不在这里（E 属原 Settings/runtime preferences，spec §5）。行缺席＝读侧默认
+      -- （PERSONA_POLICY_DEFAULTS），首次 setPersonalPolicy 才创建，不做迁移回填。
+      create table if not exists persona_policy (
+        id integer primary key check(id = 1),
+        use_preferences integer not null check(use_preferences in (0, 1)),
+        policy_revision integer not null check(policy_revision >= 0),
+        policy_epoch integer not null check(policy_epoch >= 0),
+        time_updated integer not null
+      );
+
+      -- Preference/P1a 当前值槽（合同 §1：一个 authority＋key 只有一个槽；唯一键＝key）。
+      -- forgotten 槽保留 keyGeneration/autoSuppressed 最小控制信息并清空 value（合同 §1.2），
+      -- 不保留旧值；P1a 只有 settings/explicit 写入方，inferred 是 P1b 域，CHECK 词汇先行封闭。
+      create table if not exists persona_preference (
+        key text primary key,
+        value text,
+        revision integer not null check(revision >= 0),
+        key_generation integer not null check(key_generation >= 0),
+        provenance_kind text not null check(provenance_kind in ('settings')),
+        epistemic_status text not null check(epistemic_status in ('explicit')),
+        status text not null check(status in ('active', 'forgotten')),
+        pinned integer not null check(pinned in (0, 1)),
+        auto_suppressed integer not null check(auto_suppressed in (0, 1)),
+        time_updated integer not null
+      );
+
+      -- P1a 扩展 receipt 词汇（scope += policy/preference；result_code += forgotten）。
+      -- result_generation 记录该终态的屏障值：preference scope 存 keyGeneration、policy
+      -- scope 存 policyEpoch、authority/core 恒 0——同 ID 同摘要回放需要完整终态形状
+      -- （saved 带当时 revision+generation，合同 §2「同作用域同 ID 同摘要返回先前结果」）。
+      -- 已发布迁移不可修改（0001 的 CHECK 冻结），按 SQLite 重建表搬迁历史行；容量索引
+      -- 随重建补回。
+      create table persona_mutation_receipt_p1a (
+        scope text not null check(scope in ('authority', 'core', 'policy', 'preference')),
+        mutation_id text not null,
+        request_digest text not null,
+        result_code text not null check(result_code in ('created', 'saved', 'unchanged', 'forgotten')),
+        result_revision integer not null check(result_revision >= 0),
+        result_generation integer not null default 0 check(result_generation >= 0),
+        time_created integer not null,
+        primary key(scope, mutation_id)
+      );
+      insert into persona_mutation_receipt_p1a
+        select scope, mutation_id, request_digest, result_code, result_revision, 0, time_created
+        from persona_mutation_receipt;
+      drop table persona_mutation_receipt;
+      alter table persona_mutation_receipt_p1a rename to persona_mutation_receipt;
+      create index if not exists persona_mutation_receipt_scope_time_idx
+        on persona_mutation_receipt(scope, time_created);
+    `,
+  },
 ];

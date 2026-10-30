@@ -54,3 +54,21 @@ Host/UI 不执行 DDL；P1a/P1b 的 policy/preference/candidate/work 表不在�
 
 `contract.ts`（端口与类型）与 `index.ts`（工厂 `openPersonaStore`）。消费方只有
 PersonaAppService（服务层）；capture 端口与协议注册不直接依赖本模块。
+
+## 实现语义要点（PersonaSqliteStore，逐条对应合同 §2）
+
+- 访问模式沿既有 session-store 体系：node:sqlite DatabaseSync 单连接 + 异步方法门面 + 短事务
+  （begin immediate/deferred）+ busy_timeout 有限等待 + 预算内退避重试。当前实现仍在调用线程上
+  同步执行 SQL：正式异步 worker 与三平台打包检查分别属切片 B 剩余交付与切片 D，不得记为已交付。
+- 并发串行化：单连接上同一实例的重叠事务由进程内队列互斥（txnQueue）；跨连接并发由 SQLite
+  WAL/事务与 BUSY 预算重试裁决。
+- CAS：core/policy/preference 更新必须 expectedRevision 匹配；冲突返回 revision_conflict 且不写
+  receipt（失效回执不能绕过 CAS）。
+- receipt 幂等：同 scope+mutationId 同摘要回放先前终态（saved 带当时的 revision+generation）；
+  同 ID 异摘要 mutation_conflict；权限/authority 检查先于 receipt 查询。
+- 容量：达到 4096 条/authority 时先清 7 天窗口外的过期项；窗口内凭据不驱逐；仍满则拒绝新管理写
+  并返回 storage_capacity。
+- 超时：写请求在预算内拿不到锁/提交，对外表达 outcome_unknown；读请求表达 storage_unavailable。
+- 未初始化（无 authority 行）与损坏（非 SQLite 文件、checksum 不符、未知账本、行内容非法、
+  schemaVersion 更大）严格区分：后者 schema_incompatible 只停扩展，不降级写旧 schema、不静默换
+  默认身份。

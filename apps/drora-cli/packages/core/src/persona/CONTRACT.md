@@ -28,3 +28,11 @@ results after an omission do not surface. Port faults degrade only the extension
 continues without a contribution; original session/provider/permission errors are untouched.
 Auxiliary request assembly (compact, title, verifier, extraction) never passes a contribution.
 The execution permission gate (E) and the production service are later slices.
+
+P1a communication preferences: `compilePersonaContribution(core, coreRevision, preferences, policyEpoch)`
+freezes the core section and the preference section into one contribution. Preference keys/values are
+validated against the shared controlled vocabulary (unknown keys or values fail compilation); the
+preference section has its own 2,000 code point budget (spec §6) and is never truncated — an overflow
+fails compilation so the caller omits the whole extension. With no valid preferences the result equals
+the core-only contribution plus the `policyEpoch` observation. Key order in the rendered section is
+fixed, so identical inputs produce identical content.

@@ -119,6 +119,9 @@ export default defineConfig({
             "packages/*/test/**/*.test.ts",
             // 架构治理要求 managed 模块自带 contract.test.ts（见 architecture-policy.yaml），放在模块目录内。
             "packages/*/src/**/contract.test.ts",
+            // Persona 契约钉住（specs/drora-persona-system.md）：P1a 起从 contract.test.ts
+            // 拆出（max-contract-lines），不进 include 则默认单测通道永不执行。
+            "packages/shared/src/contracts/persona-contract.test.ts",
             // Gen UI 目录回归位于源码旁，默认入口也必须执行，避免只在手动定向运行时生效。
             "packages/shared/src/node/genUiPaths.test.ts",
             "packages/services/src/gen-ui/**/*.test.ts",
@@ -137,6 +140,9 @@ export default defineConfig({
             // 进默认单测通道，否则 pnpm test / pre-push affected 永不执行。
             "packages/ui/src/drora-persona/PersonaSettingsSection.test.tsx",
             "packages/ui/src/drora-persona/usePersonaControlAvailability.test.tsx",
+            // P1a 交流默认与导出（§9/§10：偏好 CAS/忘记确认/outcome_unknown/U 两态/
+            // 导出 saveFile/i18n 完整性）；不进 include 则默认单测通道永不执行。
+            "packages/ui/src/drora-persona/usePersonaPreferences.test.tsx",
             "packages/ui/src/voice/AnnouncementIndicator.test.tsx",
             "packages/ui/src/store/voiceSessionStore.test.ts",
             "packages/ui/src/v4/composer/composerTextAppend.test.ts",

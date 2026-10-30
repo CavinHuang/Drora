@@ -18,14 +18,30 @@ export interface PersonaContribution {
   readonly coreRevision: number;
   readonly templateVersion: typeof PERSONA_TEMPLATE_VERSION;
   readonly compilerVersion: typeof PERSONA_COMPILER_VERSION;
+  /**
+   * 捕获时的策略屏障值（合同 §6「成功结果含 coreRevision、policyEpoch、compilerVersion…」）；
+   * 仅当本轮注入了交流默认（U on）时出现。内存观测事实，不新增公共会话帧字段。
+   */
+  readonly policyEpoch?: number;
 }
 
 export type PersonaCompileResult =
   | { readonly status: "compiled"; readonly contribution: PersonaContribution }
   | {
       readonly status: "invalid";
-      readonly field: keyof PersonaCore | "core" | "coreRevision" | "content";
+      readonly field:
+        | keyof PersonaCore
+        | "core"
+        | "coreRevision"
+        | "content"
+        | "preferences";
     };
+
+/** 编译输入里的单条交流默认（U on 且校验通过的有效槽；key/value 已由服务层按受控合同校验）。 */
+export interface PersonaPreferenceInput {
+  readonly key: string;
+  readonly value: string;
+}
 
 export interface PersonaProjectionDiagnostics {
   latestRealUserMessageIndex?: number;

@@ -61,6 +61,8 @@ describe("persona 独立库仓储（切片 B）", () => {
             "persona_authority",
             "persona_core",
             "persona_mutation_receipt",
+            "persona_policy",
+            "persona_preference",
           ]);
         } finally {
           raw.close();
@@ -132,6 +134,9 @@ describe("persona 独立库仓储（切片 B）", () => {
                 core: defaultCore(),
                 updatedAt: 1_000,
               },
+              // P1a：策略行缺席＝读侧默认，偏好列表为空（迁移不回填）。
+              policy: { usePreferences: false, policyRevision: 0, policyEpoch: 0 },
+              preferences: [],
             },
           },
         });
@@ -658,17 +663,27 @@ describe("persona 存储默认值与迁移清单", () => {
     expect(PERSONA_STORE_DEFAULTS.receiptMaxPerAuthority).toBe(4096);
   });
 
-  it("P0 只迁移 authority/core/receipt 三类表", () => {
-    expect(PERSONA_MIGRATIONS).toHaveLength(1);
+  it("迁移清单：切片 B 建 P0 三类表，P1a 追加 policy/preference 并扩展 receipt 词汇", () => {
+    expect(PERSONA_MIGRATIONS).toHaveLength(2);
     expect([...PERSONA_MIGRATIONS[0]!.touchedTables]).toEqual([
       "persona_authority",
       "persona_core",
       "persona_mutation_receipt",
     ]);
+    expect([...PERSONA_MIGRATIONS[1]!.touchedTables]).toEqual([
+      "persona_policy",
+      "persona_preference",
+      "persona_mutation_receipt",
+    ]);
   });
 
   it("scope 词汇与 shared contracts 单一出处一致", () => {
-    expect(Object.values(PERSONA_RECEIPT_SCOPES).sort()).toEqual(["authority", "core"]);
+    expect(Object.values(PERSONA_RECEIPT_SCOPES).sort()).toEqual([
+      "authority",
+      "core",
+      "policy",
+      "preference",
+    ]);
     expect(Object.values(PERSONA_RECEIPT_SCOPES)).toContain("authority");
   });
 });

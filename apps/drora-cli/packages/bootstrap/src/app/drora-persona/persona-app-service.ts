@@ -27,7 +27,9 @@ import type {
   PersonaCapturePort,
   PersonaTurnCaptureRequest,
 } from "@drora/core/persona";
+import type { PersonaInternalCapture } from "./persona-capture-port.js";
 import {
+  compilePersonaContribution,
   compilePersonaCore,
   validatePersonaCoreFields,
 } from "@drora/core/persona";
@@ -41,18 +43,34 @@ import {
 } from "@drora/adapters/storage/persona";
 import {
   PERSONA_ERROR_CODES,
+  PERSONA_EXPORT_FORMAT,
+  PERSONA_EXPORT_FORMAT_VERSION,
+  PERSONA_EXPORT_LIMITATIONS,
+  PERSONA_EXPORT_MAX_BYTES,
+  PERSONA_PREFERENCE_ALLOWED_VALUES,
+  PERSONA_PREFERENCE_KEYS,
+  PERSONA_PREFERENCE_LIMITS,
   type PersonaCoreMutationResult,
   type PersonaCorePatch,
   type PersonaCoreSnapshot,
   type PersonaErrorCode,
+  type PersonaExportPayload,
+  type PersonaForgetPreferenceInput,
+  type PersonaForgetResult,
   type PersonaInitializeInput,
   type PersonaInitializeResult,
   type PersonaManagementResult,
   type PersonaOverview,
+  type PersonaPolicyMutationResult,
+  type PersonaPreferenceFacts,
+  type PersonaPreferenceKey,
+  type PersonaPreferenceMutationResult,
   type PersonaPreviewInput,
   type PersonaPreviewResult,
   type PersonaProductTemplateSummary,
   type PersonaResetCoreInput,
+  type PersonaSavePreferenceInput,
+  type PersonaSetPolicyInput,
   type PersonaUpdateCoreInput,
 } from "@drora/shared";
 import {
@@ -139,6 +157,44 @@ function isExpectedRevision(value: unknown): value is number {
   return typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
 }
 
+function isPreferenceKey(key: unknown): key is PersonaPreferenceKey {
+  return (
+    typeof key === "string" &&
+    Object.values(PERSONA_PREFERENCE_KEYS).includes(
+      key as (typeof PERSONA_PREFERENCE_KEYS)[keyof typeof PERSONA_PREFERENCE_KEYS],
+    )
+  );
+}
+
+/**
+ * 偏好值规范化与受控校验（合同 §1.2）：枚举键必须命中受控集合；preferredAddress 是
+ * 1–40 code point 单行纯文本（NFC/trim、拒绝全部控制字符——含换行：编译层按单行渲染，
+ * 服务层放行换行会让已存值在每次 capture 时毒化整份贡献）。返回 undefined 表示
+ * validation_failed，不截断后静默保存。
+ */
+function normalizePreferenceValue(key: string, value: unknown): string | undefined {
+  if (!isPreferenceKey(key)) return undefined;
+  if (key === PERSONA_PREFERENCE_KEYS.preferredAddress) {
+    if (typeof value !== "string") return undefined;
+    const normalized = value.normalize("NFC").trim();
+    if (
+      normalized === "" ||
+      [...normalized].length > PERSONA_PREFERENCE_LIMITS.preferredAddressMax ||
+      [...normalized].some((character) => {
+        const code = character.charCodeAt(0);
+        return code < 32 || (code >= 127 && code <= 159);
+      })
+    ) {
+      return undefined;
+    }
+    return normalized;
+  }
+  const allowed: readonly string[] | undefined =
+    PERSONA_PREFERENCE_ALLOWED_VALUES[key as keyof typeof PERSONA_PREFERENCE_ALLOWED_VALUES];
+  if (!allowed || typeof value !== "string" || !allowed.includes(value)) return undefined;
+  return value;
+}
+
 function isCorePatch(value: unknown): value is PersonaCorePatch {
   return (
     value !== null &&
@@ -148,7 +204,7 @@ function isCorePatch(value: unknown): value is PersonaCorePatch {
   );
 }
 
-export class PersonaAppServiceImpl implements PersonaAppService {
+export class PersonaAppServiceImpl implements PersonaAppService, PersonaInternalCapture {
   private readonly dbPath: string;
   private readonly now: () => number;
   private readonly captureBudgetMs: number;
@@ -388,10 +444,26 @@ export class PersonaAppServiceImpl implements PersonaAppService {
       if (snapshot.state === "uninitialized") {
         return { status: "omitted", reason: PERSONA_ERROR_CODES.uninitialized };
       }
-      const compiled = compilePersonaCore(snapshot.core.core, snapshot.core.coreRevision);
+      // 交流默认门＝E && Q && U（spec §5）：U on 才读偏好并注入；偏好与 core 同一短事务
+      // 快照（合同 §4.2），U off 时存储侧连偏好槽都不出库（preferences 为空数组）。
+      // capture 只消费 active 槽——forgotten 槽的正文已清，仅为重设 CAS 保留 revision。
+      const compiled = snapshot.policy.usePreferences
+        ? compilePersonaContribution(
+            snapshot.core.core,
+            snapshot.core.coreRevision,
+            snapshot.preferences
+              .filter((preference) => preference.status === "active")
+              .map((preference) => ({
+                key: preference.key,
+                value: preference.value,
+              })),
+            snapshot.policy.policyEpoch,
+          )
+        : compilePersonaCore(snapshot.core.core, snapshot.core.coreRevision);
       if (compiled.status === "invalid") {
-        // 已存自定义核心编译失败（模板/编译器版本漂移）：只省略扩展，不静默换默认身份（spec §6）。
-        this.logger?.warn("persona capture omitted: stored core failed to compile", {
+        // 已存自定义核心/偏好编译失败（模板/编译器版本漂移或存储内容越界）：只省略扩展，
+        // 不静默换默认身份、不截断缩写（spec §6、合同 §1）。
+        this.logger?.warn("persona capture omitted: stored data failed to compile", {
           event: "persona.capture.compile_failed",
           field: compiled.field,
           module: "drora-persona",
@@ -409,6 +481,138 @@ export class PersonaAppServiceImpl implements PersonaAppService {
       });
       return { status: "omitted", reason: code };
     }
+  }
+
+  async setPersonalPolicy(
+    input: PersonaSetPolicyInput,
+  ): Promise<PersonaManagementResult<PersonaPolicyMutationResult>> {
+    if (
+      !isValidMutationId(input.mutationId) ||
+      !isExpectedRevision(input.expectedPolicyRevision) ||
+      typeof input.usePreferences !== "boolean"
+    ) {
+      return failure(PERSONA_ERROR_CODES.validationFailed);
+    }
+    return this.runManaged("setPersonalPolicy", async () =>
+      this.requireStore().then((store) =>
+        store.updatePolicy({
+          mutationId: input.mutationId,
+          requestDigest: sha256Canonical({
+            op: "setPersonalPolicy",
+            expectedPolicyRevision: input.expectedPolicyRevision,
+            usePreferences: input.usePreferences,
+          }),
+          now: this.now(),
+          expectedPolicyRevision: input.expectedPolicyRevision,
+          usePreferences: input.usePreferences,
+        }),
+      ),
+    );
+  }
+
+  async savePreference(
+    input: PersonaSavePreferenceInput,
+  ): Promise<PersonaManagementResult<PersonaPreferenceMutationResult>> {
+    // 受控四键与受控值在服务层校验（合同 §1.2：未知 key/value 拒绝，不把任意 JSON 转成指令）。
+    const normalized = normalizePreferenceValue(input.key, input.value);
+    if (
+      !isValidMutationId(input.mutationId) ||
+      !isExpectedRevision(input.expectedRevision) ||
+      normalized === undefined
+    ) {
+      return failure(PERSONA_ERROR_CODES.validationFailed);
+    }
+    return this.runManaged("savePreference", async () =>
+      this.requireStore().then((store) =>
+        store.savePreference({
+          mutationId: input.mutationId,
+          requestDigest: sha256Canonical({
+            op: "savePreference",
+            key: input.key,
+            value: normalized,
+            expectedRevision: input.expectedRevision,
+          }),
+          now: this.now(),
+          expectedRevision: input.expectedRevision,
+          key: input.key,
+          value: normalized,
+        }),
+      ),
+    );
+  }
+
+  async forgetPreference(
+    input: PersonaForgetPreferenceInput,
+  ): Promise<PersonaManagementResult<PersonaForgetResult>> {
+    if (!isValidMutationId(input.mutationId) || !isExpectedRevision(input.expectedRevision)) {
+      return failure(PERSONA_ERROR_CODES.validationFailed);
+    }
+    if (!isPreferenceKey(input.key)) {
+      return failure(PERSONA_ERROR_CODES.validationFailed);
+    }
+    return this.runManaged("forgetPreference", async () =>
+      this.requireStore().then((store) =>
+        store.forgetPreference({
+          mutationId: input.mutationId,
+          requestDigest: sha256Canonical({
+            op: "forgetPreference",
+            key: input.key,
+            expectedRevision: input.expectedRevision,
+          }),
+          now: this.now(),
+          expectedRevision: input.expectedRevision,
+          key: input.key,
+        }),
+      ),
+    );
+  }
+
+  async listPreferences(): Promise<
+    PersonaManagementResult<readonly PersonaPreferenceFacts[]>
+  > {
+    return this.runManaged("listPreferences", async () =>
+      this.requireStore().then((store) => store.listPreferences()),
+    );
+  }
+
+  async preparePersonaExport(): Promise<
+    PersonaManagementResult<PersonaExportPayload>
+  > {
+    return this.runManaged("preparePersonaExport", async () => {
+      const snapshotResult = await this.requireStore().then((store) =>
+        store.readExportSnapshot(),
+      );
+      if (!snapshotResult.ok) return snapshotResult;
+      const snapshot = snapshotResult.value;
+      const template = getProductPersonaTemplate();
+      // 冻结快照（合同 §7）：不含 authorityId、来源定位、历史值、候选、抑制内部记录、
+      // 令牌与授权；pinned 等内部控制态不进 envelope。
+      const payload: PersonaExportPayload = {
+        format: PERSONA_EXPORT_FORMAT,
+        formatVersion: PERSONA_EXPORT_FORMAT_VERSION,
+        capturedAt: new Date(this.now()).toISOString(),
+        coreRevision: snapshot.core.coreRevision,
+        policyRevision: snapshot.policy.policyRevision,
+        core: snapshot.core.core,
+        templateVersion: template.templateVersion,
+        compilerVersion: template.compilerVersion,
+        preferences: snapshot.preferences.map((preference) => ({
+          key: preference.key,
+          value: preference.value,
+          revision: preference.revision,
+          provenanceKind: preference.provenanceKind,
+          epistemicStatus: preference.epistemicStatus,
+        })),
+        omittedCounts: snapshot.counts,
+        limitations: PERSONA_EXPORT_LIMITATIONS,
+      };
+      const bytes = Buffer.byteLength(JSON.stringify(payload, null, 2), "utf8");
+      if (bytes > PERSONA_EXPORT_MAX_BYTES) {
+        // 超限报 validation_failed，不交付截断 JSON（合同 §7）。
+        return failure(PERSONA_ERROR_CODES.validationFailed);
+      }
+      return { ok: true, value: payload };
+    });
   }
 
   async close(): Promise<void> {

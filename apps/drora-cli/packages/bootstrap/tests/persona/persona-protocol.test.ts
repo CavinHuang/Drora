@@ -66,6 +66,69 @@ function fakeControlPort(): PersonaControlPort {
       ok: true as const,
       value: { text: "preview text", templateVersion: 1, compilerVersion: 1 },
     })),
+    // P1a（合同 §3）：策略/偏好/导出与核心管理同一控制端口。listPreferences 故意同时
+    // 返回 active 与 forgotten 槽——wire 层 strict schema 必须原样放行（含 status 键）。
+    setPersonalPolicy: vi.fn(async () => ({
+      ok: true as const,
+      value: { status: "saved" as const, policyRevision: 1, policyEpoch: 1 },
+    })),
+    savePreference: vi.fn(async () => ({
+      ok: true as const,
+      value: { status: "saved" as const, revision: 1, keyGeneration: 1 },
+    })),
+    forgetPreference: vi.fn(async () => ({
+      ok: true as const,
+      value: { status: "forgotten" as const, revision: 2, keyGeneration: 2 },
+    })),
+    listPreferences: vi.fn(async () => ({
+      ok: true as const,
+      value: [
+        {
+          key: "replyLanguage",
+          value: "zh-CN",
+          revision: 1,
+          keyGeneration: 1,
+          provenanceKind: "settings" as const,
+          epistemicStatus: "explicit" as const,
+          pinned: true,
+          updatedAt: 1_700_000_000_000,
+          status: "active" as const,
+        },
+        {
+          key: "collaborationStyle",
+          value: "",
+          revision: 2,
+          keyGeneration: 2,
+          provenanceKind: "settings" as const,
+          epistemicStatus: "explicit" as const,
+          pinned: false,
+          updatedAt: 1_700_000_000_001,
+          status: "forgotten" as const,
+        },
+      ],
+    })),
+    preparePersonaExport: vi.fn(async () => ({
+      ok: true as const,
+      value: {
+        format: "drora-persona-export",
+        formatVersion: 1,
+        capturedAt: "2026-10-30T00:00:00.000Z",
+        coreRevision: 1,
+        policyRevision: 1,
+        core: {
+          displayName: "Drora",
+          selfDescription: "",
+          warmth: "balanced" as const,
+          directness: "direct" as const,
+          humor: "light" as const,
+        },
+        templateVersion: 1,
+        compilerVersion: 1,
+        preferences: [],
+        omittedCounts: { inferredOmittedUnverifiable: 0 },
+        limitations: ["read-only snapshot"],
+      },
+    })),
   };
 }
 
@@ -348,5 +411,124 @@ describe("getPersonaApplication 三态（合同 §3：不伪造冷历史）", ()
       params: { sessionId: "sess_legacy_runtime", turnId: "turn-1" },
     });
     expect(response).toMatchObject({ result: { status: "not_available" } });
+  });
+});
+
+describe("persona P1a wire 方法（合同 §3：策略/偏好/导出的分发与 strict 形状）", () => {
+  it("五个 P1a 方法直通控制端口；listPreferences 含 forgotten 槽原样通过 strict 校验", async () => {
+    const control = fakeControlPort();
+    const { server } = createServerWithFakeApp({ personaControl: control });
+
+    const policy = await server.handleMessage({
+      id: "p1",
+      method: droraProtocolMethods.personaSetPolicy,
+      params: { expectedPolicyRevision: 0, usePreferences: true, mutationId: "u-1" },
+    });
+    expect(policy).toMatchObject({
+      result: { ok: true, value: { status: "saved", policyRevision: 1, policyEpoch: 1 } },
+    });
+    expect(control.setPersonalPolicy).toHaveBeenCalledExactlyOnceWith({
+      expectedPolicyRevision: 0,
+      usePreferences: true,
+      mutationId: "u-1",
+    });
+
+    const save = await server.handleMessage({
+      id: "p2",
+      method: droraProtocolMethods.personaSavePreference,
+      params: {
+        key: "replyLanguage",
+        value: "zh-CN",
+        expectedRevision: 0,
+        mutationId: "s-1",
+      },
+    });
+    expect(save).toMatchObject({
+      result: { ok: true, value: { status: "saved", revision: 1, keyGeneration: 1 } },
+    });
+
+    const forget = await server.handleMessage({
+      id: "p3",
+      method: droraProtocolMethods.personaForgetPreference,
+      params: { key: "replyLanguage", expectedRevision: 1, mutationId: "f-1" },
+    });
+    expect(forget).toMatchObject({
+      result: { ok: true, value: { status: "forgotten", revision: 2, keyGeneration: 2 } },
+    });
+
+    const list = await server.handleMessage({
+      id: "p4",
+      method: droraProtocolMethods.personaListPreferences,
+      params: {},
+    });
+    const listValue = (
+      list as { result?: { ok?: boolean; value?: { preferences?: Array<Record<string, unknown>> } } }
+    ).result;
+    expect(listValue).toMatchObject({ ok: true });
+    // active 与 forgotten 槽都原样通过（含 status 键；strict 拒绝会在这里爆发）。
+    expect(listValue?.value?.preferences?.map((slot) => slot.status)).toEqual([
+      "active",
+      "forgotten",
+    ]);
+
+    const exported = await server.handleMessage({
+      id: "p5",
+      method: droraProtocolMethods.personaPrepareExport,
+      params: {},
+    });
+    expect(exported).toMatchObject({
+      result: { ok: true, value: { format: "drora-persona-export", formatVersion: 1 } },
+    });
+
+    // 无会话管理：sessions 表保持为空。
+    const sessions = (
+      server as unknown as { context: { sessions: Map<string, unknown> } }
+    ).context.sessions;
+    expect(sessions.size).toBe(0);
+  });
+
+  it.each([
+    {
+      name: "setPolicy",
+      method: droraProtocolMethods.personaSetPolicy,
+      params: { expectedPolicyRevision: 0, usePreferences: true, mutationId: "m", evil: 1 },
+      key: "setPersonalPolicy",
+    },
+    {
+      name: "savePreference",
+      method: droraProtocolMethods.personaSavePreference,
+      params: {
+        key: "replyLanguage",
+        value: "zh-CN",
+        expectedRevision: 0,
+        mutationId: "m",
+        evil: 1,
+      },
+      key: "savePreference",
+    },
+    {
+      name: "forgetPreference",
+      method: droraProtocolMethods.personaForgetPreference,
+      params: { key: "replyLanguage", expectedRevision: 0, mutationId: "m", evil: 1 },
+      key: "forgetPreference",
+    },
+    {
+      name: "listPreferences",
+      method: droraProtocolMethods.personaListPreferences,
+      params: { evil: 1 },
+      key: "listPreferences",
+    },
+    {
+      name: "prepareExport",
+      method: droraProtocolMethods.personaPrepareExport,
+      params: { evil: 1 },
+      key: "preparePersonaExport",
+    },
+  ])("$name 的 params 未知字段被 strict schema 拒绝（-32602）", async ({ method, params, key }) => {
+    const control = fakeControlPort();
+    const { server } = createServerWithFakeApp({ personaControl: control });
+    const response = await server.handleMessage({ id: "x", method, params });
+    expect(response).toMatchObject({ error: { code: -32602 } });
+    expect(control[key as "setPersonalPolicy"]).not.toHaveBeenCalled();
   });
 });

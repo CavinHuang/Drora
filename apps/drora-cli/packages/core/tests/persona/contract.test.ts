@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { ModelInputMessage } from "@drora/contracts";
 import {
   applyPersonaContribution,
+  compilePersonaContribution,
   compilePersonaCore,
   defaultPersonaCore,
 } from "../../src/persona/index.js";
@@ -211,4 +212,59 @@ describe("request-only Persona projection", () => {
       ).toEqual(original.request.messages);
     },
   );
+});
+
+describe("P1a 交流默认编译", () => {
+  const preferences = [
+    { key: "collaborationStyle", value: "step_by_step" },
+    { key: "replyLanguage", value: "zh-CN" },
+  ];
+
+  it("确定性：同输入同输出，键序固定与输入顺序无关", () => {
+    const first = compilePersonaContribution(defaultPersonaCore, 3, preferences, 7);
+    const second = compilePersonaContribution(defaultPersonaCore, 3, [...preferences].reverse(), 7);
+    expect(first.status).toBe("compiled");
+    expect(second).toEqual(first);
+    if (first.status !== "compiled") return;
+    const languageIndex = first.contribution.content.indexOf('"replyLanguage"');
+    const styleIndex = first.contribution.content.indexOf('"collaborationStyle"');
+    expect(languageIndex).toBeGreaterThan(-1);
+    expect(languageIndex).toBeLessThan(styleIndex);
+    expect(first.contribution.policyEpoch).toBe(7);
+  });
+
+  it("U on 无有效偏好时退化为纯核心段并保留 epoch 观测；U off 基线无 epoch", () => {
+    const withEpoch = compilePersonaContribution(defaultPersonaCore, 3, [], 2);
+    const baseline = compilePersonaCore(defaultPersonaCore, 3);
+    expect(withEpoch.status).toBe("compiled");
+    expect(baseline.status).toBe("compiled");
+    if (withEpoch.status !== "compiled" || baseline.status !== "compiled") return;
+    expect(withEpoch.contribution.content).toBe(baseline.contribution.content);
+    expect(withEpoch.contribution.policyEpoch).toBe(2);
+    expect(baseline.contribution.policyEpoch).toBeUndefined();
+  });
+
+  it.each([
+    [{ key: "mood", value: "happy" }],
+    [{ key: "replyLanguage", value: "fr-FR" }],
+    [{ key: "preferredAddress", value: "阿".repeat(41) }],
+    [{ key: "preferredAddress", value: "bad\u0000name" }],
+  ])("拒绝越界偏好 %j", (bad) => {
+    expect(compilePersonaContribution(defaultPersonaCore, 1, [bad], 1).status).toBe("invalid");
+  });
+
+  it("preferredAddress 归一化后渲染；无效 epoch 拒绝", () => {
+    const normalized = compilePersonaContribution(
+      defaultPersonaCore,
+      1,
+      [{ key: "preferredAddress", value: "  Dro\u0301ra  " }],
+      1,
+    );
+    expect(normalized.status).toBe("compiled");
+    if (normalized.status !== "compiled") return;
+    expect(normalized.contribution.content).toContain("Dr\u00f3ra");
+    expect(
+      compilePersonaContribution(defaultPersonaCore, 1, preferences, Number.NaN).status,
+    ).toBe("invalid");
+  });
 });

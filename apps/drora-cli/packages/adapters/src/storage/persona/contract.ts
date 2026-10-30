@@ -24,7 +24,15 @@ import type {
   PersonaCoreMutationResult,
   PersonaEditableCore,
   PersonaErrorCode,
+  PersonaForgetPreferenceInput,
+  PersonaForgetResult,
   PersonaManagementResult,
+  PersonaPolicyFacts,
+  PersonaPolicyMutationResult,
+  PersonaPreferenceFacts,
+  PersonaPreferenceMutationResult,
+  PersonaSavePreferenceInput,
+  PersonaSetPolicyInput,
 } from "@drora/shared";
 
 // ---------------------------------------------------------------------------
@@ -82,6 +90,15 @@ export type PersonaStoreSnapshot =
       readonly state: "initialized";
       readonly authority: PersonaStoreAuthorityFacts;
       readonly core: PersonaStoreCoreFacts;
+      /**
+       * 使用策略与偏好槽（P1a）：与 authority/core 同一短事务读取（合同 §4.2
+       * 「capture 在短事务读取 core/policy/偏好版本」），构成该次捕获的资料 cutoff。
+       * preferences 含 forgotten 屏障槽（value 空串、带 revision 供重设 CAS）；
+       * U off 时为空数组（存储侧落实「新 capture 不读偏好」）；capture 消费方只应使用
+       * status="active" 的槽。policy 行缺席时读侧返回默认值。
+       */
+      readonly policy: PersonaPolicyFacts;
+      readonly preferences: readonly PersonaPreferenceFacts[];
     }
   | { readonly state: "uninitialized" };
 
@@ -119,6 +136,30 @@ export interface PersonaStoreInitializedValue {
 
 /** updateCore 结果直接复用 shared 合同类型（saved 返回新 revision；unchanged 不新增 revision）。 */
 export type PersonaStoreUpdateCoreResult = PersonaCoreMutationResult;
+
+// ---------------------------------------------------------------------------
+// P1a 策略/偏好/导出（合同 §1.2/§2/§4.2/§7）
+// ---------------------------------------------------------------------------
+
+/** 偏好值由服务层校验后传入完整规范化值（NFC/受控集合）；本仓储只做存储约束与严格解码。 */
+export type PersonaStoreSavePreferenceInput = PersonaStoreMutationBase &
+  PersonaSavePreferenceInput;
+
+export type PersonaStoreForgetPreferenceInput = PersonaStoreMutationBase &
+  PersonaForgetPreferenceInput;
+
+export type PersonaStoreUpdatePolicyInput = PersonaStoreMutationBase & PersonaSetPolicyInput;
+
+/**
+ * 导出快照（合同 §7）：单事务读取的冻结事实；组装 envelope 与字节上限检查属服务层。
+ * counts 记录快照时刻被省略的来源数（P1a 恒 0，键位为 P1b 的推断省略预留）。
+ */
+export interface PersonaStoreExportSnapshot {
+  readonly core: PersonaStoreCoreFacts;
+  readonly policy: PersonaPolicyFacts;
+  readonly preferences: readonly PersonaPreferenceFacts[];
+  readonly counts: { readonly inferredOmittedUnverifiable: number };
+}
 
 // ---------------------------------------------------------------------------
 // 端口与环境级错误
@@ -160,6 +201,34 @@ export interface PersonaStorePort {
   updateCore(
     input: PersonaStoreUpdateCoreInput,
   ): Promise<PersonaManagementResult<PersonaStoreUpdateCoreResult>>;
+  /**
+   * 使用策略 CAS（合同 §4.2）：内容变更＝policyRevision+1 且 policyEpoch+1（屏障）；
+   * 无内容变化返回 unchanged 不推进。行缺席时 expectedPolicyRevision=0 创建。
+   */
+  updatePolicy(
+    input: PersonaStoreUpdatePolicyInput,
+  ): Promise<PersonaManagementResult<PersonaPolicyMutationResult>>;
+  /**
+   * 显式偏好保存（合同 §1.2/§4.2）：provenance=settings、explicit、pinned；清该键候选是
+   * P1b 语义（P1a 无候选表，天然满足）；内容变化＝revision+1 且 keyGeneration+1（屏障）。
+   * 槽缺席时 expectedRevision=0 创建。
+   */
+  savePreference(
+    input: PersonaStoreSavePreferenceInput,
+  ): Promise<PersonaManagementResult<PersonaPreferenceMutationResult>>;
+  /**
+   * 逻辑忘记（合同 §4.2/§9）：清应用持有 value/版本候选、status=forgotten、
+   * keyGeneration+1、autoSuppressed；槽缺席（含从未设置）也建立屏障槽；结果携带新
+   * revision（忘记并列于保存是解决路径，重设的 CAS 需要可观测的预期值）。只删应用可
+   * 访问正文，不承诺介质擦除（界面文案不得宣称「所有地方彻底忘记」）。
+   */
+  forgetPreference(
+    input: PersonaStoreForgetPreferenceInput,
+  ): Promise<PersonaManagementResult<PersonaForgetResult>>;
+  /** 全部偏好槽（含 forgotten 屏障槽及其 revision/value=空）；调用方按用途过滤（合同 §3）。 */
+  listPreferences(): Promise<PersonaManagementResult<readonly PersonaPreferenceFacts[]>>;
+  /** 导出快照：单事务冻结 authority 下的 core/policy/有效偏好与省略计数（合同 §7）。 */
+  readExportSnapshot(): Promise<PersonaManagementResult<PersonaStoreExportSnapshot>>;
   /** 关闭连接；幂等。关闭后的调用以 PersonaStoreError(storage_unavailable) 拒绝。 */
   close(): Promise<void>;
 }

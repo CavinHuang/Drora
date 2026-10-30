@@ -46,21 +46,26 @@ import {
   getPersonaApplicationOp,
   getPersonaCoreOp,
   getPersonaOverviewOp,
+  forgetPreferenceOp,
   goalSession,
   getTaskTokenUsage,
   getUsageStats,
   initializePersonaOp,
+  listPreferencesOp,
   listSessions,
   listSessionSubagents,
+  preparePersonaExportOp,
   previewPersonaOp,
   readEvents,
   readMessages,
   readSession,
   resetPersonaCoreOp,
   resumeSession,
+  savePreferenceOp,
   sendPrompt,
   setMode,
   setModel,
+  setPersonalPolicyOp,
   setThoughtLevel,
   stopSession,
   subscribeSession,
@@ -852,6 +857,17 @@ export class DroraProtocolAgentServer {
         return await previewPersonaOp(this.context, request.params);
       case droraProtocolMethods.personaGetApplication:
         return await getPersonaApplicationOp(this.context, request.params);
+      // ── P1a 使用策略/交流默认/导出（合同 §3/§4.2/§7）：同一无会话控制端口 ──
+      case droraProtocolMethods.personaSetPolicy:
+        return await setPersonalPolicyOp(this.context, request.params);
+      case droraProtocolMethods.personaSavePreference:
+        return await savePreferenceOp(this.context, request.params);
+      case droraProtocolMethods.personaForgetPreference:
+        return await forgetPreferenceOp(this.context, request.params);
+      case droraProtocolMethods.personaListPreferences:
+        return await listPreferencesOp(this.context, request.params);
+      case droraProtocolMethods.personaPrepareExport:
+        return await preparePersonaExportOp(this.context, request.params);
       case droraProtocolMethods.pluginsMarketplaceAdd:
         return await this.withPluginOperationSignal(request, (signal) =>
           addPluginMarketplace(this.context, request.params, signal),

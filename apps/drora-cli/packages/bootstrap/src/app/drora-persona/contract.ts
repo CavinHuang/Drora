@@ -18,25 +18,30 @@
  *   不吞原 session/provider 错误。
  * - 同根多进程共享靠库事务/CAS；本模块不提供内存锁，进程内服务是惰性单例。
  */
-import type {
-  PersonaCaptureOutcome,
-  PersonaCapturePort,
-  PersonaTurnCaptureRequest,
-} from "@drora/core/persona";
+import type { PersonaCapturePort } from "@drora/core/persona";
 import type { Logger } from "@drora/contracts";
 import type { PersonaStorePort } from "@drora/adapters/storage/persona";
 import { PERSONA_CAPTURE_OMITTED_REASONS, PERSONA_STORAGE_KEYS } from "@drora/shared";
 import { join } from "node:path";
+import type { PersonaInternalCapture } from "./persona-capture-port.js";
 import type {
   PersonaCoreMutationResult,
   PersonaCoreSnapshot,
+  PersonaExportPayload,
+  PersonaForgetPreferenceInput,
+  PersonaForgetResult,
   PersonaInitializeInput,
   PersonaInitializeResult,
   PersonaManagementResult,
   PersonaOverview,
+  PersonaPolicyMutationResult,
+  PersonaPreferenceFacts,
+  PersonaPreferenceMutationResult,
   PersonaPreviewInput,
   PersonaPreviewResult,
   PersonaResetCoreInput,
+  PersonaSavePreferenceInput,
+  PersonaSetPolicyInput,
   PersonaUpdateCoreInput,
 } from "@drora/shared";
 
@@ -78,10 +83,22 @@ export interface PersonaAppService {
   ): Promise<PersonaManagementResult<PersonaCoreMutationResult>>;
   /** 本地确定性预览：不写库、不请求模型、同输入同输出。 */
   previewPersona(input: PersonaPreviewInput): Promise<PersonaManagementResult<PersonaPreviewResult>>;
-  /** 内部捕获（合同 §3）：E 门在 capturePortForPermission 端口层；本方法实现真实存储
-   *  捕获路径（未初始化省略不建库；取消 cancelled；超 capture 总预算按 budget_exhausted
-   *  省略；环境故障按错误码省略）。 */
-  captureContribution(request: PersonaTurnCaptureRequest): Promise<PersonaCaptureOutcome>;
+  /** P1a 使用策略（合同 §3 setPersonalPolicy）：CAS policyRevision；内容变更推进 epoch 屏障。 */
+  setPersonalPolicy(
+    input: PersonaSetPolicyInput,
+  ): Promise<PersonaManagementResult<PersonaPolicyMutationResult>>;
+  /** P1a 显式偏好保存（合同 §3 savePreference）：受控四键，settings/explicit/pinned。 */
+  savePreference(
+    input: PersonaSavePreferenceInput,
+  ): Promise<PersonaManagementResult<PersonaPreferenceMutationResult>>;
+  /** P1a 逻辑忘记（合同 §3/§9）：清应用持有正文、generation 屏障；不承诺全域擦除。 */
+  forgetPreference(
+    input: PersonaForgetPreferenceInput,
+  ): Promise<PersonaManagementResult<PersonaForgetResult>>;
+  /** P1a 偏好列表（合同 §3 listPreferences）：当前值＋来源类别；无原文复制之外派生。 */
+  listPreferences(): Promise<PersonaManagementResult<readonly PersonaPreferenceFacts[]>>;
+  /** P1a 只读导出（合同 §7）：冻结快照；无资料 uninitialized，不初始化；≤256KiB。 */
+  preparePersonaExport(): Promise<PersonaManagementResult<PersonaExportPayload>>;
   /** 关闭已打开的库连接（幂等）。进程生命周期内不要求显式调用；测试用于释放句柄。 */
   close(): Promise<void>;
 }
@@ -124,13 +141,11 @@ export interface PersonaSystemBinding {
  * 取仓储（spec §4）；实现放 persona-system.ts（进程级 holder 的同文件），避免契约模块
  * 反向依赖组合实现。
  */
-export interface PersonaControlPortFactory {
-  (binding: PersonaSystemBinding): PersonaControlPort;
-}
+export type PersonaControlPortFactory = (binding: PersonaSystemBinding) => PersonaControlPort;
 
 export interface DroraPersonaSystem {
-  /** 进程内惰性服务单例；构造无 IO，首显式管理调用才打开库。 */
-  readonly appService: () => PersonaAppService;
+  /** 进程内惰性服务单例；构造无 IO，首显式管理调用才打开库。含内部捕获面（capture）。 */
+  readonly appService: () => PersonaAppService & PersonaInternalCapture;
   /**
    * 按执行许可 E 冻结的捕获端口（spec §5）：每个新建 Runtime 用自己的 E 值绑定一次，
    * warm Runtime 不重读；普通 fork 由协议启动偏好继承原许可。E off 一律快速
@@ -152,6 +167,11 @@ export type PersonaControlPort = Pick<
   | "updatePersonaCore"
   | "resetPersonaCore"
   | "previewPersona"
+  | "setPersonalPolicy"
+  | "savePreference"
+  | "forgetPreference"
+  | "listPreferences"
+  | "preparePersonaExport"
 >;
 
 /**

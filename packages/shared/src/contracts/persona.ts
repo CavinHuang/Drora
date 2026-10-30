@@ -14,7 +14,8 @@
  * 实际 persona/* 方法注册全部引用同一常量）。
  *
  * 明确不进本文件：
- * - P1a policy/preference 与 P1b evidence/candidate/work 的键与字段：对应分期才建（合同 §2）；
+ * - P1b evidence/candidate/work 的键与字段：对应分期才建（合同 §2）；P1a 的
+ *   policy/preference 常量随 P1a（本文件）落地；
  * - mutation receipt 行 schema 与 SQL 迁移：adapters 仓储所有（合同 §2），本文件只固定
  *   scope/resultCode 词汇与库位置键。
  */
@@ -48,17 +49,19 @@ export const PERSONA_STORAGE_KEYS = {
 // mutation receipt 词汇（合同 §1 MutationReceipt/P0、§2：receipt(scope,mutationId) 幂等键）
 // ---------------------------------------------------------------------------
 
-/** receipt scope：P0 只有 authority 初始化与 core 变更两族（update/reset 共用 core）。 */
+/** receipt scope：authority 初始化、core 变更与 P1a 的 policy/preference 变更族。 */
 export const PERSONA_RECEIPT_SCOPES = {
   authority: "authority",
   core: "core",
+  policy: "policy",
+  preference: "preference",
 } as const;
 
 export type PersonaReceiptScope =
   (typeof PERSONA_RECEIPT_SCOPES)[keyof typeof PERSONA_RECEIPT_SCOPES];
 
 /** receipt.resultCode 回放词汇＝各变更结果的 status 字面量（同 ID 同摘要按此回放先前结果）。 */
-export type PersonaReceiptResultCode = "created" | "saved" | "unchanged";
+export type PersonaReceiptResultCode = "created" | "saved" | "unchanged" | "forgotten";
 
 // ---------------------------------------------------------------------------
 // 管理 API 错误码（合同 §3 错误枚举，封闭集合；capture 的正常 omitted reason 与管理错误分开）
@@ -232,7 +235,7 @@ export const PERSONA_PROTOCOL_CAPABILITY_CONTROL_V1 = "personaControlV1";
  */
 export const PERSONA_RUNTIME_PREFERENCE_ENABLED = "personaEnabled";
 
-/** persona 管理方法 wire 名（合同 §3 方法表 P0 子集＋独立应用状态查询）。 */
+/** persona 管理方法 wire 名（合同 §3 方法表：P0 子集＋独立应用状态查询＋P1a 策略/偏好/导出）。 */
 export const PERSONA_PROTOCOL_METHODS = {
   getOverview: "persona/getPersonaOverview",
   initialize: "persona/initializePersona",
@@ -241,6 +244,11 @@ export const PERSONA_PROTOCOL_METHODS = {
   resetCore: "persona/resetPersonaCore",
   preview: "persona/previewPersona",
   getApplication: "persona/getPersonaApplication",
+  setPolicy: "persona/setPersonalPolicy",
+  savePreference: "persona/savePreference",
+  forgetPreference: "persona/forgetPreference",
+  listPreferences: "persona/listPreferences",
+  prepareExport: "persona/preparePersonaExport",
 } as const;
 
 export type PersonaProtocolMethod =
@@ -279,3 +287,157 @@ export const PERSONA_CAPTURE_OMITTED_REASONS = {
 
 export type PersonaCaptureOmittedReason =
   (typeof PERSONA_CAPTURE_OMITTED_REASONS)[keyof typeof PERSONA_CAPTURE_OMITTED_REASONS];
+
+// ---------------------------------------------------------------------------
+// P1a 使用策略（合同 §1 Policy/P1a、§2、§4.2）：policyRevision/policyEpoch/usePreferences。
+// U 与执行许可 E 分离（spec §5）：E 只放行核心贡献；偏好注入还要 U on。每次策略内容
+// 变更 = 新 revision＋新 epoch（屏障：已经冻结的当前轮不被中途改写，新 capture 读新值）；
+// 无内容变化的策略提交返回 unchanged，不推进 epoch（合同 §2 unchanged 语义）。
+// ---------------------------------------------------------------------------
+
+/** policy 单例行缺席时的读侧默认（迁移不回填；首次 setPersonalPolicy 以 expectedRevision=0 CAS 创建）。 */
+export const PERSONA_POLICY_DEFAULTS = {
+  usePreferences: false,
+  policyRevision: 0,
+  policyEpoch: 0,
+} as const;
+
+export interface PersonaPolicyFacts {
+  readonly usePreferences: boolean;
+  readonly policyRevision: number;
+  readonly policyEpoch: number;
+}
+
+export interface PersonaSetPolicyInput {
+  readonly expectedPolicyRevision: number;
+  readonly usePreferences: boolean;
+  readonly mutationId: string;
+}
+
+/** setPersonalPolicy 输出：saved 携带新 revision＋新 epoch（屏障值）；unchanged 不推进。 */
+export type PersonaPolicyMutationResult =
+  | { readonly status: "saved"; readonly policyRevision: number; readonly policyEpoch: number }
+  | { readonly status: "unchanged" };
+
+// ---------------------------------------------------------------------------
+// P1a 四类交流默认（合同 §1.2）：唯一四键，未知 key/value 拒绝（validation_failed），
+// 不把任意 JSON 转成指令。P1a 只有显式设置（provenanceKind=settings、epistemicStatus=
+// explicit、pinned=true）；inferred/争议/候选是 P1b 才建的域，本文件不提前发明其字段。
+// ---------------------------------------------------------------------------
+
+export const PERSONA_PREFERENCE_KEYS = {
+  replyLanguage: "replyLanguage",
+  explanationDetail: "explanationDetail",
+  preferredAddress: "preferredAddress",
+  collaborationStyle: "collaborationStyle",
+} as const;
+
+export type PersonaPreferenceKey =
+  (typeof PERSONA_PREFERENCE_KEYS)[keyof typeof PERSONA_PREFERENCE_KEYS];
+
+/** 受控值集合；后续新增语言/风格必须扩这里＋兼容测试，不自动保存 schema 不认识的值（合同 §1.2）。 */
+export const PERSONA_PREFERENCE_ALLOWED_VALUES = {
+  replyLanguage: ["follow_user", "zh-CN", "en-US"],
+  explanationDetail: ["concise", "balanced", "detailed"],
+  collaborationStyle: ["direct_answer", "explain_tradeoffs", "step_by_step"],
+} as const;
+
+export const PERSONA_PREFERENCE_LIMITS = {
+  /** preferredAddress 上限（合同 §1.2：1–40 code point 纯文本）。 */
+  preferredAddressMax: 40,
+  /** 编译贡献里偏好段上限（spec §6「偏好贡献 2,000」code point；超限整份省略，不截断）。 */
+  compiledPreferenceBudgetMax: 2000,
+} as const;
+
+/** P1a 偏好行的唯一合法来源/认识状态（自动提交永远 extraction/inferred 是 P1b 语义，这里不存在）。 */
+export type PersonaPreferenceProvenanceKind = "settings";
+export type PersonaPreferenceEpistemicStatus = "explicit";
+/** status 与认识状态分开（合同 §1.2）：active/superseded/forgotten 不是置信度；P1a 只有 active/forgotten。 */
+export type PersonaPreferenceStatus = "active" | "forgotten";
+
+/**
+ * 一个偏好槽（含 forgotten 屏障槽）的当前事实（合同 §1 Preference/P1a：一个 authority＋key
+ * 只有一个槽）。forgotten 槽 value 为空串且保留 revision/keyGeneration——savePreference 的
+ * CAS 与「忘记后重设」都以它为预期值（合同 §4.2：显式保存是忘记并列的解决路径）。
+ */
+export interface PersonaPreferenceFacts {
+  readonly key: PersonaPreferenceKey;
+  /** active 槽为当前值；forgotten 槽为空串（应用可访问正文已清，合同 §1.2）。 */
+  readonly value: string;
+  readonly revision: number;
+  readonly keyGeneration: number;
+  readonly provenanceKind: PersonaPreferenceProvenanceKind;
+  readonly epistemicStatus: PersonaPreferenceEpistemicStatus;
+  readonly pinned: boolean;
+  readonly updatedAt: number;
+  readonly status: PersonaPreferenceStatus;
+}
+
+export interface PersonaSavePreferenceInput {
+  readonly key: PersonaPreferenceKey;
+  readonly value: string;
+  readonly expectedRevision: number;
+  readonly mutationId: string;
+}
+
+/** savePreference 输出：saved 携带新 revision＋generation（屏障）；unchanged 不推进 generation。 */
+export type PersonaPreferenceMutationResult =
+  | { readonly status: "saved"; readonly revision: number; readonly keyGeneration: number }
+  | { readonly status: "unchanged" };
+
+export interface PersonaForgetPreferenceInput {
+  readonly key: PersonaPreferenceKey;
+  readonly expectedRevision: number;
+  readonly mutationId: string;
+}
+
+/** forgetPreference 输出：逻辑撤销屏障（generation++、新 revision 供重设 CAS）；不承诺介质擦除（spec §9）。 */
+export type PersonaForgetResult = {
+  readonly status: "forgotten";
+  readonly revision: number;
+  readonly keyGeneration: number;
+};
+
+// ---------------------------------------------------------------------------
+// P1a 只读导出（合同 §7）：冻结 JSON 快照。不含 authorityId、来源定位、聊天原文、
+// 历史值、候选、抑制内部记录、令牌、执行/学习授权；pinned 等内部控制态不进 envelope
+// （不能被未来导入误当许可）。总 UTF-8 bytes 超限报 validation_failed，不交付截断 JSON。
+// ---------------------------------------------------------------------------
+
+export const PERSONA_EXPORT_FORMAT = "drora-persona-export";
+export const PERSONA_EXPORT_FORMAT_VERSION = 1;
+/** 256 KiB（合同 §7）。 */
+export const PERSONA_EXPORT_MAX_BYTES = 262144;
+
+/** 固定限制说明（合同 §7/§9：准确范围，不宣称全域擦除/导入/备份）。 */
+export const PERSONA_EXPORT_LIMITATIONS = [
+  "Forgetting is a logical undo: it clears app-accessible preference values, but chat history, project memory, diagnostics and previously saved copies are not removed.",
+  "This file is a read-only snapshot; importing it back is not supported.",
+  "It contains no chat transcripts, learning evidence, work queues or credentials.",
+] as const;
+
+export interface PersonaExportPreferenceEntry {
+  readonly key: PersonaPreferenceKey;
+  readonly value: string;
+  readonly revision: number;
+  readonly provenanceKind: PersonaPreferenceProvenanceKind;
+  readonly epistemicStatus: PersonaPreferenceEpistemicStatus;
+}
+
+export interface PersonaExportPayload {
+  readonly format: typeof PERSONA_EXPORT_FORMAT;
+  readonly formatVersion: typeof PERSONA_EXPORT_FORMAT_VERSION;
+  /** 服务产生的 UTC ISO 时间（合同 §1：业务时间由服务产生）。 */
+  readonly capturedAt: string;
+  readonly coreRevision: number;
+  readonly policyRevision: number;
+  readonly core: PersonaEditableCore;
+  readonly templateVersion: number;
+  readonly compilerVersion: number;
+  /** 只含未忘记且有效的当前值；P1a 全部为显式设置（inferred 是 P1b 域）。 */
+  readonly preferences: readonly PersonaExportPreferenceEntry[];
+  /** 省略计数（合同 §7）；P1a 只有显式值，恒为 0，键位为 P1b 的推断省略预留。 */
+  readonly omittedCounts: { readonly inferredOmittedUnverifiable: number };
+  /** 固定限制说明（合同 §7）：不是全域擦除、不是运行备份、不含聊天原文。 */
+  readonly limitations: readonly string[];
+}

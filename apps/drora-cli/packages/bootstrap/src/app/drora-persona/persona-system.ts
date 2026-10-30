@@ -29,6 +29,7 @@ import {
   type PersonaSystemBinding,
 } from "./contract.js";
 import { resolvePersonaDatabasePath } from "./contract.js";
+import type { PersonaInternalCapture } from "./persona-capture-port.js";
 
 let boundSystem: DroraPersonaSystem | undefined;
 let boundRoot: string | undefined;
@@ -65,7 +66,10 @@ export function getOrCreateDroraPersonaSystem(binding: PersonaSystemBinding): Dr
   }
   const dbPath = resolvePersonaDatabasePath(binding.trustedCliStorageRoot);
   const logger: Logger | undefined = binding.logger?.child({ module: "drora-persona" });
-  const service: PersonaAppService = new PersonaAppServiceImpl({ dbPath, logger });
+  const service: PersonaAppService & PersonaInternalCapture = new PersonaAppServiceImpl({
+    dbPath,
+    logger,
+  });
   boundSystem = {
     appService: () => service,
     // E 值由每个新建 Runtime 在装配时冻结进各自端口；warm Runtime 不重读（spec §5）。
@@ -94,6 +98,12 @@ export function createPersonaControlPort(binding: PersonaSystemBinding): Persona
     updatePersonaCore: (input) => resolve().updatePersonaCore(input),
     resetPersonaCore: (input) => resolve().resetPersonaCore(input),
     previewPersona: (input) => resolve().previewPersona(input),
+    // P1a（合同 §3）：策略/偏好/导出与核心管理同走进程级服务单例。
+    setPersonalPolicy: (input) => resolve().setPersonalPolicy(input),
+    savePreference: (input) => resolve().savePreference(input),
+    forgetPreference: (input) => resolve().forgetPreference(input),
+    listPreferences: () => resolve().listPreferences(),
+    preparePersonaExport: () => resolve().preparePersonaExport(),
   };
 }
 

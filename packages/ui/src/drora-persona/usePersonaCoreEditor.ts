@@ -24,6 +24,13 @@ export type PersonaControlService = Pick<
   | "resetPersonaCore"
   | "previewPersona"
   | "getPersonaApplication"
+  // P1a 交流默认/策略/导出（合同 §1.2/§3）：类型收集到同一 Pick，让 PersonaSettingsSection
+  // 的 personaService 属性同时满足 P0 编辑器与 P1a 偏好区（usePersonaPreferences）的服务面。
+  | "setPersonalPolicy"
+  | "savePreference"
+  | "forgetPreference"
+  | "listPreferences"
+  | "preparePersonaExport"
 >;
 
 export interface PersonaSavedSnapshot {

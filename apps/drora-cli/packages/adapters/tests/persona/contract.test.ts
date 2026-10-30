@@ -23,12 +23,20 @@ import { PERSONA_MIGRATIONS } from "../../src/storage/persona/migrations.js";
  */
 
 function checkVocabulary(tableName: string, column: string): string[] {
-  const sql = PERSONA_MIGRATIONS[0]?.sql ?? "";
-  const tableBlock = sql.slice(sql.indexOf(`create table if not exists ${tableName}`));
-  const columnStart = tableBlock.indexOf(`${column} `);
-  // 列声明在本迁移里都是单行；直接取整行再做 CHECK 词汇匹配。
-  const line = tableBlock.slice(columnStart).split("\n")[0]!;
-  const match = line.match(/in \(([^)]*)\)/);
+  const sql = PERSONA_MIGRATIONS.map((migration) => migration.sql).join("\n");
+  // 后续迁移可能重建表并改写 CHECK 词汇（0002 对 receipt 的 P1a 扩展）：取该表最后一次
+  // create（「if not exists」与重建两种形态都可能出现）之后的块做词汇匹配。
+  const lastStart = Math.max(
+    sql.lastIndexOf(`create table if not exists ${tableName}`),
+    sql.lastIndexOf(`create table ${tableName}`),
+  );
+  const tableBlock = lastStart >= 0 ? sql.slice(lastStart) : "";
+  // 按行首匹配列名（indexOf 会把 "status" 撞上 "epistemic_status" 这类后缀列）。
+  const line = tableBlock
+    .split("\n")
+    .map((row) => row.trim())
+    .find((row) => row.startsWith(`${column} `));
+  const match = line?.match(/in \(([^)]*)\)/);
   if (!match) throw new Error(`no CHECK vocabulary found for ${tableName}.${column}`);
   return match[1]!
     .split(",")
@@ -51,12 +59,17 @@ describe("cli-persona-store contract", () => {
     for (const scope of Object.values(PERSONA_RECEIPT_SCOPES)) {
       expect(scopes).toContain(scope);
     }
-    // result_code 词汇 = 各变更结果 status 字面量（created/saved/unchanged）。
+    // result_code 词汇 = 各变更结果 status 字面量（P1a 起 forgotten 是忘记的终态屏障）。
     expect(checkVocabulary("persona_mutation_receipt", "result_code")).toEqual([
       "created",
       "saved",
       "unchanged",
+      "forgotten",
     ]);
+    // P1a 偏好槽词汇：来源/认识状态只有显式设置（inferred 是 P1b 域）。
+    expect(checkVocabulary("persona_preference", "provenance_kind")).toEqual(["settings"]);
+    expect(checkVocabulary("persona_preference", "epistemic_status")).toEqual(["explicit"]);
+    expect(checkVocabulary("persona_preference", "status")).toEqual(["active", "forgotten"]);
   });
 
   it("core 表达枚举词汇与 PersonaEditableCore 的允许值一致", () => {

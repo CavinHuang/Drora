@@ -30,6 +30,7 @@ import { useDroraIntl } from "@/i18n/IntlProvider.js";
 import { SettingsGroupCard, SettingsRow } from "@/settings/SettingsPageParts.js";
 import { Spinner } from "@/components/ui/spinner.js";
 import { PersonaApplicationArea } from "./PersonaApplicationArea.js";
+import { PersonaPreferencesSection } from "./PersonaPreferencesSection.js";
 import type { PersonaApplicationWorkspaceTarget } from "./contract.js";
 import { usePersonaCoreEditor } from "./usePersonaCoreEditor.js";
 
@@ -579,6 +580,10 @@ export function PersonaSettingsSection({
           )
         }
       />
+
+      {/* P1a 交流默认与导出（spec §9/§10）：四键显式保存/忘记、U 使用许可与只读 JSON 导出；
+          状态机见 usePersonaPreferences，展示细节见 PersonaPreferencesSection。 */}
+      <PersonaPreferencesSection personaService={personaService} />
 
       <AlertDialog
         open={resetConfirmOpen}

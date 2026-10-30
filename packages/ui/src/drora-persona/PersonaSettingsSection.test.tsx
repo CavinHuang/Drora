@@ -45,6 +45,18 @@ const mocks = vi.hoisted(() => {
     // 服务权威核心：可变，updatePersonaCore/resetPersonaCore 真实落库，
     // 重读（getPersonaCore）返回它——与 PersonaAppService 的 CAS 语义对齐。
     core: { ...savedCore } as Record<string, string>,
+    // P1a 偏好行与策略（PersonaSettingsSection 内挂 PersonaPreferencesSection，
+    // 进区会真实读取；P1a 交互守护在 usePersonaPreferences.test.tsx 独立驱动）。
+    policy: { usePreferences: false, policyRevision: 0, policyEpoch: 0 },
+    preferenceRows: {} as Record<
+      string,
+      {
+        value: string | null;
+        revision: number;
+        keyGeneration: number;
+        status: "active" | "forgotten";
+      }
+    >,
   };
   const personaService = {
     getPersonaOverview: vi.fn(),
@@ -54,14 +66,44 @@ const mocks = vi.hoisted(() => {
     resetPersonaCore: vi.fn(),
     previewPersona: vi.fn(),
     getPersonaApplication: vi.fn(),
+    // P1a 交流默认/策略/导出（PersonaControlService Pick 扩展）：P0 用例不驱动写入路径，
+    // 但内挂偏好区进区会调用 listPreferences/getPersonaOverview/preparePersonaExport
+    // （只读实现见 defaultResponses）。
+    setPersonalPolicy: vi.fn(),
+    savePreference: vi.fn(),
+    forgetPreference: vi.fn(),
+    listPreferences: vi.fn(),
+    preparePersonaExport: vi.fn(),
   };
   return { savedCore, template, state, personaService };
 });
+
+/** P1a 只读导出的冻结快照样例（合同 §7 最小形状）。 */
+function personaExportPayload(): Record<string, unknown> {
+  return {
+    format: "drora-persona-export",
+    formatVersion: 1,
+    capturedAt: "2026-10-30T00:00:00.000Z",
+    coreRevision: mocks.state.coreRevision,
+    policyRevision: mocks.state.policy.policyRevision,
+    core: { ...mocks.savedCore },
+    templateVersion: 1,
+    compilerVersion: 1,
+    preferences: [],
+    omittedCounts: { inferredOmittedUnverifiable: 0 },
+    limitations: ["limitation-1"],
+  };
+}
 
 function defaultResponses(): void {
   mocks.state.coreRevision = 1;
   mocks.state.initialized = true;
   mocks.state.core = { ...mocks.savedCore };
+  mocks.state.policy = { usePreferences: false, policyRevision: 0, policyEpoch: 0 };
+  mocks.state.preferenceRows = {
+    replyLanguage: { value: "follow_user", revision: 1, keyGeneration: 1, status: "active" },
+    preferredAddress: { value: "阿明", revision: 1, keyGeneration: 1, status: "active" },
+  };
   mocks.personaService.getPersonaOverview.mockImplementation(async () => ({
     ok: true,
     value: mocks.state.initialized
@@ -94,6 +136,29 @@ function defaultResponses(): void {
   mocks.personaService.updatePersonaCore.mockReset();
   mocks.personaService.resetPersonaCore.mockReset();
   mocks.personaService.getPersonaApplication.mockReset();
+  // ---- P1a 只读路径（内挂偏好区进区即读；写路径由 usePersonaPreferences.test.tsx 驱动）----
+  mocks.personaService.listPreferences.mockImplementation(async () => ({
+    ok: true,
+    value: {
+      // 未初始化时服务返回空答案（与 PersonaAppService 一致），不是错误。
+      preferences: Object.entries(mocks.state.preferenceRows)
+        .filter(([, row]) => row.status === "active" && mocks.state.initialized)
+        .map(([key, row]) => ({
+          key,
+          value: row.value ?? "",
+          revision: row.revision,
+          keyGeneration: row.keyGeneration,
+          provenanceKind: "settings",
+          epistemicStatus: "explicit",
+          pinned: true,
+          updatedAt: 0,
+        })),
+    },
+  }));
+  mocks.personaService.preparePersonaExport.mockImplementation(async () => {
+    if (!mocks.state.initialized) return { ok: false, code: "uninitialized" };
+    return { ok: true, value: personaExportPayload() };
+  });
 }
 
 vi.mock("@/i18n/IntlProvider.js", () => ({
@@ -325,7 +390,11 @@ describe("PersonaSettingsSection", () => {
     const mutationIds: string[] = [];
     let attempts = 0;
     mocks.personaService.updatePersonaCore.mockImplementation(
-      async (input: { expectedRevision: number; patch: Record<string, unknown>; mutationId: string }) => {
+      async (input: {
+        expectedRevision: number;
+        patch: Record<string, unknown>;
+        mutationId: string;
+      }) => {
         mutationIds.push(input.mutationId);
         attempts += 1;
         if (attempts === 1) return { ok: false, code: "outcome_unknown" };
@@ -340,9 +409,7 @@ describe("PersonaSettingsSection", () => {
       expect(screen.getByTestId("settings-persona-notice").textContent ?? "").toContain("结果未知");
     });
     // 失败提示不得声称确定性失败（tone=info，文案说明未确认与幂等回放）。
-    expect(screen.getByTestId("settings-persona-notice").textContent ?? "").toContain(
-      "幂等回放",
-    );
+    expect(screen.getByTestId("settings-persona-notice").textContent ?? "").toContain("幂等回放");
 
     // 重试：必须复用同一 mutationId（合同 §2/PM53：不换新 ID 重写）。
     fireEvent.click(screen.getByTestId("settings-persona-save"));
@@ -371,7 +438,11 @@ describe("PersonaSettingsSection", () => {
     const mutationIds: string[] = [];
     let attempts = 0;
     mocks.personaService.updatePersonaCore.mockImplementation(
-      async (input: { expectedRevision: number; patch: Record<string, unknown>; mutationId: string }) => {
+      async (input: {
+        expectedRevision: number;
+        patch: Record<string, unknown>;
+        mutationId: string;
+      }) => {
         mutationIds.push(input.mutationId);
         attempts += 1;
         if (attempts === 1) throw new Error("transport closed");

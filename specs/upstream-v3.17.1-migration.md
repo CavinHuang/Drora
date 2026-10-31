@@ -184,6 +184,23 @@ CUA 当前 package 元数据中的 placeholder 与实际保留的还原源码/�
 
 已有 `specs/drora-divergence-ledger.md` 1–9 条继续有效，尤其第 9 条（2026-10-31）恢复自建 Relay 客户端切换，优先于 10-22 历史“删除自研 Relay”段落。主分支已重新包含 `packages/relay-v2-server`，这不是待清理旧模块。
 
+### 6.1 执行裁决（2026-10-31 P1 关闭，依据 §1 交付原则与用户「保留自研特性」指令）
+
+D01–D08 自本节起为**已裁决**，段内执行直接引用；如遇与源码事实冲突的反证，回本节修订并重开受影响任务。
+
+- **D01 测试退役（终态=吸收上游架构+Drora 显式保留集）**：
+  1. 根 `vitest.config.ts` 随上游改造：`engineering` 工程（显式清单 `scripts/engineering-test-files.json`、forks 池串行、silent passed-only、maxWorkers 4、testTimeout 30s、forceRerunTriggers）+ CUA 工程；上游删除的 App 业务 UT 中 **ours 未修改者随上游删除**（delete-review 机械路径）。
+  2. 新增第二显式清单 `scripts/drora-test-files.json`（`drora` 工程）：登记全部自研与修改过的回归——knowledge/obsidian 全套、desktopPet 全套、webRemoteControl 全套、team UI、voice（.ts+.tsx）、persona UI/契约、shared contracts、node:test 保留集（`node-unit-test-files.mjs` 发现机制保留）。清单成员=P1-06 归类中 A-feature 的测试行 + local-preservation 内 ours 修改过的 test_asset 行，S1 生成、各段补齐、S6 冻结。
+  3. affected 链随上游改名 `run-affected-engineering-tests.mjs`（engineering-tests/ 目录），但选择面=engineering+drora 双清单；`retired-app-unit-evidence.test.mjs` 按本仓实际保留面适配（断言上游退役项已删+drora 保留项可被发现执行，不照抄上游零断言）。
+  4. AGENTS.md 测试章节、`docs/testing/pre-push-hook.md` 在 S6 同步真实入口（先文档后行为收口）。
+- **D02 生命周期唯一 owner**：官方 `SessionLifecycleController` 及四个 lifecycle 请求为唯一实例 owner；Team 子运行、persona 捕获、CommandInbox admission、恢复/取消全部经现有端口接入官方 owner，禁止第二套状态机或超时冒充释放；stop 先关准入→取消/释放→确认→替代实例。自研逻辑不写入还原资产文件。
+- **D03 persona 与上游用户指令编辑并存**：persona 独立资料域（E/U/L、CAS、逻辑忘记、只读导出、有界学习、worker lease）语义不变；上游 Personalization/用户指令编辑作为独立能力落地，两者数据不互迁；persona 不进 data-sync、不推远端/手机（RG18 断言）。
+- **D04 远控能力差**：保留官方/自建切换、`webRemoteControlRelayOrigin`、三 URL 优先级（env>设置>默认 endpoint）、同源 ws2（台账 9）；上游新增 mobilePushEvent/输入预测/session-data 的**客户端契约全部吸收**；自建 `relay-v2-server` 未实现的服务端能力按能力协商如实报不可用（不伪造成功、不静默启用依赖未实现路径的默认值）；服务端补齐为独立后续任务。
+- **D05 project purge**：S3 审计上游 purge/`0008_remote_entry_deleted_cache` 的调用链与授权；未审计通过前不暴露永久删除入口、不改写既有迁移 checksum、不改变软删除产品边界；如需引入 purge 另立 spec。
+- **D06 发行链**：root version 随上游 3.17.1；`apps/drora-cli` 恒 0.0.1（台账 1）；GitHub 更新 feed、签名、渠道、bootstrap 闭包构建等既有修复保留；不恢复 force-update/皮肤中心。
+- **D07 治理快照**：`architecture-policy.yaml` 取并集（官方 +614 新模块 owner 表 + 本仓 owner:drora 模块与细粒度豁免）；`upstream-snapshot.json` 按本仓转换树重生成（R5 白名单机制沿用）；禁止无差别 adopt 洗白遗漏或越界。
+- **D08 外部契约字面量**：appId（对象与 URL 形态）、`x-zcode-*` wire header、`zcode://` scheme、官方仓/CDN/OAuth 回调等按占位保护保留官方值（P1-09 抽查已验证转换器行为）；上游新增字面量族在 S1 逐项判「转换」或「豁免」，判据=生产消费两侧证据，先 grep 全链再落。
+
 ## 7. 分阶段执行与每段退出条件
 
 每个任务的操作、依赖、验收和状态见 tasks.md。推进必须满足：spec/用例先行 → 小批应用 → 机械门禁 → 上游覆盖复核 → 自研保真复核 → 命名/契约一致性复核 → 保存独立可回退提交 → 更新清单与日志。三个复核分别给结论，不能只写“review passed”。

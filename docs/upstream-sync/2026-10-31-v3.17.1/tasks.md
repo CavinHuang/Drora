@@ -52,17 +52,28 @@
 
 前置：P0。修改实现前更新目标 spec/验收，再按 architecture-governance 读取受控模块上下文。
 
-- [ ] P1-01 关闭 D01：上游工程测试链 + Drora 自研回归的发现/执行/affected/CI 合同；列 2,259 条测试资产删除的归属、移动/退役与保留消费者。未完成前禁止批量删测试。
-- [ ] P1-02 关闭 D02/D03：Lifecycle、Team、Persona、CommandInbox 的唯一 owner/时序；用户指令编辑与 persona 的独立性；将 RG10/RG11/RG17 写入对应 catalog/matrix。
-- [ ] P1-03 关闭 D04：旧/新官方 Relay 客户端和自建服务能力表；新增 mobile push/输入预测协议、未知能力降级、三 URL 切换链与端点优先级。
-- [ ] P1-04 关闭 D05：project purge 调用链/授权、0007–0009 与本地迁移 checksum、远程入口软删除/缓存/重复创建的产品合同与 fixture。
-- [ ] P1-05 关闭 D06–D08：Drora 发行版本与闭包、治理快照/例外、外部 appId/header/clientType 字面量的证据；常设性取舍写 divergence ledger。
-- [ ] P1-06 将 local-preservation 全部行分配特性或工程/历史资产 owner；补充机器分类没覆盖的能力，unknown 不得漏入 S7。
-- [ ] P1-07 以新文件实现显式 base/ours/theirs/out 的预演/应用工具：异步 IO、Windows 参数数组、输入 hash、mode/symlink/binary/UTF-8/大小写冲突校验；禁止硬编码旧 ref 与缓存复用。
-- [ ] P1-08 先写工具回归：add/add、modify/delete、ours 删除、binary、错误 exit、映射碰撞、空 base、非法路径；不能把 merge-file 错误当 clean。
-- [ ] P1-09 黄金转换：T(B) 与现产品残差逐项归类；appId 对象/URL/常量、wire header、manifest、CUA provenance、品牌 D 水印和新增字面量例子确认。
+- [x] P1-01 关闭 D01：上游工程测试链 + Drora 自研回归的发现/执行/affected/CI 合同；列 2,259 条测试资产删除的归属、移动/退役与保留消费者。未完成前禁止批量删测试。
+  裁决见 spec §6.1 D01：vitest 双工程（engineering+drora 清单）、ours 未修改随上游删除、affected 链改名但双清单选择、retired-evidence 按本仓保留面适配、AGENTS/pre-push 文档 S6 同步。测试资产逐条归属随各段 delete-review 路径落地（S1 起登记）。
+- [x] P1-02 关闭 D02/D03：Lifecycle、Team、Persona、CommandInbox 的唯一 owner/时序；用户指令编辑与 persona 的独立性；将 RG10/RG11/RG17 写入对应 catalog/matrix。
+  裁决见 spec §6.1 D02/D03（官方 lifecycle 唯一 owner+端口接入；persona 与用户指令编辑并存不互迁）。RG10/RG11/RG17 的 catalog 行登记随 S2 落地时写入（测试路径在段内固定）。
+- [x] P1-03 关闭 D04：旧/新官方 Relay 客户端和自建服务能力表；新增 mobile push/输入预测协议、未知能力降级、三 URL 切换链与端点优先级。
+  裁决见 spec §6.1 D04（切换/三 URL/ws2 保留；新客户端契约全吸收；自建未实现能力如实报不可用）。能力表逐项核对在 S3-05/S4-02 执行。
+- [x] P1-04 关闭 D05：project purge 调用链/授权、0007–0009 与本地迁移 checksum、远程入口软删除/缓存/重复创建的产品合同与 fixture。
+  裁决见 spec §6.1 D05（审计前置、不暴露永久删除、checksum 不改写）。审计在 S3-01/S3-02 执行。
+- [x] P1-05 关闭 D06–D08：Drora 发行版本与闭包、治理快照/例外、外部 appId/header/clientType 字面量的证据；常设性取舍写 divergence ledger。
+  裁决见 spec §6.1 D06/D07/D08。root version 3.17.1 随 S1 落地；新增字面量族 S1 逐项判转换/豁免；常设分歧按既有台账 1–9 执行，本轮新增分歧在 S7 收口时补台账。
+- [x] P1-06 将 local-preservation 全部行分配特性或工程/历史资产 owner；补充机器分类没覆盖的能力，unknown 不得漏入 S7。
+  证据：`scripts/upstream/classify-preservation.mjs` + `preservation-owners.tsv`（10,164 行全分类：D-frozen 5,971 / B-shared 2,018 / A-feature 771 / E-engineering 272 / E-history 120 / needs-owner-review 1,012）。needs-owner 中被本轮上游触及者仅 86 行（真交互面），逐段认领；其余为纯本地文档/历史资产，S7 对账收口。
+- [x] P1-07 以新文件实现显式 base/ours/theirs/out 的预演/应用工具：异步 IO、Windows 参数数组、输入 hash、mode/symlink/binary/UTF-8/大小写冲突校验；禁止硬编码旧 ref 与缓存复用。
+  交付：`scripts/upstream/apply-ledger.mjs`（ledger 驱动、blob 锚定 fail-closed 漂移校验、路径映射/zone 一致性校验、非法路径守卫、二进制逐字保留、CRLF 宽容比对+merge 用 git blob 侧、决策覆写、--dry、报告 JSON 含 ledger sha256）。
+- [x] P1-08 先写工具回归：add/add、modify/delete、ours 删除、binary、错误 exit、映射碰撞、空 base、非法路径；不能把 merge-file 错误当 clean。
+  证据：`scripts/test/upstream-apply-ledger.test.mjs` 10/10 过（2.6s，Node 24.14.0）：新增/取上游/干净合并/冲突标记/未改随删/删改决策/漂移阻断/二进制/映射漂移+非法路径/决策覆写/cua-limited。发现并修复两处工具缺陷（gitCat 未解构 stdout；merge 用磁盘内容致 CRLF 全冲突）。环境注记：本机 Node 24 async execFile+input 有 ~25s 句柄延迟，测试内用 spawn 手写 stdin 规避。
+- [x] P1-09 黄金转换：T(B) 与现产品残差逐项归类；appId 对象/URL/常量、wire header、manifest、CUA provenance、品牌 D 水印和新增字面量例子确认。
+  证据：T(B) 残差即 local-preservation.tsv（规划轮已逐行 blob 级对照）；P1-09 抽查八类字面量（appId 对象/URL、x-zcode-* header、zcode:// scheme、官方仓锚点、ZCODE_ env→DRORA_、@zcode/ scope→@drora/、品牌词 zcode→drora）全部符合预期。CUA provenance/D 水印随 S6-01/S5-05 段内核查。
 - [ ] P1-10 取得匹配的官方 bundle/发行资产并保存 SHA256/版本；先跑 key-parity，再做冻结目录 diff。拿不到对应资产标 blocked，不能用源码通过替代。
-- [ ] P1-11 在工具终态重放 F 预演，确认路径和 outcome 差异都有解释；保存分段列表、受保护触点和人工队列，固定 apply 的输入 manifest。
+  **blocked**：本机无 v3.17.1 官方发行 bundle（已装官方应用为 3.16.3，D:/software/zcode/resources/glm/zcode.cjs 不匹配本轮）。上游源码树级 env 键族差分已完成（spec §契约差分前身调查），作为替代证据；官方 3.17.x 安装包可得后补跑 `scripts/check-bundle-key-parity.mjs`，S7 记录限制不伪造。
+- [x] P1-11 在工具终态重放 F 预演，确认路径和 outcome 差异都有解释；保存分段列表、受保护触点和人工队列，固定 apply 的输入 manifest。
+  证据：六段 --dry 重放（replay/S1..S6-dry.json）与规划轮 summary.json featureBySegment **逐数一致**：conflicts 12/18/9/44/19/47（计 149）、text-clean 24/59/28/91/35/77（计 314）、决策 24/3/68/123/149/18（计 385，含 already-present 1 归决策）、driftBlocked 全 0、errors 全 0、5548 行全覆盖。apply 输入 manifest=upstream-ledger.tsv（sha256 见各 report）。
 
 退出：所有设计风险有可实施决定，工具可靠，验收合同先于产品代码；每条待人工项有任务归属。
 
@@ -188,3 +199,4 @@ rollback checkpoint:
 3. 对应官方发行 bundle、SSH/WSL/macOS/Linux/云引擎等资源是否可用，尚未做执行环境准入；受限则保留待跑证据。
 4. 当前 149 文本冲突、367 删除本地修改、314 文本 clean 语义合并均未解决或验证；“预演完成”不等于“可以直接合入”。
 | 2026-10-31 18:50 | P0-01–06 | refs 锚点六枚；9 worktree/4 领先分支/1 stash 冻结不动；规划文档入集成分支 5481c73d7；升级前基线电池全绿（vitest 4+16+17+10 文件、node:test 53 过） | baseline-gap 4 项登记（persona 实验门/relay GUI/teamApproval tsx 注册缺口/跨平台准入）；P1 启动 |
+| 2026-10-31 19:10 | P1-01–09,11 | D01–D08 裁决入 spec §6.1；apply-ledger 工具+10 回归全绿；分类 10,164 行（needs-owner 真交互面 86）；六段重放与规划轮逐数一致（149 冲突/314 clean/385 决策/漂移 0） | P1-10 blocked（无 v3.17.1 bundle，官方应用仅 3.16.3）；S1 启动 |

@@ -1,0 +1,3919 @@
+{
+ "segment": "S2",
+ "ledger": {
+  "path": "docs/upstream-sync/2026-10-31-v3.17.1/upstream-ledger.tsv",
+  "sha256": "8e1c507199cb4d50d876c6c23d2ff2a3f335496eec29bf4f433b62a341a3e2cc"
+ },
+ "dry": true,
+ "counts": {
+  "add": 279,
+  "take-upstream": 559,
+  "text-clean-needs-semantic-review": 59,
+  "text-conflict": 18,
+  "delete-review": 2,
+  "delete-local-change-review": 0,
+  "zone-decision": 3,
+  "already-present": 0,
+  "lockfile-regenerate": 0,
+  "already-deleted": 0
+ },
+ "applied": [
+  {
+   "path": "apps/drora-cli/docs/bash-tool-ast-permission-semantics.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/docs/design/agents-user-instructions-merge.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/docs/design/v2/auth-login.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/docs/design/v2/hooks.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/docs/design/v2/loop/interfaces.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/docs/design/v2/loop/meta-user-context.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/docs/design/v2/loop/runtime-command-queue-plan.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/docs/design/v2/loop/system-prompt-contract.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/docs/design/v2/loop/tool-calling-loop.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/docs/design/v2/loop/turn-steering.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/docs/design/v2/mcp-node-fallback.md",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/docs/design/v2/mcp.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/docs/design/v2/memory/README.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/docs/design/v2/model/README.md",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "apps/drora-cli/docs/design/v2/model/anthropic-reasoning-history-replay.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/docs/design/v2/model/anthropic-stream-compat.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/docs/design/v2/model/session-features-header.md",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/docs/design/v2/model/streaming-tool-execution-and-recovery.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/docs/design/v2/official-command-endpoint.md",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/docs/design/v2/plugin-compat.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/docs/design/v2/rewind-compact.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/docs/design/v2/session-idle-deactivation.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/docs/design/v2/session-persistence.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/docs/design/v2/session-runtime-lifecycle.md",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/docs/design/v2/skill.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/docs/design/v2/tool/00-tool-change-chain.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/docs/design/v2/tool/01-read.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/docs/design/v2/tool/04-bash.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/docs/design/v2/tool/05-webfetch.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/docs/design/v2/tool/07-subagent.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/docs/design/v2/tool/13-websearch.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/docs/design/v2/tool/16-plan-mode.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/docs/design/v2/tool/17-read-file-state-resume.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/docs/design/v2/tool/19-tool-search.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/docs/design/v2/tool/20-node-repl-call-ledger.md",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/docs/design/v2/tool/README.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/docs/design/v2/tui-model-selection.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/docs/design/v2/drora-protocol-agent-server.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/docs/usage/13-automation.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/package.json",
+   "action": "text-conflict",
+   "conflicts": 1
+  },
+  {
+   "path": "apps/drora-cli/packages/adapters/src/auth/coding-plan-api-key.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/adapters/src/config/file-config.adapter.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/adapters/src/config/project-config.adapter.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/adapters/src/config/schema.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "apps/drora-cli/packages/adapters/src/context/git-snapshot.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/adapters/src/context/index.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/adapters/src/exec/execution-adapter-types.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/adapters/src/exec/node-execution-adapter-base.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/adapters/src/exec/node-execution-adapter-lifecycle.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/adapters/src/exec/node-execution-adapter-run.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/adapters/src/exec/output-collector.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/adapters/src/exec/windows-executable.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/adapters/src/index.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/adapters/src/logging/index.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/adapters/src/mailbox/index.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/adapters/src/mcp/index.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/adapters/src/mcp/node-fallback.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/adapters/src/mcp/pool.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/adapters/src/model/anthropic-stream-compat.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/adapters/src/model/failure-classifier.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/adapters/src/model/model-execution.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "apps/drora-cli/packages/adapters/src/model/model-request-headers.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/adapters/src/model/offpeak-retry.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/adapters/src/model/provider-builtin-tool-compat/CONTRACT.md",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/adapters/src/model/provider-builtin-tool-compat/compat.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/adapters/src/model/provider-builtin-tool-compat/contract.example.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/adapters/src/model/provider-builtin-tool-compat/contract.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/adapters/src/model/provider-builtin-tool-compat/module.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/adapters/src/model/reasoning-history-normalization.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/adapters/src/model/runner-attribution.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "apps/drora-cli/packages/adapters/src/model/runner-diagnostics.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/adapters/src/model/runner-generate.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/adapters/src/model/runner-normalization.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/adapters/src/model/runner-options.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "apps/drora-cli/packages/adapters/src/model/runner-retry.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/adapters/src/model/runner-runtime-headers.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/adapters/src/model/runner-runtime.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/adapters/src/model/runner-status.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/adapters/src/model/runner-stream.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/adapters/src/model/runner.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/adapters/src/model/tool-search.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/adapters/src/model/workflow-model-failure-policy.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/adapters/src/plugins/marketplace.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "apps/drora-cli/packages/adapters/src/plugins/mcp.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "apps/drora-cli/packages/adapters/src/plugins/plugin-components.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/adapters/src/storage/index.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/adapters/src/storage/session-data-files/CONTRACT.md",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/adapters/src/storage/session-data-files/contract.example.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/adapters/src/storage/session-data-files/contract.test.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/adapters/src/storage/session-data-files/contract.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/adapters/src/storage/session-data-files/index.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/adapters/src/storage/session-data-files/module.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/adapters/src/storage/session-store/repositories/messages.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/adapters/src/storage/session-store/repositories/session-inputs.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/adapters/src/storage/session-store/repositories/sessions.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/adapters/src/storage/session-store/sqlite-session-store.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/adapters/tests/bash-direct-execution.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/adapters/tests/bash-shutdown.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/adapters/tests/config.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/adapters/tests/exec.test.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "apps/drora-cli/packages/adapters/tests/fixtures/provider-builtin-analyze-image.sse",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/adapters/tests/fixtures/session-transaction-process.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/adapters/tests/fixtures/session-transaction-race.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/adapters/tests/fs-context.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/adapters/tests/git-snapshot-hardening.test.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/adapters/tests/git-snapshot.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/adapters/tests/logging.test.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "apps/drora-cli/packages/adapters/tests/mcp-connection-pool.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/adapters/tests/mcp-node-fallback.test.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/adapters/tests/mcp.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/adapters/tests/model-execution.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/adapters/tests/model-session-features-wire.test.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/adapters/tests/model-tool-error-transform.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/adapters/tests/offpeak-retry.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/adapters/tests/output-collector-tail.test.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/adapters/tests/plugin-mcp-isolation.test.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/adapters/tests/plugins.test.ts",
+   "action": "text-conflict",
+   "conflicts": 1
+  },
+  {
+   "path": "apps/drora-cli/packages/adapters/tests/project-token-cancellation.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/adapters/tests/project-token-refresh.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/adapters/tests/provider-builtin-tool-compat/contract.test.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/adapters/tests/provider-builtin-tool-rounds.test.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/adapters/tests/reasoning-history-normalization.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/adapters/tests/request-capabilities.test.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/adapters/tests/runner-empty-completion-finish.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/adapters/tests/runner-options.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/adapters/tests/runner-retry.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/adapters/tests/runner-stream-timing-wire.test.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/adapters/tests/runner.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/adapters/tests/session-data-files.test.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/adapters/tests/session-mailbox.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/adapters/tests/session-store-compact-bundle.test.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/adapters/tests/session-store-transaction-isolation.test.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/adapters/tests/session-store-transaction-writers.test.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/adapters/tests/session-store.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/adapters/tests/test-adapter-model.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/adapters/tests/tool-search-wire.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/adapters/tests/workflow-model-failure-policy.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/adapters/tests/zai-business-token-refresh.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/src/app/bundled-plugins.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/src/app/create-app.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/src/app/dynamic-workflow-quota-resume.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/src/app/dynamic-workflow-run-launch.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/src/app/dynamic-workflow-run-lifecycle.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/src/app/dynamic-workflow-run-service.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/src/app/dynamic-workflow-run-submit.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/src/app/mcp-node-fallback.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/src/app/official-plugin-definitions.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/src/app/runtime-config.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/src/app/script-workflow-child-runtime.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/src/app/script-workflow-methods.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/src/app/script-workflow-process.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/src/app/script-workflow-runtime.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/src/app/script-workflow-tool-port.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/src/app/session-facade.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/src/app/types.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/src/app/workflow-actor-tools.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/src/app/workflow-concurrency-governor.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/src/app/workflow-driver-quiescence.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/src/app/workflow-driver.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/src/app/workflow-facade.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/src/app/workflow-world-read.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/src/index.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/src/mcp-config.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/src/official-command-endpoint/CONTRACT.md",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/src/official-command-endpoint/contract.example.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/src/official-command-endpoint/contract.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/src/official-command-endpoint/endpoint.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/src/official-command-endpoint/index.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/src/official-command-endpoint/module.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/src/plugins.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/src/session-execution/CONTRACT.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/src/session-execution/contract.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/src/session-execution/index.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/src/session-execution/residency-lease.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/src/session-lifecycle/CONTRACT.md",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/src/session-lifecycle/contract.example.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/src/session-lifecycle/contract.test.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/src/session-lifecycle/contract.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/src/session-lifecycle/controller.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/src/session-lifecycle/index.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/src/session-lifecycle/module.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/src/subagents.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/src/workspace-mcp-trust/CONTRACT.md",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/src/workspace-mcp-trust/contract.example.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/src/workspace-mcp-trust/contract.test.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/src/workspace-mcp-trust/contract.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/src/workspace-mcp-trust/index.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/src/workspace-mcp-trust/module.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/src/drora-protocol-entrypoint.ts",
+   "action": "text-conflict",
+   "conflicts": 1
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/src/drora-protocol-v4/cold-session-resume.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/src/drora-protocol-v4/command-inbox.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/src/drora-protocol-v4/commands/handlers/canonical-intent-replay.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/src/drora-protocol-v4/commands/handlers/goal-compact.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/src/drora-protocol-v4/commands/handlers/queue.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/src/drora-protocol-v4/commands/handlers/session-flow.ts",
+   "action": "text-conflict",
+   "conflicts": 1
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/src/drora-protocol-v4/commands/input-intent.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/src/drora-protocol-v4/commands/prompt-turn.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/src/drora-protocol-v4/conversation-telemetry-facts.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/src/drora-protocol-v4/event-normalizer.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/src/drora-protocol-v4/local-ttft.ts",
+   "action": "delete"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/src/drora-protocol-v4/local-ttft/CONTRACT.md",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/src/drora-protocol-v4/local-ttft/contract.example.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/src/drora-protocol-v4/local-ttft/contract.test.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/src/drora-protocol-v4/local-ttft/contract.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/src/drora-protocol-v4/local-ttft/module.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/src/drora-protocol-v4/local-ttft/recorder.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/src/drora-protocol-v4/product-projection.ts",
+   "action": "text-conflict",
+   "conflicts": 1
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/src/drora-protocol-v4/transcript-hydration.ts",
+   "action": "text-conflict",
+   "conflicts": 1
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/src/drora-protocol-v4/v4-gateway.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/src/drora-protocol/automation-port.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/src/drora-protocol/browser-control-broker.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/src/drora-protocol/input-prediction-handler.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/src/drora-protocol/interaction-preferences.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/src/drora-protocol/mcp.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/src/drora-protocol/message-mapper.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/src/drora-protocol/off-peak-tool-policy.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/src/drora-protocol/official-mcp-auth-port.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/src/drora-protocol/offpeak-port.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/src/drora-protocol/plugins.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/src/drora-protocol/protocol-mcp-config.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/src/drora-protocol/server-operations.ts",
+   "action": "text-conflict",
+   "conflicts": 2
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/src/drora-protocol/server-types.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/src/drora-protocol/server.ts",
+   "action": "text-conflict",
+   "conflicts": 1
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/src/drora-protocol/session-data/CONTRACT.md",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/src/drora-protocol/session-data/contract.example.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/src/drora-protocol/session-data/contract.test.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/src/drora-protocol/session-data/contract.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/src/drora-protocol/session-data/index.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/src/drora-protocol/session-data/module.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/src/drora-protocol/session-residency.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/src/drora-protocol/session-resident-pool.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/src/drora-protocol/transport.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/src/drora-protocol/v4-bridge.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/tests/automation-port.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/tests/browser-control-broker.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/tests/browser-control-scope-owner.integration.test.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/tests/bundled-plugins-resilience.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/tests/command-inbox.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/tests/conversation-telemetry-identity.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/tests/deferred-call-stream-recovery-projection.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/tests/dynamic-workflow-actor-browser.integration.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/tests/dynamic-workflow-quota-resume.test.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/tests/dynamic-workflow-run-service.test.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/tests/embedded-search-native.e2e.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/tests/fake-provider-server.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/tests/gen-ui-context-resume.test.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/tests/helpers/fake-drora-app.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/tests/input-prediction-handler.test.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/tests/local-ttft-process.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/tests/local-ttft.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/tests/mcp-node-fallback.test.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/tests/mcp-protocol.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/tests/mcp-settings-workspace-switch.test.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/tests/official-command-endpoint/contract.test.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/tests/official-command-endpoint/endpoint.test.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/tests/official-plugin-cache-fs.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/tests/offpeak-port.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/tests/plugins-protocol.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/tests/plugins.test.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/tests/product-projection-streaming-actions.test.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/tests/product-projection.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/tests/protocol-runtime-shutdown.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/tests/protocol-slash-commands.test.ts",
+   "action": "text-conflict",
+   "conflicts": 2
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/tests/provider-registry-app-runtime.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/tests/queue-input-fidelity.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/tests/remote-input-origin.test.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/tests/script-workflow-child-runtime.test.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/tests/script-workflow.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/tests/session-data.test.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/tests/session-execution/contract.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/tests/session-facade-shutdown.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/tests/session-facade.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/tests/session-features-workflow-command.test.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/tests/session-lifecycle/controller.test.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/tests/session-persistence.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/tests/session-resident-pool.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/tests/subagents.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/tests/tool-history-order.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/tests/transcript-hydration.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/tests/v4-cold-resume.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/tests/v4-history-first.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/tests/v4-input-admission.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/tests/v4-native-commands.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/tests/v4-native-fork-edit-retry.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/tests/v4-native-goal-compact.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/tests/v4-native-queue.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/tests/v4-retry-reminder-persistence.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/tests/workflow-concurrency-governor.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/tests/workflow-driver-concurrency.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/tests/workflow-driver-quiescence.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/tests/workflow-driver-seat-gate.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/tests/workflow-driver-world-run.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/tests/workflow-driver.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/tests/workflow-effective-selection.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/tests/workflow-fault-matrix.retry.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/tests/workflow-fault-matrix.stop.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/tests/workspace-mcp-admission-projection.test.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/tests/workspace-mcp-trust.test.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/tests/drora-protocol-message-mapper.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/tests/drora-protocol-transport.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/tests/drora-protocol.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/bundled-skills/skills/dynamic-workflows/SKILL.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/cli/package.json",
+   "action": "text-conflict",
+   "conflicts": 1
+  },
+  {
+   "path": "apps/drora-cli/packages/cli/scripts/sea-official-plugin-assets.mjs",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/cli/tests/build-sea.test.mjs",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "apps/drora-cli/packages/cli/tests/dwf-child-command.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/cli/tests/sea-official-plugin-assets.test.mjs",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/contracts/src/events/event-reducer.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/contracts/src/events/session.events.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "apps/drora-cli/packages/contracts/src/hooks/index.ts",
+   "action": "text-conflict",
+   "conflicts": 2
+  },
+  {
+   "path": "apps/drora-cli/packages/contracts/src/hooks/workspace-hook-trust.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/contracts/src/interfaces/automation.port.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/contracts/src/interfaces/browser-control.port.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/contracts/src/interfaces/context-source.port.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/contracts/src/interfaces/execution.port.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/contracts/src/interfaces/mcp.port.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "apps/drora-cli/packages/contracts/src/interfaces/session-store.port.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/contracts/src/interfaces/session.port.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "apps/drora-cli/packages/contracts/src/interfaces/shared.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/contracts/src/interfaces/subagent.port.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/contracts/src/model/index.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/contracts/src/model/invocation-context.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/contracts/src/model/model.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/contracts/src/plugins/index.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "apps/drora-cli/packages/contracts/src/tools/amend-workflow.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/contracts/src/tools/automation.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/contracts/src/tools/bash.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/contracts/src/tools/create-workflow.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/contracts/src/tools/eval-workflow-snippet.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/contracts/src/tools/fill-workflow-hole.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/contracts/src/tools/json-schema.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/contracts/src/tools/read-session-context.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/contracts/src/tools/send-message.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/contracts/src/tools/tool-search.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/contracts/src/tracing/tracer.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/contracts/tests/tool-json-schema.test.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/contracts/tests/workspace-hook-trust.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/agent/compact-session.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/agent/index.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/agent/message-history.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/agent/read-file-state-hydrator.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/agent/session-history-hydrator.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/compact/prompt.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/context/builder.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/context/dynamic-sections.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/context/sections/cli-prefix.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/context/sections/current-date.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/context/sections/env-info.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/context/sections/identity.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/context/sections/memory.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/context/sections/request-user-context.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/context/sections/workflow-actor.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/context/types.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/hooks/configured-runner.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/hooks/runner.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/hooks/types.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/index.ts",
+   "action": "text-conflict",
+   "conflicts": 1
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/mcp/name.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/memory/extraction.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/memory/index-content.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/memory/memory-agent-loop.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/permission/service.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/repl/node-repl-session.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/runtime-task/notification.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/runtime-task/workflow-notification-copy.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/runtime/agent-runtime.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/runtime/conversation-quote-context/CONTRACT.md",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/runtime/conversation-quote-context/contract.example.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/runtime/conversation-quote-context/contract.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/runtime/conversation-quote-context/module.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/runtime/deps.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/runtime/helpers/compact-post-reminders.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/runtime/helpers/compact-selection.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/runtime/helpers/compact.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/runtime/helpers/conversation-quotes.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/runtime/helpers/conversation.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/runtime/helpers/model-errors.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/runtime/helpers/project-memory-agent.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/runtime/helpers/project-memory-dream.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/runtime/helpers/project-memory-extraction.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/runtime/helpers/project-memory-recall.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/runtime/helpers/provider-entry-origins.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/runtime/helpers/provider-mid-conversation-system.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/runtime/helpers/provider-request-messages.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/runtime/helpers/runtime-provider-request-messages.ts",
+   "action": "text-conflict",
+   "conflicts": 1
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/runtime/helpers/runtime-reminders.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/runtime/helpers/runtime-tools.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/runtime/helpers/steering.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/runtime/helpers/tool-allowlist.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/runtime/helpers/tool-result.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/runtime/helpers/turn-errors.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/runtime/internal-turn-methods.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/runtime/internal.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/runtime/methods/background-notifications.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/runtime/methods/background.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/runtime/methods/compact-active-helpers.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/runtime/methods/compact-active.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/runtime/methods/compact-persistence.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/runtime/methods/context-history-entries.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/runtime/methods/context-refresh.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/runtime/methods/context.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/runtime/methods/dynamic-workflow-activation.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/runtime/methods/events.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/runtime/methods/index.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/runtime/methods/input-intent-persistence.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/runtime/methods/input-prediction-sidecar.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/runtime/methods/interrupt-marker.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/runtime/methods/mcp.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/runtime/methods/message-persistence.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/runtime/methods/microcompact.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/runtime/methods/model.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/runtime/methods/prompt-admission.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/runtime/methods/residency.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/runtime/methods/resume.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/runtime/methods/rewind-message.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/runtime/methods/runtime-command-queue.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/runtime/methods/runtime-model.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/runtime/methods/runtime-reminder-persistence.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/runtime/methods/session-fork.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/runtime/methods/session-title.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/runtime/methods/steering.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/runtime/methods/streaming-tool-coordinator.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/runtime/methods/subagent.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/runtime/methods/target-completion-verification.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/runtime/methods/target-continuation-loop.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/runtime/methods/title-generation-sidecar.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/runtime/methods/tool-result-settlement.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/runtime/methods/tools.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/runtime/methods/turn-execution-fallback.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/runtime/methods/turn-guide-drain.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/runtime/methods/turn-loop-state.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/runtime/methods/turn-loop.ts",
+   "action": "text-conflict",
+   "conflicts": 1
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/runtime/methods/turn-model-step.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/runtime/methods/turn-output-token-continuation.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/runtime/methods/turn-stop.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/runtime/methods/turn-tool-visibility.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/runtime/methods/turn-tools.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/runtime/methods/turn.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/runtime/methods/workspace-generate-text.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/runtime/off-peak/model-binding.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/runtime/off-peak/turn.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/runtime/provider-tool-rounds/CONTRACT.md",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/runtime/provider-tool-rounds/cards.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/runtime/provider-tool-rounds/contract.example.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/runtime/provider-tool-rounds/contract.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/runtime/provider-tool-rounds/module.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/runtime/provider-tool-rounds/rounds.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/runtime/session-features/CONTRACT.md",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/runtime/session-features/contract.example.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/runtime/session-features/contract.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/runtime/session-features/module.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/runtime/session-features/session-features.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/runtime/tool-result-settlement/CONTRACT.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/runtime/tool-result-settlement/module.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/runtime/types.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/session-context/references.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/subagent/completion-notification.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/subagent/context-builder.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/subagent/mcp-config.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/subagent/message-steering.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/subagent/profile.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/subagent/runner.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/subagent/system-prompt.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/system-reminder/incoming-message.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/system-reminder/source.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/tool/channel-reply/CONTRACT.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/tool/executor/background-tasks.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/tool/executor/batch-runner.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/tool/executor/call-runner.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/tool/executor/errors.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/tool/executor/hook-flow.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/tool/executor/impl.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/tool/executor/permission-flow.ts",
+   "action": "text-conflict",
+   "conflicts": 1
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/tool/executor/result-content-projection.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/tool/executor/result-serialization.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/tool/executor/types.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/tool/executor/workflow-artifact.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/tool/handlers/agent.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/tool/handlers/bash-background-lifecycle.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/tool/handlers/bash-cwd-policy.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/tool/handlers/bash-model-content.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/tool/handlers/bash-prompt.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/tool/handlers/bash-read-file-state.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/tool/handlers/bash-readonly-policy-callbacks.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/tool/handlers/bash-readonly-policy-flags-text.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/tool/handlers/bash.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/tool/handlers/create-workflow-source.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/tool/handlers/cron.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/tool/handlers/deferred-tool-call.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/tool/handlers/edit.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/tool/handlers/eval-workflow-snippet.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/tool/handlers/index.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/tool/handlers/read-pdf.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/tool/handlers/read-text.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/tool/handlers/read.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/tool/handlers/resume-workflow-run.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/tool/handlers/send-message.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/tool/handlers/skill.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/tool/handlers/task-stop.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/tool/handlers/tool-search.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/tool/handlers/webfetch.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/tool/handlers/websearch.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/tool/handlers/workflow-draft-read-state.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/tool/handlers/workflow-skill-gate.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/tool/handlers/write.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/tool/provider-visible-order.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/tool/read-file-state-metadata.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/tool/read-file-state.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/tool/result-persistence-format.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/tool/search/CONTRACT.md",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/tool/search/contract.example.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/tool/search/contract.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/tool/search/description.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/tool/search/exposure.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/tool/search/history.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/tool/search/local-projection.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/tool/search/module.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/tool/tool-visibility.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/tool/types.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/agent-listing.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/background-task-control.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/bash-handler.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/bash-permission.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/bash-result-mapping.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/compact-preserved-inputs.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/context-active-model-source.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/context-builder.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/conversation-quote-context/contract.test.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/conversation-quotes.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/cron-tool.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/edit-tool-contract.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/eval-workflow-snippet-tool.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/file-tool-port.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/fixtures/memory/main-memory-default-index.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/fixtures/memory/main-memory-index.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/fixtures/memory/main-memory-semantic-recall.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/fixtures/runtime-input-presentation.json",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/fold-reminders-tool-error.test.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/gen-ui-context.test.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/guide-model-refresh.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/hook-on-error.test.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/incoming-message-escaping.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/incoming-message-producers.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/input-intent-persistence.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/input-prediction-sidecar.test.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/io-boundary.test.ts",
+   "action": "text-conflict",
+   "conflicts": 1
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/main-tool-pool.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/mcp-runtime.test.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/memory-agent-loop.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/memory-extraction.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/memory-recall.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/message-history.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/model-request-admission.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/off-peak-model-binding.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/off-peak-runtime.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/off-peak-title.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/permission-service.test.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/persistent-agent-memory.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/post-compact-file-restore.test.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/prompt-admission.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/provider-request-messages.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/provider-tool-rounds/contract.test.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/provider-tool-rounds/hydration.test.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/read-file-state-hydrator.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/read-file-state.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/read-pdf-executor.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/read-session-context-tool.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/read-tool-contract.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/remote-goal-telemetry.test.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/result-persistence-format.test.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/runtime-cancel.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/runtime-compact.test.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/runtime-context-announcements.test.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/runtime-hooks.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/runtime-input-presentation.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/runtime-memory-drain.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/runtime-memory-dream.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/runtime-memory-extraction.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/runtime-memory.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/runtime-model-admission.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/runtime-model-anomaly.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/runtime-model-lifecycle.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/runtime-model-selection.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/runtime-output-token-continuation-compact.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/runtime-persistence.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/runtime-queue-auto-drain.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/runtime-read-file-state-snapshot-order.test.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/runtime-reminder-records.test.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/runtime-reminders.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/runtime-session-residency.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/runtime-stream-recovery.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/runtime-streaming-tool-part-identity.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/runtime-task-notification-usage.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/runtime-tool-allowlist.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/runtime-tool-hook-context.test.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/runtime-tool-loop.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/runtime-tool-result-settlement.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/runtime-trace.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/saved-workflow-tools.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/send-message-blank-input.test.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/session-features/contract.test.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/session-features/session-features.test.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/session-features/tool-search-turn.test.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/session-features/tool-search.test.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/session-fork.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/subagent-background.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/subagent-browser-session.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/subagent-explore.test.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/subagent-mcp-config.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/subagent-prompt-assembly.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/system-reminder-source.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/test-runtime-model.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/token-estimation-regression.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/tool-agent-telemetry.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/tool-contracts.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/tool-discovery/contract.test.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/tool-executor-error.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/tool-executor-read-deny-probe.test.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/tool-executor-read-state-snapshot-index.test.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/tool-executor-trace.test.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/tool-hook-context.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/tool-search-additions.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/tool-search-announcement-persistence.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/tool-search-announcement-runtime.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/tool-search-execution.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/tool-search-exposure.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/tool-search-hook-persistence.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/tool-search-local-feedback.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/tool-search-local-runtime.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/tool-search-local.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/tool-search-projection.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/tool-search-request-preparation.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/tool-search-request-recording.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/tool-search-result-budget.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/tool-search-subagent.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/tool-search-trajectory-announcement.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/tool-search.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/user-record-tool-names.test.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/websearch.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/workflow-routing-hints.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/workflow-script-file-sources.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/workflow-terminal-notification.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/write-tool-contract.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/documents-plugin/.zcode-plugin/plugin.json",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/documents-plugin/package.json",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/documents-plugin/skills/docx-viewer/SKILL.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow-runtime/src/child-source.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow-runtime/src/harness.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow-runtime/src/protocol.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow-runtime/tests/child-entry-file.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow-runtime/tests/child-source-bundled.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow-runtime/tests/run-identity.test.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow/docs/analysis.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow/docs/execution-engine.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow/src/analysis/array-methods.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow/src/analysis/calls.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow/src/analysis/causality-graph.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow/src/analysis/causality-order-bindings.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow/src/analysis/causality-order-calls.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow/src/analysis/causality-order-functions.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow/src/analysis/causality-order-loops.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow/src/analysis/causality-order-settle.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow/src/analysis/causality-order-state.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow/src/analysis/causality-order-strands.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow/src/analysis/causality-order-types.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow/src/analysis/causality-order.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow/src/analysis/core.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow/src/analysis/domain.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow/src/analysis/flow-graph.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow/src/analysis/flow-strands.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow/src/analysis/heap-ops.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow/src/analysis/interpret.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow/src/analysis/state.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow/src/facade/dts.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow/src/facade/world-read-caps.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow/src/lowering/lower.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow/tests/callback-invocation.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow/tests/control-flow-projection.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow/tests/convergence.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow/tests/engine/imported-cache.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow/tests/facade-dts.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow/tests/graphs/expected/all-catch.cfg.mmd",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow/tests/graphs/expected/all-catch.cfg.txt",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow/tests/graphs/expected/async-promise-then-both-callbacks.cfg.txt",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow/tests/graphs/expected/async-promise-then-destructured-param.cfg.txt",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow/tests/graphs/expected/callback-then-in-phase.cfg.txt",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow/tests/graphs/expected/callback-through-param.cfg.txt",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow/tests/graphs/expected/control-flow-optional-fn-call.cfg.txt",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow/tests/graphs/expected/control-flow-return-in-fanout-callback.cfg.txt",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow/tests/graphs/expected/control-flow-return-in-helper.cfg.txt",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow/tests/graphs/expected/emission-graph-fanout-map-wrap-aggregate.cfg.txt",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow/tests/graphs/expected/emission-graph-join-shorthand-wrapped-element.cfg.txt",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow/tests/graphs/expected/functions-summaries-fn-through-param.cfg.txt",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow/tests/graphs/expected/handoff-family-self-carry.cfg.txt",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow/tests/graphs/expected/heap-aliasing-param-literal-wrap.cfg.txt",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow/tests/graphs/expected/helper-recursive.cfg.txt",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow/tests/graphs/expected/hole-filled-no-phases.cfg.txt",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow/tests/graphs/expected/hole-filled-two-phases.cfg.txt",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow/tests/graphs/expected/hole-in-helper.cfg.txt",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow/tests/graphs/expected/hole-nested-filled.cfg.txt",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow/tests/graphs/expected/hole-nested.cfg.txt",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow/tests/graphs/expected/nested-helper.cfg.txt",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow/tests/graphs/expected/order-helper-ask-two-call-sites.cfg.txt",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow/tests/graphs/expected/order-shared-helper-residual-cycle.cfg.txt",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow/tests/graphs/expected/phase-admission-carryover.cfg.txt",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow/tests/graphs/expected/phase-jsonl-db.cfg.mmd",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow/tests/graphs/expected/phase-jsonl-db.cfg.txt",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow/tests/graphs/expected/phase-jsonl-db.phase-flow.mmd",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow/tests/graphs/expected/phase-provenance-fanout.cfg.txt",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow/tests/graphs/expected/reduce-accumulator.cfg.txt",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow/tests/graphs/expected/reentrant-then-composition.cfg.txt",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow/tests/graphs/expected/shared-helper-callback-alias.actor.txt",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow/tests/graphs/expected/shared-helper-callback-alias.causality.txt",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow/tests/graphs/expected/shared-helper-callback-alias.cfg.txt",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow/tests/graphs/expected/shared-helper-callback-alias.core.txt",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow/tests/graphs/expected/shared-helper-callback-alias.handoff.txt",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow/tests/graphs/expected/shared-helper-callback-alias.txt",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow/tests/graphs/expected/shared-helper-callback-binding.actor.txt",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow/tests/graphs/expected/shared-helper-callback-binding.causality.txt",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow/tests/graphs/expected/shared-helper-callback-binding.cfg.txt",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow/tests/graphs/expected/shared-helper-callback-binding.core.txt",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow/tests/graphs/expected/shared-helper-callback-binding.handoff.txt",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow/tests/graphs/expected/shared-helper-callback-binding.txt",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow/tests/graphs/expected/shared-helper-param-each.actor.txt",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow/tests/graphs/expected/shared-helper-param-each.causality.txt",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow/tests/graphs/expected/shared-helper-param-each.cfg.txt",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow/tests/graphs/expected/shared-helper-param-each.core.txt",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow/tests/graphs/expected/shared-helper-param-each.handoff.txt",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow/tests/graphs/expected/shared-helper-param-each.txt",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow/tests/graphs/expected/shared-helper-param-to-then.actor.txt",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow/tests/graphs/expected/shared-helper-param-to-then.causality.txt",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow/tests/graphs/expected/shared-helper-param-to-then.cfg.txt",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow/tests/graphs/expected/shared-helper-param-to-then.core.txt",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow/tests/graphs/expected/shared-helper-param-to-then.handoff.txt",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow/tests/graphs/expected/shared-helper-param-to-then.txt",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow/tests/graphs/expected/shared-helper-recursive-with-callback.actor.txt",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow/tests/graphs/expected/shared-helper-recursive-with-callback.causality.txt",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow/tests/graphs/expected/shared-helper-recursive-with-callback.cfg.txt",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow/tests/graphs/expected/shared-helper-recursive-with-callback.core.txt",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow/tests/graphs/expected/shared-helper-recursive-with-callback.handoff.txt",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow/tests/graphs/expected/shared-helper-recursive-with-callback.txt",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow/tests/graphs/expected/shared-helper-two-layers.actor.txt",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow/tests/graphs/expected/shared-helper-two-layers.causality.txt",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow/tests/graphs/expected/shared-helper-two-layers.cfg.txt",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow/tests/graphs/expected/shared-helper-two-layers.core.txt",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow/tests/graphs/expected/shared-helper-two-layers.handoff.txt",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow/tests/graphs/expected/shared-helper-two-layers.txt",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow/tests/graphs/expected/strand-async-helper-awaited.cfg.txt",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow/tests/graphs/expected/strand-fanout-awaited-per-phase.cfg.txt",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow/tests/graphs/expected/strand-fanout-two-phases-join.cfg.txt",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow/tests/graphs/expected/stream-pipeline.cfg.txt",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow/tests/graphs/expected/then-callback.cfg.txt",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow/tests/graphs/shared-helper-callback-alias.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow/tests/graphs/shared-helper-callback-binding.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow/tests/graphs/shared-helper-param-each.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow/tests/graphs/shared-helper-param-to-then.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow/tests/graphs/shared-helper-recursive-with-callback.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/dynamic-workflow/tests/graphs/shared-helper-two-layers.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/node-repl-host/.zcode-plugin/plugin.json",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/node-repl-host/dist-types/browser-bridge.d.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/node-repl-host/dist-types/browser-bridge.d.ts.map",
+   "action": "text-conflict",
+   "conflicts": 1
+  },
+  {
+   "path": "apps/drora-cli/packages/node-repl-host/dist-types/call-ledger/browser-broker-proxy.d.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/node-repl-host/dist-types/call-ledger/browser-broker-proxy.d.ts.map",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/node-repl-host/dist-types/call-ledger/contract.d.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/node-repl-host/dist-types/call-ledger/contract.d.ts.map",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/node-repl-host/dist-types/call-ledger/contract.example.d.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/node-repl-host/dist-types/call-ledger/contract.example.d.ts.map",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/node-repl-host/dist-types/call-ledger/ledger.d.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/node-repl-host/dist-types/call-ledger/ledger.d.ts.map",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/node-repl-host/dist-types/call-ledger/module.d.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/node-repl-host/dist-types/call-ledger/module.d.ts.map",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/node-repl-host/dist-types/cua-bridge.d.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/node-repl-host/dist-types/cua-bridge.d.ts.map",
+   "action": "text-conflict",
+   "conflicts": 1
+  },
+  {
+   "path": "apps/drora-cli/packages/node-repl-host/dist-types/cua-broker.d.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/node-repl-host/dist-types/cua-broker.d.ts.map",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/node-repl-host/dist-types/no-progress-guard.d.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/node-repl-host/dist-types/no-progress-guard.d.ts.map",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/node-repl-host/dist-types/result.d.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/node-repl-host/dist-types/result.d.ts.map",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/node-repl-host/dist-types/server.d.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/node-repl-host/dist-types/server.d.ts.map",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/node-repl-host/dist-types/tool-contract.d.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/node-repl-host/dist-types/tool-contract.d.ts.map",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/node-repl-host/package.json",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/node-repl-host/src/browser-bridge.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "apps/drora-cli/packages/node-repl-host/src/call-ledger/CONTRACT.md",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/node-repl-host/src/call-ledger/browser-broker-proxy.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/node-repl-host/src/call-ledger/contract.example.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/node-repl-host/src/call-ledger/contract.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/node-repl-host/src/call-ledger/ledger.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/node-repl-host/src/call-ledger/module.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/node-repl-host/src/cua-bridge.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "apps/drora-cli/packages/node-repl-host/src/cua-broker.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/node-repl-host/src/no-progress-guard.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/node-repl-host/src/result.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/node-repl-host/src/server.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/node-repl-host/src/tool-contract.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/node-repl-host/test/bundle-smoke.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/node-repl-host/test/call-ledger/browser-broker-proxy.test.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/node-repl-host/test/call-ledger/contract.test.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/node-repl-host/test/call-ledger/ledger.test.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/node-repl-host/test/cua-bridge.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/node-repl-host/test/mcp-server.test.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "apps/drora-cli/packages/node-repl-host/test/no-progress-guard.test.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/office-runtime/scripts/smoke.mjs",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/office-runtime/src/CONTRACT.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/office-runtime/src/adapters/files.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/office-runtime/src/adapters/files.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/office-runtime/src/adapters/server.test.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/office-runtime/src/adapters/server.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/office-runtime/src/app/documents.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/office-runtime/src/app/sessions.test.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/office-runtime/src/app/views.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/office-runtime/src/wording.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/pdf-plugin/.zcode-plugin/plugin.json",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/pdf-plugin/package.json",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/pdf-plugin/skills/pdf-viewer/SKILL.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/presentations-plugin/.zcode-plugin/plugin.json",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/presentations-plugin/package.json",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/presentations-plugin/skills/pptx-viewer/SKILL.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/spreadsheets-plugin/.zcode-plugin/plugin.json",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/spreadsheets-plugin/package.json",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/spreadsheets-plugin/skills/xlsx-viewer/SKILL.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/visualize-plugin/.zcode-plugin/plugin.json",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/visualize-plugin/package.json",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/visualize-plugin/skills/visualize/SKILL.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/packages/drora-site-plugin/.zcode-plugin/plugin.json",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/drora-site-plugin/commands/site-badge.md",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/drora-site-plugin/commands/site-deploy.md",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/drora-site-plugin/commands/site-logs.md",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/drora-site-plugin/commands/site-offline.md",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/drora-site-plugin/commands/site-online.md",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/drora-site-plugin/commands/site-status.md",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/drora-site-plugin/commands/site-usage.md",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/drora-site-plugin/package.json",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/drora-site-plugin/scripts/build.mjs",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/drora-site-plugin/scripts/stage.mjs",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/drora-site-plugin/scripts/drora-site.mjs",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/drora-site-plugin/skills/site-deploy/SKILL.md",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/drora-site-plugin/skills/site-deploy/references/app-types.md",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/drora-site-plugin/skills/site-deploy/references/native-deps.md",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/drora-site-plugin/skills/site-deploy/references/packaging.md",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/drora-site-plugin/skills/site-deploy/references/python-deps.md",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/drora-site-plugin/skills/site-deploy/references/troubleshooting.md",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/drora-site-plugin/skills/site-deploy/templates/node.sh",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/drora-site-plugin/skills/site-deploy/templates/python.sh",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/drora-site-plugin/skills/site-deploy/templates/static-server.mjs",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/drora-site-plugin/skills/site-deploy/templates/static.sh",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/drora-site-plugin/src/CONTRACT.md",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/drora-site-plugin/src/contract.example.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/drora-site-plugin/src/contract.test.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/drora-site-plugin/src/contract.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/drora-site-plugin/src/index.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/drora-site-plugin/src/module.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/drora-site-plugin/src/server/api.test.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/drora-site-plugin/src/server/api.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/drora-site-plugin/src/server/commands.test.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/drora-site-plugin/src/server/commands.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/drora-site-plugin/src/server/main.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/drora-site-plugin/src/server/routes.test.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/drora-site-plugin/src/server/routes.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/drora-site-plugin/src/server/server.test.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/drora-site-plugin/src/server/server.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/drora-site-plugin/src/ui/host.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/drora-site-plugin/src/ui/i18n.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/drora-site-plugin/src/ui/main.tsx",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/drora-site-plugin/src/ui/model.test.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/drora-site-plugin/src/ui/model.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/drora-site-plugin/src/ui/panel.html",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/drora-site-plugin/src/ui/parts.tsx",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/drora-site-plugin/src/ui/site.tsx",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/drora-site-plugin/src/ui/views.tsx",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/drora-site-plugin/src/vitest.config.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/drora-site-plugin/test/stage.test.mjs",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/drora-site-plugin/test/drora-site.test.mjs",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/packages/drora-site-plugin/tsconfig.json",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/tools/prompt-trajectory/README.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/tools/prompt-trajectory/src/cli.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/tools/prompt-trajectory/src/derive.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/tools/prompt-trajectory/src/fixture.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/tools/prompt-trajectory/src/openai-provider-proxy.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/tools/prompt-trajectory/src/record.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/tools/prompt-trajectory/src/tool-search-comparison-contract/CONTRACT.md",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/tools/prompt-trajectory/src/tool-search-comparison-contract/contract.example.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/tools/prompt-trajectory/src/tool-search-comparison-contract/contract.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/tools/prompt-trajectory/src/tool-search-comparison-contract/module.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/tools/prompt-trajectory/src/tool-search-comparison.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/tools/prompt-trajectory/tests/fixture.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "apps/drora-cli/tools/prompt-trajectory/tests/openai-provider-proxy.test.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/tools/prompt-trajectory/tests/record-isolation.test.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/tools/prompt-trajectory/tests/tool-search-comparison/contract.test.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/tools/provider-regression/CONTRACT.md",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/tools/provider-regression/contract.example.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/tools/provider-regression/contract.test.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/tools/provider-regression/contract.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/tools/provider-regression/index.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/tools/provider-regression/module.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/tools/provider-regression/package.json",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/tools/provider-regression/src/cases.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/tools/provider-regression/src/cli.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/tools/provider-regression/src/config.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/tools/provider-regression/src/execute.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/tools/provider-regression/src/html.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/tools/provider-regression/src/persistence.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/tools/provider-regression/src/report-cli.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/tools/provider-regression/src/report.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/tools/provider-regression/src/run.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/tools/provider-regression/src/scheduler.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/tools/provider-regression/src/session.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/tools/provider-regression/src/usage.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/tools/provider-regression/tests/fixture.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/tools/provider-regression/tests/parallel.test.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/tools/provider-regression/tests/persistence.test.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/tools/provider-regression/tests/regression.test.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/tools/provider-regression/tests/runtime-path.test.ts",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/tools/provider-regression/tsconfig.json",
+   "action": "add"
+  },
+  {
+   "path": "apps/drora-cli/tools/provider-regression/vitest.config.ts",
+   "action": "add"
+  }
+ ],
+ "skipped": [],
+ "conflicts": [
+  {
+   "path": "apps/drora-cli/package.json",
+   "hunks": 1
+  },
+  {
+   "path": "apps/drora-cli/packages/adapters/tests/plugins.test.ts",
+   "hunks": 1
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/src/drora-protocol-entrypoint.ts",
+   "hunks": 1
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/src/drora-protocol-v4/commands/handlers/session-flow.ts",
+   "hunks": 1
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/src/drora-protocol-v4/product-projection.ts",
+   "hunks": 1
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/src/drora-protocol-v4/transcript-hydration.ts",
+   "hunks": 1
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/src/drora-protocol/server-operations.ts",
+   "hunks": 2
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/src/drora-protocol/server.ts",
+   "hunks": 1
+  },
+  {
+   "path": "apps/drora-cli/packages/bootstrap/tests/protocol-slash-commands.test.ts",
+   "hunks": 2
+  },
+  {
+   "path": "apps/drora-cli/packages/cli/package.json",
+   "hunks": 1
+  },
+  {
+   "path": "apps/drora-cli/packages/contracts/src/hooks/index.ts",
+   "hunks": 2
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/index.ts",
+   "hunks": 1
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/runtime/helpers/runtime-provider-request-messages.ts",
+   "hunks": 1
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/runtime/methods/turn-loop.ts",
+   "hunks": 1
+  },
+  {
+   "path": "apps/drora-cli/packages/core/src/tool/executor/permission-flow.ts",
+   "hunks": 1
+  },
+  {
+   "path": "apps/drora-cli/packages/core/tests/io-boundary.test.ts",
+   "hunks": 1
+  },
+  {
+   "path": "apps/drora-cli/packages/node-repl-host/dist-types/browser-bridge.d.ts.map",
+   "hunks": 1
+  },
+  {
+   "path": "apps/drora-cli/packages/node-repl-host/dist-types/cua-bridge.d.ts.map",
+   "hunks": 1
+  }
+ ],
+ "semanticReview": [
+  "apps/drora-cli/docs/design/v2/model/README.md",
+  "apps/drora-cli/packages/adapters/src/config/schema.ts",
+  "apps/drora-cli/packages/adapters/src/model/model-execution.ts",
+  "apps/drora-cli/packages/adapters/src/model/runner-attribution.ts",
+  "apps/drora-cli/packages/adapters/src/model/runner-options.ts",
+  "apps/drora-cli/packages/adapters/src/plugins/marketplace.ts",
+  "apps/drora-cli/packages/adapters/src/plugins/mcp.ts",
+  "apps/drora-cli/packages/adapters/tests/exec.test.ts",
+  "apps/drora-cli/packages/adapters/tests/logging.test.ts",
+  "apps/drora-cli/packages/bootstrap/src/app/bundled-plugins.ts",
+  "apps/drora-cli/packages/bootstrap/src/app/create-app.ts",
+  "apps/drora-cli/packages/bootstrap/src/app/official-plugin-definitions.ts",
+  "apps/drora-cli/packages/bootstrap/src/app/types.ts",
+  "apps/drora-cli/packages/bootstrap/src/mcp-config.ts",
+  "apps/drora-cli/packages/bootstrap/src/plugins.ts",
+  "apps/drora-cli/packages/bootstrap/src/drora-protocol-v4/commands/handlers/canonical-intent-replay.ts",
+  "apps/drora-cli/packages/bootstrap/src/drora-protocol-v4/commands/handlers/queue.ts",
+  "apps/drora-cli/packages/bootstrap/src/drora-protocol-v4/commands/input-intent.ts",
+  "apps/drora-cli/packages/bootstrap/src/drora-protocol-v4/event-normalizer.ts",
+  "apps/drora-cli/packages/bootstrap/src/drora-protocol-v4/v4-gateway.ts",
+  "apps/drora-cli/packages/bootstrap/src/drora-protocol/server-types.ts",
+  "apps/drora-cli/packages/bootstrap/src/drora-protocol/v4-bridge.ts",
+  "apps/drora-cli/packages/bootstrap/tests/dynamic-workflow-run-service.test.ts",
+  "apps/drora-cli/packages/bootstrap/tests/plugins.test.ts",
+  "apps/drora-cli/packages/bootstrap/tests/script-workflow-child-runtime.test.ts",
+  "apps/drora-cli/packages/cli/tests/build-sea.test.mjs",
+  "apps/drora-cli/packages/contracts/src/events/session.events.ts",
+  "apps/drora-cli/packages/contracts/src/interfaces/mcp.port.ts",
+  "apps/drora-cli/packages/contracts/src/interfaces/session.port.ts",
+  "apps/drora-cli/packages/contracts/src/plugins/index.ts",
+  "apps/drora-cli/packages/core/src/permission/service.ts",
+  "apps/drora-cli/packages/core/src/repl/node-repl-session.ts",
+  "apps/drora-cli/packages/core/src/runtime/agent-runtime.ts",
+  "apps/drora-cli/packages/core/src/runtime/deps.ts",
+  "apps/drora-cli/packages/core/src/runtime/helpers/conversation-quotes.ts",
+  "apps/drora-cli/packages/core/src/runtime/helpers/model-errors.ts",
+  "apps/drora-cli/packages/core/src/runtime/helpers/runtime-tools.ts",
+  "apps/drora-cli/packages/core/src/runtime/helpers/turn-errors.ts",
+  "apps/drora-cli/packages/core/src/runtime/internal.ts",
+  "apps/drora-cli/packages/core/src/runtime/methods/index.ts",
+  "apps/drora-cli/packages/core/src/runtime/methods/input-intent-persistence.ts",
+  "apps/drora-cli/packages/core/src/runtime/methods/model.ts",
+  "apps/drora-cli/packages/core/src/runtime/methods/streaming-tool-coordinator.ts",
+  "apps/drora-cli/packages/core/src/runtime/methods/turn-loop-state.ts",
+  "apps/drora-cli/packages/core/src/runtime/methods/turn.ts",
+  "apps/drora-cli/packages/core/src/runtime/types.ts",
+  "apps/drora-cli/packages/core/src/tool/executor/call-runner.ts",
+  "apps/drora-cli/packages/core/src/tool/executor/types.ts",
+  "apps/drora-cli/packages/core/src/tool/handlers/index.ts",
+  "apps/drora-cli/packages/core/src/tool/handlers/skill.ts",
+  "apps/drora-cli/packages/core/src/tool/types.ts",
+  "apps/drora-cli/packages/core/tests/mcp-runtime.test.ts",
+  "apps/drora-cli/packages/core/tests/permission-service.test.ts",
+  "apps/drora-cli/packages/core/tests/runtime-compact.test.ts",
+  "apps/drora-cli/packages/core/tests/subagent-explore.test.ts",
+  "apps/drora-cli/packages/core/tests/tool-executor-trace.test.ts",
+  "apps/drora-cli/packages/node-repl-host/src/browser-bridge.ts",
+  "apps/drora-cli/packages/node-repl-host/src/cua-bridge.ts",
+  "apps/drora-cli/packages/node-repl-host/test/mcp-server.test.ts"
+ ],
+ "driftBlocked": [],
+ "decisionRequired": [
+  {
+   "path": "apps/drora-cli/packages/zcode-cua-plugin/docs/computer-use.md",
+   "outcome": "zone-decision"
+  },
+  {
+   "path": "apps/drora-cli/packages/zcode-cua-plugin/scripts/computer-use-client.mjs",
+   "outcome": "zone-decision"
+  },
+  {
+   "path": "apps/drora-cli/packages/zcode-cua-plugin/skills/computer-use/SKILL.md",
+   "outcome": "zone-decision"
+  }
+ ],
+ "errors": []
+}

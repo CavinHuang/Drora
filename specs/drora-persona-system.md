@@ -1,6 +1,6 @@
 # Drora 人格与个人化系统
 
-- 版本：v5，2026-10-29；P0a（捕获编排）、P0b 切片 B/C（独立存储、执行许可、双层能力发现、设置 UI、应用状态；正式异步 worker 与 Windows 打包最低验证于 2026-10-31 补齐）与 P1a（显式交流默认、忘记、导出）、P1b（学习服务编排、管理协议面与设置 UI）已实现；切片 D 剩余（E2E、真实模型效果、macOS/Linux 打包）未做，完整功能尚未发布。
+- 版本：v5，2026-10-29；P0a（捕获编排）、P0b 切片 B/C（独立存储、执行许可、双层能力发现、设置 UI、应用状态；正式异步 worker 与 Windows 打包最低验证于 2026-10-31 补齐）与 P1a（显式交流默认、忘记、导出）、P1b（学习服务编排、管理协议面与设置 UI）已实现；切片 D 剩余（E2E、真实模型效果、macOS/Linux 打包）与 P2 的原 parity/E2E 回归待条件完成，完整功能尚未发布；P2 表达映射已实现（第十三批）。
 - 源码依据：54db6b6309c2b155f1e6d6630062c97c0432f0f2。
 - 本文是唯一产品设计基线，取代[文件方案](drora-persona.md)及本文件 v4。旧评审保留问题发现过程，不再作为并行实施合同。
 - 配套：[数据与接口合同](../docs/design/drora-persona-data-contracts-2026-10-29.md)、[影响/验收](../docs/design/drora-persona-system-impact-2026-10-28.md)、[实施计划](../docs/superpowers/plans/2026-10-29-drora-persona-p0.md)、[综合评审](../docs/design/drora-persona-integrated-review-2026-10-29.md)。
@@ -254,7 +254,7 @@ P0/P1 保留现有桌宠动画/拖拽/导航和 voice 行为。后续 P2 允许�
 | P0b 可交付身份   | 受控字段、管理、许可、应用状态、正式 worker 打包 | G1–G5 通过，固定模型对照；无后台模型调用              | 切片 B/C 已实现（第三–五批）；切片 D 可自动化子集完成（第九批）；E2E、真实模型对照、macOS/Linux 打包未做，G3–G5 未整体通过                        |
 | P1a 显式交流默认 | 四键唯一 owner、U、纠正/忘记、导出               | 与旧 M 解耦、跨窗 CAS、撤销/快照合同                  | 已实现（第六批＋第十批评审修复），自动化门控通过                                                                                                  |
 | P1b 有限学习     | L、来源/预算、accepted 恢复、冲突与抑制          | 归因负例、旧源 fencing、源复验和成本达到阈值          | 服务编排/管理协议面/设置 UI 已实现（第七、八批＋第十–十二批评审修复），自动化门控通过；归因负例与成本阈值未验证（需真实模型，未授权），未 shipped |
-| P2 当前态呈现    | 可选桌宠显示适配                                 | 原 parity/导航/E2E；无主动气泡或任务新状态            | 未开始                                                                                                                                            |
+| P2 当前态呈现    | 可选桌宠显示适配                                 | 原 parity/导航/E2E；无主动气泡或任务新状态            | 表达映射已实现（第十三批，中性结束不庆祝）；原 parity/E2E 回归待条件                                                                                |
 
 G1=统一字段/owner/许可合同；G2=用途与诊断边界；G3=执行/恢复/协议兼容；G4=产品效果与性能；G5=发行/降级/检查。设计已规定 G1/G2 的语义，运行证据仍缺；不能将文档完成写为这些门已通过。
 
@@ -289,6 +289,8 @@ G1=统一字段/owner/许可合同；G2=用途与诊断边界；G3=执行/恢复
 第十一批（评审修复第二轮，2026-10-31）处理复审三项：**关闭态终态清理残余边界闭合**——`pruneTerminalWorks` 在接收路径移到幂等回放与策略门之前、在领取路径移到策略门之前（合同 §6 保留上界无条件）：U/L 关闭期间触达接收/领取的调用（含 unsupported 拒绝与 already_accepted 回放）同样顺带清理 7 天窗口外终态行，不再滞留到重开策略后的首次调用；全程无任何调用的静默期只能顺延到下次调用（懒清理的固有边界，如实记录）。`persona-learning-retention.test.ts` 新增关闭态用例：关 U（级联关 L）后领取/新接收返回 unsupported、幂等回放照常 already_accepted，三者的调用都完成窗口外清理且窗口内行保留。**语义负例（归因负例）维持切片 D 后置**：复审确认 `validateExtractionDrafts` 仅机械负例、六类负例行为测试只钉「零候选提交的零写入闭环」——按文件头与合同记录的设计决策「语义负例不能由字符串规则替代」，在本层引入字符串规则即违背已记录合同，真实模型适配器的提示词与评测合同（PM38/40/48）及 §12 准入验证仍属切片 D 授权后部分，留给用户决策。**relay-v2 第二特性混树**维持原状：该特性有独立 spec/台账/测试，提交拆分是分支所有者的 commit 决策，修复层不回退他人工作。
 
 第十二批（评审修复第三轮，2026-10-31）闭合一项新发现（low）：**prune 失对回放不再按库损坏分类**——`pruneTerminalWorks` 只清 work 终态行，evidence 行作为来源定位/复验记录（`readInferredSlotSources` 联读依赖，合同 §6「证据清理独立」）长期保留，「evidence 与 work 成对写入」只在接收时刻成立；work 行过 7 天保留期被清后，同 evidenceId 的幂等回放原走 `failCorruptRow` → schema_incompatible（良性 prune 状态被归为库损坏，且 evidence 永不清理导致该 ID 回放持续失败不自愈）。修复：digest 匹配但 work 行缺失的回放返回 `already_accepted` 且省略 `workId`（`PersonaLearningAcceptResult` 的 already_accepted 臂 workId 改可选；服务层该臂只计数丢弃，不读 workId），注释与 adapters CONTRACT「接收」条目同步更正不变量表述。`persona-learning-retention.test.ts` 第三用例钉住：work 行推到保留窗口外后回放 toEqual `{status:"already_accepted"}`（无 workId）、evidence 行保留、work 行已清。语义负例（切片 D）与 relay 混树（提交拆分）维持第十一批决策不变。
+
+第十三批（P2 桌宠当前态呈现与 G 门收口，2026-10-31）落地 §11 当前态表达与验收收口文档：`desktop-drora-extensions` 新增纯映射 `desktopPetPersonaExpression`（公开入口 desktopPet.ts 再导出）——只消费 mode+locale：working 为专注、attention 为等待回应、error 为遇到问题、completed 为中性结束（「已结束/Finished」，**completed 包含中断，`celebrates` 类型级恒 false，永不庆祝成功**）；重复 error 与 attention 时长在类型上无法影响表达（无连续失败计数、无等待时长/权限超时推断、无持久化）；preload 主宠 badge/aria/title 与托盘活动行文案同源接入该映射，completed 徽章移除 success 绿改中性色调；sprite 轨道选择、拖拽、导航、托盘交互零改动（PM58「原动画导航不变」）；映射模块唯一导入为 shared Locale 类型（结构上零语音依赖，§11 语音兼容检查通过，不新增情绪输出链路）。PM18 回归：多任务投影与外观切换不改变表达（映射只消费 mode+locale，无新 task 字段、无独立人格）。测试：desktop `tests/desktopPetPersonaExpression.test.ts` 7 项＋desktopPetLayout/Configuration 回归通过；desktop main typecheck 0 错、architecture 0 违规。同批落地验收收口文档 `docs/design/drora-persona-gates-2026-10-31.md`（G1–G5 证据汇总判定：G1 达成，G2/G3/G5 部分达成——语义负例归因/真实旧端交叉/跨平台打包待条件，G4 待模型授权与盲评；PM 分组对照与待用户决策清单）。至此 §12 分期表 P0–P2 的**可自主实现部分全部落地**；剩余全部为需条件项（真实模型效果与盲评——需授权与冻结预算；跨平台打包——需环境；交互 E2E——需人工审查通道；PM57 阈值冻结与合并决策——所有者）。
 
 | 问题            | 本版处理                                                 |
 | --------------- | -------------------------------------------------------- |

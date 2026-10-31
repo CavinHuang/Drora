@@ -10,6 +10,7 @@ import {
 import { createDesktopPetPlayer } from "./desktopPetPlayer.js";
 import { attachPetPointer } from "./desktopPetPointer.js";
 import { createDesktopPetTray } from "./desktopPetTray.js";
+import { desktopPetPersonaExpression } from "../drora-extensions/desktopPet.js";
 
 let current: DesktopPetPresentation = { mode: "idle", activeCount: 0, attentionCount: 0 };
 let apply = () => {};
@@ -100,27 +101,15 @@ window.addEventListener("DOMContentLoaded", () => {
   });
   apply = () => {
     const count = current.activities?.length ?? current.attentionCount + current.activeCount;
-    const zh = document.documentElement.lang.startsWith("zh");
-    const labels = zh
-      ? {
-          idle: "待命",
-          working: "正在处理",
-          attention: "需要处理",
-          completed: "已完成",
-          error: "遇到问题",
-        }
-      : {
-          idle: "Idle",
-          working: "Running",
-          attention: "Needs input",
-          completed: "Ready",
-          error: "Blocked",
-        };
+    const locale = document.documentElement.lang.startsWith("zh") ? "zh-CN" : "en-US";
+    // P2 当前态表达（spec §11、PM58）：working=专注、attention=等待回应、error=遇到问题、
+    // completed=中性结束（含中断，永不庆祝）；纯映射无失败计数与等待时长推断。
+    const { label } = desktopPetPersonaExpression({ mode: current.mode, locale });
     badge.textContent = String(count);
     badge.dataset.mode = current.mode;
-    badge.title = labels[current.mode];
-    badge.setAttribute("aria-label", `${labels[current.mode]} (${count})`);
-    pet.title = current.preview ?? labels[current.mode];
+    badge.title = label;
+    badge.setAttribute("aria-label", `${label} (${count})`);
+    pet.title = current.preview ?? label;
     badge.hidden = count === 0;
     pet.dataset.mode = current.mode;
     player.setMode(current.mode);

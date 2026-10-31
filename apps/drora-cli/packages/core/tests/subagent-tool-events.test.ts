@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { join, resolve } from "node:path";
+import { tmpdir } from "node:os";
 import {
   SessionEventType,
   createSessionEvent,
@@ -185,6 +187,12 @@ describe("subagent tool event projection", () => {
     const liveEvents: SessionEvent[] = [];
     let parentCallCount = 0;
     let childCallCount = 0;
+    // Windows 兼容：子 agent 以相对路径 README.md 调 Read，运行时按平台 resolve 到
+    // workingDirectory；POSIX 假根 "/workspace/project" 在 Windows 会解析成 "D:\..."
+    // 与替身键错开，Read 报错、镜像流里只有 error 事件而没有 result 事件。
+    // 用本机真实绝对根构造工作区，断言语义不变。
+    const workRoot = resolve(tmpdir(), "drora-subagent-tool-events");
+    const readmePath = join(workRoot, "README.md");
 
     const runtime = createTestAgentRuntime(
       sessionId,
@@ -194,12 +202,12 @@ describe("subagent tool event projection", () => {
           providerId: createModelProviderId("provider-test"),
           modelId: createModelId("parent-model"),
         },
-        workingDirectory: "/workspace/project",
+        workingDirectory: workRoot,
       },
       {
         eventStore,
         fileSystemPort: new MemoryFileSystem({
-          "/workspace/project/README.md": "Drora Explore reads this file.\n",
+          [readmePath]: "Drora Explore reads this file.\n",
         }),
         modelFactory: createTestModelFactory({
           async generateText(request: any) {

@@ -341,7 +341,7 @@ describe("a run that reported 65,536 items", () => {
 
     // 快照 256 + 冷回放 64 + GetWorkflowRun 64；产物清单与修订导入一条不读。
     expect(counted.items()).toBe(256 + 64 + 64);
-  }, 120_000);
+  }, 240_000); // 修复：隔离实测 ~120s，贴着旧预算；满载并行会超，按实测余量放宽到 240s。
 });
 
 describe("report item size: 1 MiB items stay out of JavaScript except where they are shown", () => {
@@ -457,7 +457,7 @@ describe("report item size: 1 MiB items stay out of JavaScript except where they
       payloadBytes({ n: index + 1, pad: "x".repeat(ITEM_PAD) }),
     ).reduce((sum, value) => sum + value, 0);
     expect(journal.sumResultBytes(runId, "report")).toBe(expected);
-  }, 120_000);
+  }, 240_000); // 修复：隔离实测 ~120s，贴着旧预算；满载并行会超，按实测余量放宽到 240s。
 
   it("extracts fields in SQLite exactly as the renderer reads them from the whole item", () => {
     // 路径规则是协议上的契约（readWorkflowArtifactField）：CLI 在 SQLite 里取、渲染器在 JS 里

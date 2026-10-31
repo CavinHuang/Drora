@@ -25,8 +25,6 @@ Put the bootstrap and the actions in the **same** cell, bootstrap first:
 
 ```js
 const root =
-  process.env.DRORA_CUA_PLUGIN_ROOT ??
-  process.env.DRORA_PLUGIN_ROOT ??
   process.env.ZCODE_CUA_PLUGIN_ROOT ??
   process.env.ZCODE_PLUGIN_ROOT ??
   process.env.CLAUDE_PLUGIN_ROOT;
@@ -285,7 +283,8 @@ get_app_state({app_ref, include_screenshot?=false, disable_diffing?=false})
 
 left_click({target, mouse_button?="left", click_count?=1, modifiers?="",
            strategy?, app_ref?, return_state?})
-left_click_drag({from_target, to, modifiers?="", app_ref?, return_state?})
+left_click_drag({from_target, to, modifiers?="", strategy?, app_ref?,
+                return_state?})
 scroll({target, scroll_direction, scroll_amount, strategy?, app_ref?,
        return_state?})
 

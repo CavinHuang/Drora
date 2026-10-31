@@ -690,8 +690,129 @@ describe("DroraProtocolNdjsonConnection", () => {
     input.end();
     await connection.waitForClose();
   });
+
+  it("answers plugin read requests while an install runs and another install waits behind it", async () => {
+    const input = new PassThrough();
+    const output = new PassThrough();
+    const installEntered = Promise.withResolvers<void>();
+    const finishInstall = Promise.withResolvers<void>();
+    const readsAnswered = Promise.withResolvers<void>();
+    const readMethods: string[] = [
+      droraProtocolMethods.pluginsDescribe,
+      droraProtocolMethods.pluginsList,
+      droraProtocolMethods.pluginsOverview,
+    ];
+    const order: string[] = [];
+    const connection = new DroraProtocolNdjsonConnection({
+      handleMessage: async (message) => {
+        if (!("method" in message) || !("id" in message)) return undefined;
+        order.push(`${message.method}#${message.id}`);
+        if (message.id === 1) {
+          installEntered.resolve();
+          await finishInstall.promise;
+        }
+        if (order.length === 1 + readMethods.length) readsAnswered.resolve();
+        return { id: message.id, result: {} };
+      },
+      input,
+      output,
+    });
+    connection.start();
+    try {
+      input.write(frame({ id: 1, method: droraProtocolMethods.pluginsInstall, params: {} }));
+      await installEntered.promise;
+      // B 排在 A 后面时，详情和新标签页的列表加载也不能等「最后排队请求开始」这个屏障。
+      input.write(
+        frame({ id: 2, method: droraProtocolMethods.pluginsInstall, params: {} }) +
+          readMethods.map((method, index) => frame({ id: index + 3, method, params: {} })).join(""),
+      );
+      await readsAnswered.promise;
+      expect(order).toEqual([
+        "plugins/install#1",
+        "plugins/describe#3",
+        "plugins/list#4",
+        "plugins/overview#5",
+      ]);
+    } finally {
+      finishInstall.resolve();
+      input.end();
+      await connection.waitForClose();
+    }
+    expect(order.at(-1)).toBe("plugins/install#2");
+  });
 });
 
 function frame(message: DroraProtocolMessage): string {
   return `${JSON.stringify(message)}\n`;
 }
+
+describe("session lifecycle transport admission", () => {
+  it("keeps lifecycle queries and operations available behind a hung ordinary request", async () => {
+    const input = new PassThrough();
+    const output = new PassThrough();
+    const entered: string[] = [];
+    const gate = Promise.withResolvers<void>();
+    const connection = new DroraProtocolNdjsonConnection({
+      input,
+      output,
+      handleMessage: async (message) => {
+        if (!("method" in message) || !("id" in message)) return;
+        entered.push(message.method);
+        if (message.method === "workspace/readState") await gate.promise;
+        return { id: message.id, result: {} };
+      },
+    });
+    connection.start();
+    input.write(frame({ id: "busy", method: "workspace/readState" }));
+    input.write(frame({ id: "queued", method: "session/read", params: { sessionId: "a" } }));
+    const methods = ["getState", "ensureReady", "stop", "restart"].map(
+      (method) => `session/lifecycle/${method}`,
+    );
+    for (const method of methods)
+      input.write(frame({ id: method, method: method as never, params: { sessionId: "a" } }));
+    try {
+      await vi.waitFor(() => expect(entered).toEqual(expect.arrayContaining(methods)));
+      expect(entered).not.toContain("session/read");
+    } finally {
+      gate.resolve();
+      input.end();
+      await connection.waitForClose();
+    }
+  });
+});
+
+describe("shared CLI session admission", () => {
+  it("admits another conversation and its control requests while one command is initializing", async () => {
+    const input = new PassThrough();
+    const output = new PassThrough();
+    const gate = Promise.withResolvers<void>();
+    const entered: string[] = [];
+    const connection = new DroraProtocolNdjsonConnection({
+      input,
+      output,
+      handleMessage: async (message) => {
+        if (!("id" in message) || !("method" in message)) return;
+        entered.push(String(message.id));
+        if (message.id === "a") await gate.promise;
+        return { id: message.id, result: {} };
+      },
+    });
+    connection.start();
+    input.write(frame({ id: "a", method: "v4/command", params: { sessionId: "a" } }));
+    input.write(frame({ id: "b", method: "v4/command", params: { sessionId: "b" } }));
+    input.write(
+      frame({
+        id: "observe-b",
+        method: "v4/conversation/subscribe",
+        params: { topic: "conversation/b" },
+      }),
+    );
+    try {
+      await vi.waitFor(() => expect(entered).toEqual(["a", "b", "observe-b"]));
+    } finally {
+      gate.resolve();
+      input.end();
+      await connection.waitForClose();
+    }
+  });
+});

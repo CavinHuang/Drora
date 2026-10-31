@@ -16,8 +16,11 @@ export function normalizeToolPathForComparison(
   filePath: string,
   platform: ToolPathPlatform = currentPlatform,
 ): string {
+  // 修复：非 win32 分支必须用 posix.normalize——此前用的环境默认 normalize 在
+  // Windows 上即 win32，会把 POSIX 风格路径改写成反斜杠形态，令 darwin/linux
+  // platform 钉住的判定（如 /private 别名归一）在 Windows 上失效。
   const normalized =
-    platform === "win32" ? normalizeWindowsToolPath(filePath) : normalize(filePath);
+    platform === "win32" ? normalizeWindowsToolPath(filePath) : path.posix.normalize(filePath);
   return normalized.normalize("NFC");
 }
 

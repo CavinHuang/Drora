@@ -26,7 +26,7 @@ describe("AgentRuntime project Memory context", () => {
         `You have a persistent file-based memory at \`${rootDir}/\`.`,
       );
       expect(result.fileSystemPort.readRequests).toEqual([
-        { maxBytes: undefined, path: join(rootDir, "MEMORY.md") },
+        { maxBytes: undefined, path: `${rootDir}/MEMORY.md` },
       ]);
       expect(Object.keys(result.fileSystemPort.files)).toEqual([]);
       expect([...result.fileSystemPort.createdDirectories]).toEqual([rootDir]);
@@ -74,7 +74,7 @@ describe("AgentRuntime project Memory context", () => {
       cliStorageRoot: CLI_STORAGE_ROOT,
       workspacePath: WORKSPACE_PATH,
     });
-    const indexPath = join(rootDir, "MEMORY.md");
+    const indexPath = `${rootDir}/MEMORY.md`;
     const indexContent =
       "- [Database test policy](database-test-policy.md) — integration tests use isolated databases";
     const result = await executeMemoryTurn({
@@ -82,7 +82,9 @@ describe("AgentRuntime project Memory context", () => {
     });
 
     expect(result.fileSystemPort.readRequests).toEqual([{ maxBytes: undefined, path: indexPath }]);
-    expect(result.providerText.match(/# agentsMd/gu)).toHaveLength(1);
+    expect(
+      result.providerText.match(/Codebase and user instructions are shown below/g),
+    ).toHaveLength(1);
     expect(result.providerText).not.toContain("# claudeMd");
     expect(result.providerText).toContain(
       `Contents of ${indexPath} (user's auto-memory, persists across conversations):\n\n${indexContent}`,
@@ -94,7 +96,7 @@ describe("AgentRuntime project Memory context", () => {
       cliStorageRoot: CLI_STORAGE_ROOT,
       workspacePath: WORKSPACE_PATH,
     });
-    const indexPath = join(rootDir, "MEMORY.md");
+    const indexPath = `${rootDir}/MEMORY.md`;
     const indexContent =
       "- [Database test policy](database-test-policy.md) — integration tests use isolated databases";
     const updatedContent = `${indexContent}\n- [Deployment policy](deployment-policy.md) — staging approval required`;
@@ -132,7 +134,7 @@ describe("AgentRuntime project Memory context", () => {
       cliStorageRoot: CLI_STORAGE_ROOT,
       workspacePath: WORKSPACE_PATH,
     });
-    const indexPath = join(rootDir, "MEMORY.md");
+    const indexPath = `${rootDir}/MEMORY.md`;
     const indexContent = [
       "---",
       "internal: hidden-index-metadata",
@@ -205,13 +207,11 @@ describe("AgentRuntime project Memory context", () => {
     expect(result.fileSystemPort.readRequests).toEqual([
       {
         maxBytes: undefined,
-        path: join(
-          resolveProjectMemoryRoot({
-            cliStorageRoot: CLI_STORAGE_ROOT,
-            workspacePath: WORKSPACE_PATH,
-          }),
-          "MEMORY.md",
-        ),
+        // 修复：运行时按正斜杠规范形态读取索引，期望值与之一致。
+        path: `${resolveProjectMemoryRoot({
+          cliStorageRoot: CLI_STORAGE_ROOT,
+          workspacePath: WORKSPACE_PATH,
+        })}/MEMORY.md`,
       },
     ]);
     expect(result.fileSystemPort.files).toEqual({

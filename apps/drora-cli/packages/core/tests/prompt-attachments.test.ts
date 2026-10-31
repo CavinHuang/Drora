@@ -1,3 +1,4 @@
+import { resolve } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { createFileSystemError, createSessionId, VIDEO_INPUT_MAX_BYTES } from "@drora/contracts";
 import { buildProviderRequestMessages } from "../src/runtime/helpers/provider-request-messages.js";
@@ -84,7 +85,9 @@ describe("prompt attachment provider content order", () => {
     });
 
     expect(readBinaryFile).toHaveBeenCalledWith(
-      expect.objectContaining({ path, maxBytes: 20 * 1024 * 1024 }),
+      // 修复：附件路径经 win32 resolve（Windows 上 "/tmp/..." 前置盘符），期望按平台
+      // resolve 构造；POSIX 上即原字面量。
+      expect.objectContaining({ path: resolve(path), maxBytes: 20 * 1024 * 1024 }),
       expect.any(Object),
     );
     expect(resolved).toMatchObject({
@@ -92,7 +95,7 @@ describe("prompt attachment provider content order", () => {
         type: "file",
         mediaType: "application/pdf",
         name: "report.pdf",
-        source: { kind: "local_file", path },
+        source: { kind: "local_file", path: resolve(path) },
       },
       metadata: { artifactUri: "drora-artifact://pdf-local-1", storageKind: "artifact" },
       mime: "application/pdf",
@@ -999,16 +1002,15 @@ describe("prompt attachment provider content order", () => {
       },
     );
 
+    // 修复（断言随实现更新）：v3.17.1 起本地引用型附件只回显 `[Attached <mime>: <path>]`
+    // 的极简正文（不读取内容，sizeBytes 保持未定义），元数据 recoverability/mime/url 不变。
     expect(resolved).toMatchObject({
       contentBlock: {
         type: "text",
-        text: expect.stringContaining(
-          "pasted-text temporary attachment that is deferred to keep the model context small",
-        ),
+        text: `[Attached text/plain: ${path}]`,
       },
       metadata: {
         recoverability: "metadata_only",
-        sizeBytes: 8192,
         storageKind: "local_ref",
       },
       mime: "text/plain",

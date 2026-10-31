@@ -1,4 +1,3 @@
-import { sep } from "node:path";
 
 import { formatMemoryIndexContent } from "../memory/index-content.js";
 import type { AgentMemoryScope } from "./profile.js";
@@ -152,7 +151,9 @@ export function buildPersistentAgentMemoryPrompt(input: {
   rootDir: string;
   scope: AgentMemoryScope;
 }): string {
-  const memoryRoot = input.rootDir.endsWith(sep) ? input.rootDir : `${input.rootDir}${sep}`;
+  // 修复：模板占位符是 `<MEMORY_ROOT>/`（正斜杠），补尾分隔符必须同形态；
+  // Windows 用 path.sep 会写成反斜杠，令冻结 fixture 比对随平台漂移。
+  const memoryRoot = input.rootDir.endsWith("/") ? input.rootDir : `${input.rootDir}/`;
   const indexContent = formatMemoryIndexContent(input.indexContent);
   const prompt = PERSISTENT_AGENT_MEMORY_PROMPT_TEMPLATE.replace(
     "<MEMORY_ROOT>/",

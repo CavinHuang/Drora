@@ -16,7 +16,7 @@ import { spawnSync } from "node:child_process";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
 import { build } from "esbuild";
 import type { renderChildEntry as renderChildEntryType } from "../src/child-source.js";
@@ -26,7 +26,12 @@ const ENTRY = new URL("../src/child-source.ts", import.meta.url);
 const roots: string[] = [];
 
 afterEach(async () => {
-  await Promise.all(roots.splice(0).map((root) => rm(root, { force: true, recursive: true })));
+  // Windows 修复：harness 结算即 resolve、随后才 kill 子进程（finalize 语义，不等待退出），
+  // 子进程短暂存续期间其 cwd 句柄会让 rmdir 报 EBUSY。fs.rm 的 maxRetries/retryDelay
+  // 专为 win32 的 EBUSY/EPERM/ENOTEMPTY 竞态设计，重试期间不影响 POSIX 行为。
+  await Promise.all(
+    roots.splice(0).map((root) => rm(root, { force: true, recursive: true, maxRetries: 10, retryDelay: 100 })),
+  );
 });
 
 async function tempRoot(prefix: string): Promise<string> {
@@ -41,7 +46,9 @@ async function bundledRenderChildEntry(minify: boolean): Promise<typeof renderCh
   const outfile = join(root, "child-source.mjs");
   await build({
     bundle: true,
-    entryPoints: [new URL(ENTRY).pathname],
+    // Windows 修复：URL.pathname 在 win32 是 `/D:/...` 带前导斜杠的非法路径，
+    // esbuild 解析不到（Could not resolve）；用 fileURLToPath 取平台原生绝对路径。
+    entryPoints: [fileURLToPath(ENTRY)],
     format: "esm",
     // 与 CLI 发布构建同参：desktop-agent 是 minify + keepNames，普通/SEA 构建不压缩。
     keepNames: minify,
@@ -63,7 +70,12 @@ async function runChild(
 ): Promise<unknown[]> {
   const root = await tempRoot("dwf-child-entry-");
   const entryPath = join(root, "run.mjs");
-  await writeFile(entryPath, render({ ...payload, maxOldSpaceSizeMb: 256 }, { runId: "run" }), "utf8");
+  // run 身份是 payload 的必备字段（沙箱据它构造冻结的 `run` 全局）。
+  await writeFile(
+    entryPath,
+    render({ ...payload, run: { id: "run" }, maxOldSpaceSizeMb: 256 }, { runId: "run" }),
+    "utf8",
+  );
   const result = spawnSync(process.execPath, ["--max-old-space-size=256", entryPath], {
     encoding: "utf8",
     input: "",
@@ -129,6 +141,8 @@ describe.each([
             "log",
             "publishArtifact",
             "report",
+            // run 身份（facade 的 `run`）：与 args 一样是值，不是可调用物。
+            "run",
             "worldRead",
           ],
         },

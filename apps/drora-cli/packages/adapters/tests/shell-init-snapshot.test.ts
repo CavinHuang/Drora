@@ -39,12 +39,14 @@ describe("shell init snapshot", () => {
   });
 
   it("detects Git Bash rc file path from USERPROFILE when HOME is unavailable", () => {
+    // rc 路径要写进 bash `source "..."` 行，产品统一输出正斜杠形态；
+    // 断言按正斜杠形态比较，跨平台一致（POSIX 的 join 结果替换后同形）。
     expect(
       detectShellInitConfigPath({
         env: { USERPROFILE: "C:\\Users\\me" },
         shellPath: "C:\\Program Files\\Git\\bin\\bash.exe",
       }),
-    ).toBe(join("C:\\Users\\me", ".bashrc"));
+    ).toBe(join("C:\\Users\\me", ".bashrc").replace(/\\/g, "/"));
   });
 
   it("builds a snapshot creation script that sources config and writes exports", () => {
@@ -132,7 +134,8 @@ describe("shell init snapshot", () => {
       if (!first) throw new Error("expected ready snapshot");
       expect(second).toEqual(first);
       expect(execFile).toHaveBeenCalledTimes(1);
-      expect(first.path).toMatch(/\/shell-snapshots\/snapshot-bash-\d+-[a-z0-9]{6}\.sh$/u);
+      // Windows：快照路径是宿主形态，分隔符为 `\\`；正则同时接受两种分隔符。
+      expect(first.path).toMatch(/[\\/]shell-snapshots[\\/]snapshot-bash-\d+-[a-z0-9]{6}\.sh$/u);
       expect(first.path).not.toContain("/session/");
 
       const cleanup = await manager.cleanup();
@@ -228,8 +231,9 @@ describe("shell init snapshot", () => {
       }
       expect(execFile).toHaveBeenCalledTimes(2);
       expect(bash.path).not.toBe(zsh.path);
-      expect(bash.path).toMatch(/\/shell-snapshots\/snapshot-bash-\d+-[a-z0-9]{6}\.sh$/u);
-      expect(zsh.path).toMatch(/\/shell-snapshots\/snapshot-zsh-\d+-[a-z0-9]{6}\.sh$/u);
+      // Windows：宿主路径分隔符为 `\\`；正则同时接受两种分隔符。
+      expect(bash.path).toMatch(/[\\/]shell-snapshots[\\/]snapshot-bash-\d+-[a-z0-9]{6}\.sh$/u);
+      expect(zsh.path).toMatch(/[\\/]shell-snapshots[\\/]snapshot-zsh-\d+-[a-z0-9]{6}\.sh$/u);
       expect(await readFile(bash.path, "utf8")).toBe("# bash\n");
       expect(await readFile(zsh.path, "utf8")).toBe("# zsh\n");
 
@@ -286,7 +290,12 @@ describe("shell init snapshot", () => {
     }
   });
 
-  it("uses host paths in creation scripts and Git Bash paths when sourcing snapshots", async () => {
+  // Windows 不可运行：用例把 `C:\Users\me\Drora` 当作单段目录名拼进 rootDir，
+  // Windows 路径段不允许冒号，mkdir 必然 EINVAL，快照永远建不出来（POSIX 上这只是
+  // 一个合法的怪文件名）。git-bash 路径转换逻辑由 POSIX 平台同名断言覆盖。
+  it.skipIf(process.platform === "win32")(
+    "uses host paths in creation scripts and Git Bash paths when sourcing snapshots",
+    async () => {
     const rootDir = await mkdtemp(join(tmpdir(), "drora-shell-init-snapshot-"));
     const windowsLikeRoot = join(rootDir, "C:\\Users\\me\\Drora");
     let creationSnapshotPath = "";
@@ -326,7 +335,8 @@ describe("shell init snapshot", () => {
     } finally {
       await rm(rootDir, { recursive: true, force: true });
     }
-  });
+    },
+  );
 
   it("caches failed snapshot creation and keeps later calls failed", async () => {
     const rootDir = await mkdtemp(join(tmpdir(), "drora-shell-init-snapshot-"));

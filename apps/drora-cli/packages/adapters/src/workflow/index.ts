@@ -298,7 +298,10 @@ function normalizeRelativePath(value: string): string {
   ) {
     throw new Error(`Workflow artifact path must stay inside the run directory: ${value}`);
   }
-  return normalized;
+  // Windows 修复：artifact 的 relativePath 是回传给调用方/模型并参与持久化索引的
+  // 契约字段，统一 `/` 分隔（POSIX 的 normalize 本就输出 `/`；win32 会输出 `\`，
+  // 造成跨平台形状分叉）。join/write 对 `/` 形态同样正确解析。
+  return normalized.split("\\").join("/");
 }
 
 function sanitizePathSegment(value: string): string {

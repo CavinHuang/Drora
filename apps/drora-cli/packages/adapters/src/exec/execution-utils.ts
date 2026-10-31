@@ -22,7 +22,10 @@ export function resolveDefaultOutputRootDir(processEnv: NodeJS.ProcessEnv = proc
 
 export function isExpectedChildStdinClosureError(error: Error): boolean {
   const code = (error as NodeJS.ErrnoException).code;
-  return code === "EPIPE" || code === "ERR_STREAM_DESTROYED";
+  // Windows 修复：子进程提前 destroy stdin 后，win32 管道写入报 EOF 而非 EPIPE
+  // （本机 Node 24 实测：stdin error event code=EOF、子进程正常 exit 0）。
+  // 语义与 POSIX 的 EPIPE 相同——孩子主动关闭了标准输入，不算 Agent 侧故障。
+  return code === "EPIPE" || code === "EOF" || code === "ERR_STREAM_DESTROYED";
 }
 
 export function isBashMergedOutputRequest(request: ExecutionRequest): boolean {

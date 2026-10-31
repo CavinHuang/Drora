@@ -21,12 +21,24 @@ export interface BashInternalScriptContent {
 export interface MaterializedBashSourceScript {
   path: string;
   shellPath: string;
+  /**
+   * 内部生成脚本恒定带引号（见 BashSourceScript.alwaysQuote）。
+   * 修复：S2 合并给 materialize 返回值加了 alwaysQuote: true，但返回类型
+   * 未同步该字段，导致 TS2353；补齐声明使类型与实现一致。
+   */
+  alwaysQuote?: boolean;
 }
 
 export interface BashSourceScript {
   path: string;
   shellPath: string;
   optional?: boolean;
+  /**
+   * 内部生成的脚本恒定带引号：跨平台输出形态一致（POSIX 上 path===shellPath 恒引，
+   * Windows git-bash 转换后 path!==shellPath，若按需引号会让两侧 source 行形态分叉），
+   * 也让调用方/测试能对路径形态做确定性断言。
+   */
+  alwaysQuote?: boolean;
 }
 
 export interface ApplyBashSourcesOptions {
@@ -104,6 +116,7 @@ export function materializeBashInternalSourceScript(
   return {
     path,
     shellPath: options.shellDialect === "git-bash" ? windowsPathToGitBashPath(path) : path,
+    alwaysQuote: true,
   };
 }
 
@@ -144,7 +157,10 @@ function shellQuoteAlways(value: string): string {
 }
 
 function quoteSourcePath(materialized: BashSourceScript): string {
-  return materialized.path === materialized.shellPath
+  // Windows 修复：转换过坐标系（path!==shellPath）的内部脚本原来退化为按需引号，
+  // 与 POSIX 的恒引形态分叉；内部生成脚本统一恒引（alwaysQuote），外来 source
+  // （如 shell snapshot）保持按需引号不变。
+  return materialized.alwaysQuote || materialized.path === materialized.shellPath
     ? shellQuoteAlways(materialized.shellPath)
     : shellQuote(materialized.shellPath);
 }

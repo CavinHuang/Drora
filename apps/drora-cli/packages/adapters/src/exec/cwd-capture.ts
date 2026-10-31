@@ -58,12 +58,18 @@ function createPosixCwdCaptureCommand(command: string, cwdFilePath: string): str
 }
 
 function createWindowsCmdCwdCaptureCommand(command: string, cwdFilePath: string): string {
+  // Windows 修复：Node 的 spawn(shell) 把整段命令交给 `cmd.exe /d /s /c "..."`，
+  // 多行（CRLF）脚本只有第一行会执行，后续行被静默丢弃——命令成功也写不出 cwd
+  // 文件，resolvedCwd 恒为 undefined。改为单行 `&` 串联；退出码不能用
+  // %ERRORLEVEL%（同一行在解析期展开，拿到的是命令执行前的旧值），必须先
+  // `setlocal EnableDelayedExpansion` 再用 !ERRORLEVEL!。本机 Node 24 + cmd 实测：
+  // 失败命令原码透传（exit 3 → status 3），成功时 `cd > file` 落盘。
   return [
+    "setlocal EnableDelayedExpansion",
     command,
-    'set "__drora_status=%ERRORLEVEL%"',
-    `if "%__drora_status%"=="0" cd > ${cmdQuote(cwdFilePath)}`,
-    "exit /b %__drora_status%",
-  ].join("\r\n");
+    `(if not errorlevel 1 cd > ${cmdQuote(cwdFilePath)})`,
+    "exit /b !ERRORLEVEL!",
+  ].join(" & ");
 }
 
 export function readCapturedCwd(

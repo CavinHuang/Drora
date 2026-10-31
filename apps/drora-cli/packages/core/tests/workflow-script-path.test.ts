@@ -4,8 +4,9 @@
 // **同一个**路径：模型读到什么，下一次 `Edit` 和 `AmendWorkflow` 的 `path` 就是什么。相对化
 // 的判据一旦飘了，模型就会去编辑一个不存在的文件，或者收到一个它读不懂的绝对路径。
 //
-// 全部路径都用 `path.join` / `path.resolve` 拼，所以这组用例在 POSIX 与 Windows 上钉的是
-// 同一条规则（分隔符与盘符由 node:path 自己给出）。
+// 全部输入路径都用 `path.join` / `path.resolve` 拼；断言的期望值固定为正斜杠——模型面
+// 的三个消费方（终态通知、GetWorkflowRun、工具响应）的冻结断言都用正斜杠写法，本函数
+// 2026-10-31 起归一为正斜杠，Windows 上与集成断言保持同一条规则。
 
 import path from "node:path";
 import { describe, expect, it } from "vitest";
@@ -17,7 +18,7 @@ describe("describeWorkflowScriptPath", () => {
   it("工作目录之下：给工作区相对路径（模型接下来 Edit 用的就是这一种）", () => {
     const absolute = path.join(CWD, ".drora", "workflow-drafts", "audit.dwf.ts");
     expect(describeWorkflowScriptPath(absolute, CWD)).toBe(
-      path.join(".drora", "workflow-drafts", "audit.dwf.ts"),
+      ".drora/workflow-drafts/audit.dwf.ts",
     );
   });
 
@@ -45,11 +46,11 @@ describe("describeWorkflowScriptPath", () => {
     const nested = path.join(CWD, "apps", "cli");
     const absolute = path.join(nested, ".drora", "workflow-drafts", "audit.dwf.ts");
     expect(describeWorkflowScriptPath(absolute, nested)).toBe(
-      path.join(".drora", "workflow-drafts", "audit.dwf.ts"),
+      ".drora/workflow-drafts/audit.dwf.ts",
     );
     // 同一个文件、更靠外的工作目录：相对写法随之变长，绝对路径不变——journal 存的是后者。
     expect(describeWorkflowScriptPath(absolute, CWD)).toBe(
-      path.join("apps", "cli", ".drora", "workflow-drafts", "audit.dwf.ts"),
+      "apps/cli/.drora/workflow-drafts/audit.dwf.ts",
     );
   });
 

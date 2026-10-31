@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { join, resolve, sep } from "node:path";
+import { join, normalize, resolve, sep } from "node:path";
 import {
   DRORA_OFFICIAL_PLUGIN_MARKETPLACE,
   DRORA_PLUGIN_HOST_COMMAND,
@@ -31,7 +31,12 @@ export function createBundledMcpRuntimeConfig(input: {
   return {
     args: [
       ...hostPrefixArgs,
-      join(input.rootPath, ...(input.relativeServerPath ?? MCP_SERVER_RELATIVE_PATH)),
+      // 修复：server 路径是 spawn argv（宿主 node 直接加载），Windows 的 join 产反斜杠
+      // 与 POSIX 形态 root 混拼；node 接受正斜杠，统一归一保持跨平台形态一致。
+      join(input.rootPath, ...(input.relativeServerPath ?? MCP_SERVER_RELATIVE_PATH)).replaceAll(
+        "\\",
+        "/",
+      ),
     ],
     command: process.execPath,
     cwd: input.cwd,
@@ -96,7 +101,15 @@ export function writeOfficialPluginRuntimeManifest(input: OfficialRuntimeManifes
       // 文档插件使用 dist/server.mjs；统一覆盖成 dist/mcp/server.js 会导致启动失败。
       mcpServer.args = [
         ...hostPrefixArgs,
-        ...serverArgs.map((arg) => arg.replaceAll("${DRORA_PLUGIN_ROOT}", input.rootPath)),
+        ...serverArgs.map((arg) =>
+          // Windows 修复：seed 模板里的 `${DRORA_PLUGIN_ROOT}/dist/...` 是 `/` 形态，
+          // 直接替换会得到混合分隔符路径（rootPath 反斜杠 + 余段斜杠）。带占位符的
+          // 参数一定是 rootPath 相对路径，替换后 normalize 成宿主原生形态——
+          // POSIX 上替换结果本就是原生形态，行为不变。
+          arg.includes("${DRORA_PLUGIN_ROOT}")
+            ? normalize(arg.replaceAll("${DRORA_PLUGIN_ROOT}", input.rootPath))
+            : arg,
+        ),
       ];
       mcpServer.env = {
         ...mcpServerEnv,

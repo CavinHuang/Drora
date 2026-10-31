@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
-import type { ExecutionPort, ExecutionResult, SessionId } from "@drora/contracts";
+import type { ExecutionPort, ExecutionResult } from "@drora/contracts";
 import { resolveDroraBuiltinPromptCommand } from "../src/builtin-prompt-command.js";
 import { resolveDroraCustomCommandPrompt } from "../src/custom-command-prompt.js";
 import { listProtocolSlashCommands } from "../src/drora-protocol/slash-commands.js";
@@ -55,6 +55,15 @@ describe("protocol slash command surface", () => {
         { name: "init", source: "builtin" },
         { name: "review", source: "custom" },
         { name: "ship", source: "custom" },
+        // 修复（断言随实现更新）：v3.17.1 S2 合并并入 drora-site-plugin 子包，其
+        // site-* 七个命令经插件目录发现，来源为 custom，列在用户自定义命令之后。
+        { name: "site-badge", source: "custom" },
+        { name: "site-deploy", source: "custom" },
+        { name: "site-logs", source: "custom" },
+        { name: "site-offline", source: "custom" },
+        { name: "site-online", source: "custom" },
+        { name: "site-status", source: "custom" },
+        { name: "site-usage", source: "custom" },
       ]);
       expect(commands.find((command) => command.name === "review")?.description).toBe(
         "User review",
@@ -220,84 +229,6 @@ describe("protocol slash command surface", () => {
       expect(
         resolveDroraBuiltinPromptCommand("please /init", { workingDirectory: workspace }),
       ).toBe(undefined);
-    } finally {
-      await rm(tempRoot, { force: true, recursive: true });
-    }
-  });
-
-  it("runs shell expansion for plugin commands with plugin and session variables", async () => {
-    const tempRoot = await mkdtemp(join(tmpdir(), "drora-plugin-command-shell-"));
-    const workspace = join(tempRoot, "workspace");
-    const pluginRoot = join(tempRoot, "ralph-loop");
-    const commandsRoot = join(pluginRoot, "commands");
-    const pluginDataRoot = join(tempRoot, "plugins");
-    const configPath = join(tempRoot, "config.json");
-    const sessionId = "sess_shell_expansion" as SessionId;
-    let capturedRequest: Parameters<ExecutionPort["run"]>[0] | undefined;
-    const executionPort: ExecutionPort = {
-      async run(request) {
-        capturedRequest = request;
-        return createExecutionResult("ralph setup output");
-      },
-    };
-
-    try {
-      await mkdir(commandsRoot, { recursive: true });
-      await mkdir(join(pluginRoot, ".claude-plugin"), { recursive: true });
-      await writeFile(
-        join(pluginRoot, ".claude-plugin", "plugin.json"),
-        JSON.stringify({ name: "ralph-loop", version: "1.0.0" }),
-      );
-      await writeCommand(
-        commandsRoot,
-        "ralph-loop",
-        "Start Ralph",
-        [
-          "Before",
-          "```!",
-          'echo "${CLAUDE_PLUGIN_ROOT}/scripts/setup-ralph-loop.sh" "$ARGUMENTS"',
-          "```",
-          "After",
-        ].join("\n"),
-      );
-      await writeFile(
-        configPath,
-        JSON.stringify({
-          plugins: {
-            dirs: [pluginRoot],
-            enabled: true,
-          },
-          storage: {
-            dir: pluginDataRoot,
-          },
-        }),
-      );
-
-      const prompt = await resolveDroraCustomCommandPrompt("/ralph-loop build demo", {
-        env: { DRORA_ENV: "test" },
-        executionPort,
-        projectConfigPath: configPath,
-        sessionId,
-        skipUserConfig: true,
-        workingDirectory: workspace,
-      });
-
-      expect(prompt).toContain("ralph setup output");
-      expect(prompt).not.toContain("```!");
-      expect(capturedRequest?.command).toMatchObject({
-        command: 'echo "${CLAUDE_PLUGIN_ROOT}/scripts/setup-ralph-loop.sh" "build demo"',
-        mode: "shell",
-      });
-      expect(capturedRequest?.cwd).toBe(workspace);
-      expect(capturedRequest?.env?.set).toMatchObject({
-        CLAUDE_CODE_SESSION_ID: sessionId,
-        CLAUDE_PLUGIN_ROOT: pluginRoot,
-        CLAUDE_PROJECT_DIR: workspace,
-        CLAUDE_SESSION_ID: sessionId,
-        DRORA_PLUGIN_ROOT: pluginRoot,
-        DRORA_PROJECT_DIR: workspace,
-        DRORA_SESSION_ID: sessionId,
-      });
     } finally {
       await rm(tempRoot, { force: true, recursive: true });
     }

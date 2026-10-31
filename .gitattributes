@@ -40,3 +40,18 @@ apps/drora-cli/packages/visualize-plugin/skills/visualize/assets/** -text -white
 
 # 宠物技能的上游脚本/许可由 provenance.json 逐文件校验，保留发行原始字节。
 apps/drora-cli/packages/bundled-skills/skills/create-pet/** -text -whitespace
+
+# 提供方可见的冻结提示词 fixture（dream/extraction/recall/main-memory/custom-agent 等）与
+# 代码内模板逐字节比对；tsx/esbuild 转换会把源码模板字面量行尾归一为 LF，autocrlf 检出成
+# CRLF 会让 Windows 上的 fixture 比对永远失败，强制 LF（与 *.baseline.sql 同一先例）。
+apps/drora-cli/packages/*/tests/fixtures/**/*.md text eol=lf
+
+# 动态工作流技能内嵌冻结 facade 块（SKILL.md 与编译器常量 FACADE_DTS 逐字节比对，
+# 见 bundled dynamic-workflows skill 测试）；autocrlf 检出会破坏该等式，强制 LF。
+apps/drora-cli/packages/bundled-skills/skills/dynamic-workflows/** text eol=lf
+
+# 动态工作流因果图 fixture（graphs/expected/*.mmd）被 create-workflow 商集测试按行
+# 正则解析（`$` 行尾锚定）；Windows autocrlf 检出成 CRLF 会让所有行匹配失败、
+# 期望边集为空，测试在 Windows 上永远失败（上游 CI 是 LF checkout 不受影响）。
+# 与 *.baseline.sql / tests/fixtures 同一先例，强制 LF。
+apps/drora-cli/packages/dynamic-workflow/tests/graphs/** text eol=lf

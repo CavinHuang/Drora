@@ -4392,7 +4392,10 @@ test("plugin host stays alive past the one-shot CLI watchdog deadline", async ()
   const root = await mkdtemp(join(tmpdir(), "drora-cli-plugin-host-lifetime-"));
   const serverPath = join(root, "server.mjs");
   const cliEntryPath = fileURLToPath(new URL("../src/main.ts", import.meta.url));
-  const tsxLoaderPath = fileURLToPath(import.meta.resolve("tsx"));
+  // Windows 修复：`--import` 只接受 file/data/node URL，裸 `D:\` 路径会被当成
+  // `d:` 协议（ERR_UNSUPPORTED_ESM_URL_SCHEME）；直接传 import.meta.resolve 的
+  // file:// URL，入口路径仍作为位置参数传路径。
+  const tsxLoaderPath = import.meta.resolve("tsx");
   let child: ReturnType<typeof spawn> | undefined;
 
   try {
@@ -4463,7 +4466,8 @@ test("failed plugin host still exits when initialization leaves stdin active", a
   const root = await mkdtemp(join(tmpdir(), "drora-cli-plugin-host-failure-"));
   const serverPath = join(root, "server.mjs");
   const cliEntryPath = fileURLToPath(new URL("../src/main.ts", import.meta.url));
-  const tsxLoaderPath = fileURLToPath(import.meta.resolve("tsx"));
+  // Windows 修复：同上，`--import` 传 file:// URL 而非裸盘符路径。
+  const tsxLoaderPath = import.meta.resolve("tsx");
   let child: ReturnType<typeof spawn> | undefined;
   let stderr = "";
 
@@ -6832,7 +6836,9 @@ test("storage-migrate real entrypoint honors an isolated custom database and rej
   const directory = await mkdtemp(join(tmpdir(), "drora-cli-storage-migration-"));
   const database = join(directory, "custom storage", "sessions.sqlite");
   const cliEntry = fileURLToPath(new URL("../src/main.ts", import.meta.url));
-  const tsxLoader = fileURLToPath(import.meta.resolve("tsx"));
+  // Windows 修复：`--import` 只接受 file/data/node URL，裸盘符路径按 `d:` 协议拒绝；
+  // 保留 file:// URL 形态（与上面 plugin-host 用例同一修法）。
+  const tsxLoader = import.meta.resolve("tsx");
   const invoke = async () => {
     const child = spawn(process.execPath, ["--import", tsxLoader, cliEntry, "storage-migrate"], {
       cwd: directory,

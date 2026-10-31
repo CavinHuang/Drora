@@ -492,16 +492,22 @@ ID 查询可凭持久化父链证明归属，目录/身份不符即拒绝，不�
 （core/bootstrap 20）。
 **2026-10-21 再清点（v3.16.1 合并 S3 task-facts 重构后）**：repairSubagentTaskIndex.ts
 随重构迁至 services/src/task-facts/（门随文件走），droraAgentService.ts 新增 1 处
-会话归属守卫（按继承原则 teammate 自动继承），census 23 → **24 处（15 文件）**。分布：
+会话归属守卫（按继承原则 teammate 自动继承），census 23 → **24 处（15 文件）**。
+
+**2026-10-31 再冻结（S2 v3.17.1 上游合并）**：上游把协议层字面量门收敛进 shared 的
+`isReadonlyAgentSessionKind`（packages/shared/src/drora-protocol-legacy-types.ts，
+`subagent_child` 在其 readonly 集合内，listSessions 父归属/sendPrompt/v4 只读闸的
+继承语义不变；shared 不在 census grep roots 内，属形状迁移而非门移除）。
+server-operations.ts 3→1、v4-bridge.ts 1→0，census 24 → **21 处（13 文件）**；
+FROZEN_GATES 与总数已按当前树再冻结（behavior-gates.snapshot.test.ts 同批更新）。分布：
 
 | 文件                                                                                                                         | 处数 | 继承效果（taskType=subagent_child ⇒ 自动获得）                                                                                                 |
 | ---------------------------------------------------------------------------------------------------------------------------- | ---- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
 | core/src/runtime/helpers/runtime-tools.ts（:56/:67/:72/:214/:228/:269）                                                      | 6    | RespondToCoordinator 注册门、automation/offPeak 不注册、subagentBackgroundBashMaxMs 适用、runtimeScope="subagent"、isSubagentChildRuntime 标记 |
 | core/src/runtime/methods/background-notifications.ts                                                                         | 2    | 通知封印按子会话现状                                                                                                                           |
-| bootstrap/src/drora-protocol/server-operations.ts（:1734 S2 新增/:1817/:2036）                                               | 3    | 子会话下钻/查询包含 teammate；S2 新增会话归属守卫（精确 ID 凭父链证明归属，teammate 同样适用）                                                 |
+| bootstrap/src/drora-protocol/server-operations.ts                                                                            | 1    | 子会话下钻/查询包含 teammate；v3.17.1 起另两处收敛进 isReadonlyAgentSessionKind（见上）                                                       |
 | bootstrap/src/app/subagent-observation.ts（:51/:95）                                                                         | 2    | 子代理观察面适用                                                                                                                               |
 | bootstrap/src/drora-protocol/subagent-session-query.ts:395                                                                   | 1    | `!==` 跳过逻辑不命中 ⇒ 查询包含 teammate                                                                                                       |
-| bootstrap/src/drora-protocol/v4-bridge.ts:1764-1771                                                                          | 1    | 只读守卫覆盖 teammate                                                                                                                          |
 | core/src/runtime/helpers/tool-allowlist.ts:114                                                                               | 1    | RespondToCoordinator 经 allowlist 补回                                                                                                         |
 | core/src/runtime/methods/model-request-session-type.ts、turn-model-step-usage.ts、background.ts                              | 3    | 模型请求归类/用量/后台语义按子会话                                                                                                             |
 | core/src/telemetry/runtime-telemetry.ts                                                                                      | 1    | telemetry 归类                                                                                                                                 |

@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { resolve } from "node:path";
+import { join, resolve, sep } from "node:path";
+
+// 这些函数返回真实的宿主文件系统路径，分隔符随平台；断言用 join 生成期望值，
+// 跨平台一致（POSIX 上 join 结果即 POSIX 形态，行为不变）。
+const platformJoin = (...parts: string[]): string => join(...parts);
 import { getModelIoDir, getProjectMemoryRoot } from "../src/app/paths.js";
 
 describe("getProjectMemoryRoot", () => {
@@ -15,7 +19,11 @@ describe("getProjectMemoryRoot", () => {
       "remote:ssh:host:/workspace/app",
     );
 
-    expect(first).toBe("/tmp/drora-cli/memories/projects/project-dce7d1610bbf24dd/memory");
+    // 修复：getProjectMemoryRoot 已归一为正斜杠规范形态（进入提示词与记忆规范键，
+    // 见 core 的 resolveProjectMemoryRoot），期望按规范形态构造。
+    expect(first).toBe(
+      "/tmp/drora-cli/memories/projects/project-dce7d1610bbf24dd/memory",
+    );
     expect(second).toBe(first);
   });
 
@@ -26,13 +34,15 @@ describe("getProjectMemoryRoot", () => {
 
     expect(relativeRoot).toBe(absoluteRoot);
     expect(blankIdentityRoot).toBe(absoluteRoot);
-    expect(relativeRoot).toMatch(/\/memories\/projects\/.+\/memory$/);
+    expect(relativeRoot.split(sep).join("/")).toMatch(/\/memories\/projects\/.+\/memory$/);
   });
 });
 
 describe("getModelIoDir", () => {
   it("derives debug and rollout from the configured CLI storage root", () => {
-    expect(getModelIoDir("/custom/storage/cli", true)).toBe("/custom/storage/cli/debug");
-    expect(getModelIoDir("/custom/storage/cli", false)).toBe("/custom/storage/cli/rollout");
+    expect(getModelIoDir("/custom/storage/cli", true)).toBe(platformJoin("/custom/storage/cli/debug"));
+    expect(getModelIoDir("/custom/storage/cli", false)).toBe(
+      platformJoin("/custom/storage/cli/rollout"),
+    );
   });
 });

@@ -1,5 +1,5 @@
-import { observeLocalTtftCompaction } from "./local-ttft-compaction.js";
-import { LocalTtftClockWatch } from "./local-ttft-clock.js";
+import { observeLocalTtftCompaction } from "../local-ttft-compaction.js";
+import { LocalTtftClockWatch } from "../local-ttft-clock.js";
 import {
   SessionEventType,
   observeLocalTurnPreparation,
@@ -14,7 +14,7 @@ import {
 import {
   ConversationTelemetryFactNormalizer,
   streamingParentToolCallId,
-} from "./conversation-telemetry-facts.js";
+} from "../conversation-telemetry-facts.js";
 import { randomUUID } from "node:crypto";
 import {
   LOCAL_TTFT_MAX_PENDING,
@@ -62,6 +62,8 @@ export class LocalTtftRecorder {
       sendMode: busy ? "queued" : "idle",
       details: [],
     });
+    // admission/冷恢复可能一直等待，收到命令就发检查点，避免只有受理成功才留下线索。
+    this.checkpoint(this.records.get(envelope.commandId)!);
     this.clockWatch ??= new LocalTtftClockWatch(this.now, (unreliable) => {
       if (unreliable)
         for (const record of this.records.values()) {
@@ -329,6 +331,8 @@ export class LocalTtftRecorder {
           attempt.end = record.outputAt;
           attempt.outcome = "first_output";
         }
+        // 旁路仅证明 CLI 已有有效输出；Renderer 仍须收到实际内容帧才收口。
+        this.checkpoint(record);
       }
       if (
         record.sessionId === sessionId &&

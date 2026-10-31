@@ -67,7 +67,9 @@ test("parses upload arguments with defaults and overrides", () => {
     ),
     {
       destinationRoot: "/mnt/shared/drora/deps",
-      distDir: "/tmp/drora-upload/dist-out",
+      // 修复：distDir 是相对 cwd 解析的结果，期望值按平台 resolve 构造，
+      // 避免 Windows 上 "/tmp/..." 被解析成 "D:	mp\..." 造成形态断言失败。
+      distDir: resolve("/tmp/drora-upload", "dist-out"),
       force: true,
       help: false,
       smbUrl: "smb://example/shared",

@@ -1,0 +1,20 @@
+{
+ "docs/browser-use/2026-07-10-browser-use-codex-parity-spec.md": "keep-ours",
+ "docs/browser-use/2026-07-12-browser-use-codex-runtime-semantics-alignment-spec.md": "keep-ours",
+ "docs/monitoring/onboarding-telemetry.md": "keep-ours",
+ "docs/testing/browser-use-codex-parity-coverage-matrix.md": "keep-ours",
+ "packages/zcode-cua/broker-helper-constants.d.ts": "keep-ours",
+ "packages/zcode-cua/broker-helper-constants.js": "keep-ours",
+ "packages/zcode-cua/broker.d.ts": "keep-ours",
+ "packages/zcode-cua/broker.js": "keep-ours",
+ "packages/zcode-cua/index.d.ts": "keep-ours",
+ "packages/zcode-cua/package.json": "keep-ours",
+ "scripts/affected-unit-tests/scope.mjs": "keep-ours",
+ "third-party/README.md": "keep-ours",
+ "third-party/SPEC.md": "keep-ours",
+ "third-party/inventory.json": "keep-ours",
+ "third-party/native-search/sources.json": "keep-ours",
+ "third-party/npm-overrides.json": "keep-ours",
+ "third-party/upstream/d8a3a14c4ea44385e299f072db9e8a73994e2ff2b344ea5ae5a39c09f11cc984.txt": "keep-ours",
+ "third-party/upstream/noto-sans-sc-5.3.1-LICENSE.txt": "keep-ours"
+}

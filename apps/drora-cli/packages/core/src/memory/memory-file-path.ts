@@ -38,7 +38,10 @@ export function resolveContainedMemoryFilePath(input: {
     workspaceRoot: input.workspaceRoot,
   });
   const relativePath = relative(input.rootDir, resolvedPath);
-  return isContainedRelativePath(relativePath) ? resolvedPath : undefined;
+  // 修复：该路径是记忆文件的规范名（touched-paths 记录与提示词展示共用）。
+  // Windows 的 normalize/resolve 产出反斜杠会让规范名随平台漂移；node fs 在
+  // Windows 接受正斜杠，统一归一为正斜杠保持跨平台形态一致。
+  return isContainedRelativePath(relativePath) ? resolvedPath.replaceAll("\\", "/") : undefined;
 }
 
 export function resolveSafeMemoryFilePath(input: {

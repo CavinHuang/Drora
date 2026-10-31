@@ -193,6 +193,7 @@ export interface ValidateDroraPluginOptions extends ResolveDroraPluginsOptions {
 export interface DescribeDroraPluginOptions extends ResolveDroraPluginsOptions {
   marketplace: string;
   pluginName: string;
+  withWriteLock?: <T>(write: () => Promise<T>) => Promise<T>;
 }
 
 export interface DroraPluginInstallData {
@@ -341,6 +342,8 @@ export function getDroraPluginsOverview(
       marketplace: DRORA_OFFICIAL_PLUGIN_MARKETPLACE,
       version: def.version,
       installed: false,
+      // Bugfix：可恢复条目只带 listing 时丢了 "ui"，卸载后的文档插件从「UI 插件」掉进分类分组。
+      ...(def.componentTypes ? { componentTypes: [...def.componentTypes] } : {}),
       ...(listing ? { listing } : {}),
     };
   });
@@ -1003,11 +1006,12 @@ export async function describeDroraPlugin(
   options: DescribeDroraPluginOptions,
 ): Promise<DescribeMarketplacePluginResult> {
   const { pluginStorageRoot } = resolvePluginContext(options);
-  ensureDefaultPluginMarketplaces(pluginStorageRoot);
+  // 默认市场登记由 ensureMarketplaceManifestAvailable 在写锁内完成；这里不再无锁写 known 列表。
   return describeMarketplacePlugin({
     marketplace: options.marketplace,
     name: options.pluginName,
     storageRoot: pluginStorageRoot,
+    ...(options.withWriteLock ? { withWriteLock: options.withWriteLock } : {}),
   });
 }
 

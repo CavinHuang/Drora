@@ -166,12 +166,17 @@ async function run(options: {
 }
 
 describe("CreateWorkflow — source XOR and args", () => {
+  // 「没给」单独成句（参数 JSON 没解析出来时 adapter 恢复成的就是 `{}`），「多给」保持原句。
   it.each([
-    ["all three", { script: "return 1;", saved: { name: "x" }, path: "a.dwf.ts" }],
-    ["script and path", { script: "return 1;", path: "a.dwf.ts" }],
-    ["saved and path", { saved: { name: "x" }, path: "a.dwf.ts" }],
-    ["none", {}],
-  ])("refuses a %s call before the gate", async (label, input) => {
+    [
+      "all three",
+      { script: "return 1;", saved: { name: "x" }, path: "a.dwf.ts" },
+      "exactly one workflow source",
+    ],
+    ["script and path", { script: "return 1;", path: "a.dwf.ts" }, "exactly one workflow source"],
+    ["saved and path", { saved: { name: "x" }, path: "a.dwf.ts" }, "exactly one workflow source"],
+    ["none", {}, "No workflow source arrived"],
+  ])("refuses a %s call before the gate", async (label, input, message) => {
     const outcome = await run({
       input,
       name: `xor-${label.replace(/\s/gu, "-")}`,
@@ -180,7 +185,7 @@ describe("CreateWorkflow — source XOR and args", () => {
     });
     expect(outcome.permissionRequested).toHaveLength(0);
     expect(outcome.result.success).toBe(false);
-    expect(outcome.result.error?.message ?? "").toContain("exactly one workflow source");
+    expect(outcome.result.error?.message ?? "").toContain(message);
   });
 
   it("refuses `args` without `path`: a saved call has `saved.args`, an inline script has none", async () => {
@@ -214,7 +219,7 @@ describe("CreateWorkflow — inline drafts", () => {
     const draft = draftPath(cwd, "triage.dwf.ts");
     expect(readFileSync(draft, "utf8")).toBe(BROKEN_SCRIPT);
     // 文案给的是工作区相对写法，行号按文件数（无元数据块，所以与正文行相同）。
-    const described = join(WORKFLOW_DRAFTS_DIR, "triage.dwf.ts");
+    const described = `${WORKFLOW_DRAFTS_DIR}/triage.dwf.ts`;
     expect(output.response).toContain(`${described}:L1:C`);
     expect(output.response).toContain(`The script is saved at ${described}.`);
     expect(output.response).toContain(`resubmit with \`path: "${described}"\``);
@@ -241,7 +246,7 @@ describe("CreateWorkflow — inline drafts", () => {
     const output = outcome.result.output as CreateWorkflowOutput;
     expect(output.status).toBe("backgrounded");
     expect(output.response).toContain(
-      `The script is saved at ${join(WORKFLOW_DRAFTS_DIR, "nightly.dwf.ts")}; to revise it later, edit that file and pass \`path\` to AmendWorkflow.`,
+      `The script is saved at ${WORKFLOW_DRAFTS_DIR}/nightly.dwf.ts; to revise it later, edit that file and pass \`path\` to AmendWorkflow.`,
     );
   });
 
@@ -305,7 +310,7 @@ describe("CreateWorkflow — the `path` source", () => {
     expect(submits[0]!.scriptPath).toBe(join(cwd, "scripts", "check.dwf.ts"));
     // `path` 来源的文件不是工具写下的，所以说的是「脚本文件是 …」而不是「已保存到 …」。
     expect((outcome.result.output as CreateWorkflowOutput).response).toContain(
-      `The script file is ${join("scripts", "check.dwf.ts")};`,
+      `The script file is scripts/check.dwf.ts;`,
     );
     // 已经是工作副本了，不再抄一份。
     expect(() => readFileSync(draftPath(cwd, "check.dwf.ts"), "utf8")).toThrow();
@@ -516,7 +521,7 @@ describe("AmendWorkflow — file sources", () => {
     expect(readFileSync(draft, "utf8")).toBe(script);
     expect(amends[0]!.scriptPath).toBe(draft);
     expect((outcome.result.output as CreateWorkflowOutput).response).toContain(
-      `The revision's script is at ${join(WORKFLOW_DRAFTS_DIR, "前驱.dwf.ts")}; edit it there for a further revision.`,
+      `The revision's script is at ${WORKFLOW_DRAFTS_DIR}/前驱.dwf.ts; edit it there for a further revision.`,
     );
   });
 
@@ -626,7 +631,7 @@ describe("SaveWorkflow — `script_path`", () => {
       input: {
         name: "from-draft",
         description: "new words",
-        script_path: join(WORKFLOW_DRAFTS_DIR, "origin.dwf.ts"),
+        script_path: `${WORKFLOW_DRAFTS_DIR}/origin.dwf.ts`,
         scope: "project",
       },
       name: "save-script-path",

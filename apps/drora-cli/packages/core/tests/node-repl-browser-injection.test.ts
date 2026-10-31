@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { fileURLToPath } from "node:url";
 import { jsToolEntry, disposeNodeReplSession } from "../src/tool/handlers/node-repl.js";
 import type { ToolExecutionContext } from "../src/tool/types.js";
 import type {
@@ -56,7 +57,12 @@ describe("node_repl browser injection", () => {
     );
     const c = {
       ...ctx("bs-docs", port),
-      browserDocumentationRoot: new URL("../../browser-use-plugin/docs", import.meta.url).pathname,
+      // 上游用 URL.pathname：POSIX 下恰为文件路径，Windows 下是 "/D:/..."，
+      // existsSync 找不到 docs 根，documentation.get 按缺档抛错、cell 返回空对象。
+      // 这里换成 fileURLToPath 取平台真实路径（生产行为不变，仅测试可移植）。
+      browserDocumentationRoot: fileURLToPath(
+        new URL("../../browser-use-plugin/docs", import.meta.url),
+      ),
     };
     const out = (await jsToolEntry.handler(
       {

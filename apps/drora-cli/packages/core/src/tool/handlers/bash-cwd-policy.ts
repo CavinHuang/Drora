@@ -23,11 +23,14 @@ export interface BashCwdPolicyDecision {
   stderrSuffix?: string;
 }
 
-interface NormalizedCwdBoundary {
-  pathApi: ToolPathApi;
+interface CwdBoundaryPair {
   resolvedCwd: string;
   workspaceRoot: string;
-  equivalentPairs: Array<{ resolvedCwd: string; workspaceRoot: string }>;
+}
+
+interface NormalizedCwdBoundary {
+  pathApi: ToolPathApi;
+  equivalentPairs: CwdBoundaryPair[];
 }
 
 export function decideBashCwdPolicy(input: BashCwdPolicyInput): BashCwdPolicyDecision {
@@ -37,14 +40,37 @@ export function decideBashCwdPolicy(input: BashCwdPolicyInput): BashCwdPolicyDec
   if ((input.runtimeScope ?? "main") !== "main") return {};
 
   const boundary = normalizeCwdBoundaryInput(input);
-
-  if (isResolvedCwdInsideWorkspace(boundary)) {
-    return { nextWorkingDirectory: boundary.resolvedCwd };
+  // 修复原因：写回规范化后的物理路径时，symlink root、/private 别名或盘符大小写让同一目录
+  // 换了写法，环境公告按字符串比较，报出假的目录变化并多跑一次仓库检查。
+  // 规范化只用于判断边界；写回一律用 workspace root 的写法（加相对路径）。
+  const containing = findContainingPair(boundary);
+  if (containing) {
+    const relativePath = boundary.pathApi.relative(
+      containing.workspaceRoot,
+      containing.resolvedCwd,
+    );
+    // 修复：写回必须沿用 workspace root 自身的分隔符写法（注释所述「root 的写法」）。
+    // Windows 平台 api 的 join 会把 POSIX 风格的 root（"/repo"）改写成 "\repo\subdir"，
+    // 令 cwd 写回形态随平台漂移；root 含反斜杠时才用平台 join，否则按正斜杠拼接。
+    if (input.workspaceRoot.includes("\\")) {
+      return {
+        nextWorkingDirectory:
+          relativePath === ""
+            ? input.workspaceRoot
+            : boundary.pathApi.join(input.workspaceRoot, relativePath),
+      };
+    }
+    return {
+      nextWorkingDirectory:
+        relativePath === ""
+          ? input.workspaceRoot
+          : `${input.workspaceRoot}/${relativePath.split(boundary.pathApi.sep).join("/")}`,
+    };
   }
 
   return {
-    nextWorkingDirectory: boundary.workspaceRoot,
-    stderrSuffix: `Shell cwd was reset to ${boundary.workspaceRoot}`,
+    nextWorkingDirectory: input.workspaceRoot,
+    stderrSuffix: `Shell cwd was reset to ${input.workspaceRoot}`,
   };
 }
 
@@ -74,16 +100,11 @@ function normalizeCwdBoundaryInput(input: BashCwdPolicyInput): NormalizedCwdBoun
     });
   }
 
-  return {
-    pathApi,
-    resolvedCwd,
-    workspaceRoot,
-    equivalentPairs,
-  };
+  return { pathApi, equivalentPairs };
 }
 
-function isResolvedCwdInsideWorkspace(boundary: NormalizedCwdBoundary): boolean {
-  return boundary.equivalentPairs.some(({ resolvedCwd, workspaceRoot }) =>
+function findContainingPair(boundary: NormalizedCwdBoundary): CwdBoundaryPair | undefined {
+  return boundary.equivalentPairs.find(({ resolvedCwd, workspaceRoot }) =>
     isInsideOrSamePath(resolvedCwd, workspaceRoot, boundary.pathApi),
   );
 }

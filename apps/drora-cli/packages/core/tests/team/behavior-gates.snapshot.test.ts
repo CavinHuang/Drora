@@ -35,9 +35,12 @@ const FROZEN_GATES: Readonly<Record<string, number>> = {
   "apps/drora-cli/packages/core/src/runtime/methods/background.ts": 1,
   "apps/drora-cli/packages/core/src/runtime/helpers/tool-allowlist.ts": 1,
   "apps/drora-cli/packages/core/src/telemetry/runtime-telemetry.ts": 1,
-  "apps/drora-cli/packages/bootstrap/src/drora-protocol/server-operations.ts": 3,
+  // 2026-10-31 S2 v3.17.1 再冻结：上游把 server-operations/v4-bridge 的字面量门
+  // 收敛进 shared 的 isReadonlyAgentSessionKind（packages/shared/src/drora-protocol-
+  // legacy-types.ts，subagent_child 在其 readonly 集合内，继承语义不变；shared 不在
+  // GREP_ROOTS 内）。server-operations 3→1、v4-bridge 1→0，census 24→21（15→13 文件）。
+  "apps/drora-cli/packages/bootstrap/src/drora-protocol/server-operations.ts": 1,
   "apps/drora-cli/packages/bootstrap/src/drora-protocol/subagent-session-query.ts": 1,
-  "apps/drora-cli/packages/bootstrap/src/drora-protocol/v4-bridge.ts": 1,
   "apps/drora-cli/packages/bootstrap/src/app/subagent-observation.ts": 2,
   "packages/services/src/drora-agent/droraTaskIndexSyncer.ts": 1,
   "packages/services/src/drora-agent/droraTaskServiceAdapter.ts": 1,
@@ -107,7 +110,7 @@ function groupByPath(gates: readonly GateLine[]): Map<string, number> {
 }
 
 describe("subagent_child behavior gates frozen census", () => {
-  it("keeps the 24-gate census exactly as frozen in specs/agents-team.md §9", async () => {
+  it("keeps the 21-gate census exactly as frozen in specs/agents-team.md §9", async () => {
     const current = groupByPath(await collectCurrentGates());
 
     const missing = Object.keys(FROZEN_GATES).filter((path) => !current.has(path));
@@ -122,7 +125,7 @@ describe("subagent_child behavior gates frozen census", () => {
 缺失文件（门被移除？）: ${JSON.stringify(missing)}
 新增文件（新门——按 spec §9 继承原则确认 teammate 自动继承后，把文件与计数加入 FROZEN_GATES）: ${JSON.stringify(added)}
 计数漂移: ${JSON.stringify(drifted)}`,
-    ).toEqual({ missing: [], added: [], drifted: [], total: 24 });
+    ).toEqual({ missing: [], added: [], drifted: [], total: 21 });
   });
 
   it("notes cover the load-bearing gates referenced by the design", () => {

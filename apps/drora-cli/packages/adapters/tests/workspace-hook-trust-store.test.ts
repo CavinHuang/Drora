@@ -67,8 +67,13 @@ describe("FileWorkspaceHookTrustStore", () => {
     const loaded = await store.load();
     expect(loaded.status).toBe("ok");
     expect(loaded.records).toHaveLength(2);
-    expect((await stat(path)).mode & 0o777).toBe(0o600);
-    expect((await stat(join(base, "security"))).mode & 0o777).toBe(0o700);
+    // POSIX：chmod(0o600/0o700) 生效并按位断言。Windows：chmod 只支持只读位，
+    // 可写文件的 stat 恒为 0o666（目录 0o777），模式位断言在该平台不可达；
+    // 产品仍尽力 chmod（对网络盘/WSL 挂载有意义），此处仅跳过位级断言。
+    if (process.platform !== "win32") {
+      expect((await stat(path)).mode & 0o777).toBe(0o600);
+      expect((await stat(join(base, "security"))).mode & 0o777).toBe(0o700);
+    }
     expect((await readdir(join(base, "security"))).filter((name) => name.endsWith(".tmp"))).toEqual(
       [],
     );

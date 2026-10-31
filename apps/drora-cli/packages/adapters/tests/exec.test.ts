@@ -1289,29 +1289,34 @@ describe("NodeExecutionAdapter", () => {
     expect(events.at(-1)?.type).toBe("completed");
   });
 
-  it("captures final cwd for successful foreground shell commands when requested", async () => {
-    const root = await mkdtemp(join(tmpdir(), "drora-exec-cwd-"));
-    const child = join(root, " child with spaces ");
-    await mkdir(child);
+  // POSIX 形态：目录名以空格结尾时 cmd 的 cd 无法进入（无论是否加引号，cmd 会吃掉
+  // 尾随空格后按不存在路径报错，本机实证），Windows 由下方 win32 专用用例覆盖。
+  it.skipIf(process.platform === "win32")(
+    "captures final cwd for successful foreground shell commands when requested",
+    async () => {
+      const root = await mkdtemp(join(tmpdir(), "drora-exec-cwd-"));
+      const child = join(root, " child with spaces ");
+      await mkdir(child);
 
-    try {
-      const adapter = new NodeExecutionAdapter();
-      const result = await adapter.run({
-        command: {
-          mode: "shell",
-          command: `cd ${JSON.stringify(child)}`,
-        },
-        cwd: root,
-        captureCwdAfterSuccess: true,
-      });
+      try {
+        const adapter = new NodeExecutionAdapter();
+        const result = await adapter.run({
+          command: {
+            mode: "shell",
+            command: `cd ${JSON.stringify(child)}`,
+          },
+          cwd: root,
+          captureCwdAfterSuccess: true,
+        });
 
-      expect(result.status).toBe("completed");
-      expect(result.exitCode).toBe(0);
-      expect(result.resolvedCwd).toBe(await realpath(child));
-    } finally {
-      await rm(root, { recursive: true, force: true });
-    }
-  });
+        expect(result.status).toBe("completed");
+        expect(result.exitCode).toBe(0);
+        expect(result.resolvedCwd).toBe(await realpath(child));
+      } finally {
+        await rm(root, { recursive: true, force: true });
+      }
+    },
+  );
 
   it.skipIf(process.platform !== "win32")(
     "captures final cwd for Windows cmd shell commands when requested",
@@ -2217,9 +2222,13 @@ describe("NodeExecutionAdapter", () => {
       mode: "shell",
     });
     expect(windowsPlan.command.command).toContain("cd C:\\repo");
-    expect(windowsPlan.command.command).toContain('set "__drora_status=%ERRORLEVEL%"');
-    expect(windowsPlan.command.command).toContain('if "%__drora_status%"=="0" cd > "');
-    expect(windowsPlan.command.command).toContain("exit /b %__drora_status%");
+    // Windows 修复后的单行形态：Node spawn(shell) 只执行多行脚本的第一行，
+    // 且 %ERRORLEVEL% 在同一行按解析期展开拿不到命令结果，必须用延迟展开
+    // （见 src/exec/cwd-capture.ts 的修复注释）。
+    expect(windowsPlan.command.command).toContain("setlocal EnableDelayedExpansion");
+    expect(windowsPlan.command.command).toContain("(if not errorlevel 1 cd > ");
+    expect(windowsPlan.command.command).toContain("exit /b !ERRORLEVEL!");
+    expect(windowsPlan.command.command).not.toContain("\r\n");
   });
 
   it("does not create a cwd capture wrapper for argv commands", () => {
@@ -2711,6 +2720,24 @@ describe("NodeExecutionAdapter", () => {
       file: "C:\\Windows\\System32\\cmd.exe",
       shell: false,
     });
+  });
+
+  it("resolves a Windows command from a quoted PATH entry", () => {
+    const resolved = resolveExecutionCommand(
+      { mode: "argv", file: "pnpm", args: ["install"] },
+      {
+        cwd: "C:\\repo",
+        env: {
+          ComSpec: "C:\\Windows\\System32\\cmd.exe",
+          Path: '"C:\\Program Files\\node tools";C:\\Windows',
+          PATHEXT: ".COM;.EXE;.BAT;.CMD",
+        },
+        exists: (path) => path === "C:\\Program Files\\node tools\\pnpm.cmd",
+        platform: "win32",
+      },
+    );
+
+    expect(resolved.args.at(-1)).toBe('"C:\\Program Files\\node tools\\pnpm.cmd" install');
   });
 
   it("keeps Windows .exe argv commands shell-free after PATH resolution", () => {
@@ -3462,8 +3489,13 @@ describe("NodeExecutionAdapter", () => {
       prepareChildSpawn: (request: unknown) => Promise<unknown>;
     };
     const originalPrepare = internals.prepareChildSpawn.bind(adapter);
+    // 修复依据：原用 prepare 延迟 150ms / timeout 60ms 区分计时器起点，但 60ms 还必须覆盖
+    // Windows 下 cmd.exe spawn+退出的真实耗时——vitest 并发负载下偶发超过 60ms，会把计时器
+    // 正确后置的实现误判为 timed_out（本段门禁一次隔离重跑即触发改抖动）。按比例放大：
+    // prepare 延迟 1000ms 仍远大于 timeout 500ms（计时器若被提前到准备阶段，1000ms 内必然
+    // 先触发 timed_out，回归检出力不变），而 500ms 给真实子进程留出约 5 倍余量。
     internals.prepareChildSpawn = async (request: unknown) => {
-      await new Promise((resolve) => setTimeout(resolve, 150));
+      await new Promise((resolve) => setTimeout(resolve, 1000));
       return originalPrepare(request);
     };
 
@@ -3473,7 +3505,7 @@ describe("NodeExecutionAdapter", () => {
         file: process.platform === "win32" ? (process.env.ComSpec ?? "cmd.exe") : "/bin/sh",
         args: process.platform === "win32" ? ["/c", "exit 0"] : ["-c", "exit 0"],
       },
-      timeoutMs: 60,
+      timeoutMs: 500,
     });
 
     expect(result.status).toBe("completed");
@@ -4805,35 +4837,41 @@ describe("NodeExecutionAdapter", () => {
     }
   });
 
-  it("does not capture cwd for background shell executions", async () => {
-    const root = await mkdtemp(join(tmpdir(), "drora-exec-background-cwd-"));
-    const child = join(root, "child");
-    await mkdir(child);
-    const adapter = new NodeExecutionAdapter();
+  // POSIX 语法（`;` 分隔）在 win32 的 cmd 方言里不是合法分隔符；Windows 的
+  // 「后台不捕获 cwd」由 createCwdCapturePlan 只在非后台路径生效保证，posix 用例
+  // 在 CI 覆盖语义。
+  it.skipIf(process.platform === "win32")(
+    "does not capture cwd for background shell executions",
+    async () => {
+      const root = await mkdtemp(join(tmpdir(), "drora-exec-background-cwd-"));
+      const child = join(root, "child");
+      await mkdir(child);
+      const adapter = new NodeExecutionAdapter();
 
-    try {
-      const started = await adapter.start({
-        command: {
-          mode: "shell",
-          command: `cd ${JSON.stringify(child)}; printf bg`,
-        },
-        cwd: root,
-        captureCwdAfterSuccess: true,
-      });
+      try {
+        const started = await adapter.start({
+          command: {
+            mode: "shell",
+            command: `cd ${JSON.stringify(child)}; printf bg`,
+          },
+          cwd: root,
+          captureCwdAfterSuccess: true,
+        });
 
-      let snapshot = await adapter.getBackgroundTask(started.taskId);
-      for (let attempt = 0; attempt < 20 && snapshot?.status === "running"; attempt++) {
-        await sleep(20);
-        snapshot = await adapter.getBackgroundTask(started.taskId);
+        let snapshot = await adapter.getBackgroundTask(started.taskId);
+        for (let attempt = 0; attempt < 20 && snapshot?.status === "running"; attempt++) {
+          await sleep(20);
+          snapshot = await adapter.getBackgroundTask(started.taskId);
+        }
+
+        expect(snapshot?.status).toBe("completed");
+        expect(snapshot?.result?.stdout.text).toBe("bg");
+        expect(snapshot?.result?.resolvedCwd).toBeUndefined();
+      } finally {
+        await rm(root, { recursive: true, force: true });
       }
-
-      expect(snapshot?.status).toBe("completed");
-      expect(snapshot?.result?.stdout.text).toBe("bg");
-      expect(snapshot?.result?.resolvedCwd).toBeUndefined();
-    } finally {
-      await rm(root, { recursive: true, force: true });
-    }
-  });
+    },
+  );
 
   it.skipIf(!POSIX_BASH_PATH)(
     "runs posix-bash shell profile commands in background executions",

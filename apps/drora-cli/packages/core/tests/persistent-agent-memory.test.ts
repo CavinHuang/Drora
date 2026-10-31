@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { join } from "node:path";
+
 
 import { describe, expect, it } from "vitest";
 
@@ -61,7 +61,10 @@ describe("persistent custom-agent memory", () => {
 
     expect(prompt).toContain("## MEMORY.md\n\n- memory 1");
     expect(prompt).toContain("- memory 200\n\n> WARNING: MEMORY.md is 201 lines (limit: 200).");
-    expect(prompt).not.toContain("- memory 201");
+    expect(prompt.split("\n\n> WARNING:")[0]).not.toContain("- memory 201");
+    expect(prompt).toContain(
+      'Only part of it was loaded: 1 of 201 lines were cut off, starting at line 201 ("- memory 201").',
+    );
   });
 
   it("limits a single long MEMORY.md value and formats integer KB like the baseline", () => {
@@ -117,7 +120,9 @@ describe("persistent custom-agent memory", () => {
 
   it("reads MEMORY.md for every child launch and creates nothing when globally disabled", async () => {
     const memoryRoot = root("project");
-    const indexPath = join(memoryRoot, "MEMORY.md");
+    // 修复：Windows 的 join 产出反斜杠，与加载器的正斜杠规范键错开；索引路径按
+    // 规范形态构造（断言意图不变：每次子代理启动都重新读 MEMORY.md）。
+    const indexPath = `${memoryRoot}/MEMORY.md`;
     const fileSystem = new MemoryFileSystem({ [indexPath]: "first index" });
     const profile = customProfile({ memory: "project", tools: ["Write"] });
     const memory = { enabled: true, storageRoot: "/storage", use: true };

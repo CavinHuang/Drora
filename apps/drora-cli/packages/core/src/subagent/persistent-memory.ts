@@ -1,4 +1,4 @@
-import { join, resolve } from "node:path";
+import { isAbsolute, join, resolve } from "node:path";
 
 import type { FileSystemPort, Logger, TraceContext } from "@drora/contracts";
 
@@ -22,13 +22,21 @@ export function resolvePersistentAgentMemoryRoot(input: {
   workspaceRoot: string;
 }): string {
   const agentKey = sanitizePersistentAgentMemoryKey(input.agentName);
+  // 修复：该根路径既是提示词里的 <MEMORY_ROOT>（模型面展示），也直接喂给 node fs。
+  // Windows 的 join/resolve 产出反斜杠，导致提示词里的路径形态随平台漂移；node fs
+  // 在 Windows 上接受正斜杠，故统一归一为正斜杠，展示与文件操作共用同一形态。
   if (input.scope === "user") {
-    return join(input.storageRoot, "agent-memory", agentKey);
+    return join(input.storageRoot, "agent-memory", agentKey).replaceAll("\\", "/");
   }
-  const workspace = resolve(input.workspaceRoot);
-  return input.scope === "project"
-    ? join(workspace, ".drora", "agent-memory", agentKey)
-    : join(workspace, ".drora", "agent-memory-local", agentKey);
+  // 修复：宿主给的 workspaceRoot 已是绝对路径时按原样使用。Windows 的 resolve 会给
+  // POSIX 风格的 "/workspace/app" 前置当前盘符（D:\workspace\app），令根路径形态随平台
+  // 漂移；仅相对路径才需要补全。
+  const workspace = isAbsolute(input.workspaceRoot) ? input.workspaceRoot : resolve(input.workspaceRoot);
+  const root =
+    input.scope === "project"
+      ? join(workspace, ".drora", "agent-memory", agentKey)
+      : join(workspace, ".drora", "agent-memory-local", agentKey);
+  return root.replaceAll("\\", "/");
 }
 
 function isPersistentAgentMemoryEnabled(
@@ -93,8 +101,11 @@ export async function loadPersistentAgentMemory(input: {
 
   let indexContent = "";
   try {
-    indexContent = (await input.fileSystemPort.readTextFile({ path: join(rootDir, "MEMORY.md") }))
-      .content;
+    // 修复：rootDir 已统一为正斜杠形态，这里 join 会再引入反斜杠（Windows），令
+    // 路径形态回漂；node fs 在 Windows 接受正斜杠，读文件沿用同一形态。
+    indexContent = (
+      await input.fileSystemPort.readTextFile({ path: `${rootDir}/MEMORY.md` })
+    ).content;
   } catch {
     // 不存在或不可读的 MEMORY.md 都使用基线的 empty index 文案。
   }

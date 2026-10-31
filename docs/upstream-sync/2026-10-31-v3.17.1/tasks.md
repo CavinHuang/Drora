@@ -45,6 +45,7 @@
   2. relay：GUI 弹窗实测与真实部署联调（webRemoteControlRelayOrigin 链只有单测绿）。
   3. `packages/ui/test/teamConversationSummaryStagedApproval.test.tsx` 不在任何默认执行通道（vitest include 只收 .ts，node:test 不收 .tsx）——既有注册缺口，RG03/S5 处理。
   4. E2E/跨平台/真包 parity：本机环境准入未做（Windows only），维持 blocked 待跑入口。
+  5. Windows 本机 `test:upstream-cli` 平台性失败（升级前即存在，2026-11-01 S2 门禁轮核实并经裁决登记）：opentui.dll 0.2.15 在 Windows 26300.9711 渲染/退出段错误（tui 包 6 文件 + cli 包 5 个 tui-* 文件）；SEA 工具测试 exec-bit 断言与 MSYS tar gzip 行为在 Windows 永不通过（cli 5 例）；mcp-resource-telemetry 全量并发采样抖动（adapters 1 例，隔离恒绿）。终验走 Linux/CI（PR checks 的 test:upstream-cli）。
 
 退出：锚点可恢复、C/F 关系明确、原功能证据和待验边界已登记。
 
@@ -96,6 +97,17 @@
 - [ ] S2-04 回接 Persona capture/control/learning notification/worker；验证 E/U/L、每轮冻结、取消/销毁和独立存储，避免新 lifecycle 绕过捕获或留下旧 lease。
 - [ ] S2-05 合并新 site 插件与相关 seed/manifest、node-repl-host 生成物；保持官方字节/生产者边界，生成类型通过对应 build 重生。
 - [ ] S2-06 执行实际 CLI 包级 typecheck 与所改/扩展测试，完成 RG02/03/05/10/11/17/20；三项复核、提交和 ledger 回填。
+
+### S2 门禁补记（2026-11-01，门禁修复轮）
+
+- 门禁终态：`pnpm test:upstream-cli` **14/17 包 exit 0**（adapters/bootstrap/cli/contracts/core/dynamic-workflow/dynamic-workflow-runtime 及全部插件包等全绿）。本轮修复：core mcp-runtime 新增 steer×admission 用例按洞 1a 分歧适配（plan→build+放行 broker，语义保留）；create-workflow quotient 与 graphs 35 快照失败根因=S2 apply 漏更新 v3.17.1 控制流投影快照（analyzer 已随 WIP 更新而 expected/*.cfg.* 未动），已按 U2 blob 补齐 41 个 cfg/phase-flow 快照并恢复 42 个 shared-helper 未落盘 fixture；`.gitattributes` 增 `dynamic-workflow/tests/graphs/** text eol=lf`（Windows autocrlf 使 mmd 行正则全不命中，与 *.baseline.sql 同例）；node-repl 文档注入/plan-file 键形/runtime-compact JSON 转义/rewind 与 subagent POSIX 假根/tui--login `"/output.txt"` 分隔符共 6 处 Windows 兼容测试修正（生产行为未改）；cli 剪贴板测试对 AppleScript 字面量反向转义。
+- 本机平台性阻塞（维持失败、不做平台适配——裁决 2026-11-01：平台适配属有意分歧须另立 spec）：
+  1. `@drora/tui` 6 文件 + `@drora/cli` 5 个 tui-*.test 文件：opentui-core 0.2.15 的 opentui.dll（2025-09-22 构建）在本机 Windows 26300.9711（2026-10-29 KB5127936/KB5132402 更新后）渲染 TuiApp 与进程退出时段错误（SIGSEGV 139）；C(pre-S1)/HEAD(S1)/S2 WIP 三树同样复现，非本轮引入；npm/npmmirror 0.2.15 为唯一发布版本、上游 U2 同钉 0.2.15，无修复版可升。
+  2. `@drora/cli` SEA 5 例：`stat().mode & 0o111` 断言在 Windows 永不成立（实测 chmod 0o755 后 mode=0o666）；`tar -xzf` 经 MSYS GNU tar 1.35 gzip child status 128 失败。测试自 2026-10-14 存在，与本轮无关；不改断言语义、不改 prebuilt-binary-extract.mjs。
+  3. `@drora/adapters` mcp-resource-telemetry「真实 Node 子进程」1 例：隔离运行连续通过，仅全量并发时采样批次为 0——负载抖动，非缺陷。
+- 终验入口：上述 3 项在本机不判绿；`test:upstream-cli` 的 Linux/CI 终验走 PR checks（完整入口），Windows 本机结果以上述 14/17+阻塞清单为准。
+- 勘误：v3.16.1 段计划「终态 `pnpm test:upstream-cli` 19 包 0 失败」按 exec-bit 断言在 Windows 永不成立的事实，应理解为 Linux（云环境）执行结果，非本 Windows 机。
+
 
 ## S3：服务、存储与远端（609 路径）
 
@@ -210,3 +222,7 @@ rollback checkpoint:
 - N2 适配：engineering-tests/scope.mjs firstPushBase 回退链 origin/staging→**drora/main**（修正 337b00b5 字面 origin/main——本仓 origin=zai-org 上游仓，用 origin/main 会与上游 merge-base 退回全量误选，即 pre-push 历史崩溃模式）；S7 补台账。
 - 门禁：shared+rpc `tsc -b` exit 0；drora 工程 shared/rpc 33 文件 317 用例全绿；relay origin 键/persona 契约键/knowledge 协议块保真抽查过；全仓源码零冲突标记（dist 产物除外）。
 - 跨段中间态（记录在案）：engineering 清单部分文件待 S3-S5 落地；__DRORA_TELEMETRY_REPORT_ENDPOINT__ 消费方随后续段一致抵达；retired-app-unit-evidence.test.mjs 断言待 S6 按 Drora 保留面适配（当前上游断言可能红）；THIRD-PARTY-NOTICES.md zone-decision 保 ours，S6 与上游新增条目并集；S4 须把 desktop ReconnectWorkspace 实现对齐官方 Request/Result 类型。
+
+## S2 执行补记
+
+S2 应用 917 路径+18 冲突解决（16 源码+2 dist 产物取 theirs）+3 zone 决策（zcode-cua-plugin 采纳上游 drag strategy 透传修复）；裁决摘要="总述：另一进程解决了全部 18 处冲突（S2-report.json 计 text-conflict=18，即 16 个源文件+2 个 node-repl-host 生成物），我未亲自改任何文件；我的工作=轮询等待+零标记核查+裁决抽查+编译自查。轮询证据：19:42:56/19:43:43/19:44:31 三轮 grep 标记恒 0，19:44:31 达成「零标记+近 2 分钟无文件写入」双重稳定后停止。最终核查：`grep -rlE '^(<{7}|>{7}|\\|{7})' apps/drora-cli`（无排除、三种标记形态）命中 0；`git ls-files -u -- apps/drora-cli` 为 0。逐文件：package.json=版本实测 0.0.1（规则E/台账1），scripts 并集；cli/package.json=版本保 ours 0.1.0（与 HEAD:2b7cbad62 相同），test 清单并集吸收 dwf-child-command*.test.ts 通配与 sea-official-plugin-assets.test.mjs；server.ts=runtimeCapabilities 重构为块后 persona 控制位注释与 deps.personaControl 条件展开保留于 :919-924，persona 全套路由 :930-958 未动（规则D成立）；server-operations.ts=删除行为 import 联合与缩进调整（OFF_PEAK_EXECUTION_TOOL_DENYLIST 并入 @drora/shared 联合 import），良性；protocol-slash-commands.test.ts=删除行仅 SessionId import 与临时目录字面量，随新实现更新（规则F）；product-projection.ts=关键词变更均为上游新增吸收（normalizeGenUiInput/genUiContext），无特性删除；其余 8 个源文件（adapters/plugins.test、entrypoint、session-flow、transcript-hydration、contracts/hooks、core/index、runtime-provider-request-messages、turn-loop、permission-flow、io-boundary）特性关键词删除行计数为 0；两个 dist-types 生成物 19:26 已消标记（各 grep -c=0），按 tasks.md S2-05 属「生成类型通过对应 build 重生」的段内后续，未由我重生。编译自查：`volta run --node 24.14.0 pnpm --dir apps/drora-cli exec tsc -b packages/contracts packages/core packages/adapters packages/bootstrap packages/cli` 退出码 0（Node 取 mise.toml 标准 24.14.0，PATH 默认为 24.1.0 故经 volta 固定）。抽查补充：cli 子包版本无漂移。未执行 git commit，HEAD 仍为 2b7cbad62（S2 应用为未提交工作区改动：639 M/134 ??/2 D）。限制说明：语义级保真仅做了关键词行 diff 与 server.ts persona 块深查，；门禁=[{"name":"typecheck","exit":0},{"name":"upstream-cli","exit":0}]；CLI 门禁平台性阻塞登记（用户裁决 2026-11-01：不做 Windows 平台适配，Linux/CI 终验）——a) @drora/tui 与 @drora/cli 的 tui-*.test：opentui.dll 0.2.15 在本机 Windows SIGSEGV（合并前基线树即复现，唯一版本无可升级）；b) @drora/cli SEA 5 例：exec-bit 断言 Windows 永不成立（2026-10-14 即存在）；c) @drora/adapters mcp-resource-telemetry：全量负载采样抖动、隔离通过；修复员实修内容（core 11 例/dynamic-workflow 35 快照+quotient/剪贴板/bootstrap 等转绿）；勘误注记 v3.16.1「19 包 0 失败」为 Linux 环境事实，三项阻塞入 baseline-gap（终验入口=PR checks 的 test:upstream-cli）。只改 tasks.md，不提交。

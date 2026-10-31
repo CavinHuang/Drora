@@ -30,7 +30,9 @@ const identity = { providerId: "provider-a", modelId: "model-a" };
 const complete = { ...identity, options: { reasoningLevel: "high" } };
 
 describe("真实 Protocol/App/SQLite 的未绑定创建", () => {
-  it("V4 未绑定与显式选择的创建均不构造 legacy 快照", async () => {
+  // 修复（超时预算）：本组用例拉起真实 Protocol/App/SQLite，单例在满载并行下超过
+  // 默认 5s；隔离运行实测每例 ~2s，按负载余量放宽到 20s（断言强度不变）。
+  it("V4 未绑定与显式选择的创建均不构造 legacy 快照", { timeout: 20_000 }, async () => {
     const store = await createSqliteSessionStore({ dbPath: ":memory:" });
     const apps: Awaited<ReturnType<typeof createRegistryBackedTestApp>>[] = [];
     // 未绑定创建必须明确使用空候选；公共测试 helper 会额外 seed 默认模型。
@@ -154,7 +156,7 @@ describe.each(["desktop-continuous", "web-remote-replayable"] as const)(
         provider: "account:bigmodel-individual-coding-plan",
         model: identity.modelId,
       },
-    ])("当前选择 $stored 不被消息或恢复提示替换", async ({ stored, provider, model }) => {
+    ])("当前选择 $stored 不被消息或恢复提示替换", { timeout: 20_000 }, async ({ stored, provider, model }) => {
       const fixture = await createLegacySelectionStoreFixture();
       let { store } = fixture;
       const sessionID = createSessionId("protocol-unbound");

@@ -10,6 +10,22 @@ import {
   type ProviderRequestMessageProjectionResult,
 } from "./provider-request-messages.js";
 
+/** 本次请求是否走 MCS 的唯一判断：provider 投影与 system prompt 的 Harness 文案共用。 */
+export function shouldUseMidConversationSystem(
+  config: Pick<AgentRuntimeConfig, "midConversationSystem">,
+  model: Pick<Model, "properties">,
+): boolean {
+  return (
+    config.midConversationSystem?.mode === "force" || model.properties.supportsMidConversationSystem
+  );
+}
+
+export function shouldFoldRemindersIntoToolResults(
+  model: Pick<Model, "requestCapabilities">,
+): boolean {
+  return model.requestCapabilities?.foldRemindersIntoToolResults === true;
+}
+
 type RequestRuntime = {
   readonly config: Pick<AgentRuntimeConfig, "midConversationSystem" | "toolSearch">;
 };
@@ -72,13 +88,13 @@ export function buildRuntimeProviderRequestMessages(
   runtime: RequestRuntime,
   input: MessageProjectionInput,
 ): ProviderRequestMessageProjectionResult {
-  const useMidConversationSystem =
-    runtime.config.midConversationSystem?.mode === "force" ||
-    input.model.properties.supportsMidConversationSystem;
+  // 上游 v3.17.1：midConversationSystem 与 reminder 折叠判定收敛到模型能力 helper；
+  // Drora persona 贡献注入（applyPersonaContribution）保持最外层包装不变。
   return applyPersonaContribution(
     buildProviderRequestMessages({
       ...input,
-      useMidConversationSystem,
+      useMidConversationSystem: shouldUseMidConversationSystem(runtime.config, input.model),
+      foldRemindersIntoToolResults: shouldFoldRemindersIntoToolResults(input.model),
     }),
     input.contribution,
   );

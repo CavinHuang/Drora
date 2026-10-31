@@ -1,4 +1,5 @@
 import { access, mkdtemp, rm } from "node:fs/promises";
+import { rmTestTreeWithRetry } from "../helpers/fs-cleanup.js";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -35,7 +36,9 @@ describe("进程级 Persona 组合与 capture 生产装配", () => {
 
   afterEach(async () => {
     await resetDroraPersonaSystemForTests();
-    await rm(root, { recursive: true, force: true });
+    // 修复：persona sqlite 句柄释放与目录删除在 Windows 上可能撞杀软/索引器的瞬态锁
+    // （EBUSY），沿用 official-plugin-cache-fs 的瞬态重试先例。
+    await rmTestTreeWithRetry(root);
   });
 
   it("resolvePersonaDatabasePath 只按 shared PERSONA_STORAGE_KEYS 拼接，空可信根 fail fast", () => {

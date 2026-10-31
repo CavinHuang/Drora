@@ -17,7 +17,10 @@ test("image clipboard reader uses the Drora storage root for native temp files",
     runCommand: async (_file, args) => {
       const scriptLine = args.find((arg) => arg.includes("clipboard.png")) ?? "";
       const match = scriptLine.match(/POSIX file "([^"]+)"/);
-      const imagePath = match?.[1];
+      // Windows 兼容：appleScriptString 会把路径里的 "\" 与 '"' 转义成 AppleScript
+      // 字面量形式（\\\\、\\"），测试侧提取后必须反向转义，否则双反斜杠路径与
+      // 本机路径正则永远不匹配。POSIX 路径不含这些字符，行为不变。
+      const imagePath = match?.[1]?.replace(/\\(.)/g, "$1");
       if (!imagePath) {
         return { exitCode: 1, stdout: Buffer.alloc(0) };
       }

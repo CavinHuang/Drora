@@ -36,6 +36,11 @@ import type {
   ContextBuildResult,
 } from "./deps.js";
 import type {
+  PersonaCapturePort,
+  PersonaLearningNotificationPort,
+  PersonaSettledTurnApplication,
+} from "../persona/index.js";
+import type {
   ActiveTurnSteeringState,
   ActiveTurnStartReservation,
   ActiveForegroundExecutionState,
@@ -117,6 +122,19 @@ export interface AgentRuntimeInternal
   mcpToolsSignature?: string;
   mcpToolListRevision?: number;
   subagentPort?: SubagentPort;
+  /** P0a 人格捕获端口；缺席即功能关闭，轮次保持原请求路径。 */
+  personaCapturePort?: PersonaCapturePort;
+  /**
+   * P1b 学习机会通知端口（spec §8）：普通成功轮完成后非阻塞通知一次；缺席/不合格轮零开销。
+   * E 由装配层在端口绑定时冻结；端口实现自有有界队列，运行时不等待。
+   */
+  personaLearningNotificationPort?: PersonaLearningNotificationPort;
+  /**
+   * 本 Runtime 最近一次已结算的轮内人格应用记录（切片 C 查询口 getPersonaTurnApplication
+   * 的事实来源；捕获一次性结算时写入）。只在存活 Runtime 内存中，重启即消失——
+   * getPersonaApplication 对无记录的 turnId 如实返回 not_available，不伪造冷历史。
+   */
+  personaTurnApplication?: PersonaSettledTurnApplication;
   getAgentDefinitions: NonNullable<AgentRuntimeDeps["getAgentDefinitions"]>;
   prepareAgentDefinitions: (input: {
     signal: AbortSignal;

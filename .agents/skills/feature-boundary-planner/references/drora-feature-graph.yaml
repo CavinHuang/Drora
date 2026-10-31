@@ -17,6 +17,50 @@ rules:
     - "evidence-only"
 
 nodes:
+  - id: "capability.persona"
+    kind: "capability"
+    label: "Drora 单一长期伙伴（设计阶段，未实现）"
+    aliases: ["人格", "拟人系统", "personal agent", "个人偏好", "人格资料导出", "Persona v5"]
+    docs:
+      - "specs/drora-persona-system.md"
+      - "docs/design/drora-persona-data-contracts-2026-10-29.md"
+      - "docs/superpowers/plans/2026-10-29-drora-persona-p0.md"
+    codeSeeds: []
+    invariants:
+      - "Design only: one stable identity and limited growth; no shipped Persona owner, protocol or UI is asserted by this node."
+      - "Existing task execution, permissions, canonical history and recovery retain their owners; proposed extensions are optional and default off."
+      - "Proposed personal evidence must retain attribution and scope; explicit settings outrank inferred values; exports are read-only snapshots, not live configuration."
+      - "v5 explicit interaction defaults do not require Project Memory; core and preferences have one writer per field."
+      - "Direct request contributions stay out of canonical history; diagnostic records can contain actual contributions and existing authorized file access is not an absolute isolation boundary."
+  - id: "evidence.persona-design"
+    kind: "evidence"
+    label: "Persona v5 contracts and initial P0a domain tests (full acceptance pending)"
+    docs:
+      - "docs/design/drora-persona-system-impact-2026-10-28.md"
+      - "docs/design/drora-persona-system-feasibility-review-2026-10-28.md"
+      - "docs/design/drora-persona-system-compatibility-review-2026-10-29.md"
+      - "docs/design/drora-persona-integrated-review-2026-10-29.md"
+    codeSeeds:
+      - file: "apps/drora-cli/packages/core/src/persona/compiler.ts"
+        symbol: "compilePersonaCore"
+      - file: "apps/drora-cli/packages/core/src/persona/request-projection.ts"
+        symbol: "applyPersonaContribution"
+
+  - id: "surface.persona-settings-planned"
+    kind: "ui-surface"
+    label: "Planned Persona management surface (not implemented)"
+    docs: ["specs/drora-persona-system.md", "docs/design/drora-persona-system-impact-2026-10-28.md"]
+    codeSeeds: []
+    invariants:
+      - "Drafts are local; management does not create a chat or model request. Planned APIs use a single authority and CAS."
+  - id: "state.persona-authority-planned"
+    kind: "state-owner"
+    label: "Planned CLI Persona service and independent data authority (not implemented)"
+    docs: ["docs/design/drora-persona-data-contracts-2026-10-29.md"]
+    codeSeeds: []
+    invariants:
+      - "No duplicate enabled flag; AppSettings owns execution permission and Runtime owns the frozen turn contribution."
+
   - id: "capability.tool-search"
     kind: "capability"
     label: "Provider-aware deferred ToolSearch"
@@ -5499,6 +5543,37 @@ nodes:
         file: "packages/ui/src/v4/ConversationShareReadonlyTimeline.tsx"
 
 edges:
+  - from: "capability.persona"
+    to: "surface.persona-settings-planned"
+    type: "renders-in"
+    rank: "must-inspect"
+    condition: "v5 planned surface only; no current UI capability is asserted."
+  - from: "surface.persona-settings-planned"
+    to: "state.persona-authority-planned"
+    type: "commits-to"
+    rank: "must-inspect"
+    condition: "Planned management contract uses one data owner; execution permission stays in AppSettings."
+  - from: "capability.persona"
+    to: "persistence.app-settings"
+    type: "inherits-from"
+    rank: "must-inspect"
+    condition: "Planned default-off execution permission uses trusted runtime preferences, not a new spawn env switch."
+  - from: "capability.persona"
+    to: "capability.project-memory"
+    type: "must-remain-isolated-from"
+    rank: "should-inspect"
+    condition: "Explicit personal defaults do not enable or require old Memory; existing scope, permissions and extraction behavior remain unchanged."
+  - from: "capability.persona"
+    to: "persistence.model-io-jsonl"
+    type: "projects-to"
+    rank: "must-inspect"
+    condition: "Actual main request contribution can appear in existing diagnostics; new personal learning must use owner-provided source messages, not these files."
+  - from: "capability.persona"
+    to: "evidence.persona-design"
+    type: "specified-by"
+    rank: "evidence-only"
+    condition: "Design retrieval only; candidate cases and proposed integration seams have no implementation or runtime coverage yet."
+
   - from: "capability.tool-search"
     to: "surface.tool-search-settings"
     type: "renders-in"

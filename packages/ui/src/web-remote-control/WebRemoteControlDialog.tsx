@@ -37,6 +37,7 @@ import { useOAuth } from "@/hooks/useOAuth.js";
 import { useDroraIntl } from "@/i18n/IntlProvider.js";
 import { logger } from "@/logger.js";
 import { getBotProviderRegionTagLabelId } from "@/botsUi.js";
+import { WebRemoteControlRelaySourceSection } from "@/web-remote-control/WebRemoteControlRelaySourceSection.js";
 
 type RemoteControlBotProvider = Extract<BotProvider, "weixin" | "feishu" | "lark" | "telegram">;
 
@@ -101,6 +102,9 @@ export const WebRemoteControlDialog = memo(function WebRemoteControlDialogCompon
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
   const [botsDialogOpen, setBotsDialogOpen] = useState(false);
   const [botEntryProvider, setBotEntryProvider] = useState<RemoteControlBotProvider | null>(null);
+  // 远控「官方/自建 Relay」切换（specs/relay-v2-server.md §8.7）：保存后自增，触发 open-effect
+  // 重跑——当前运行时已被停止，状态同步会看到目标不匹配并按新源 startWebRemoteControl。
+  const [relaySourceRestartNonce, setRelaySourceRestartNonce] = useState(0);
 
   const statusLabel = useMemo(
     () => getStatusLabel(status, intl.formatMessage),
@@ -203,7 +207,16 @@ export const WebRemoteControlDialog = memo(function WebRemoteControlDialogCompon
     return () => {
       cancelled = true;
     };
-  }, [intl, open, platform, remoteSessionId, workspaceIdentity, workspacePath, initialTaskId]);
+  }, [
+    intl,
+    open,
+    platform,
+    remoteSessionId,
+    workspaceIdentity,
+    workspacePath,
+    initialTaskId,
+    relaySourceRestartNonce,
+  ]);
 
   useEffect(() => {
     if (!open) {
@@ -612,6 +625,11 @@ export const WebRemoteControlDialog = memo(function WebRemoteControlDialogCompon
                 </div>
               </section>
             </div>
+
+            <WebRemoteControlRelaySourceSection
+              onRestart={() => setRelaySourceRestartNonce((nonce) => nonce + 1)}
+              disabled={loading}
+            />
           </div>
         </DialogContent>
       </Dialog>

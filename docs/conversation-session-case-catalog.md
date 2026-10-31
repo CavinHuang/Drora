@@ -1,5 +1,9 @@
 # Conversation Session Case Catalog
 
+## Persona v5 规划入口（2026-10-29，未实现）
+
+[人格用例目录 PM01–PM58](design/drora-persona-system-impact-2026-10-28.md#candidate-combinations--accepted-cases)是独立特性的设计验收合同。accepted 仅表示 v5 已选定规则，全部实现/自动化仍 missing，无运行证据；不改变下文既有用例状态。优先检查 PM01 默认关闭等价、PM05/36 续跑与请求投影、PM14/33 两种 delivery、PM49 显式偏好与旧 Memory 分离。模型效果实验不替代对话 E2E。
+
 ## Agents Team 协作显示（2026-10-19）
 
 对话优先设计新增 accepted 用例（范围见 `docs/agent-team-implementation-2026-10-16/03-conversation-first-ui.md`）：

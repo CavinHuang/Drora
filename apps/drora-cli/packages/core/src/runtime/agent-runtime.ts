@@ -72,6 +72,11 @@ import type {
   HookRunner,
   TurnId,
 } from "./deps.js";
+import type {
+  PersonaCapturePort,
+  PersonaLearningNotificationPort,
+  PersonaTurnApplicationQuery,
+} from "../persona/index.js";
 import { installAgentRuntimeMethods } from "./methods/index.js";
 import type { StartSavedWorkflowRunResult } from "./methods/dynamic-workflow-run-start.js";
 import type {
@@ -207,6 +212,8 @@ export class AgentRuntime {
   private mcpToolsSignature?: string;
   private mcpToolListRevision?: number;
   private subagentPort?: SubagentPort;
+  private personaCapturePort?: PersonaCapturePort;
+  private personaLearningNotificationPort?: PersonaLearningNotificationPort;
   private readonly getAgentDefinitions: GetAgentDefinitions;
   private readonly prepareAgentDefinitions: ReturnType<
     typeof createTurnAgentDefinitions
@@ -347,6 +354,9 @@ export class AgentRuntime {
     this.imageProcessorPort = deps.imageProcessorPort;
     this.pdfDocumentPort = deps.pdfDocumentPort;
     this.subagentPort = deps.subagentPort ?? runtime.createDefaultSubagentPort(deps);
+    this.personaCapturePort = deps.personaCapturePort;
+    // P1b 学习机会通知端口（spec §8）：装配缺席即零开销；运行时只在普通成功轮非阻塞调用。
+    this.personaLearningNotificationPort = deps.personaLearningNotificationPort;
     this.dynamicWorkflowRunPort = deps.dynamicWorkflowRunPort;
     // GUI「配置」解析子代理模型用的目录（与工具上下文拿的是同一个端口）。
     this.modelCatalogPort = deps.modelCatalogPort;
@@ -407,6 +417,8 @@ export interface AgentRuntime {
     selection: ExecutionShellSelection | (() => ExecutionShellSelection),
   ): boolean;
   getSessionShellSelection(): ExecutionShellSelection | undefined;
+  /** 切片 C：轮内人格应用状态查询口（合同 §3；turnId 不匹配或重启后如实 not_available）。 */
+  getPersonaTurnApplication(input: { turnId: string }): PersonaTurnApplicationQuery;
   getMode(): CollaborationMode;
   getPlanEnabled(): boolean;
   grantPermissionFullAccess(interactionId: string, signal?: AbortSignal): Promise<string>;

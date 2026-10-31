@@ -249,6 +249,22 @@ export function resolveWebRemoteControlRelayWsUrl(options?: {
   return origin.toString();
 }
 
+// 远控「官方/自建 Relay」切换（specs/relay-v2-server.md §8.7）：设置键只覆盖远控三 URL 面
+// （注册 HTTP/relay WS/二维码页），未设置时回落全局 endpoint 链。有意不走 DRORA_ENV 门禁——
+// 自建 relay 对生产用户可用是本特性的存在前提（与 droraEndpointOrigin 的 test-only 相反）。
+export function resolveWebRemoteControlEndpointOrigin(options?: {
+  relayOrigin?: string | null | undefined;
+  endpointOrigin?: string | null | undefined;
+}): string {
+  const relayOrigin = options?.relayOrigin?.trim();
+  if (relayOrigin) {
+    return normalizeDroraEndpointOrigin(relayOrigin);
+  }
+  return normalizeDroraEndpointOrigin(
+    options?.endpointOrigin?.trim() || DEFAULT_DRORA_ENDPOINT_ORIGIN,
+  );
+}
+
 export function resolveBigModelApiOrigin(env: RuntimeBigModelApiEnv = {}): string {
   const droraEnv = resolveRuntimeDroraEnv(env);
   const scopedBaseOrigin =

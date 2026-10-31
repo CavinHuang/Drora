@@ -81,6 +81,13 @@
 - **依据**：提交 `337b00b5`（「fix(upstream): affected 首推基线回退 origin/main——本仓无 staging 集成分支」）；`scripts/affected-unit-tests/scope.mjs:33-35` 注释；`docs/testing/pre-push-hook.md`（受影响单测范围与输出合同）。
 - **下次同步注意**：基线分支与本仓分支模型绑定，属环境适配而非行为分歧；若本仓日后引入 staging 类集成分支，需同步修订 `firstPushBase` 回退顺序与 `docs/testing/pre-push-hook.md`，不跟随上游新增的分支假设。
 
+## 台账 9：远控「官方/自建 Relay」切换为 Drora 独有客户端能力（2026-10-31 新增）
+
+- **上游行为**：官方桌面无远控 relay 指向设置——远控三 URL 面（注册 HTTP/relay WS/二维码页）恒跟随端点链默认官方域 `zcode.z.ai`；生产构建无任何用户可达的 relay 覆盖入口。
+- **本仓行为**：新增设置键 `webRemoteControlRelayOrigin`（生产可写，无 DRORA_ENV 门禁）+ 远控弹窗内「官方/自建」切换区（`packages/ui/src/web-remote-control/WebRemoteControlRelaySourceSection.tsx`），仅覆盖远控三 URL 面，全局 endpoint 链不动；解析链 `resolveWebRemoteControlEndpointOrigin`（`packages/shared/src/droraEndpoint.ts`）。配套把手机页同源 WS 推导从 `/ws`（旧 v1 自建 relay 路径）改为 `/api/v1/remote/ws2`（`packages/web/src/drora-extensions/remoteEndpoint.ts`）。设计全文见 `specs/relay-v2-server.md` §8.7。
+- **依据**：`specs/relay-v2-server.md` §8.7（2026-10-31 新增，解冻同文 §8.4 边界决策 3「产品化入口明确不做」）；`specs/drora-divergence-ledger.md` 台账 9（本条）。
+- **下次同步注意**：上游若在 `webRemoteControlManager`/`desktop/src/main/index.ts` 的 `getEndpointUrls` 装配、`droraEndpoint.ts`、`validationAppSettings.ts`、`WebRemoteControlDialog` 相关区域改动，需甄别是否冲掉本特性的接线点（getEndpointUrls 的设置键读取、schema 两处登记、弹窗配置区嵌入）；上游若官方实现了自有 relay 切换面，评估迁移到官方契约后回退本条。手机页 `remoteEndpoint.ts` 的 ws2 推导为本仓 drora-extensions 独有文件，上游同步天然无冲突。
+
 ## 待甄别（非既定分歧，下轮同步前需核实）
 
 - **clientType 与 api-key 名漂移嫌疑**（随工单 F1 观察到，未改）：同一上游文档 `apps/zcode-cli/docs/design/v2/auth-login.md` 中 `clientType: "zcode"`（本仓 `apps/drora-cli/docs/design/v2/auth-login.md:176` 为 drora）与 `zcode-api-key`（本仓 :174/:190 为 drora-api-key；同文档 ：186 `appId=zcode` 已守豁免）。appId 是服务端注册值有 spec 实锤（规则 0）；clientType 与 api-key 名是否服务端注册值**未验证**（api-key 名偏客户端自建名，风险较低）。下轮同步 bigmodel OAuth 面时先甄别这两个字面量的服务端契约地位，再决定纳入规则 0 豁免或维持改名，不得静默跟随任一侧。

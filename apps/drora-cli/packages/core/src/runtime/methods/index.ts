@@ -195,6 +195,7 @@ import {
   drainMemoryExtractions,
   isProjectMemoryEnabled,
 } from "../helpers/project-memory-extraction.js";
+import { getPersonaTurnApplication } from "./turn-loop.js";
 
 type AgentRuntimeConstructor = { prototype: object };
 
@@ -205,6 +206,8 @@ export function installAgentRuntimeMethods(ctor: AgentRuntimeConstructor): void 
   proto.grantPermissionFullAccess = grantPermissionFullAccess;
   proto.initializeSessionShellEnvironmentIfNeeded = initializeSessionShellEnvironmentIfNeeded;
   proto.getSessionShellSelection = getSessionShellSelection;
+  // 切片 C：轮内人格应用状态查询口（合同 §3 getPersonaApplication 的 Runtime 侧事实）。
+  proto.getPersonaTurnApplication = getPersonaTurnApplication;
   proto.getMode = getMode;
   proto.getPlanEnabled = getPlanEnabled;
   proto.getSessionModelSelection = getSessionModelSelection;

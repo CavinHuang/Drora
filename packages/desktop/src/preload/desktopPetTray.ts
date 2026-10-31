@@ -4,6 +4,7 @@ import {
   desktopPetTargetKey,
   type DesktopPetPresentation,
 } from "@drora/shared";
+import { desktopPetPersonaExpression } from "../drora-extensions/desktopPet.js";
 
 export function createDesktopPetTray() {
   const activities = document.getElementById("activities")!;
@@ -22,9 +23,11 @@ export function createDesktopPetTray() {
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape") ipcRenderer.send(C.channels.command, { action: "toggle-tray" });
   });
-  const labels = zh
-    ? { working: "正在处理", attention: "需要处理", completed: "已完成", error: "遇到问题" }
-    : { working: "Running", attention: "Needs input", completed: "Ready", error: "Blocked" };
+  // P2 当前态表达（spec §11、PM58）：文案与主宠同源（desktopPetPersonaExpression），
+  // completed 含中断统一中性结束（永不庆祝）；逐行独立映射，无失败计数与等待时长推断。
+  const locale = zh ? "zh-CN" : "en-US";
+  const labelFor = (mode: DesktopPetPresentation["mode"]): string =>
+    desktopPetPersonaExpression({ mode, locale }).label;
   return (presentation: DesktopPetPresentation) => {
     const rows = presentation.activities ?? [];
     const next = JSON.stringify(rows);
@@ -43,7 +46,7 @@ export function createDesktopPetTray() {
       );
       for (const [className, text] of [
         ["activity-title", row.title],
-        ["activity-status", labels[row.mode]],
+        ["activity-status", labelFor(row.mode)],
         ["activity-preview", row.preview ?? ""],
       ] as const) {
         const span = document.createElement("span");

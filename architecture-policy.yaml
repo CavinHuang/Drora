@@ -292,6 +292,21 @@ modules:
     layers: { app: "." }
     owner: drora
 
+  # Drora 人格设置分区（ui-drora-persona）：身份五字段草稿/CAS/预览/应用情况/E 开关；
+  # 入口由 hello personaControlV1 + 本地桌面门控，边界见 CONTRACT.md。
+  - id: ui-drora-persona
+    roots: [packages/ui/src/drora-persona]
+    managed: true
+    requires: [ui, shared, services]
+    publicEntrypoints:
+      [
+        packages/ui/src/drora-persona/contract.ts,
+        packages/ui/src/drora-persona/PersonaSettingsSection.tsx,
+        packages/ui/src/drora-persona/usePersonaControlAvailability.ts,
+      ]
+    layers: { app: "." }
+    owner: drora
+
   # Agents Team 面板（ui-team）：消费 v4 team 投影的唯一 UI 面；边界见 CONTRACT.md。
   - id: ui-team
     roots: [packages/ui/src/team]
@@ -874,8 +889,55 @@ modules:
       - packages/shared/src/contracts/contract.ts
       - packages/shared/src/contracts/desktopPet.ts
       - packages/shared/src/contracts/voice.ts
+      - packages/shared/src/contracts/persona.ts
     layers:
       contract: .
+    owner: drora
+  # cli-persona-domain：由 architecture:adopt 登记
+  - id: cli-persona-domain
+    roots:
+      - apps/drora-cli/packages/core/src/persona
+      - apps/drora-cli/packages/core/tests/persona
+    managed: true
+    requires:
+      - drora-cli
+      - shared
+    publicEntrypoints:
+      - apps/drora-cli/packages/core/src/persona/index.ts
+      - apps/drora-cli/packages/core/src/persona/contract.ts
+    layers:
+      domain: .
+    owner: agent
+  # cli-persona-store：由 architecture:adopt 登记
+  - id: cli-persona-store
+    roots:
+      - apps/drora-cli/packages/adapters/src/storage/persona
+      - apps/drora-cli/packages/adapters/tests/persona
+    managed: true
+    requires:
+      - shared
+      - sqlite-migrations
+    publicEntrypoints:
+      - apps/drora-cli/packages/adapters/src/storage/persona/index.ts
+      - apps/drora-cli/packages/adapters/src/storage/persona/contract.ts
+    layers:
+      adapters: .
+  # cli-persona-service：由 architecture:adopt 登记
+  - id: cli-persona-service
+    roots:
+      - apps/drora-cli/packages/bootstrap/src/app/drora-persona
+      - apps/drora-cli/packages/bootstrap/tests/persona
+    managed: true
+    requires:
+      - cli-persona-domain
+      - cli-persona-store
+      - drora-cli
+      - shared
+    publicEntrypoints:
+      - apps/drora-cli/packages/bootstrap/src/app/drora-persona/index.ts
+      - apps/drora-cli/packages/bootstrap/src/app/drora-persona/contract.ts
+    layers:
+      app: .
     owner: drora
 global:
   # 临时时间戳（2026-09-10）：unmanaged-new-file 只约束此日期之后首次入库的文件。

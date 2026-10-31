@@ -88,6 +88,8 @@ import { PluginsSection } from "@/settings/PluginsSection.js";
 import { HooksSection } from "@/settings/HooksSection.js";
 import { WorkspaceFileSearchSection } from "@/settings/WorkspaceFileSearchSection.js";
 import { MemorySettingsSection } from "@/settings/MemorySettingsSection.js";
+import { PersonaSettingsSection } from "@/drora-persona/PersonaSettingsSection.js";
+import { usePersonaControlAvailability } from "@/drora-persona/usePersonaControlAvailability.js";
 import { BrowserSettingsSection } from "@/settings/BrowserSettingsSection.js";
 import { ComputerUseSection } from "@/settings/ComputerUseSection.js";
 import { VoiceSection } from "@/settings/VoiceSection.js";
@@ -324,14 +326,27 @@ export function SettingsPage({
   user?: UserInfo | null;
 }) {
   const { intl, locale, localePreference, setLocalePreference } = useDroraIntl();
+  // 设置页可能挂在远端 workspace 的 ServiceProvider 下；Drora 资料管理与共享设置一样
+  // 属于本机 Host 事实，门控与代理都固定走 base services。
+  const localHostServices = useBaseWorkspaceServices();
+  // Drora 人格入口门控（specs/drora-persona-system.md §10）：仅本地桌面设置页探测
+  // hello.capabilities.personaControlV1；手机远控/独立 Web 不探测、不出现入口。
+  const personaControlPlatformGate =
+    Boolean(isDesktop || isMacDesktop || isWindowsDesktop) && !isWebRemoteControl;
+  const personaControlAvailability = usePersonaControlAvailability({
+    service: personaControlPlatformGate ? localHostServices.droraAgentService : null,
+    enabled: personaControlPlatformGate,
+  });
+  const showDroraPersonaSection = personaControlAvailability === "available";
   const { settingsSectionGroups, settingsSections } = useMemo(
     () =>
       createSettingsPageConfig({
         isDesktop: Boolean(isDesktop),
         isMacDesktop: Boolean(isMacDesktop),
         isWindowsDesktop: Boolean(isWindowsDesktop),
+        showDroraPersona: showDroraPersonaSection,
       }),
-    [isDesktop, isMacDesktop, isWindowsDesktop],
+    [isDesktop, isMacDesktop, isWindowsDesktop, showDroraPersonaSection],
   );
   const isLinuxDesktop = Boolean(isDesktop && !isMacDesktop && !isWindowsDesktop);
   const usesInlineWindowControls = Boolean(isWindowsDesktop || isLinuxDesktop);
@@ -748,7 +763,8 @@ export function SettingsPage({
   const selectDirectory = useSelectDirectory();
   const services = useServices();
   const onboardingRecordService = services.onboardingRecordService;
-  const localHostServices = useBaseWorkspaceServices();
+  // localHostServices 在组件顶部声明：Drora 人格入口门控与本页共享设置/模型配置
+  // 一样必须固定走本机 Host，不能随当前 ServiceProvider 的远端上下文漂移。
   // SettingsPage 可能挂在远端 workspace 的 ServiceProvider 下；共享设置属于本机 Host，
   // 读写必须固定走本机 settingService，否则会写进远端 setting。
   const { settings: sharedSettings, update: updateSharedSettings } = useSettings({
@@ -783,6 +799,16 @@ export function SettingsPage({
     return [...names];
   }, [sharedSettings?.recentProjects, workspaceTabs]);
   const memoryEnabled = sharedSettings?.memoryEnabled === true;
+  const personaEnabled = sharedSettings?.personaEnabled === true;
+  // 应用状态查询只面向本地 workspace 的 CLI（specs/drora-persona-system.md §10）：
+  // 活动 workspace 是远端（identity/remoteSessionId/remoteTarget）或无 workspace 时不提供查询。
+  const personaApplicationWorkspace =
+    activeWorkspacePath &&
+    !activeWorkspaceIdentity?.trim() &&
+    !activeWorkspaceTab?.remoteSessionId?.trim() &&
+    !activeWorkspaceTab?.remoteTarget
+      ? { workspacePath: activeWorkspacePath }
+      : null;
   const toolSearchMode = sharedSettings?.toolSearchMode ?? "off";
   const nativeSearchEnhancementsEnabled = sharedSettings?.nativeSearchEnhancementsEnabled !== false;
   const askUserQuestionAutoResolutionEnabled =
@@ -1076,6 +1102,23 @@ export function SettingsPage({
               console.warn("[settings] 回写引导记录失败", String(cause));
             });
         },
+        completed: {
+          resultSource: "shared_settings",
+          stateAfter: enabled ? "enabled" : "disabled",
+        },
+      });
+    },
+    [updateSharedSettings],
+  );
+  // 执行许可 E（specs/drora-persona-system.md §5）：经原 Settings 保存通道（runtime
+  // preferences）；E 冻结发生在 Runtime 新建/cold materialization，UI 不承诺影响当前会话。
+  const handlePersonaEnabledChange = useCallback(
+    async (enabled: boolean) => {
+      await runSettingsActionAsync({
+        featureId: "settings.drora",
+        action: "toggle_persona_enabled",
+        trigger: "switch",
+        operation: () => updateSharedSettings({ personaEnabled: enabled }),
         completed: {
           resultSource: "shared_settings",
           stateAfter: enabled ? "enabled" : "disabled",
@@ -2113,6 +2156,17 @@ export function SettingsPage({
                                 onMemoryEnabledChange={handleMemoryEnabledChange}
                                 projectMemoryViewerAvailable={Boolean(isDesktop)}
                                 workspaceDisplayNames={memoryWorkspaceDisplayNames}
+                              />
+                            </ServiceProvider>
+                          ) : activeSection === "drora" ? (
+                            <ServiceProvider services={localHostServices}>
+                              {/* Drora 资料管理只经本机 Host；入口已按 hello
+                                  personaControlV1 + 本地桌面门控，此处不再重复探测。 */}
+                              <PersonaSettingsSection
+                                personaService={localHostServices.droraAgentService}
+                                personaEnabled={personaEnabled}
+                                onPersonaEnabledChange={handlePersonaEnabledChange}
+                                applicationWorkspace={personaApplicationWorkspace}
                               />
                             </ServiceProvider>
                           ) : activeSection === "plugin" ? (

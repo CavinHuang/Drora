@@ -2703,6 +2703,20 @@ const enUS: Record<string, string> = {
   "webRemoteControl.botChannel.telegram.description": "Open this workspace from Telegram.",
   "webRemoteControl.botChannel.configure": "Configure in bot channels",
   "webRemoteControl.botChannel.manageBots": "Manage bots",
+  "webRemoteControl.relaySource.title": "Relay service",
+  "webRemoteControl.relaySource.official": "Official",
+  "webRemoteControl.relaySource.officialDescription":
+    "Use the official relay service. No extra configuration needed.",
+  "webRemoteControl.relaySource.custom": "Self-hosted",
+  "webRemoteControl.relaySource.customDescription":
+    "Point to your self-hosted relay origin. Only affects the mobile remote control connection.",
+  "webRemoteControl.relaySource.originPlaceholder": "https://relay.example.com",
+  "webRemoteControl.relaySource.originRequired": "Enter your self-hosted relay origin.",
+  "webRemoteControl.relaySource.originInvalid":
+    "Invalid origin. Use a full URL starting with http(s)://.",
+  "webRemoteControl.relaySource.apply": "Save and reconnect",
+  "webRemoteControl.relaySource.applied": "Relay source switched. Reconnecting.",
+  "webRemoteControl.relaySource.applyFailed": "Failed to switch relay source: {error}",
   "webRemoteControl.linkLabel": "Remote control link",
   "webRemoteControl.linkPending": "The remote control link will appear here once ready.",
   "webRemoteControl.singlePageNote":
@@ -3339,6 +3353,225 @@ const enUS: Record<string, string> = {
     "Use enhanced Find and Grep in new sessions and sessions restored after an app restart. Active sessions keep their current setting; Find remains unchanged on Windows.",
   "settings.memory": "Memory",
   "settings.memory.workspaceMemory": "Workspace Memory",
+  // Drora persona section (specs/drora-persona-system.md §10): saved / applied /
+  // unavailable are three different facts; copy must not conflate them. The E switch
+  // must say "applies to new or truly reloaded sessions".
+  "settings.drora.title": "Drora Persona",
+  "settings.drora.loading": "Loading Drora persona…",
+  "settings.drora.unavailable": "Persona management is not supported on this connection.",
+  "settings.drora.retry": "Retry",
+  "settings.drora.refresh": "Reload",
+  "settings.drora.execution.label": "Enable Drora persona in sessions",
+  "settings.drora.execution.description":
+    "Applies to new or truly reloaded sessions. Sessions already open keep the permission they were started with and are not changed by this switch.",
+  "settings.drora.execution.privacy":
+    "When enabled, Drora's personalized content is sent to the currently selected model and may be retained with the original diagnostics.",
+  "settings.drora.identity.title": "Identity",
+  "settings.drora.identity.description":
+    "Only the five controlled fields below are editable. Identity, principles and boundaries come from the product template and can be reviewed in the preview; free-form prompt editing is not available.",
+  "settings.drora.identity.savedRevision": "Saved version: revision {revision}",
+  "settings.drora.identity.uninitialized":
+    "Not initialized yet; the built-in product persona is in use",
+  "settings.drora.identity.initialize": "Initialize persona",
+  "settings.drora.identity.initializing": "Initializing…",
+  "settings.drora.identity.initializeHint":
+    "Custom fields can be saved after initialization. Opening this page alone neither initializes nor enables execution.",
+  "settings.drora.identity.displayName": "Name",
+  "settings.drora.identity.displayNameDescription":
+    "The name Drora uses for itself in conversations.",
+  "settings.drora.identity.selfDescription": "Self description",
+  "settings.drora.identity.selfDescriptionDescription":
+    "Used as material, not instructions: describe how you want Drora to position itself. Leave empty to use the template's self positioning.",
+  "settings.drora.identity.warmth": "Warmth",
+  "settings.drora.identity.warmthDescription": "How close the conversation feels.",
+  "settings.drora.identity.warmth.restrained": "Restrained",
+  "settings.drora.identity.warmth.balanced": "Balanced",
+  "settings.drora.identity.warmth.warm": "Warm",
+  "settings.drora.identity.directness": "Directness",
+  "settings.drora.identity.directnessDescription":
+    "How directly conclusions and disagreements are stated.",
+  "settings.drora.identity.directness.gentle": "Gentle",
+  "settings.drora.identity.directness.balanced": "Balanced",
+  "settings.drora.identity.directness.direct": "Direct",
+  "settings.drora.identity.humor": "Humor",
+  "settings.drora.identity.humorDescription": "How much light-hearted expression is allowed.",
+  "settings.drora.identity.humor.off": "Off",
+  "settings.drora.identity.humor.light": "Light",
+  "settings.drora.identity.counter": "{count}/{max}",
+  "settings.drora.identity.save": "Save",
+  "settings.drora.identity.saving": "Saving…",
+  "settings.drora.identity.cancel": "Discard changes",
+  "settings.drora.identity.resetDefaults": "Restore product defaults",
+  "settings.drora.identity.resetting": "Restoring…",
+  "settings.drora.notice.saved":
+    "Saved. Takes effect on the next new turn; turns already in progress are not rewritten.",
+  "settings.drora.notice.unchanged": "Content unchanged; no new revision was created.",
+  "settings.drora.notice.initialized": "Persona initialized.",
+  "settings.drora.notice.conflict":
+    "Save conflict: the service already has a newer version. Your draft was kept; compare and choose to keep or discard it.",
+  "settings.drora.notice.uninitialized":
+    "The persona is not initialized yet. Initialize it before saving.",
+  "settings.drora.notice.code": "Operation failed ({code}).",
+  "settings.drora.notice.rpc": "Operation failed: {message}",
+  "settings.drora.notice.outcomeUnknown":
+    "Save outcome is unknown (outcome_unknown): the result was not confirmed. Saving again reuses the same mutation id for an idempotent replay instead of writing twice; edit the content first if you want to abandon it.",
+  "settings.drora.divergence.title": "The service has a newer version",
+  "settings.drora.divergence.description":
+    "The saved version is revision {latest}; your draft is based on revision {base}. Keep editing the draft, or discard it and load the latest.",
+  "settings.drora.divergence.savedValue": "Saved",
+  "settings.drora.divergence.draftValue": "Draft",
+  "settings.drora.divergence.keepDraft": "Keep draft and continue editing",
+  "settings.drora.divergence.discardDraft": "Discard draft and load latest",
+  "settings.drora.reset.confirmTitle": "Restore product defaults?",
+  "settings.drora.reset.confirmDescription":
+    "The five fields will be reset to the product defaults and a new revision is created. This does not change the execution permission, communication defaults or other settings.",
+  "settings.drora.reset.confirmAction": "Restore defaults",
+  "settings.drora.preview.title": "Preview",
+  "settings.drora.preview.disclaimer":
+    "Deterministic compilation of the local template; no model requests. The preview is not a guarantee of actual output.",
+  "settings.drora.preview.empty": "Generating preview…",
+  "settings.drora.preview.failed": "Preview failed ({code}).",
+  "settings.drora.application.title": "Application status",
+  "settings.drora.application.savedVersion":
+    "Saved version: revision {revision} (template v{template})",
+  "settings.drora.application.savedVersionHint":
+    "Saving only updates the material; sessions apply it when a new turn is captured. Turns already frozen stay unchanged.",
+  "settings.drora.application.uninitialized":
+    "Not initialized yet; sessions use the built-in product persona while executing.",
+  "settings.drora.application.turnTitle": "Application status of a specific session/turn",
+  "settings.drora.application.turnDescription":
+    "Check whether the specified session and turn applied the Drora persona while executing. Execution records exist only at runtime and show as not applied after a restart.",
+  "settings.drora.application.sessionPlaceholder": "Session ID",
+  "settings.drora.application.turnPlaceholder": "Turn ID",
+  "settings.drora.application.query": "Check",
+  "settings.drora.application.applied": "Applied",
+  "settings.drora.application.omittedWithReason": "Omitted: {reason}",
+  "settings.drora.application.notApplied": "Not applied (no available execution record)",
+  "settings.drora.application.omittedReasonPermission": "Execution permission not granted",
+  "settings.drora.application.omittedReasonUninitialized": "Persona not initialized",
+  "settings.drora.application.omittedReasonCompileFailed":
+    "Stored persona failed to compile (this turn used the built-in product persona)",
+  "settings.drora.application.omittedReasonUnknown": "Unknown reason",
+  "settings.drora.application.queryFailed": "Query failed: {message}",
+  "settings.drora.application.noWorkspace":
+    "Open a local workspace to check session application status.",
+  // P1a communication defaults and export (specs/drora-persona-system.md §9/§10): forgetting
+  // is a logical undo and copy must state its exact scope ("erase everywhere"/"forget
+  // completely" is forbidden); U has no global query method, so status text only describes
+  // this session's latest operation and never claims "the current session is now off";
+  // export shows "no data yet" and never initializes the persona for exporting.
+  "settings.drora.preferences.title": "Communication defaults",
+  "settings.drora.preferences.description":
+    "The four items below are explicitly set communication defaults: saving and forgetting take effect on the next new turn, and turns already frozen stay unchanged. The concrete request at hand always takes precedence over these defaults.",
+  "settings.drora.preferences.uninitializedHint":
+    "The persona is not initialized yet; initialize it before saving or forgetting communication defaults, or changing the usage permission.",
+  "settings.drora.preferences.loadFailed": "Failed to load communication defaults ({code}).",
+  "settings.drora.preferences.currentValue": "Current value: {value}",
+  "settings.drora.preferences.notSet": "Not set",
+  "settings.drora.preferences.forgottenValue": "Forgotten (can be set again)",
+  "settings.drora.preferences.replyLanguage": "Reply language",
+  "settings.drora.preferences.replyLanguageDescription": "The language Drora replies in.",
+  "settings.drora.preferences.replyLanguage.follow_user": "Follow the user's message",
+  "settings.drora.preferences.replyLanguage.zh-CN": "中文",
+  "settings.drora.preferences.replyLanguage.en-US": "English",
+  "settings.drora.preferences.explanationDetail": "Explanation detail",
+  "settings.drora.preferences.explanationDetailDescription": "How detailed explanations are.",
+  "settings.drora.preferences.explanationDetail.concise": "Concise",
+  "settings.drora.preferences.explanationDetail.balanced": "Balanced",
+  "settings.drora.preferences.explanationDetail.detailed": "Detailed",
+  "settings.drora.preferences.preferredAddress": "Preferred address",
+  "settings.drora.preferences.preferredAddressDescription":
+    "How Drora addresses you; 1–40 characters (Unicode code points).",
+  "settings.drora.preferences.preferredAddressPlaceholder": "Not set",
+  "settings.drora.preferences.collaborationStyle": "Collaboration style",
+  "settings.drora.preferences.collaborationStyleDescription": "How answers are organized.",
+  "settings.drora.preferences.collaborationStyle.direct_answer": "Answer first",
+  "settings.drora.preferences.collaborationStyle.explain_tradeoffs": "Explain trade-offs",
+  "settings.drora.preferences.collaborationStyle.step_by_step": "Step by step",
+  "settings.drora.preferences.save": "Save",
+  "settings.drora.preferences.saving": "Saving…",
+  "settings.drora.preferences.forget": "Forget",
+  "settings.drora.preferences.forgetting": "Forgetting…",
+  "settings.drora.preferences.notice.forgotten":
+    "Preference forgotten (a logical undo). Only later turns are affected; turns already frozen, chat history and project memory stay unchanged.",
+  // P1b source status (contract §1.2/§8): provenance category, epistemic status, dispute and
+  // suppression are separate facts shown on separate lines; disputes are resolved only via
+  // save/forget; suppression is lifted via "allow learning" (generation++, new opportunities only).
+  "settings.drora.preferences.provenance.settings": "Source: saved in settings",
+  "settings.drora.preferences.provenance.extraction": "Source: automatic extraction",
+  "settings.drora.preferences.epistemic.explicit": "Explicit",
+  "settings.drora.preferences.epistemic.inferred": "Inferred",
+  "settings.drora.preferences.disputedBadge": "Conflicting inferred values; injection paused for this key",
+  "settings.drora.preferences.disputedHint":
+    "Resolve the conflict via \"Save\" or \"Forget\": both clear the dispute and advance the revision; the automatic value itself is not kept.",
+  "settings.drora.preferences.suppressedBadge": "Automatic learning suppressed for this key",
+  "settings.drora.preferences.allowLearning": "Allow learning",
+  "settings.drora.preferences.allowing": "Allowing…",
+  "settings.drora.preferences.pendingCandidate":
+    "One suggestion awaits confirmation: {value} (resolve via Save or Forget; automatic content is only kept after your confirmation)",
+  "settings.drora.forget.confirmTitle": 'Forget "{key}"?',
+  "settings.drora.forget.confirmDescription":
+    "This is a logical undo: it clears the app-accessible saved value and candidates for this key. It does not delete chat history, project memory, or diagnostics, and it is not a media-level erase; turns already frozen stay unchanged.",
+  "settings.drora.policy.title": "Usage permission (preference injection)",
+  "settings.drora.policy.description":
+    "Communication defaults are only injected into new turns while this permission is on. A switch takes effect on the next new turn; turns already frozen stay unchanged. The current value is read from the service; changes made in other windows appear after a refresh.",
+  "settings.drora.policy.enable": "Turn on",
+  "settings.drora.policy.disable": "Turn off",
+  "settings.drora.policy.enabling": "Turning on…",
+  "settings.drora.policy.disabling": "Turning off…",
+  "settings.drora.policy.state.unknown":
+    "Current effective value unknown (read failed; the service is authoritative)",
+  "settings.drora.policy.state.on": "Currently on (read from the service)",
+  "settings.drora.policy.state.off": "Currently off (read from the service)",
+  "settings.drora.policy.state.savedOn": "Submitted in this session: on (applies to new turns)",
+  "settings.drora.policy.state.savedOff": "Submitted in this session: off (applies to new turns)",
+  "settings.drora.policy.state.unchangedOn":
+    "The service is already on (this submission had no content change)",
+  "settings.drora.policy.state.unchangedOff":
+    "The service is already off (this submission had no content change)",
+  "settings.drora.policy.notice.saved":
+    "Submitted. The switch takes effect on the next new turn; turns already frozen stay unchanged.",
+  "settings.drora.policy.notice.unchanged":
+    "The service already has this state; no new revision was created.",
+  "settings.drora.policy.notice.conflict":
+    "The usage permission was changed in another window: the revision has been re-read; click again to apply your choice.",
+  "settings.drora.policy.notice.uninitialized":
+    "The persona is not initialized yet. Initialize it before changing the usage permission.",
+  // Turning U off cascades in the same transaction (contract §4.2): L off, leases revoked,
+  // uncommitted candidates/workloads cleared; turning U back on does not restore L.
+  "settings.drora.policy.cascade.title": "Turn off usage permission?",
+  "settings.drora.policy.cascade.description":
+    "Turning off the usage permission also turns off automatic learning in the same transaction: new learning intake and submission stop immediately, all learning leases are revoked, and uncommitted learning candidates and workloads are cleared. Explicitly saved communication defaults are kept; turns already frozen stay unchanged. Turning the permission back on does not restore automatic learning.",
+  "settings.drora.policy.cascade.action": "Turn off usage permission",
+  // P1b automatic learning (spec §5/§8): independent authorization, off by default; covers
+  // only the four communication defaults; no fabricated-experience page; budget caps are
+  // frozen service constants; counters describe this process only, not a global fact.
+  "settings.drora.learning.title": "Automatic learning (inferred defaults)",
+  "settings.drora.learning.description":
+    "When on, Drora gets bounded learning opportunities from ordinary successful turns and only infers the four communication defaults above. It creates no experiences or memory pages and never changes the core identity, tool permissions, or execution scope. Learning has a daily budget cap; turning it off stops new intake and submission and revokes unfinished learning work.",
+  "settings.drora.learning.enable": "Turn on",
+  "settings.drora.learning.disable": "Turn off",
+  "settings.drora.learning.enabling": "Turning on…",
+  "settings.drora.learning.disabling": "Turning off…",
+  "settings.drora.learning.budget":
+    "Today's learning budget (UTC): {attempts}/{attemptsMax} model attempts · input {input}/{inputMax} · output {output}/{outputMax} tokens",
+  "settings.drora.learning.counters":
+    "Learning activity in this process: received {received} · dropped (queue full) {dropped} · applied {applied} · no change {noChange} · rejected {rejected}",
+  "settings.drora.learning.sourcesCount": "Merged sources: {count}",
+  "settings.drora.export.title": "Export persona",
+  "settings.drora.export.description":
+    "Creates a read-only JSON snapshot (current core, communication defaults, format version and omission counts) without chat transcripts, learning evidence or credentials; saved through the system save dialog, 256 KiB max. Importing is not supported.",
+  "settings.drora.export.action": "Export JSON",
+  "settings.drora.export.pending": "Exporting…",
+  "settings.drora.export.saved": "Saved.",
+  "settings.drora.export.savedPath": "Saved: {path}",
+  "settings.drora.export.canceled": "Canceled; no file was saved.",
+  "settings.drora.export.failed": "Saving the file failed: {message}",
+  "settings.drora.export.failedPlain": "Saving the file failed.",
+  "settings.drora.export.noData":
+    "No data yet: the persona is not initialized, so no export was created. Exporting never initializes the persona.",
+  "settings.drora.export.code": "Export failed ({code}).",
+  "settings.drora.export.unsupported": "This platform cannot save files, so export is unavailable.",
   "settings.memoryDescription":
     "Save and reuse long-term context in workspaces. Applies to new sessions and may increase model requests and token costs.",
   "settings.memory.viewer.disabled": "Enable Workspace Memory to view saved memories.",
@@ -8770,27 +9003,33 @@ const enUS: Record<string, string> = {
   // —— Voice dictation/announcement (specs/voice-agent-integration.md §6.3, Phase 1a keys) ——
   "settings.voice.title": "Voice",
   "voice.settings.title": "Voice",
-  "voice.settings.description": "Dictation turns speech into composer text (review before sending); announcement reads assistant answers aloud. Both are off by default.",
+  "voice.settings.description":
+    "Dictation turns speech into composer text (review before sending); announcement reads assistant answers aloud. Both are off by default.",
   "voice.settings.dictation.entry.label": "Show microphone button in the composer",
-  "voice.settings.dictation.entry.description": "When off, the dictation entry is hidden and microphone permission is never requested.",
+  "voice.settings.dictation.entry.description":
+    "When off, the dictation entry is hidden and microphone permission is never requested.",
   "voice.settings.dictation.lang.label": "Dictation language",
   "voice.settings.dictation.lang.zh": "中文（普通话）",
   "voice.settings.dictation.lang.en": "English (US)",
   "voice.settings.vendor.baseUrl.label": "Vendor API base URL",
-  "voice.settings.vendor.baseUrl.insecureWarning": "This URL uses plain-text HTTP for a non-loopback host and was not saved: switch to https, or use a localhost/127.0.0.1 address.",
-  "voice.settings.vendor.baseUrl.unparseableWarning": "This value is not a valid URL and was not saved: check it and re-enter (e.g. https://api.example.com/v1).",
+  "voice.settings.vendor.baseUrl.insecureWarning":
+    "This URL uses plain-text HTTP for a non-loopback host and was not saved: switch to https, or use a localhost/127.0.0.1 address.",
+  "voice.settings.vendor.baseUrl.unparseableWarning":
+    "This value is not a valid URL and was not saved: check it and re-enter (e.g. https://api.example.com/v1).",
   "voice.settings.vendor.baseUrl.placeholder": "e.g. https://api.siliconflow.cn/v1",
   "voice.settings.vendor.asrModel.label": "ASR model",
   "voice.settings.vendor.asrModel.placeholder": "e.g. FunAudioLLM/SenseVoiceSmall",
   "voice.settings.vendor.apiKey.label": "Vendor API key",
   "voice.settings.vendor.apiKey.placeholder": "Stored encrypted; excluded from settings sync",
-  "voice.settings.vendor.dataHandler": "Cloud voice engine enabled: your spoken audio and transcript, the assistant reply body, permission request summaries, and tool brief targets are all sent to the cloud service at {baseUrl}; Drora stores no audio itself.",
+  "voice.settings.vendor.dataHandler":
+    "Cloud voice engine enabled: your spoken audio and transcript, the assistant reply body, permission request summaries, and tool brief targets are all sent to the cloud service at {baseUrl}; Drora stores no audio itself.",
   "voice.settings.dictation.lang.auto": "Follow interface language",
   "voice.settings.asr.engine.label": "Speech recognition engine",
   "voice.settings.asr.engine.webSpeech": "Built-in (Web Speech)",
   "voice.settings.asr.engine.remote": "Cloud engine",
   "voice.settings.announcement.enable.label": "Turn-end announcement",
-  "voice.settings.announcement.enable.description": "Read the assistant answer aloud when a turn completes; announcement follows the focused session.",
+  "voice.settings.announcement.enable.description":
+    "Read the assistant answer aloud when a turn completes; announcement follows the focused session.",
   "voice.brief.prefix": "Running {tool} {target}",
   "voice.brief.truncated": " (target truncated)",
   "voice.settings.tts.engine.label": "Announcement engine",
@@ -8799,9 +9038,11 @@ const enUS: Record<string, string> = {
   "voice.settings.vendor.ttsModel.label": "Announcement model",
   "voice.settings.vendor.ttsModel.placeholder": "e.g. fnlp/MOSS-TTSD-v0.5",
   "voice.settings.vendor.ttsVoice.label": "Cloud engine voice",
-  "voice.settings.vendor.ttsVoice.placeholder": "e.g. alex, benjamin, anna, claire; empty = vendor default",
+  "voice.settings.vendor.ttsVoice.placeholder":
+    "e.g. alex, benjamin, anna, claire; empty = vendor default",
   "voice.settings.persona.label": "Announcement persona",
-  "voice.settings.persona.description": "Choosing a persona applies the announcement voice, cloud voice, rate, and language in one shot; changing any of them manually switches this back to “Custom”.",
+  "voice.settings.persona.description":
+    "Choosing a persona applies the announcement voice, cloud voice, rate, and language in one shot; changing any of them manually switches this back to “Custom”.",
   "voice.settings.persona.custom": "Custom",
   "voice.settings.persona.preset.standard": "Standard",
   "voice.settings.persona.preset.brisk": "Brisk",
@@ -8811,32 +9052,44 @@ const enUS: Record<string, string> = {
   "voice.settings.announcement.voice.default": "System default",
   "voice.settings.announcement.voice.loading": "Loading system voices…",
   "voice.settings.announcement.voice.preview": "Preview",
-  "voice.settings.announcement.voice.previewText": "Hello, this is a preview of the current announcement voice and rate.",
+  "voice.settings.announcement.voice.previewText":
+    "Hello, this is a preview of the current announcement voice and rate.",
   "voice.settings.announcement.lang.label": "Announcement language",
-  "voice.settings.announcement.lang.description": "Applies to the system speech engine only; the cloud engine detects the language automatically.",
+  "voice.settings.announcement.lang.description":
+    "Applies to the system speech engine only; the cloud engine detects the language automatically.",
   "voice.settings.announcement.lang.auto": "Follow interface language",
   "voice.settings.announcement.lang.zh": "中文（普通话）",
   "voice.settings.announcement.lang.en": "English (US)",
   "voice.settings.announcement.rate.label": "Announcement rate",
-  "voice.settings.announcement.rate.invalidWarning": "Rate must be between 0.5 and 2; the last saved value was restored.",
-  "voice.settings.announcement.outputDisclosure": "Announcements play through the system default output device; unplugging Bluetooth or muting the system may route audio to speakers. Press the stop button on the announcement indicator to mute immediately.",
+  "voice.settings.announcement.rate.invalidWarning":
+    "Rate must be between 0.5 and 2; the last saved value was restored.",
+  "voice.settings.announcement.outputDisclosure":
+    "Announcements play through the system default output device; unplugging Bluetooth or muting the system may route audio to speakers. Press the stop button on the announcement indicator to mute immediately.",
   "voice.settings.toolBrief.enable.label": "Tool briefs",
-  "voice.settings.toolBrief.enable.description": "Spoken hints about the tool currently running (e.g. \"Editing foo.ts\") between announcements.",
+  "voice.settings.toolBrief.enable.description":
+    'Spoken hints about the tool currently running (e.g. "Editing foo.ts") between announcements.',
   "voice.settings.privacy.title": "Voice privacy notice",
-  "voice.settings.privacy.asr": "Speech recognition engine & data flow: Dictation uses your browser/system built-in speech recognition (Web Speech API) by default. Audio and transcripts are processed by that engine's cloud service; Drora stores no audio itself. If another engine is added, its data handler will be disclosed here.",
-  "voice.settings.privacy.persistence": "Persistence of dictated text: Once you send it, dictated text is treated exactly like typed text — it is stored in the session transcript, can be exported or shared with the session, and is not auto-deleted. Dictation may contain credentials or paths; please review it in the composer before sending.",
-  "voice.settings.privacy.mic": "Microphone boundaries: The microphone turns on only after you press the mic button, a recording indicator stays visible while recording, and Esc or a second press stops it immediately. Drora has no background listening or always-on mode; transcripts and audio are never written to logs.",
+  "voice.settings.privacy.asr":
+    "Speech recognition engine & data flow: Dictation uses your browser/system built-in speech recognition (Web Speech API) by default. Audio and transcripts are processed by that engine's cloud service; Drora stores no audio itself. If another engine is added, its data handler will be disclosed here.",
+  "voice.settings.privacy.persistence":
+    "Persistence of dictated text: Once you send it, dictated text is treated exactly like typed text — it is stored in the session transcript, can be exported or shared with the session, and is not auto-deleted. Dictation may contain credentials or paths; please review it in the composer before sending.",
+  "voice.settings.privacy.mic":
+    "Microphone boundaries: The microphone turns on only after you press the mic button, a recording indicator stays visible while recording, and Esc or a second press stops it immediately. Drora has no background listening or always-on mode; transcripts and audio are never written to logs.",
   "voice.settings.privacy.acknowledge": "I have read and understood this",
   "voice.entry.mic.start.aria": "Start voice dictation",
   "voice.entry.mic.stop.aria": "Stop voice dictation",
-  "voice.entry.mic.tooltip": "Voice dictation: click to start, click again or press Esc to stop; text lands in the composer for review before sending",
+  "voice.entry.mic.tooltip":
+    "Voice dictation: click to start, click again or press Esc to stop; text lands in the composer for review before sending",
   "voice.dictation.preview.hint": "Listening…",
   "voice.dictation.preview.clear": "Clear",
   "voice.dictation.requestingMic": "Waiting for microphone permission…",
-  "voice.dictation.requestingMicTimeout": "Timed out waiting for microphone permission and stopped. Allow the microphone in system settings and try again.",
-  "voice.dictation.error.permission": "Microphone permission was denied. Allow it in system settings and try again.",
+  "voice.dictation.requestingMicTimeout":
+    "Timed out waiting for microphone permission and stopped. Allow the microphone in system settings and try again.",
+  "voice.dictation.error.permission":
+    "Microphone permission was denied. Allow it in system settings and try again.",
   "voice.dictation.error.network": "Speech service unavailable. Text already inserted was kept.",
-  "voice.dictation.error.device": "Cannot access the microphone device. Check the device connection.",
+  "voice.dictation.error.device":
+    "Cannot access the microphone device. Check the device connection.",
   "voice.dictation.error.aborted": "Dictation ended.",
   "voice.dictation.sessionGone": "The session was closed and dictation stopped.",
   "voice.dictation.restoreLast": "Restore last transcription",

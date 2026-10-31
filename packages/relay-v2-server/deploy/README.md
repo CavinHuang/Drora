@@ -19,6 +19,10 @@
 ```sh
 cd packages/relay-v2-server/deploy
 echo 'DRORA_PUBLIC_ORIGIN=https://你的自建域' >> .env   # 必填:OAuth redirect 构建期烘焙
+# 可选:自有 OAuth 应用(spec §8.5——官方 client_id 的 redirect 白名单不含任意自建域;
+# 在 ZAI/BigModel 登记自有应用并拿到 client_id/appId 后在这里透传烘焙):
+# echo 'VITE_ZAI_OAUTH_CLIENT_ID=client_你的值' >> .env
+# echo 'VITE_BIGMODEL_OAUTH_APP_ID=你的appId' >> .env
 docker compose -f docker-compose.standalone.yml up -d --build
 docker compose -f docker-compose.standalone.yml ps      # 等 healthy
 curl -s http://127.0.0.1:8080/healthz                   # 五字段运维视图
@@ -37,6 +41,8 @@ echo 'NPM_REGISTRY=https://registry.npmmirror.com' >> .env
 ```sh
 cd packages/relay-v2-server/deploy
 # 1) 手机页静态(Caddy 挂载点;OAuth 烘焙需双 env,见 spec §8.2 实测注记)
+#    自有 OAuth 应用(spec §8.5):VITE_ZAI_OAUTH_CLIENT_ID=client_你的值 \
+#    VITE_BIGMODEL_OAUTH_APP_ID=你的appId 一并带入构建
 VITE_DRORA_ENDPOINT_ORIGIN=https://自建域 DRORA_ENDPOINT_ORIGIN=https://自建域 \
   pnpm build:web-remote-control:v4
 cp -R ../../packages/web/dist/. web-remote-control/
@@ -47,6 +53,12 @@ docker compose -f docker-compose.yml up -d --build
 
 前置:自建域 `https://自建域/remote/v4` 必须在 ZAI/BigModel OAuth 应用回调白名单
 (authorize 与 token exchange 两步都校验,spec §8.4)。
+
+## 桌面端指向自建 relay
+
+设置项 `webRemoteControlRelayOrigin`(远控弹窗 → Relay 服务 → 自建)填入
+`https://你的自建域` 后保存,桌面会停止当前远控并按新源重连(spec §8.7)。
+官方默认形态无需任何配置。
 
 ## 日志
 

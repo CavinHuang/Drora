@@ -68,3 +68,9 @@ export function createDroraDesktopPetExtension(dependencies: {
     },
   };
 }
+
+// P2 桌宠当前态表达映射（spec §11、PM18/58）：纯函数、无庆祝语义、completed 恒中性结束。
+export {
+  desktopPetPersonaExpression,
+  type DesktopPetPersonaExpression,
+} from "./desktopPetPersonaExpression.js";

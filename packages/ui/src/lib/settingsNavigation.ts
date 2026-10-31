@@ -11,6 +11,9 @@ export type SettingsSectionId =
   | "modelProvider"
   | "remoteDevices"
   | "memory"
+  // Drora 人格资料管理（specs/drora-persona-system.md §10）：入口由
+  // hello.capabilities.personaControlV1 + 本地桌面连接动态门控，不是常驻分区。
+  | "drora"
   | "knowledge"
   | "plugin"
   | "mcp"

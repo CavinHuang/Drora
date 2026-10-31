@@ -119,6 +119,9 @@ export default defineConfig({
             "packages/*/test/**/*.test.ts",
             // 架构治理要求 managed 模块自带 contract.test.ts（见 architecture-policy.yaml），放在模块目录内。
             "packages/*/src/**/contract.test.ts",
+            // Persona 契约钉住（specs/drora-persona-system.md）：P1a 起从 contract.test.ts
+            // 拆出（max-contract-lines），不进 include 则默认单测通道永不执行。
+            "packages/shared/src/contracts/persona-contract.test.ts",
             // Gen UI 目录回归位于源码旁，默认入口也必须执行，避免只在手动定向运行时生效。
             "packages/shared/src/node/genUiPaths.test.ts",
             "packages/services/src/gen-ui/**/*.test.ts",
@@ -132,6 +135,20 @@ export default defineConfig({
             // + VoiceSection 开关读写往返/S1 baseUrl 校验交互 + AnnouncementIndicator）。
             "packages/ui/src/voice/**/*.test.tsx",
             "packages/ui/src/settings/VoiceSection.test.tsx",
+            // Drora 人格设置分区（specs/drora-persona-system.md §10）：组件交互守护
+            // （五字段草稿/CAS/预览/应用情况/E 文案）与 hello 能力门 hook，同理登记
+            // 进默认单测通道，否则 pnpm test / pre-push affected 永不执行。
+            "packages/ui/src/drora-persona/PersonaSettingsSection.test.tsx",
+            "packages/ui/src/drora-persona/usePersonaControlAvailability.test.tsx",
+            // P1a 交流默认与导出（§9/§10：偏好 CAS/忘记确认/outcome_unknown/U 两态/
+            // 导出 saveFile/i18n 完整性）；不进 include 则默认单测通道永不执行。
+            "packages/ui/src/drora-persona/usePersonaPreferences.test.tsx",
+            // P1b 有限学习管理（§5/§8/§10：L 开关/关闭 U 级联确认/来源状态列表/
+            // 解除抑制 CAS/概览读取失败降级）；同理必须进默认单测通道。
+            "packages/ui/src/drora-persona/usePersonaLearning.test.tsx",
+            // 远控「官方/自建 Relay」切换（specs/relay-v2-server.md §8.7）：弹窗配置区
+            // 交互守护（官方缺省/非法 origin 拒写/保存→停止→重启顺序/空串哨兵切回官方）。
+            "packages/ui/src/web-remote-control/WebRemoteControlRelaySourceSection.test.tsx",
             "packages/ui/src/voice/AnnouncementIndicator.test.tsx",
             "packages/ui/src/store/voiceSessionStore.test.ts",
             "packages/ui/src/v4/composer/composerTextAppend.test.ts",

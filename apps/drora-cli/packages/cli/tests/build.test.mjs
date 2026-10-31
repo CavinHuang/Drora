@@ -6,9 +6,11 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { runInNewContext } from "node:vm";
 import { build } from "esbuild";
+import { Worker } from "node:worker_threads";
 import {
   assertZodBundleIdentity,
   createZodDedupePlugin,
+  readPersonaWorkerBundleSource,
   readRootPackageVersion,
   resolveBuildAliases,
   resolveBuildOptions,
@@ -277,4 +279,76 @@ test("request security subpath bundles through its edition entry", async () => {
       path.endsWith("shared/src/request-security-edition/index.ts"),
     ),
   );
+});
+
+test("persona worker bundle boots a store worker from the exact source injected into drora.cjs", async () => {
+  const source = await readPersonaWorkerBundleSource();
+  // 与主 bundle 的 define 注入同源同内容；这里以 eval 形态真实启动（单文件产物运行时同款）。
+  assert.ok(source.includes("runPersonaWorkerServer"), "worker source marker missing");
+  const directory = await mkdtemp(join(tmpdir(), "drora-persona-worker-bundle-"));
+  try {
+    const workerData = { dbPath: join(directory, "personas", "persona.sqlite") };
+    const worker = new Worker(source, { eval: true, workerData });
+    const id = (value) => JSON.stringify(value);
+    const waitFor = (match, action) =>
+      new Promise((resolvePromise, rejectPromise) => {
+        const timeout = setTimeout(
+          () => rejectPromise(new Error("persona worker timed out")),
+          15_000,
+        );
+        const onMessage = (message) => {
+          if (!match(message)) return;
+          cleanup();
+          clearTimeout(timeout);
+          resolvePromise(message);
+        };
+        const onError = (error) => {
+          cleanup();
+          clearTimeout(timeout);
+          rejectPromise(error);
+        };
+        const onExit = (code) => {
+          cleanup();
+          clearTimeout(timeout);
+          rejectPromise(new Error(`persona worker exited early: ${code}`));
+        };
+        const cleanup = () => {
+          worker.off("message", onMessage);
+          worker.off("error", onError);
+          worker.off("exit", onExit);
+        };
+        worker.on("message", onMessage);
+        worker.once("error", onError);
+        worker.once("exit", onExit);
+        action();
+      });
+    // 打开握手（ready）先落定，再读快照、再请求关闭。
+    const ready = await waitFor(
+      (message) => message.kind === "ready",
+      () => {},
+    );
+    assert.equal(ready.kind, "ready");
+    const response = await waitFor(
+      (message) => message.kind === "result" && message.id === 1,
+      () => worker.postMessage({ kind: "call", id: 1, op: "readSnapshot", input: undefined }),
+    );
+    assert.equal(id(response.kind), id("result"));
+    assert.equal(response.ok, true);
+    assert.deepEqual(response.value, { state: "uninitialized" });
+    await waitFor(
+      (message) => message.kind === "result" && message.id === 2,
+      () => worker.postMessage({ kind: "close", id: 2 }),
+    );
+    await new Promise((resolvePromise) => worker.once("exit", resolvePromise));
+  } finally {
+    // worker 退出后 Windows 释放 sqlite 文件句柄有短暂延迟；重试清理（残留交临时目录生命周期）。
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      await new Promise((resolvePromise) => setTimeout(resolvePromise, attempt * 100));
+      const removed = await rm(directory, { recursive: true, force: true }).then(
+        () => true,
+        () => false,
+      );
+      if (removed) break;
+    }
+  }
 });

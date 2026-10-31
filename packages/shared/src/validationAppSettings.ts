@@ -6,6 +6,7 @@ import {
   desktopPetCornerSchema,
 } from "./desktopPet.js";
 import { appToolSearchModeSchema } from "./app-runtime-preferences.js";
+import { PERSONA_RUNTIME_PREFERENCE_ENABLED } from "./contracts/persona.js";
 import type { AppSettings } from "./protocol.js";
 import { REMOTE_ASSET_INSTALL_MODES } from "./remoteAssetInstallMode.js";
 import { isKnownRemoteResourcePackageId } from "./remoteResourcePackages.js";
@@ -183,6 +184,9 @@ const droraEndpointOriginSchema = z.preprocess((value) => {
     return undefined;
   }
 }, z.string().optional());
+// 远控「官方/自建 Relay」切换（specs/relay-v2-server.md §8.7）：坏值只丢该字段，
+// 与 droraEndpointOrigin 同款容错——误配不能拖垮整份 settings 读取。
+const webRemoteControlRelayOriginSchema = droraEndpointOriginSchema;
 
 function sanitizeDroraEndpointOrigin(value: unknown): unknown {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
@@ -593,6 +597,9 @@ const appSettingsObjectSchema = z.object({
   onboardingOccupation: appSettingsOccupationSchema.nullish(),
   proactiveSuggestionsEnabled: z.boolean().optional(),
   memoryEnabled: z.boolean().default(false),
+  // Persona 执行许可 E（specs/drora-persona-system.md §5）：原 Settings 保存，默认 false；
+  // 只在 Runtime 新建/cold materialization 冻结，warm 不重读。键引用 contracts 常量单一出处。
+  [PERSONA_RUNTIME_PREFERENCE_ENABLED]: z.boolean().default(false),
   lastWorkspaceSession: z.array(appWorkspaceSessionEntrySchema).default([]),
   lastActiveWorkspace: appWorkspaceSessionEntrySchema.nullable().optional(),
   remoteConversationWorkspaceBySourceServerId: z
@@ -619,6 +626,7 @@ const appSettingsObjectSchema = z.object({
   webRemoteControlExternalRelayDevice: webRemoteControlExternalRelayDeviceSchema.optional(),
   webRemoteControlLastEnabledContext: webRemoteControlLastEnabledContextSchema.optional(),
   droraEndpointOrigin: droraEndpointOriginSchema.optional(),
+  webRemoteControlRelayOrigin: webRemoteControlRelayOriginSchema.optional(),
   // Jev 出站决策（obsidian-knowledge.md §5d.10）：缺省关闭，显式存过 true 的用户保持开启。
   knowledgeJevEnabled: z.boolean().default(false),
   knowledgeSemanticEnabled: z.boolean().default(false),
@@ -740,6 +748,8 @@ export const appSettingsPatchSchema = z.object({
     .nullish(),
   proactiveSuggestionsEnabled: z.boolean().optional(),
   memoryEnabled: z.boolean().optional(),
+  // Persona 执行许可 E 的更新补丁（全可选；默认 false 在完整 schema 拥有）。
+  [PERSONA_RUNTIME_PREFERENCE_ENABLED]: z.boolean().optional(),
   lastWorkspaceSession: z.array(appWorkspaceSessionEntrySchema).optional(),
   lastActiveWorkspace: appWorkspaceSessionEntrySchema.nullable().optional(),
   remoteConversationWorkspaceBySourceServerId: z
@@ -766,6 +776,7 @@ export const appSettingsPatchSchema = z.object({
   webRemoteControlExternalRelayDevice: webRemoteControlExternalRelayDeviceSchema.optional(),
   webRemoteControlLastEnabledContext: webRemoteControlLastEnabledContextSchema.optional(),
   droraEndpointOrigin: droraEndpointOriginSchema.optional(),
+  webRemoteControlRelayOrigin: webRemoteControlRelayOriginSchema.optional(),
   /** Jev 出站决策（obsidian-knowledge.md §5d.10）；更新补丁全可选。 */
   knowledgeJevEnabled: z.boolean().optional(),
   knowledgeSemanticEnabled: z.boolean().optional(),

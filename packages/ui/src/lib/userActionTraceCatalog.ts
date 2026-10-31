@@ -86,6 +86,23 @@ export const SETTINGS_USER_ACTION_FEATURES = {
   "settings.task": ["toggle_auto_archive", "change_auto_archive_days"],
   "settings.storage": ["change_data_directory"],
   "settings.memory": ["toggle_memory", "refresh_memory", "change_memory_scope"],
+  // Drora 人格分区（specs/drora-persona-system.md §10）：许可开关、核心编辑与
+  // 应用情况查询的用户动作轨迹。
+  "settings.drora": [
+    "toggle_persona_enabled",
+    "initialize_persona",
+    "save_persona_core",
+    "reset_persona_core",
+    "refresh_persona",
+    "keep_persona_draft",
+    "discard_persona_draft",
+    "query_persona_application",
+    // P1a 交流默认与导出（spec §9/§10）：偏好保存/忘记、U 使用许可切换与只读导出。
+    "save_persona_preference",
+    "forget_persona_preference",
+    "set_persona_policy",
+    "export_persona_snapshot",
+  ],
   "settings.knowledge": [
     "toggle_knowledge_jev",
     "save_knowledge_jev_api_key",

@@ -1,7 +1,11 @@
 import { querySessionDebug } from "./session-debug.js";
 import { offPeakControlParamsSchema, offPeakControlResultSchema } from "@drora/shared";
 import { createNodeNetworkCapture } from "@drora/shared/node";
-import { networkCaptureControlSchema, droraProtocolNotifications } from "@drora/shared";
+import {
+  PERSONA_PROTOCOL_CAPABILITY_CONTROL_V1,
+  networkCaptureControlSchema,
+  droraProtocolNotifications,
+} from "@drora/shared";
 import {
   droraPluginsCancelOperationParamsSchema,
   droraProtocolMethods,
@@ -34,26 +38,40 @@ import type {
 } from "@drora/shared";
 import {
   cancelBackgroundTask,
+  allowLearningForKeyOp,
   closeSession,
   compactSession,
   createSession,
   forkSession,
   generateWorkspaceText,
+  getPersonaApplicationOp,
+  getPersonaCoreOp,
+  getPersonaLearningOverviewOp,
+  getPersonaOverviewOp,
+  forgetPreferenceOp,
   goalSession,
   getTaskTokenUsage,
   getUsageStats,
+  initializePersonaOp,
+  listPreferencesOp,
   listSessions,
   listSessionSubagents,
+  preparePersonaExportOp,
+  previewPersonaOp,
   readEvents,
   readMessages,
   readSession,
+  resetPersonaCoreOp,
   resumeSession,
+  savePreferenceOp,
   sendPrompt,
   setMode,
   setModel,
+  setPersonalPolicyOp,
   setThoughtLevel,
   stopSession,
   subscribeSession,
+  updatePersonaCoreOp,
 } from "./server-operations.js";
 import { listChildProcesses } from "./process-child-processes.js";
 import { ProtocolRuntimeResources } from "./runtime-resources.js";
@@ -814,7 +832,49 @@ export class DroraProtocolAgentServer {
       case droraProtocolMethods.processChildProcesses:
         return listChildProcesses(this.context.deps.mcpTelemetry?.listProcesses() ?? []);
       case droraProtocolMethods.runtimeCapabilities:
-        return { independentPlanState: true, historyFirst: true };
+        // Persona 控制位（合同 §4.1）：仅在本 server 已注册 persona 控制路由
+        // （deps.personaControl 端口在装配层注入）时为 true；缺席即整个键缺席，
+        // 旧 Host 视角等价于「无该能力」。键引用 shared contracts 常量（契约键单一
+        // 出处，AGENTS.md）：schema 侧（droraRuntimeCapabilitiesSchema 计算键）与本
+        // 生产点引用同一字面量，手写第二份会在拼错时被非 strict schema 静默剥键。
+        return {
+          independentPlanState: true,
+          historyFirst: true,
+          ...(this.context.deps.personaControl
+            ? { [PERSONA_PROTOCOL_CAPABILITY_CONTROL_V1]: true }
+            : {}),
+        };
+      // ── Persona P0 无会话管理（spec §4/§10）：不触碰会话表，控制域由服务绑定 ──
+      case droraProtocolMethods.personaGetOverview:
+        return await getPersonaOverviewOp(this.context);
+      case droraProtocolMethods.personaInitialize:
+        return await initializePersonaOp(this.context, request.params);
+      case droraProtocolMethods.personaGetCore:
+        return await getPersonaCoreOp(this.context, request.params);
+      case droraProtocolMethods.personaUpdateCore:
+        return await updatePersonaCoreOp(this.context, request.params);
+      case droraProtocolMethods.personaResetCore:
+        return await resetPersonaCoreOp(this.context, request.params);
+      case droraProtocolMethods.personaPreview:
+        return await previewPersonaOp(this.context, request.params);
+      case droraProtocolMethods.personaGetApplication:
+        return await getPersonaApplicationOp(this.context, request.params);
+      // ── P1a 使用策略/交流默认/导出（合同 §3/§4.2/§7）：同一无会话控制端口 ──
+      case droraProtocolMethods.personaSetPolicy:
+        return await setPersonalPolicyOp(this.context, request.params);
+      case droraProtocolMethods.personaSavePreference:
+        return await savePreferenceOp(this.context, request.params);
+      case droraProtocolMethods.personaForgetPreference:
+        return await forgetPreferenceOp(this.context, request.params);
+      case droraProtocolMethods.personaListPreferences:
+        return await listPreferencesOp(this.context, request.params);
+      case droraProtocolMethods.personaPrepareExport:
+        return await preparePersonaExportOp(this.context, request.params);
+      // ── P1b 有限学习管理（合同 §3 allowLearningForKey＋读侧概览；spec §5/§8/§10）──
+      case droraProtocolMethods.personaAllowLearningForKey:
+        return await allowLearningForKeyOp(this.context, request.params);
+      case droraProtocolMethods.personaGetLearningOverview:
+        return await getPersonaLearningOverviewOp(this.context, request.params);
       case droraProtocolMethods.pluginsMarketplaceAdd:
         return await this.withPluginOperationSignal(request, (signal) =>
           addPluginMarketplace(this.context, request.params, signal),

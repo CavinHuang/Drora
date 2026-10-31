@@ -1,4 +1,5 @@
 import type { KnowledgeJevProvider } from "./knowledge-jev.js";
+import { PERSONA_RUNTIME_PREFERENCE_ENABLED } from "./contracts/persona.js";
 import type { RemoteAssetInstallMode } from "./remoteAssetInstallMode.js";
 import type { RemoteResourcePackageSelection } from "./remoteResourcePackages.js";
 import type { ProviderFamilyDomain } from "./model-provider-family.js";
@@ -393,6 +394,13 @@ export interface AppSettings {
   toolSearchMode?: AppToolSearchMode;
   /** 新建或冷恢复 Session 是否启用 Memory；默认关闭。 */
   memoryEnabled?: boolean;
+  /**
+   * Persona 执行许可 E（specs/drora-persona-system.md §5；键字面量单一出处
+   * contracts PERSONA_RUNTIME_PREFERENCE_ENABLED）。默认 false；只在 Runtime 新建或
+   * cold materialization 冻结，warm Runtime 不重读；UI 文案必须说明「用于新建或真正
+   * 重新加载的会话」，不得显示「当前会话已关闭」。
+   */
+  [PERSONA_RUNTIME_PREFERENCE_ENABLED]?: boolean;
   onboardingOccupation?:
     | "office"
     | "developer"
@@ -475,6 +483,12 @@ export interface AppSettings {
   };
   /** 设置页里的临时 endpoint override；正式/测试默认 base url 由 DRORA_BASE_URL env 管理。 */
   droraEndpointOrigin?: string;
+  /**
+   * 远控「官方/自建 Relay」切换（specs/relay-v2-server.md §8.7）：仅覆盖远控三 URL 面
+   * （注册 HTTP/relay WS/二维码页），缺失或空表示跟随全局 endpoint 链。生产可写，
+   * 与 droraEndpointOrigin 的 test-only 门禁有意不同。
+   */
+  webRemoteControlRelayOrigin?: string;
   /**
    * VaultView 智能问库 Jev 出站决策开关（specs/obsidian-knowledge.md §5d.10）。
    * 默认关闭（ADR #5：零出站）；开启仅表示允许装配，实际出站仍需逐 run 用户授权。

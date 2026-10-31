@@ -55,6 +55,19 @@ export * from "../background-bash-output.js";
 export * from "../process-diagnostic.js";
 export { attachmentSourceKindSchema, type AttachmentSourceKind } from "../attachment-source.js";
 import { PROTOCOL_V4_LIMITS } from "../drora-protocol-v4/core.js";
+// Persona P0 契约键单一出处（AGENTS.md）：能力位/偏好键/方法 wire 名引用 contracts 常量，
+// 不在本文件另写字面量（合同 §4.1）。P1a 的受控四键与受控值集合同样引用单一出处。
+import {
+  PERSONA_ERROR_CODES,
+  PERSONA_EXPORT_FORMAT,
+  PERSONA_EXPORT_FORMAT_VERSION,
+  PERSONA_LEARNING_BUDGET,
+  PERSONA_PREFERENCE_KEYS,
+  PERSONA_PROTOCOL_CAPABILITY_CONTROL_V1,
+  PERSONA_PROTOCOL_METHODS,
+  PERSONA_RUNTIME_PREFERENCE_ENABLED,
+  type PersonaErrorCode,
+} from "../contracts/persona.js";
 
 export const droraTopicResourceReadParamsSchema = z
   .object({
@@ -138,6 +151,10 @@ export const DRORA_PROTOCOL_V4_WIRE_VERSION = 3 as const;
 export const droraRuntimeCapabilitiesSchema = z.object({
   historyFirst: z.boolean().optional(),
   independentPlanState: z.boolean().optional(),
+  // Persona 控制合同 v1（合同 §4.1）：CLI 仅在 persona 控制路由已注册时为 true；
+  // 缺失/method-not-found/断线一律视为不可用，原会话继续，不试发 persona 方法。
+  // 键引用 contracts 常量，与 Host↔UI 的 hello.capabilities 同一字面量。
+  [PERSONA_PROTOCOL_CAPABILITY_CONTROL_V1]: z.boolean().optional(),
 });
 export const droraProtocolErrorCodes = {
   sessionUnavailable: -32004,
@@ -2099,6 +2116,9 @@ export const droraSessionRuntimePreferencesResultSchema = z
     modelContextBudgetStrategy: droraModelContextBudgetStrategySchema.default(
       DEFAULT_DRORA_MODEL_CONTEXT_BUDGET_STRATEGY,
     ),
+    // 执行许可 E（spec §5）：新 Host 确认 CLI 的 personaControlV1 能力后才附加；
+    // 旧 CLI 不收到该字段，新 CLI 对缺失值按 false（`=== true` 判定，缺省即关闭）。
+    [PERSONA_RUNTIME_PREFERENCE_ENABLED]: z.boolean().optional(),
   })
   .strict();
 export type DroraSessionRuntimePreferencesResult = z.infer<
@@ -4184,6 +4204,442 @@ export const droraKnowledgeSearchResultSchema = z
   .strict();
 export type DroraKnowledgeSearchProtocolResult = z.infer<typeof droraKnowledgeSearchResultSchema>;
 
+// ── Persona P0 管理方法（spec §4/§10、合同 §3/§4.1；wire 名单一出处 contracts/persona.ts）──
+// 无会话管理：方法在 CLI 协议 server 注册，经 Host 的 CLI 控制连接代理；不 session/create、
+// 不生成占位会话；控制域由服务绑定，params 不接受任意文件路径/dataRoot。未知字段拒绝（strict）。
+// 管理结果统一 PersonaManagementResult 信封（ok/value | ok/code），code 取 contracts
+// PERSONA_ERROR_CODES 封闭枚举；capture 的正常 omitted reason 不走管理错误通道。
+
+const personaErrorCodeSchema = z.enum(
+  Object.values(PERSONA_ERROR_CODES) as [PersonaErrorCode, ...PersonaErrorCode[]],
+);
+
+function personaManagementResultSchema<Value extends z.ZodType>(value: Value) {
+  return z.union([
+    z.object({ ok: z.literal(true), value }).strict(),
+    z.object({ ok: z.literal(false), code: personaErrorCodeSchema }).strict(),
+  ]);
+}
+
+const personaEditableCoreSchema = z
+  .object({
+    displayName: z.string(),
+    selfDescription: z.string(),
+    warmth: z.enum(["restrained", "balanced", "warm"]),
+    directness: z.enum(["gentle", "balanced", "direct"]),
+    humor: z.enum(["off", "light"]),
+  })
+  .strict();
+
+const personaOverviewSchema = z.union([
+  z
+    .object({
+      state: z.literal("initialized"),
+      personaId: z.string().min(1),
+      schemaVersion: z.number().int().nonnegative(),
+      coreRevision: z.number().int().nonnegative(),
+      templateVersion: z.number().int().nonnegative(),
+      compilerVersion: z.number().int().nonnegative(),
+    })
+    .strict(),
+  z.object({ state: z.literal("uninitialized") }).strict(),
+]);
+
+const personaCoreSnapshotSchema = z.union([
+  z
+    .object({
+      state: z.literal("current"),
+      coreRevision: z.number().int().nonnegative(),
+      core: personaEditableCoreSchema,
+      template: z
+        .object({
+          templateVersion: z.number().int().nonnegative(),
+          compilerVersion: z.number().int().nonnegative(),
+          identityStatement: z.string(),
+          principles: z.array(z.string()),
+          capabilityHonesty: z.string(),
+          relationshipBoundary: z.string(),
+        })
+        .strict(),
+    })
+    .strict(),
+  z
+    .object({
+      state: z.literal("built_in_preview"),
+      core: personaEditableCoreSchema,
+      template: z
+        .object({
+          templateVersion: z.number().int().nonnegative(),
+          compilerVersion: z.number().int().nonnegative(),
+          identityStatement: z.string(),
+          principles: z.array(z.string()),
+          capabilityHonesty: z.string(),
+          relationshipBoundary: z.string(),
+        })
+        .strict(),
+    })
+    .strict(),
+]);
+
+const personaCoreMutationResultSchema = z.union([
+  z
+    .object({ status: z.literal("saved"), coreRevision: z.number().int().nonnegative() })
+    .strict(),
+  z.object({ status: z.literal("unchanged") }).strict(),
+]);
+
+const personaInitializeResultSchema = z.intersection(
+  personaOverviewSchema,
+  z.object({ status: z.enum(["created", "unchanged"]) }).strict(),
+);
+
+const personaPreviewResultSchema = z
+  .object({
+    text: z.string(),
+    templateVersion: z.number().int().nonnegative(),
+    compilerVersion: z.number().int().nonnegative(),
+  })
+  .strict();
+
+export const droraPersonaGetOverviewParamsSchema = z.object({}).strict();
+export const droraPersonaGetOverviewResultSchema = personaManagementResultSchema(
+  personaOverviewSchema,
+);
+export type DroraPersonaOverviewResult = z.infer<typeof droraPersonaGetOverviewResultSchema>;
+
+export const droraPersonaInitializeParamsSchema = z
+  .object({ mutationId: nonEmptyString })
+  .strict();
+export const droraPersonaInitializeResultSchema = personaManagementResultSchema(
+  personaInitializeResultSchema,
+);
+export type DroraPersonaInitializeResult = z.infer<typeof droraPersonaInitializeResultSchema>;
+
+export const droraPersonaGetCoreParamsSchema = z.object({}).strict();
+export const droraPersonaGetCoreResultSchema =
+  personaManagementResultSchema(personaCoreSnapshotSchema);
+export type DroraPersonaCoreResult = z.infer<typeof droraPersonaGetCoreResultSchema>;
+
+export const droraPersonaUpdateCoreParamsSchema = z
+  .object({
+    expectedRevision: z.number().int().nonnegative(),
+    patch: personaEditableCoreSchema.partial(),
+    mutationId: nonEmptyString,
+  })
+  .strict();
+export const droraPersonaUpdateCoreResultSchema =
+  personaManagementResultSchema(personaCoreMutationResultSchema);
+export type DroraPersonaCoreMutationResult = z.infer<typeof droraPersonaUpdateCoreResultSchema>;
+
+export const droraPersonaResetCoreParamsSchema = z
+  .object({
+    expectedRevision: z.number().int().nonnegative(),
+    mutationId: nonEmptyString,
+  })
+  .strict();
+export const droraPersonaResetCoreResultSchema = droraPersonaUpdateCoreResultSchema;
+
+export const droraPersonaPreviewParamsSchema = z
+  .object({
+    draft: personaEditableCoreSchema,
+    situationId: nonEmptyString.optional(),
+  })
+  .strict();
+export const droraPersonaPreviewResultSchema =
+  personaManagementResultSchema(personaPreviewResultSchema);
+export type DroraPersonaPreviewResult = z.infer<typeof droraPersonaPreviewResultSchema>;
+
+// 独立应用状态查询（合同 §3 getPersonaApplication）：sessionId+turnId 寻址当前 Runtime；
+// 重启后无内存记录即 not_available，不伪造冷历史。Host 代理走该会话的 CLI 连接。
+export const droraPersonaGetApplicationParamsSchema = z
+  .object({ sessionId: nonEmptyString, turnId: nonEmptyString })
+  .strict();
+export const droraPersonaGetApplicationResultSchema = z
+  .object({
+    status: z.enum(["applied", "omitted", "not_available"]),
+    turnId: nonEmptyString.optional(),
+    reason: z.string().max(256).optional(),
+  })
+  .strict();
+export type DroraPersonaGetApplicationParams = z.infer<
+  typeof droraPersonaGetApplicationParamsSchema
+>;
+export type DroraPersonaGetApplicationResult = z.infer<
+  typeof droraPersonaGetApplicationResultSchema
+>;
+
+// ── P1a 使用策略/交流默认/导出（合同 §1.2/§2/§3/§4.2/§7；spec §5/§8/§9）──
+// 受控四键与枚举值引用 shared contracts 单一出处；未知 key/value 由服务层 validation_failed
+// 拒绝。忘记是逻辑撤销屏障（generation++），无 unchanged 终态；导出无资料返回 uninitialized
+// 且不为导出初始化默认身份。
+
+const personaPreferenceKeySchema = z.enum([
+  PERSONA_PREFERENCE_KEYS.replyLanguage,
+  PERSONA_PREFERENCE_KEYS.explanationDetail,
+  PERSONA_PREFERENCE_KEYS.preferredAddress,
+  PERSONA_PREFERENCE_KEYS.collaborationStyle,
+]);
+
+export const droraPersonaSetPolicyParamsSchema = z
+  .object({
+    expectedPolicyRevision: z.number().int().nonnegative(),
+    usePreferences: z.boolean(),
+    // P1b（合同 §3「usePreferences/autoLearn/预算 patch」）：L patch，缺省＝保持当前值。
+    // 关 U 的级联（同事务关 L、撤租约、清候选/负载）由存储侧执行，与本字段取值无关。
+    autoLearn: z.boolean().optional(),
+    mutationId: nonEmptyString,
+  })
+  .strict();
+export const droraPersonaSetPolicyResultSchema = personaManagementResultSchema(
+  z.union([
+    z
+      .object({
+        status: z.literal("saved"),
+        policyRevision: z.number().int().nonnegative(),
+        policyEpoch: z.number().int().nonnegative(),
+      })
+      .strict(),
+    z.object({ status: z.literal("unchanged") }).strict(),
+  ]),
+);
+export type DroraPersonaSetPolicyResult = z.infer<typeof droraPersonaSetPolicyResultSchema>;
+
+export const droraPersonaSavePreferenceParamsSchema = z
+  .object({
+    key: personaPreferenceKeySchema,
+    value: z.string().max(512),
+    expectedRevision: z.number().int().nonnegative(),
+    mutationId: nonEmptyString,
+  })
+  .strict();
+export const droraPersonaSavePreferenceResultSchema = personaManagementResultSchema(
+  z.union([
+    z
+      .object({
+        status: z.literal("saved"),
+        revision: z.number().int().nonnegative(),
+        keyGeneration: z.number().int().nonnegative(),
+      })
+      .strict(),
+    z.object({ status: z.literal("unchanged") }).strict(),
+  ]),
+);
+export type DroraPersonaSavePreferenceResult = z.infer<
+  typeof droraPersonaSavePreferenceResultSchema
+>;
+
+export const droraPersonaForgetPreferenceParamsSchema = z
+  .object({
+    key: personaPreferenceKeySchema,
+    expectedRevision: z.number().int().nonnegative(),
+    mutationId: nonEmptyString,
+  })
+  .strict();
+export const droraPersonaForgetPreferenceResultSchema = personaManagementResultSchema(
+  z
+    .object({
+      status: z.literal("forgotten"),
+      revision: z.number().int().nonnegative(),
+      keyGeneration: z.number().int().nonnegative(),
+    })
+    .strict(),
+);
+export type DroraPersonaForgetPreferenceResult = z.infer<
+  typeof droraPersonaForgetPreferenceResultSchema
+>;
+
+export const droraPersonaListPreferencesParamsSchema = z.object({}).strict();
+export const droraPersonaListPreferencesResultSchema = personaManagementResultSchema(
+  z
+    .object({
+      preferences: z
+        .array(
+          z
+            .object({
+              key: personaPreferenceKeySchema,
+              // active 槽为当前值；forgotten 槽为空串（应用可访问正文已清）。
+              value: z.string(),
+              revision: z.number().int().nonnegative(),
+              keyGeneration: z.number().int().nonnegative(),
+              // P1b（合同 §1.2）：自动提取＝extraction/inferred。旧 CLI 不带新字段时
+              // 缺省回 settings/explicit（可选字段，不做 .default 注入以保持 wire 纯净）。
+              provenanceKind: z.enum(["settings", "extraction"]),
+              epistemicStatus: z.enum(["explicit", "inferred"]),
+              pinned: z.boolean(),
+              // P1b 争议/抑制/候选关联（合同 §6）。disputed/autoSuppressed 解析后必填
+              // （z.default）：P1a 时代的直通 fixture/旧 CLI 不带这两个键，按「无争议/
+              // 未抑制」缺省解析；新 CLI（personaControlV1 双端同版发货）恒发。缺省值
+              // 只是对旧 wire 载荷的解析 accommodation，不是跨版本语义承诺。
+              disputed: z.boolean().default(false),
+              autoSuppressed: z.boolean().default(false),
+              pendingCandidate: z
+                .object({
+                  proposedValue: z.string(),
+                  evidenceId: nonEmptyString,
+                  expectedGeneration: z.number().int().nonnegative(),
+                  createdAt: z.number().int().nonnegative(),
+                })
+                .strict()
+                .optional(),
+              updatedAt: z.number().int().nonnegative(),
+              status: z.enum(["active", "forgotten"]),
+            })
+            .strict(),
+        )
+        .max(16),
+    })
+    .strict(),
+);
+export type DroraPersonaListPreferencesResult = z.infer<
+  typeof droraPersonaListPreferencesResultSchema
+>;
+
+export const droraPersonaPrepareExportParamsSchema = z.object({}).strict();
+export const droraPersonaPrepareExportResultSchema = personaManagementResultSchema(
+  z
+    .object({
+      format: z.literal(PERSONA_EXPORT_FORMAT),
+      formatVersion: z.literal(PERSONA_EXPORT_FORMAT_VERSION),
+      capturedAt: nonEmptyString,
+      coreRevision: z.number().int().nonnegative(),
+      policyRevision: z.number().int().nonnegative(),
+      core: personaEditableCoreSchema,
+      templateVersion: z.number().int().nonnegative(),
+      compilerVersion: z.number().int().nonnegative(),
+      preferences: z
+        .array(
+          z
+            .object({
+              key: personaPreferenceKeySchema,
+              value: z.string(),
+              revision: z.number().int().nonnegative(),
+              provenanceKind: z.literal("settings"),
+              epistemicStatus: z.literal("explicit"),
+            })
+            .strict(),
+        )
+        .max(16),
+      omittedCounts: z
+        .object({ inferredOmittedUnverifiable: z.number().int().nonnegative() })
+        .strict(),
+      limitations: z.array(z.string()),
+    })
+    .strict(),
+);
+export type DroraPersonaPrepareExportResult = z.infer<
+  typeof droraPersonaPrepareExportResultSchema
+>;
+
+// ── P1b 有限学习管理（合同 §3 allowLearningForKey 与 P1b 读侧概览；spec §5/§8）──
+// allowLearningForKey：解除该键抑制并 generation++（合同 §4.2「只接受之后的新机会」）；
+// CAS 前置是该键当前 generation（槽缺席按 0）。争议不由它解决——保存/忘记才是争议解决路径。
+// getPersonaLearningOverview：来源/预算/工作概览读侧；行形状与 adapters 仓储只读方法
+// （readSnapshot.policy / readLearningBudgetUsage / readInferredSlotSources）逐键对齐，
+// 计数与 bootstrap 学习消费者 PersonaLearningCounters 逐键对齐（P1a 教训：wire strict 与
+// 仓储行形状冲突只能在协议分发测试里暴露）。上界引用 shared PERSONA_LEARNING_BUDGET。
+
+export const droraPersonaAllowLearningParamsSchema = z
+  .object({
+    key: personaPreferenceKeySchema,
+    expectedGeneration: z.number().int().nonnegative(),
+    mutationId: nonEmptyString,
+  })
+  .strict();
+export const droraPersonaAllowLearningResultSchema = personaManagementResultSchema(
+  z.union([
+    z
+      .object({
+        status: z.literal("saved"),
+        revision: z.number().int().nonnegative(),
+        keyGeneration: z.number().int().nonnegative(),
+      })
+      .strict(),
+    z.object({ status: z.literal("unchanged") }).strict(),
+  ]),
+);
+export type DroraPersonaAllowLearningResult = z.infer<
+  typeof droraPersonaAllowLearningResultSchema
+>;
+
+export const droraPersonaGetLearningOverviewParamsSchema = z.object({}).strict();
+export const droraPersonaGetLearningOverviewResultSchema = personaManagementResultSchema(
+  z.union([
+    z
+      .object({
+        state: z.literal("initialized"),
+        policy: z
+          .object({
+            usePreferences: z.boolean(),
+            autoLearn: z.boolean(),
+            policyRevision: z.number().int().nonnegative(),
+            policyEpoch: z.number().int().nonnegative(),
+            learningGeneration: z.number().int().nonnegative(),
+          })
+          .strict(),
+        // UTC 日预算台账（adapters readLearningBudgetUsage 行）；上界常量由 UI 从
+        // shared PERSONA_LEARNING_BUDGET 取，不在 wire 重复。
+        budget: z
+          .object({
+            day: nonEmptyString,
+            attemptsUsed: z
+              .number()
+              .int()
+              .nonnegative()
+              .max(PERSONA_LEARNING_BUDGET.dailyModelAttemptsMax),
+            inputTokensUsed: z
+              .number()
+              .int()
+              .nonnegative()
+              .max(PERSONA_LEARNING_BUDGET.dailyInputTokensMax),
+            outputTokensUsed: z
+              .number()
+              .int()
+              .nonnegative()
+              .max(PERSONA_LEARNING_BUDGET.dailyOutputTokensMax),
+          })
+          .strict(),
+        // inferred 槽合并来源定位（无正文；每键 ≤mergedSourcesMaxPerKey、全表 ≤键数×上界）。
+        sources: z
+          .array(
+            z
+              .object({
+                key: personaPreferenceKeySchema,
+                evidenceId: nonEmptyString,
+                workspaceKey: nonEmptyString,
+                sessionId: nonEmptyString,
+              })
+              .strict(),
+          )
+          .max(
+            Object.keys(PERSONA_PREFERENCE_KEYS).length *
+              PERSONA_LEARNING_BUDGET.mergedSourcesMaxPerKey,
+          ),
+        // 本 CLI 进程学习消费者计数（固定类别；跨进程不聚合，UI 不得当全局事实展示）。
+        counters: z
+          .object({
+            received: z.number().int().nonnegative(),
+            droppedQueueFull: z.number().int().nonnegative(),
+            acceptAccepted: z.number().int().nonnegative(),
+            acceptAlreadyAccepted: z.number().int().nonnegative(),
+            acceptSkipped: z.record(z.string(), z.number().int().nonnegative()),
+            workApplied: z.number().int().nonnegative(),
+            workNoChange: z.number().int().nonnegative(),
+            workRejected: z.number().int().nonnegative(),
+            workRetryWait: z.number().int().nonnegative(),
+            workConflicts: z.number().int().nonnegative(),
+            orchestrationErrors: z.number().int().nonnegative(),
+          })
+          .strict(),
+      })
+      .strict(),
+    z.object({ state: z.literal("uninitialized") }).strict(),
+  ]),
+);
+export type DroraPersonaGetLearningOverviewResult = z.infer<
+  typeof droraPersonaGetLearningOverviewResultSchema
+>;
+
+
 export const droraProtocolMethods = {
   runtimeCapabilities: "runtime/capabilities",
   computerUseOperationEvent: "computer-use/operation-event",
@@ -4320,6 +4776,23 @@ export const droraProtocolMethods = {
   // agent 只读 vault 检索（VaultSearch 工具，obsidian-knowledge.md §5f）：CLI→host，
   // host 分发到进程内 knowledge query 服务；无 knowledge 服务的 host 结构化报不可用。
   knowledgeSearch: "knowledge/search",
+  // Persona P0 无会话管理（spec §4/§10、合同 §3/§4.1）：Host 经 CLI 控制连接代理，
+  // 不 session/create、不生成占位会话；wire 名单一出处 contracts/persona.ts。
+  personaGetOverview: PERSONA_PROTOCOL_METHODS.getOverview,
+  personaInitialize: PERSONA_PROTOCOL_METHODS.initialize,
+  personaGetCore: PERSONA_PROTOCOL_METHODS.getCore,
+  personaUpdateCore: PERSONA_PROTOCOL_METHODS.updateCore,
+  personaResetCore: PERSONA_PROTOCOL_METHODS.resetCore,
+  personaPreview: PERSONA_PROTOCOL_METHODS.preview,
+  personaGetApplication: PERSONA_PROTOCOL_METHODS.getApplication,
+  personaSetPolicy: PERSONA_PROTOCOL_METHODS.setPolicy,
+  personaSavePreference: PERSONA_PROTOCOL_METHODS.savePreference,
+  personaForgetPreference: PERSONA_PROTOCOL_METHODS.forgetPreference,
+  personaListPreferences: PERSONA_PROTOCOL_METHODS.listPreferences,
+  personaPrepareExport: PERSONA_PROTOCOL_METHODS.prepareExport,
+  // P1b 有限学习管理（合同 §3 allowLearningForKey＋读侧概览；wire 名单一出处 contracts）。
+  personaAllowLearningForKey: PERSONA_PROTOCOL_METHODS.allowLearningForKey,
+  personaGetLearningOverview: PERSONA_PROTOCOL_METHODS.getLearningOverview,
 } as const;
 
 export type DroraProtocolMethod = (typeof droraProtocolMethods)[keyof typeof droraProtocolMethods];

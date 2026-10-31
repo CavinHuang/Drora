@@ -133,7 +133,7 @@ import {
   resolveExplicitStartupWorkspaceBootstrap,
 } from "./startupWorkspaceDeepLinkGate.js";
 import { createWebRemoteControlManager } from "./webRemoteControlManager.js";
-import { createWebRemoteControlDeviceStorage } from "#src/main/web-remote-relay/index.js";
+import { createWebRemoteControlDeviceStorage, buildWebRemoteControlEndpointUrls } from "#src/main/web-remote-relay/index.js";
 import { createWebRemoteControlFeatureGate } from "./webRemoteControlFeatureGate.js";
 import { reconnectWebRemoteControlWorkspaceInRenderer } from "./webRemoteControlRendererReconnect.js";
 import { sendWebRemoteControlStatusChangedToWindow } from "./webRemoteControlStatusEvents.js";
@@ -939,14 +939,15 @@ let startupOpenWorkspaceRequest: ExplicitStartupWorkspaceRequest | null =
 const webRemoteControlManager = createWebRemoteControlManager({
   getEndpointUrls: async () => {
     const endpointOrigin = await resolveCurrentDroraEndpointOrigin();
-    return {
-      ...buildDroraEndpointUrls(endpointOrigin, { appVersion: webRemoteControlAppVersion }),
-      relayWsUrl: resolveWebRemoteControlRelayWsUrl({
-        endpointOrigin,
-        overrideUrl: webRemoteControlRelayWsEnvOverride,
-      }),
-      ...(webRemoteControlUrlEnvOverride ? { remoteUrl: webRemoteControlUrlEnvOverride } : {}),
-    };
+    // 远控「官方/自建 Relay」切换（specs/relay-v2-server.md §8.7）：设置键仅覆盖远控三 URL 面，
+    // manager 每次 start 现查本函数（无缓存），origin 变化的漂移防护与旧源注册清理为其既有行为。
+    return buildWebRemoteControlEndpointUrls({
+      endpointOrigin,
+      relayOriginSetting: (await mainSettingService.get()).webRemoteControlRelayOrigin,
+      appVersion: webRemoteControlAppVersion,
+      relayWsUrlEnvOverride: webRemoteControlRelayWsEnvOverride,
+      remoteUrlEnvOverride: webRemoteControlUrlEnvOverride,
+    });
   },
   relayWsUrl: resolveWebRemoteControlRelayWsUrl({
     endpointOrigin: DEFAULT_DRORA_ENDPOINT_ORIGIN,
@@ -1146,6 +1147,14 @@ function syncImmediateAppSettings(patch: ReturnType<typeof appSettingsPatchSchem
       patch.receivePreviewUpdates,
       "settings receivePreviewUpdates changed",
     );
+  }
+
+  if ("webRemoteControlRelayOrigin" in patch) {
+    // 弹窗内的正常切换路径是「保存 → stop → 轮询自动重启」，不经过这里；
+    // 此分支兜底弹窗外的设置写入（Host RPC 直改），避免旧源会话挂着不下线。
+    // 用 in 判断而非 !== undefined：空串哨兵（切回官方）经 schema 归一后键值是 undefined，
+    // 同样需要挂起旧源会话。落盘已完成（useSettings.update 先 await settingService.update 再走本通道）。
+    void suspendWebRemoteControlForEndpointChange();
   }
 
   if (patch.shortcutBindings !== undefined) {
@@ -1576,6 +1585,13 @@ async function resolveDroraEndpointSelection(): Promise<"production" | "test" | 
 
 async function handleDroraEndpointChanged() {
   rebuildMenu();
+  await suspendWebRemoteControlForEndpointChange();
+}
+
+// 远控「官方/自建 Relay」切换（specs/relay-v2-server.md §8.7）：relay origin 设置在弹窗外被改
+// 且远控运行中时，挂起当前运行时（保留 startup-restore 上下文），后续由 renderer 的
+// restorePreviouslyEnabled 以新源重启。不 rebuild 菜单——该键不影响全局 endpoint 面。
+async function suspendWebRemoteControlForEndpointChange() {
   for (const win of getApplicationWindowsExcludingCuaIndicator()) {
     await webRemoteControlManagerRef.current?.suspend(win.id, "endpoint-changed");
   }

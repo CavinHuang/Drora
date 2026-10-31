@@ -1,4 +1,5 @@
 import { buildToolExposure } from "../../tool/search/exposure.js";
+import { applyPersonaContribution, type PersonaContribution } from "../../persona/index.js";
 import type { ModelToolContract } from "@drora/contracts";
 import type { RuntimeMessageEntry } from "../../agent/message-history.js";
 import type { ToolRegistry } from "../../tool/registry.js";
@@ -15,6 +16,8 @@ type RequestRuntime = {
 
 interface MessageProjectionInput {
   entries: readonly RuntimeMessageEntry[];
+  /** Explicit main-request contribution; omitted by auxiliary requests. */
+  contribution?: PersonaContribution;
   applyCacheControl?: boolean;
   skipCacheWrite?: boolean;
   model: Model;
@@ -39,6 +42,7 @@ export function prepareRuntimeProviderRequest(
     entries: input.entries,
   });
   const projection = buildRuntimeProviderRequestMessages(runtime, {
+    contribution: input.contribution,
     entries:
       input.prompt === undefined
         ? exposure.entries
@@ -71,8 +75,11 @@ export function buildRuntimeProviderRequestMessages(
   const useMidConversationSystem =
     runtime.config.midConversationSystem?.mode === "force" ||
     input.model.properties.supportsMidConversationSystem;
-  return buildProviderRequestMessages({
-    ...input,
-    useMidConversationSystem,
-  });
+  return applyPersonaContribution(
+    buildProviderRequestMessages({
+      ...input,
+      useMidConversationSystem,
+    }),
+    input.contribution,
+  );
 }

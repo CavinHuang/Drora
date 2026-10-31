@@ -1,5 +1,13 @@
 # Conversation Session E2E Coverage Matrix
 
+## Persona v5 覆盖计划（2026-10-29）
+
+| 合同入口 | 设计状态 | 测试实现 | 运行证据 | 后续 |
+| --- | --- | --- | --- | --- |
+| [PM01–PM58](../design/drora-persona-system-impact-2026-10-28.md#coverage-matrix--分期) | accepted design | missing | none | 按 P0/P1/P2 分期建立 manual-review、capture、replay 与 promotion；尚无测试文件或 CI admission |
+
+这是覆盖缺口登记，不计为已有自动化。Desktop continuous 与手机 replayable 分别验收；PM47/48 的真实模型部分另留实验记录。本轮不修改下文既有覆盖结果。
+
 ## Agents Team UI 增量（2026-10-19）
 
 ATUI04–11：同一 renderer-only pending 用例扩展，历史传输使用标注的 synthetic ACK。

@@ -53,6 +53,9 @@ services:
       args:
         # :? 语法=未设置时 compose 配置解析即失败——必填约束在编排层显式生效
         DRORA_PUBLIC_ORIGIN: ${DRORA_PUBLIC_ORIGIN:?DRORA_PUBLIC_ORIGIN 必填（自建域，如 https://relay.example.com；手机页 OAuth redirect_uri 构建期烘焙，spec §8.2）}
+        # 自有 OAuth 应用（spec §8.5/§8.7）：.env 可选提供，缺省不传=沿用官方公开 client_id/appId
+        VITE_ZAI_OAUTH_CLIENT_ID: "${VITE_ZAI_OAUTH_CLIENT_ID:-}"
+        VITE_BIGMODEL_OAUTH_APP_ID: "${VITE_BIGMODEL_OAUTH_APP_ID:-}"
         # 基础镜像/npm 源可替换（spec §8.6）：国内网络对 docker.io 直连不稳时切镜像源，
         # 例如 NODE_BUILD_IMAGE=docker.m.daocloud.io/library/node:24.14.0-bookworm、
         # NPM_REGISTRY=https://registry.npmmirror.com（.env 即可，缺省走官方）。

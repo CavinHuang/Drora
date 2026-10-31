@@ -12,7 +12,8 @@ import {
 
 /**
  * 语音契约常量与 input-intent additive 扩展守护（specs/voice-agent-integration.md
- * §2.1 / §2.2 / §9.1 验收第一条）。
+ * §2.1 / §2.2 / §9.1 验收第一条）。Persona 契约钉住在同目录 persona-contract.test.ts
+ * （P1a 起拆分以满足 max-contract-lines，经 vitest.config.ts 显式 include 进默认通道）。
  *
  * 文件名说明：spec §9.1 写 `voice.test.ts`（位置照该包测试现状）；本包 src 侧测试
  * 现状统一命名 `contract.test.ts`（gen-ui / mcp-apps / sqlite-migrations /
@@ -154,6 +155,7 @@ describe("voiceInputSourceSchema (strict, additive)", () => {
   });
 });
 
+
 describe("conversationInputIntentSchema.source with voice member", () => {
   const baseIntent = {
     sourceCommandId: "cmd-1",
@@ -183,9 +185,6 @@ describe("conversationInputIntentSchema.source with voice member", () => {
   });
 
   it("rejects an intent whose source has an unknown kind", () => {
-    expect(
-      conversationInputIntentSchema.safeParse({ ...baseIntent, source: { kind: "nope" } })
-        .success,
-    ).toBe(false);
+    expect(conversationInputIntentSchema.safeParse({ ...baseIntent, source: { kind: "nope" } }).success).toBe(false);
   });
 });

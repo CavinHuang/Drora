@@ -37,6 +37,7 @@ import type {
 import type { BackgroundResultOriginMeta, ContextUsageBreakdownItem } from "@drora/contracts";
 import type { RuntimeCommand, RuntimeCommandId } from "./command-queue.js";
 import type { RuntimeMessageEntry } from "../agent/message-history.js";
+import type { PersonaTurnApplicationQuery } from "../persona/index.js";
 import type {
   ActiveTurnInfo,
   AcquireForegroundPromotionLeaseResult,
@@ -72,6 +73,8 @@ export interface AgentRuntimeCoreMethods {
     selection: ExecutionShellSelection | (() => ExecutionShellSelection),
   ): boolean;
   getSessionShellSelection(): ExecutionShellSelection | undefined;
+  /** 切片 C：轮内人格应用状态查询口（合同 §3；turnId 不匹配或重启后如实 not_available）。 */
+  getPersonaTurnApplication(input: { turnId: string }): PersonaTurnApplicationQuery;
   getMode(): CollaborationMode;
   getPlanEnabled(): boolean;
   grantPermissionFullAccess(interactionId: string, signal?: AbortSignal): Promise<string>;

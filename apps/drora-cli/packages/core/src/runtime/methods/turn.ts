@@ -57,6 +57,7 @@ import {
   maybeStartSessionTitleGeneration,
 } from "./session-title.js";
 import type { RegularTurnLoopState } from "./turn-loop-state.js";
+import { isPersonaEligibleMainRequest } from "../../persona/index.js";
 import { finishOutputTokenRecovery } from "./turn-output-token-continuation.js";
 import { recordTurnUsageFact } from "./usage-observability.js";
 import { persistStableForkCompletionBoundary } from "./stable-fork-boundary.js";
@@ -833,6 +834,15 @@ export async function executeTurnCommand(
             : {}),
           modelStepCount: 0,
           historyRoundCount: 0,
+          // 用途资格在 admission 同步冻结（PM34：旧模型冻结前无新增 await）；
+          // 捕获在首个合格主请求前执行一次，见 turn-persona-capture.ts。
+          personaMainRequestEligible: isPersonaEligibleMainRequest({
+            automationId: options?.automationId,
+            inputSource: options?.inputSource,
+            inputVisibility: options?.inputVisibility,
+            offPeakTaskId: options?.offPeakTaskId,
+          }),
+          personaCaptureSettled: false,
           reactiveCompactAttemptedInCurrentModelStep: false,
           repeatedToolCallSignature: undefined,
           repeatedToolCallStreakCount: 0,
@@ -951,6 +961,8 @@ export async function executeTurnCommand(
             traceContext: turnTraceContext,
           });
         }
+        // P1b 机会通知（spec §8）：普通成功轮完成后非阻塞通知一次；见函数注释。
+        notifyPersonaLearningOpportunity(this, loopState);
 
         const result: TurnResult = {
           response: loopState.modelResponse,
@@ -1152,4 +1164,38 @@ function injectReferencedSessionContextReminderIntoMessageHistory(
   const reminderBody = buildReferencedSessionContextReminderBody(input);
   if (!reminderBody) return;
   this.messageHistory.addAttachment("referenced_session_context", reminderBody);
+}
+
+/**
+ * P1b 学习机会通知（specs/drora-persona-system.md §8「只在普通成功轮获得有界机会通知」）：
+ * 资格与轮内 capture 同表（admission 冻结的 personaMainRequestEligible——自动化/闲时/
+ * model-only/合成来源一律无通知）；持久边界事实（用户消息 ID + 成功 assistant 边界 ID）
+ * 缺失即跳过（合同 §6「缺证据即跳过」）。端口调用同步返回、不等待：消费者进程内自有
+ * 64 待接收上界并丢弃计数；端口抛错只记 warn，绝不影响已完成的轮次，也不写任务活动时间、
+ * 不写旧库 outbox。端口缺席（含 E off 装配）零开销。
+ */
+function notifyPersonaLearningOpportunity(
+  runtime: AgentRuntimeInternal,
+  state: RegularTurnLoopState,
+): void {
+  const port = runtime.personaLearningNotificationPort;
+  if (!port || !state.personaMainRequestEligible) return;
+  const boundaryMessageId =
+    state.stableBoundaryAssistantMessageId ?? runtime.latestConversationMessageId;
+  if (!state.userMessageId || !boundaryMessageId) return;
+  try {
+    port.notifyLearningOpportunity({
+      sessionId: runtime.sessionId,
+      turnId: state.turnId,
+      userMessageId: state.userMessageId,
+      boundaryMessageId,
+    });
+  } catch (error) {
+    runtime.logger?.warn("Persona learning notification failed; opportunity dropped", {
+      errorMessage: error instanceof Error ? error.message : String(error),
+      event: "persona.learning.notify_failed",
+      module: "core.runtime",
+      turnId: state.turnId,
+    });
+  }
 }

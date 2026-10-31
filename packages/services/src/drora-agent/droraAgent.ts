@@ -31,6 +31,19 @@ import type {
   DroraMcpListResult,
   DroraPluginsListResult,
   DroraPluginsOverviewResult,
+  DroraPersonaCoreResult,
+  DroraPersonaGetApplicationResult,
+  DroraPersonaInitializeResult,
+  DroraPersonaOverviewResult,
+  DroraPersonaPreviewResult,
+  DroraPersonaAllowLearningResult,
+  DroraPersonaCoreMutationResult,
+  DroraPersonaForgetPreferenceResult,
+  DroraPersonaGetLearningOverviewResult,
+  DroraPersonaListPreferencesResult,
+  DroraPersonaPrepareExportResult,
+  DroraPersonaSavePreferenceResult,
+  DroraPersonaSetPolicyResult,
   DroraPluginsMarketplaceMutationResult,
   DroraPluginsInstallResult,
   DroraPluginsReferenceCatalogResult,
@@ -765,6 +778,59 @@ export interface IDroraAgentService {
     operationId: string,
   ): Event<DroraPluginOperationProgressNotification>;
   getPluginsOverview(params: DroraAgentPluginViewParams): Promise<DroraPluginsOverviewResult>;
+  // Persona P0 无会话管理代理（spec §10、合同 §3/§4.1）：走本机 CLI 控制连接；
+  // 控制域由 CLI 服务绑定，UI 先经 hello.capabilities.personaControlV1 判断再调用。
+  getPersonaOverview(): Promise<DroraPersonaOverviewResult>;
+  initializePersona(params: { mutationId: string }): Promise<DroraPersonaInitializeResult>;
+  getPersonaCore(): Promise<DroraPersonaCoreResult>;
+  updatePersonaCore(params: {
+    expectedRevision: number;
+    patch: Record<string, unknown>;
+    mutationId: string;
+  }): Promise<DroraPersonaCoreMutationResult>;
+  resetPersonaCore(params: {
+    expectedRevision: number;
+    mutationId: string;
+  }): Promise<DroraPersonaCoreMutationResult>;
+  previewPersona(params: {
+    draft: Record<string, unknown>;
+    situationId?: string;
+  }): Promise<DroraPersonaPreviewResult>;
+  /** 独立应用状态查询（合同 §3）：随目标会话所在 CLI 连接代理；重启后 CLI 如实 not_available。 */
+  getPersonaApplication(
+    params: DroraAgentSessionTarget & { turnId: string },
+  ): Promise<DroraPersonaGetApplicationResult>;
+  // P1a 使用策略/交流默认/导出（合同 §1.2/§3/§4.2/§7）：同一本机 CLI 控制连接代理；
+  // 错误码语义由 CLI 服务层给出，本层只透传。P1b（合同 §3）：autoLearn 是 L patch
+  //（缺省＝保持当前值；关 U 的级联由 CLI 存储侧执行），allowLearningForKey 解除该键
+  // 抑制，getPersonaLearningOverview 读侧概览。
+  setPersonalPolicy(params: {
+    expectedPolicyRevision: number;
+    usePreferences: boolean;
+    autoLearn?: boolean;
+    mutationId: string;
+  }): Promise<DroraPersonaSetPolicyResult>;
+  savePreference(params: {
+    key: string;
+    value: string;
+    expectedRevision: number;
+    mutationId: string;
+  }): Promise<DroraPersonaSavePreferenceResult>;
+  forgetPreference(params: {
+    key: string;
+    expectedRevision: number;
+    mutationId: string;
+  }): Promise<DroraPersonaForgetPreferenceResult>;
+  listPreferences(): Promise<DroraPersonaListPreferencesResult>;
+  preparePersonaExport(): Promise<DroraPersonaPrepareExportResult>;
+  /** P1b（合同 §3 allowLearningForKey）：解除该键自动学习抑制（generation++ 屏障）。 */
+  allowLearningForKey(params: {
+    key: string;
+    expectedGeneration: number;
+    mutationId: string;
+  }): Promise<DroraPersonaAllowLearningResult>;
+  /** P1b 读侧概览（persona/getPersonaLearningOverview）：策略事实/预算台账/来源定位/进程计数。 */
+  getPersonaLearningOverview(): Promise<DroraPersonaGetLearningOverviewResult>;
   /**
    * 资源管理器：枚举本 Host 内全部本地 Agent 进程（含 plugin / mcp-status 泳道），
    * 并向每个存活 runtime 请求 `process/childProcesses`；单个 runtime 失败只让它的 children 为空。

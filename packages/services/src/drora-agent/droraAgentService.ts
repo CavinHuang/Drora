@@ -16,6 +16,22 @@ import {
   requestVerificationInteractionAvailable,
 } from "@drora/shared";
 import { droraMcpUiSamplingResultSchema } from "@drora/shared";
+import {
+  droraPersonaGetApplicationParamsSchema,
+  droraPersonaGetApplicationResultSchema,
+  droraPersonaGetCoreResultSchema,
+  droraPersonaGetLearningOverviewResultSchema,
+  droraPersonaGetOverviewResultSchema,
+  droraPersonaInitializeResultSchema,
+  droraPersonaAllowLearningResultSchema,
+  droraPersonaForgetPreferenceResultSchema,
+  droraPersonaListPreferencesResultSchema,
+  droraPersonaPrepareExportResultSchema,
+  droraPersonaPreviewResultSchema,
+  droraPersonaSavePreferenceResultSchema,
+  droraPersonaSetPolicyResultSchema,
+  droraPersonaUpdateCoreResultSchema,
+} from "@drora/shared";
 import { MCP_APPS_SAMPLING_TRANSPORT_TIMEOUT_MS } from "@drora/shared/mcp-apps";
 import {
   channelReplyRequestSchema,
@@ -29,7 +45,10 @@ import {
   type LocalTtftFacts,
 } from "@drora/shared";
 /* oxlint-disable eslint(max-lines) -- Drora Protocol transport、通知 wiring 和 app-facing session 方法必须共享同一个 client/emitter 上下文。 */
-import { ensureIndependentPlanSupport } from "./independentPlanSupport.js";
+import {
+  attachPersonaEnabledForCapability,
+  ensureIndependentPlanSupport,
+} from "./independentPlanSupport.js";
 import { createHash, randomUUID } from "node:crypto";
 import { createTopicResourceBridge } from "./topicResourceBridge.js";
 import { uploadTopicResourceToClient } from "./topicResourceUpload.js";
@@ -405,6 +424,8 @@ const MCP_STATUS_LANE_IDLE_TIMEOUT_MS = 5 * 60_000;
 // 官方 Claude marketplace 首次接入需要 clone/copy GitHub 仓库，30s 默认协议超时会杀掉健康 agent。
 // 插件市场管理属于低频网络 I/O 操作，单独放宽超时，不影响普通会话消息的实时失败边界。
 const PLUGIN_MANAGEMENT_REQUEST_TIMEOUT_MS = 5 * 60_000;
+/** Persona 管理请求超时：管理域 store 预算 5s（合同 §2），30s 覆盖控制进程冷启动。 */
+const PERSONA_MANAGEMENT_REQUEST_TIMEOUT_MS = 30_000;
 /** 资源管理器每秒刷新；子进程映射是纯内存请求，超时就当本轮无映射，不能拖慢采样节拍。 */
 const CHILD_PROCESSES_REQUEST_TIMEOUT_MS = 800;
 const PLUGIN_OPERATION_CANCEL_REQUEST_TIMEOUT_MS = 5_000;
@@ -2567,6 +2588,10 @@ export function createDroraAgentService(
                     memoryEnabled: false,
                   },
                 );
+                // 执行许可 E 的附加门（合同 §4.1）：只有当前 CLI 连接宣告
+                // personaControlV1 才保留 personaEnabled；旧 CLI 的 strict schema
+                // 收到未知键会解析失败，必须原地剥掉。能力缓存按连接实例保存。
+                preferences = await attachPersonaEnabledForCapability(client, preferences);
                 if (
                   parsed.data.scope === "runtime-materialization" &&
                   options?.resolveSessionDirectories
@@ -3626,6 +3651,14 @@ export function createDroraAgentService(
     const client = await pluginProcessManager.getClient(workspace);
     wireClient(client, workspace, "plugin");
     return client;
+  }
+
+  // Persona 无会话管理（spec §4/§10、合同 §4.1）：复用同一 CLI 控制面进程（本机同可信
+  // 本地资料域）——不 session/create、不生成占位会话、不绑定远程 workspace。authority
+  // 不按「最近活跃 workspace 的 CLI」假推：调用方以 overview 返回的 personaId/状态确认
+  // 资料身份。管理方法对旧 CLI 是 method-not-found，能力门在 UI 侧 personaControlV1 位。
+  async function getPersonaControlClient(): Promise<DroraProtocolClient> {
+    return getPluginManagementClient();
   }
 
   // 全局工作流的载体运行时选择：
@@ -5041,6 +5074,189 @@ export function createDroraAgentService(
       );
     },
 
+    // ── Persona P0 无会话管理代理（spec §10、合同 §3/§4.1）──
+    // 走本机 CLI 控制连接（getPersonaControlClient），控制域由 CLI 服务绑定；
+    // P0/P1 不对手机/远端开放（UI 经 hello.capabilities.personaControlV1 判断）。
+
+    async getPersonaOverview() {
+      const client = await getPersonaControlClient();
+      return client.request(
+        droraProtocolMethods.personaGetOverview,
+        {},
+        droraPersonaGetOverviewResultSchema,
+        { timeoutMs: PERSONA_MANAGEMENT_REQUEST_TIMEOUT_MS },
+      );
+    },
+
+    async initializePersona(params: { mutationId: string }) {
+      const client = await getPersonaControlClient();
+      return client.request(
+        droraProtocolMethods.personaInitialize,
+        { mutationId: params.mutationId },
+        droraPersonaInitializeResultSchema,
+        { timeoutMs: PERSONA_MANAGEMENT_REQUEST_TIMEOUT_MS },
+      );
+    },
+
+    async getPersonaCore() {
+      const client = await getPersonaControlClient();
+      return client.request(
+        droraProtocolMethods.personaGetCore,
+        {},
+        droraPersonaGetCoreResultSchema,
+        { timeoutMs: PERSONA_MANAGEMENT_REQUEST_TIMEOUT_MS },
+      );
+    },
+
+    async updatePersonaCore(
+      params: { expectedRevision: number; patch: Record<string, unknown>; mutationId: string },
+    ) {
+      const client = await getPersonaControlClient();
+      return client.request(
+        droraProtocolMethods.personaUpdateCore,
+        params,
+        droraPersonaUpdateCoreResultSchema,
+        { timeoutMs: PERSONA_MANAGEMENT_REQUEST_TIMEOUT_MS },
+      );
+    },
+
+    async resetPersonaCore(params: { expectedRevision: number; mutationId: string }) {
+      const client = await getPersonaControlClient();
+      return client.request(
+        droraProtocolMethods.personaResetCore,
+        params,
+        droraPersonaUpdateCoreResultSchema,
+        { timeoutMs: PERSONA_MANAGEMENT_REQUEST_TIMEOUT_MS },
+      );
+    },
+
+    async previewPersona(
+      params: { draft: Record<string, unknown>; situationId?: string },
+    ) {
+      const client = await getPersonaControlClient();
+      return client.request(
+        droraProtocolMethods.personaPreview,
+        params,
+        droraPersonaPreviewResultSchema,
+        { timeoutMs: PERSONA_MANAGEMENT_REQUEST_TIMEOUT_MS },
+      );
+    },
+
+    // ── P1a 使用策略/交流默认/导出（合同 §1.2/§3/§4.2/§7）：同一控制连接代理，只透传 ──
+    // P1b：setPersonalPolicy 透传 autoLearn patch（缺省不发明键）；allowLearningForKey 与
+    // getPersonaLearningOverview 是合同 §3 的学习管理方法，同一无会话控制端口。
+
+    async setPersonalPolicy(
+      params: {
+        expectedPolicyRevision: number;
+        usePreferences: boolean;
+        autoLearn?: boolean;
+        mutationId: string;
+      },
+    ) {
+      const client = await getPersonaControlClient();
+      return client.request(
+        droraProtocolMethods.personaSetPolicy,
+        {
+          expectedPolicyRevision: params.expectedPolicyRevision,
+          usePreferences: params.usePreferences,
+          // P1b patch 语义：缺省＝保持当前 autoLearn（wire strict 拒未知字段，可选键缺席即不发明）。
+          ...(params.autoLearn === undefined ? {} : { autoLearn: params.autoLearn }),
+          mutationId: params.mutationId,
+        },
+        droraPersonaSetPolicyResultSchema,
+        { timeoutMs: PERSONA_MANAGEMENT_REQUEST_TIMEOUT_MS },
+      );
+    },
+
+    async savePreference(
+      params: { key: string; value: string; expectedRevision: number; mutationId: string },
+    ) {
+      const client = await getPersonaControlClient();
+      return client.request(
+        droraProtocolMethods.personaSavePreference,
+        params,
+        droraPersonaSavePreferenceResultSchema,
+        { timeoutMs: PERSONA_MANAGEMENT_REQUEST_TIMEOUT_MS },
+      );
+    },
+
+    async forgetPreference(
+      params: { key: string; expectedRevision: number; mutationId: string },
+    ) {
+      const client = await getPersonaControlClient();
+      return client.request(
+        droraProtocolMethods.personaForgetPreference,
+        params,
+        droraPersonaForgetPreferenceResultSchema,
+        { timeoutMs: PERSONA_MANAGEMENT_REQUEST_TIMEOUT_MS },
+      );
+    },
+
+    async listPreferences() {
+      const client = await getPersonaControlClient();
+      return client.request(
+        droraProtocolMethods.personaListPreferences,
+        {},
+        droraPersonaListPreferencesResultSchema,
+        { timeoutMs: PERSONA_MANAGEMENT_REQUEST_TIMEOUT_MS },
+      );
+    },
+
+    async preparePersonaExport() {
+      const client = await getPersonaControlClient();
+      return client.request(
+        droraProtocolMethods.personaPrepareExport,
+        {},
+        droraPersonaPrepareExportResultSchema,
+        { timeoutMs: PERSONA_MANAGEMENT_REQUEST_TIMEOUT_MS },
+      );
+    },
+
+    // ── P1b 有限学习管理（合同 §3 allowLearningForKey＋读侧概览；spec §5/§8/§10）──
+
+    async allowLearningForKey(params: {
+      key: string;
+      expectedGeneration: number;
+      mutationId: string;
+    }) {
+      const client = await getPersonaControlClient();
+      return client.request(
+        droraProtocolMethods.personaAllowLearningForKey,
+        params,
+        droraPersonaAllowLearningResultSchema,
+        { timeoutMs: PERSONA_MANAGEMENT_REQUEST_TIMEOUT_MS },
+      );
+    },
+
+    async getPersonaLearningOverview() {
+      const client = await getPersonaControlClient();
+      return client.request(
+        droraProtocolMethods.personaGetLearningOverview,
+        {},
+        droraPersonaGetLearningOverviewResultSchema,
+        { timeoutMs: PERSONA_MANAGEMENT_REQUEST_TIMEOUT_MS },
+      );
+    },
+
+    // 独立应用状态查询（合同 §3）：随目标会话所在 CLI 连接代理，走会话级 read-only
+    // 通道；重启后的会话由 CLI 如实回答 not_available，本层不补造历史。查询是观察者：
+    // 用 existing-only（对齐 getWorkspaceRuntimeIdentity 先例），不为已死 CLI 拉起新进程
+    // ——新进程必然 not_available，付出完整启动代价（偏好/Off-Peak/工作流同步）只为得到
+    // 「未应用」无意义；无运行时按 runtime-unavailable 如实报错。
+    async getPersonaApplication(params: DroraAgentSessionTarget & { turnId: string }) {
+      const client = await getReadOnlyClient(params, "existing-only");
+      return client.request(
+        droraProtocolMethods.personaGetApplication,
+        droraPersonaGetApplicationParamsSchema.parse({
+          sessionId: params.sessionId,
+          turnId: params.turnId,
+        }),
+        droraPersonaGetApplicationResultSchema,
+        { timeoutMs: PERSONA_MANAGEMENT_REQUEST_TIMEOUT_MS },
+      );
+    },
+
     async addPluginMarketplace(params: DroraAgentAddPluginMarketplaceParams) {
       const client = await getPluginManagementClient();
       return client.request(
@@ -5730,6 +5946,11 @@ export function createDroraAgentService(
         });
         return;
       }
+      // 执行许可 E 的附加门同样约束 external authority 路径（合同 §4.1「新 Host 只有确认
+      // CLI 能力后才在既有 session/requestRuntimePreferences 的响应中附加可选 personaEnabled」）：
+      // 偏好无论来自哪个 authority，对未确认 personaControlV1 能力的 CLI 连接都必须原地剥键，
+      // 否则旧 CLI 的 strict schema 收到未知键会解析失败。能力缓存按连接实例保存。
+      preferences = await attachPersonaEnabledForCapability(pending.client, preferences);
       // 发送失败表示 transport 已关闭，不能误判为偏好校验失败并发送第二个响应。
       await pending.client.respond(pending.protocolRequestId, preferences);
       logger.info(undefined, "运行时偏好响应已回传 Agent", responseContext);

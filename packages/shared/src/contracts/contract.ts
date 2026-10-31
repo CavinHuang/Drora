@@ -7,6 +7,10 @@
  *   VOICE_INPUT_SOURCE_KIND（input-intent schema 的 kind literal 单一出处）、
  *   VOICE_SETTINGS_KEYS（appSettings 八键，与 validationAppSettings 字段名一一对应由
  *   parity 单测钉住）、VOICE_BROADCAST_CLAIM_KEY（BroadcastHub claim 键，mic 为 EG-7 预留）。
+ * - persona.ts：Persona P0 契约（specs/drora-persona-system.md §4；数据合同 §1/§2/§3）——
+ *   管理错误码封闭枚举、receipt scope/resultCode 词汇、库位置键（personas/persona.sqlite）、
+ *   schema/template/compiler 版本常量与 P0 逻辑管理 API 输入输出严格类型；
+ *   personaControlV1/personaEnabled 能力位与 wire 方法名在切片 C 随协议注册补齐。
  *
  * 行为阈值与打断词表不进本目录（renderer 行为参数，放 packages/ui/src/voice/voiceTuning.ts
  * 与 interruptionWords.ts，spec §2.1 冻结边界）。

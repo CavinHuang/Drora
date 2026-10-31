@@ -69,6 +69,33 @@ import {
   droraSessionStopParamsSchema,
   droraSessionSubscribeParamsSchema,
   droraSessionSubagentsParamsSchema,
+  droraPersonaGetApplicationParamsSchema,
+  droraPersonaGetApplicationResultSchema,
+  droraPersonaGetCoreParamsSchema,
+  droraPersonaGetCoreResultSchema,
+  droraPersonaGetLearningOverviewParamsSchema,
+  droraPersonaGetLearningOverviewResultSchema,
+  droraPersonaGetOverviewParamsSchema,
+  droraPersonaGetOverviewResultSchema,
+  droraPersonaInitializeParamsSchema,
+  droraPersonaInitializeResultSchema,
+  droraPersonaListPreferencesParamsSchema,
+  droraPersonaListPreferencesResultSchema,
+  droraPersonaAllowLearningParamsSchema,
+  droraPersonaAllowLearningResultSchema,
+  droraPersonaForgetPreferenceParamsSchema,
+  droraPersonaForgetPreferenceResultSchema,
+  droraPersonaPrepareExportParamsSchema,
+  droraPersonaPrepareExportResultSchema,
+  droraPersonaPreviewParamsSchema,
+  droraPersonaPreviewResultSchema,
+  droraPersonaResetCoreParamsSchema,
+  droraPersonaSavePreferenceParamsSchema,
+  droraPersonaSavePreferenceResultSchema,
+  droraPersonaSetPolicyParamsSchema,
+  droraPersonaSetPolicyResultSchema,
+  droraPersonaUpdateCoreParamsSchema,
+  droraPersonaUpdateCoreResultSchema,
   droraTaskTokenUsageParamsSchema,
   droraUsageStatsParamsSchema,
   droraWorkspaceGenerateTextParamsSchema,
@@ -165,6 +192,11 @@ interface SessionStartupPreferences {
   additionalDirectories?: readonly string[];
   subagentRuntimeConfigEnabled?: boolean;
   memoryEnabled: boolean;
+  /**
+   * 执行许可 E（spec §5）：runtime-materialization 响应中的可选 personaEnabled，
+   * 缺失按 false；在此处随 Runtime 新建/cold materialization 冻结，warm 不重读。
+   */
+  personaEnabled: boolean;
   modelContextBudgetStrategy: DroraModelContextBudgetStrategy;
   nativeSearchEnhancementsEnabled: boolean;
   toolSearchMode: AppToolSearchMode;
@@ -3389,6 +3421,8 @@ async function resolveSessionStartupPreferences(
     const inheritedShellSelection = source.parent.app.runtime.getSessionShellSelection();
     return {
       memoryEnabled: source.parent.memoryEnabled,
+      // 执行许可 E 随普通 fork 继承父 Runtime 的冻结值（spec §5），不重读 Host 设置。
+      personaEnabled: source.parent.personaEnabled,
       subagentRuntimeConfigEnabled: source.parent.subagentRuntimeConfigEnabled,
       modelContextBudgetStrategy: DEFAULT_DRORA_MODEL_CONTEXT_BUDGET_STRATEGY,
       nativeSearchEnhancementsEnabled: source.parent.nativeSearchEnhancementsEnabled,
@@ -3411,6 +3445,9 @@ async function resolveSessionStartupPreferences(
     additionalDirectories: runtimePreferences.additionalDirectories,
     subagentRuntimeConfigEnabled: runtimePreferences.subagentRuntimeConfigEnabled,
     memoryEnabled: runtimePreferences.memoryEnabled,
+    // 执行许可 E（spec §5）：仅新 Host 在确认 CLI 能力后附加；缺失按 false。
+    // 该值随本次 Runtime 新建/cold materialization 冻结，warm 不重读。
+    personaEnabled: runtimePreferences.personaEnabled === true,
     modelContextBudgetStrategy: DEFAULT_DRORA_MODEL_CONTEXT_BUDGET_STRATEGY,
     nativeSearchEnhancementsEnabled: runtimePreferences.nativeSearchEnhancementsEnabled,
     toolSearchMode: runtimePreferences.toolSearchMode,
@@ -3510,6 +3547,9 @@ async function createRecord(
       nativeSearchEnhancementsEnabled: startupPreferences.nativeSearchEnhancementsEnabled,
       toolSearch: { mode: startupPreferences.toolSearchMode },
       modelContextBudgetStrategy: startupPreferences.modelContextBudgetStrategy,
+      // 执行许可 E（spec §5）随 runtimeConfig 在新建/cold materialization 冻结；create-app
+      // 据此绑定 E 感知的 capture 端口，warm Runtime 不重读。
+      persona: { enabled: startupPreferences.personaEnabled },
       // Memory Settings 是现有 CLI features.memory/use 之外的总开关。只在关闭时
       // 写入 override，避免开启值反向覆盖用户已有的 CLI 禁用配置。
       ...(startupPreferences.memoryEnabled ? {} : { memory: { enabled: false } }),
@@ -3593,6 +3633,7 @@ async function createRecord(
     createdAt: now,
     eventStore,
     memoryEnabled: startupPreferences.memoryEnabled,
+    personaEnabled: startupPreferences.personaEnabled,
     subagentRuntimeConfigEnabled: startupPreferences.subagentRuntimeConfigEnabled,
     modelContextBudgetStrategy: startupPreferences.modelContextBudgetStrategy,
     nativeSearchEnhancementsEnabled: startupPreferences.nativeSearchEnhancementsEnabled,
@@ -4240,4 +4281,166 @@ function emitStateUpdated(
     workspace: record.workspace,
   };
   context.notify({ method: "state.updated", params: notification });
+}
+
+// ── Persona P0 无会话管理（spec §4/§10、合同 §3/§4.1）──
+// 控制域由服务绑定：管理方法经 deps.personaControl（进程组合层注入的独立端口）访问
+// 本 CLI 可信资料域，不接受客户端任意文件路径/dataRoot，也不 session/create、不生成
+// 占位会话；上下文会话表只被 getPersonaApplication 只读寻址（当前 Runtime 的内存事实）。
+
+export async function getPersonaOverviewOp(context: DroraProtocolAgentServerContext) {
+  parseParams(droraPersonaGetOverviewParamsSchema, {});
+  return droraPersonaGetOverviewResultSchema.parse(await requirePersonaControl(context).getPersonaOverview());
+}
+
+export async function initializePersonaOp(
+  context: DroraProtocolAgentServerContext,
+  params: unknown,
+) {
+  const input = parseParams(droraPersonaInitializeParamsSchema, params);
+  return droraPersonaInitializeResultSchema.parse(
+    await requirePersonaControl(context).initializePersona(input),
+  );
+}
+
+export async function getPersonaCoreOp(context: DroraProtocolAgentServerContext, params: unknown) {
+  parseParams(droraPersonaGetCoreParamsSchema, params);
+  return droraPersonaGetCoreResultSchema.parse(await requirePersonaControl(context).getPersonaCore());
+}
+
+export async function updatePersonaCoreOp(
+  context: DroraProtocolAgentServerContext,
+  params: unknown,
+) {
+  const input = parseParams(droraPersonaUpdateCoreParamsSchema, params);
+  return droraPersonaUpdateCoreResultSchema.parse(
+    await requirePersonaControl(context).updatePersonaCore(input),
+  );
+}
+
+export async function resetPersonaCoreOp(
+  context: DroraProtocolAgentServerContext,
+  params: unknown,
+) {
+  const input = parseParams(droraPersonaResetCoreParamsSchema, params);
+  return droraPersonaUpdateCoreResultSchema.parse(
+    await requirePersonaControl(context).resetPersonaCore(input),
+  );
+}
+
+export async function previewPersonaOp(
+  context: DroraProtocolAgentServerContext,
+  params: unknown,
+) {
+  const input = parseParams(droraPersonaPreviewParamsSchema, params);
+  return droraPersonaPreviewResultSchema.parse(
+    await requirePersonaControl(context).previewPersona(input),
+  );
+}
+
+// ── P1a 使用策略/交流默认/导出（合同 §1.2/§3/§4.2/§7）：与核心管理同走
+// deps.personaControl 端口；错误码语义由服务层给出，wire 层 strict schema 只做形状校验。
+
+export async function setPersonalPolicyOp(
+  context: DroraProtocolAgentServerContext,
+  params: unknown,
+) {
+  const input = parseParams(droraPersonaSetPolicyParamsSchema, params);
+  return droraPersonaSetPolicyResultSchema.parse(
+    await requirePersonaControl(context).setPersonalPolicy(input),
+  );
+}
+
+export async function savePreferenceOp(
+  context: DroraProtocolAgentServerContext,
+  params: unknown,
+) {
+  const input = parseParams(droraPersonaSavePreferenceParamsSchema, params);
+  return droraPersonaSavePreferenceResultSchema.parse(
+    await requirePersonaControl(context).savePreference(input),
+  );
+}
+
+export async function forgetPreferenceOp(
+  context: DroraProtocolAgentServerContext,
+  params: unknown,
+) {
+  const input = parseParams(droraPersonaForgetPreferenceParamsSchema, params);
+  return droraPersonaForgetPreferenceResultSchema.parse(
+    await requirePersonaControl(context).forgetPreference(input),
+  );
+}
+
+export async function listPreferencesOp(
+  context: DroraProtocolAgentServerContext,
+  params: unknown,
+) {
+  parseParams(droraPersonaListPreferencesParamsSchema, params);
+  const result = await requirePersonaControl(context).listPreferences();
+  return droraPersonaListPreferencesResultSchema.parse(
+    result.ok ? { ok: true, value: { preferences: result.value } } : result,
+  );
+}
+
+export async function preparePersonaExportOp(
+  context: DroraProtocolAgentServerContext,
+  params: unknown,
+) {
+  parseParams(droraPersonaPrepareExportParamsSchema, params);
+  return droraPersonaPrepareExportResultSchema.parse(
+    await requirePersonaControl(context).preparePersonaExport(),
+  );
+}
+
+// ── P1b 有限学习管理（合同 §3 allowLearningForKey＋读侧概览；spec §5/§8/§10）：
+// 与 P1a 管理同走 deps.personaControl 端口；strict schema 与仓储行/服务组合结果逐键对齐。
+
+export async function allowLearningForKeyOp(
+  context: DroraProtocolAgentServerContext,
+  params: unknown,
+) {
+  const input = parseParams(droraPersonaAllowLearningParamsSchema, params);
+  return droraPersonaAllowLearningResultSchema.parse(
+    await requirePersonaControl(context).allowLearningForKey(input),
+  );
+}
+
+export async function getPersonaLearningOverviewOp(
+  context: DroraProtocolAgentServerContext,
+  params: unknown,
+) {
+  parseParams(droraPersonaGetLearningOverviewParamsSchema, params);
+  return droraPersonaGetLearningOverviewResultSchema.parse(
+    await requirePersonaControl(context).getPersonaLearningOverview(),
+  );
+}
+
+/** 控制端口缺席（未装配）是 fail-closed 的 unsupported，不是存储故障（合同 §3）。 */
+function requirePersonaControl(context: DroraProtocolAgentServerContext) {
+  const personaControl = context.deps.personaControl;
+  if (!personaControl) {
+    throw new ProtocolRequestError(-32601, "persona control is not registered on this server");
+  }
+  return personaControl;
+}
+
+/**
+ * 独立应用状态查询（合同 §3）：sessionId 寻址本进程驻留 Runtime，turnId 匹配最近
+ * 结算记录才回答 applied/omitted；会话不存在、Runtime 无记录或 turnId 不匹配一律
+ * not_available（不伪造冷历史）。不往旧 snapshot/delta/index 加字段。
+ */
+export async function getPersonaApplicationOp(
+  context: DroraProtocolAgentServerContext,
+  params: unknown,
+) {
+  const input = parseParams(droraPersonaGetApplicationParamsSchema, params);
+  const record = context.sessions.get(input.sessionId);
+  const runtime = record?.app.runtime;
+  const status =
+    typeof runtime?.getPersonaTurnApplication === "function"
+      ? runtime.getPersonaTurnApplication({ turnId: input.turnId })
+      : undefined;
+  return droraPersonaGetApplicationResultSchema.parse(
+    status ?? { status: "not_available" as const },
+  );
 }

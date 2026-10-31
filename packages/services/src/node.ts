@@ -2661,6 +2661,10 @@ export function createLocalServices(options: {
               nativeSearchEnhancementsEnabled: settings.nativeSearchEnhancementsEnabled !== false,
               toolSearchMode: settings.toolSearchMode ?? "off",
               memoryEnabled: settings.memoryEnabled === true,
+              // Persona 执行许可 E（spec §5）：值为原 Settings 保存的用户选择。是否随本次
+              // 响应下发由 droraAgentService 的能力附加门裁决（personaControlV1 确认后保留，
+              // 旧 CLI 原地剥掉）；缺失按 false。
+              personaEnabled: settings.personaEnabled === true,
               modelContextBudgetStrategy,
               // user-execution 只消费 Shell；共享默认策略是统一 result schema 的兼容占位，
               // 不会覆盖 runtime-materialization 阶段已经固定的 strategy。

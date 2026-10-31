@@ -13,12 +13,20 @@
         "**/apps/drora-cli/packages/adapters/src/plugins/marketplace.ts",
         // MCP 连接入口沿用上游存量实现；连接屏障修复不为行数重排整个 adapter。
         "**/apps/drora-cli/packages/adapters/src/mcp/index.ts",
+        // 流式 runner 沿用上游存量大文件；workflow 未知业务码重试上限只把尝试次数递给策略表，
+        // 不为行数拆分 attempt 循环。
+        "**/apps/drora-cli/packages/adapters/src/model/runner-stream.ts",
         "**/apps/drora-cli/packages/bootstrap/src/plugins.ts",
         "**/apps/drora-cli/packages/adapters/src/storage/session-store/migrations.ts",
         "**/apps/drora-cli/packages/adapters/src/storage/session-store/sqlite-session-store.ts",
         "**/apps/drora-cli/packages/bootstrap/src/app/create-app.ts",
         "**/apps/drora-cli/packages/bootstrap/src/app/session-facade.ts",
+        // v4 权威投影沿用上游存量大文件；队列身份修复不为行数机械拆分投影器。
+        "**/apps/drora-cli/packages/bootstrap/src/drora-protocol-v4/product-projection.ts",
         "**/apps/drora-cli/packages/bootstrap/src/drora-protocol-v4/v4-gateway.ts",
+        // 后台 Agent 终态改为 originMeta 结构化下发，只补充透传与冷恢复回读；不为行数机械拆分投影。
+        "**/apps/drora-cli/packages/bootstrap/src/drora-protocol-v4/product-projection.ts",
+        "**/apps/drora-cli/packages/bootstrap/src/drora-protocol-v4/transcript-hydration.ts",
         "**/apps/drora-cli/packages/bootstrap/src/drora-protocol/server.ts",
         "**/apps/drora-cli/packages/bootstrap/src/drora-protocol/session-mapper.ts",
         "**/apps/drora-cli/packages/bootstrap/src/drora-protocol/v4-bridge.ts",
@@ -26,10 +34,15 @@
         // §21 C（2026-10-24）：team hub 有效行超 800（状态所有者单文件集中裁决，
         // 拆分归后续重构卡）——照 steering.ts 先例只 warn 不机械拆分。
         "**/apps/drora-cli/packages/core/src/team/hub.ts",
+        // model 契约继承上游存量 901 行；本次仅增加配置网络错误码，不为此拆分公共契约。
+        "**/apps/drora-cli/packages/contracts/src/model/index.ts",
+        // fork 选型回退只补一行隐藏提醒判定；不为行数机械拆分 fork 流程。
+        "**/apps/drora-cli/packages/core/src/runtime/methods/session-fork.ts",
         "**/apps/drora-cli/packages/core/src/runtime/methods/steering.ts",
         "**/apps/drora-cli/packages/core/src/runtime/methods/turn.ts",
         "**/apps/drora-cli/packages/core/src/runtime/methods/turn-model-step.ts",
         // core 包内以 --no-ignore 运行时，oxlint 按 cwd 相对路径匹配同一组存量文件。
+        "src/runtime/methods/session-fork.ts",
         "src/runtime/methods/steering.ts",
         "src/runtime/methods/turn.ts",
         "src/runtime/methods/turn-model-step.ts",

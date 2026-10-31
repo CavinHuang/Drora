@@ -22,7 +22,9 @@ import type { DroraProvider } from "./drora-task-types-core.js";
 import type { SessionWorkflowActivity } from "./drora-protocol-v4/sessions-index-workflow-activity.js";
 import type { SessionTeamActivity } from "./drora-protocol-v4/sessions-index-team-activity.js";
 import type { WebRemoteControlRpcTransportPayload } from "./web-remote-control-rpc-transport.js";
+import type { WebRemoteControlMobileLogAppPayload } from "#src/web-remote-relay/index.js";
 import type { WorkspacePurpose } from "./workspacePurpose.js";
+import type { WebRemoteControlActionPayload } from "#src/web-remote-relay/index.js";
 
 export const WEB_REMOTE_CONTROL_WORKSPACE_RECONNECT_TIMEOUT_MS = 120_000;
 // 官方 HTTP 控制面按此 wire header 关联手机连接，不能随品牌改名。
@@ -379,6 +381,7 @@ export type WebRemoteControlPlatformResponse =
   | WebRemoteControlPlatformErrorResponse;
 
 export interface WebRemoteControlExternalLocalWorkspaceBridge {
+  terminalOwnerId?: string;
   bridgeSessionId: string;
   bridgeGeneration?: number;
   recoveryId?: string;
@@ -389,6 +392,7 @@ export interface WebRemoteControlExternalLocalWorkspaceBridge {
 }
 
 export interface WebRemoteControlExternalRemoteWorkspaceBridge {
+  terminalOwnerId?: string;
   bridgeSessionId: string;
   bridgeGeneration?: number;
   recoveryId?: string;
@@ -407,6 +411,7 @@ export type WebRemoteControlExternalWorkspaceBridge =
   | WebRemoteControlExternalRemoteWorkspaceBridge;
 
 export interface WebRemoteControlBootstrapRequestPayload {
+  terminalClientSessionId?: string;
   zcode_type: "bootstrap-request";
   requestId: string;
 }
@@ -436,6 +441,7 @@ export interface WebRemoteControlWorkspaceListUpdatedPayload {
 }
 
 export interface WebRemoteControlWorkspaceBridgeOpenPayload {
+  terminalClientSessionId?: string;
   zcode_type: "workspace-bridge-open";
   requestId: string;
   bridgeSessionId: string;
@@ -562,7 +568,8 @@ export interface WebRemoteControlBridgeDegradedPayload {
     | "rpc-frame-gap"
     | "buffer-overflow"
     | "buffer-timeout"
-    | "source-session-replaced";
+    | "source-session-replaced"
+    | "terminal-owner-ended";
   seq?: number;
   expectedSeq?: number;
   droppedCount?: number;
@@ -626,7 +633,9 @@ export type WebRemoteControlAppPayload =
   | WebRemoteControlRpcTransportPayload
   | WebRemoteControlBridgeDegradedPayload
   | WebRemoteControlAppErrorPayload
-  | WebRemoteControlMobileDiagnosticPayload;
+  | WebRemoteControlMobileDiagnosticPayload
+  | WebRemoteControlActionPayload
+  | WebRemoteControlMobileLogAppPayload;
 
 export interface WebRemoteControlWorkspaceTarget {
   workspacePath: string;

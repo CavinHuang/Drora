@@ -81,10 +81,10 @@
 
 前置：P1；S6 的必要治理子批可提前列明为 S6-pre。
 
-- [ ] S1-01 将 root scripts/依赖/overrides/patch/tsconfig 与 D01/D06/D07 合同合并；保留 CLI 版本策略、自研 packages、seed 排除、CI 闭包修复。
-- [ ] S1-02 shared/rpc 严格类型及 runtime schema 增量：lifecycle、v4 input prediction/session-data、relay mobile push、data-sync、platform/capabilities。
-- [ ] S1-03 保留 Team/Persona/Vault/Voice/Pet/Relay 自研契约、公共导出和权限；生产消费全链 grep，常量唯一出处，改名豁免逐项对照。
-- [ ] S1-04 跑 shared/rpc 与契约相关验证；列出待 S2–S5 消费方修复的中间态，完成覆盖/保真/一致性三项复核并保存提交/ledger。
+- [x] S1-01 将 root scripts/依赖/overrides/patch/tsconfig 与 D01/D06/D07 合同合并；保留 CLI 版本策略、自研 packages、seed 排除、CI 闭包修复。
+- [x] S1-02 shared/rpc 严格类型及 runtime schema 增量：lifecycle、v4 input prediction/session-data、relay mobile push、data-sync、platform/capabilities。
+- [x] S1-03 保留 Team/Persona/Vault/Voice/Pet/Relay 自研契约、公共导出和权限；生产消费全链 grep，常量唯一出处，改名豁免逐项对照。
+- [x] S1-04 跑 shared/rpc 与契约相关验证；列出待 S2–S5 消费方修复的中间态，完成覆盖/保真/一致性三项复核并保存提交/ledger。
 
 ## S2：CLI 与运行时（920 路径）
 
@@ -200,3 +200,13 @@ rollback checkpoint:
 4. 当前 149 文本冲突、367 删除本地修改、314 文本 clean 语义合并均未解决或验证；“预演完成”不等于“可以直接合入”。
 | 2026-10-31 18:50 | P0-01–06 | refs 锚点六枚；9 worktree/4 领先分支/1 stash 冻结不动；规划文档入集成分支 5481c73d7；升级前基线电池全绿（vitest 4+16+17+10 文件、node:test 53 过） | baseline-gap 4 项登记（persona 实验门/relay GUI/teamApproval tsx 注册缺口/跨平台准入）；P1 启动 |
 | 2026-10-31 19:10 | P1-01–09,11 | D01–D08 裁决入 spec §6.1；apply-ledger 工具+10 回归全绿；分类 10,164 行（needs-owner 真交互面 86）；六段重放与规划轮逐数一致（149 冲突/314 clean/385 决策/漂移 0） | P1-10 blocked（无 v3.17.1 bundle，官方应用仅 3.16.3）；S1 启动 |
+
+## S1 执行补记（2026-10-31 19:25）
+
+- 应用：apply-ledger S1 真实应用 281 路径（12 冲突全解 + 24 决策 keep-ours + 3 skip=lockfile×2/already-deleted×1）；零漂移零错误。
+- 冲突裁决：channels.ts 恢复官方 ReconnectWorkspace 键（上游 8 处活跃使用，我方区域已有同键去重）+新增 RendererAction；platform.ts 保桌宠三方法、删我方重复 ReconnectWorkspace 声明（官方类型版在下方合并区，S4 对齐实现）、收 syncTelemetryContext；protocol/index 与 transport capability 键并集（persona+residentRowsRange+inputPrediction）；index.ts 尾部并集（Knowledge/Persona 协议块 + 上游 SessionLifecycle 契约块= D02 wire 合同落地）；apply.ts 取 theirs（findLastIndex 性能）；command.ts 双 import；vitest/package.json/arch-policy 按 D01/D06/D07 重组；NOTICE 取 theirs（上游更新源行为变更：打包版忽略 feed env）；oxlint 豁免并集；vscode 取 theirs。
+- D01 落地：vitest.config.ts 三工程（engineering 上游 157 清单 + drora 500 保留 + drora-fork-isolated 22 串行）；scripts/drora-test-files.json 与 drora-isolated-test-files.json 由 generate-drora-test-files.mjs 生成（剔除上游退役 1926 中的未改项；各段删除后重跑收敛，S6 冻结）；package.json 退役 test:unit:vitest/affected/coverage，保留 test:unit:node/test:upstream-cli，新增 test:drora；version→3.17.1（D06）。
+- S6-pre 子批提前落地（15 行）：engineering-tests/{process,scope}.mjs、run-affected-engineering-tests.mjs、engineering-test-files.json、retired-app-unit-evidence/pre-push-worktree/affected-engineering-test-cli/e2e-remote-targets 测试与脚本、旧 affected-unit-tests 族删除（UP05497 决策 delete：旧 scope.mjs 本仓改动=台账 8 staging 回退）。
+- N2 适配：engineering-tests/scope.mjs firstPushBase 回退链 origin/staging→**drora/main**（修正 337b00b5 字面 origin/main——本仓 origin=zai-org 上游仓，用 origin/main 会与上游 merge-base 退回全量误选，即 pre-push 历史崩溃模式）；S7 补台账。
+- 门禁：shared+rpc `tsc -b` exit 0；drora 工程 shared/rpc 33 文件 317 用例全绿；relay origin 键/persona 契约键/knowledge 协议块保真抽查过；全仓源码零冲突标记（dist 产物除外）。
+- 跨段中间态（记录在案）：engineering 清单部分文件待 S3-S5 落地；__DRORA_TELEMETRY_REPORT_ENDPOINT__ 消费方随后续段一致抵达；retired-app-unit-evidence.test.mjs 断言待 S6 按 Drora 保留面适配（当前上游断言可能红）；THIRD-PARTY-NOTICES.md zone-decision 保 ours，S6 与上游新增条目并集；S4 须把 desktop ReconnectWorkspace 实现对齐官方 Request/Result 类型。

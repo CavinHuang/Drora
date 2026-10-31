@@ -1,0 +1,88 @@
+{
+ "segment": "S6",
+ "ledger": {
+  "path": "C:/Users/A/AppData/Local/Temp/s6pre.tsv",
+  "sha256": "a70c009a98761474bd46a3b4538810702ed0e4955be742834cbe3a6545cc9dcb"
+ },
+ "dry": false,
+ "counts": {
+  "add": 9,
+  "take-upstream": 0,
+  "text-clean-needs-semantic-review": 0,
+  "text-conflict": 0,
+  "delete-review": 5,
+  "delete-local-change-review": 1,
+  "zone-decision": 0,
+  "already-present": 0,
+  "lockfile-regenerate": 0,
+  "already-deleted": 0
+ },
+ "applied": [
+  {
+   "path": "scripts/affected-unit-test-baseline.mjs",
+   "action": "delete"
+  },
+  {
+   "path": "scripts/affected-unit-tests/process.mjs",
+   "action": "delete"
+  },
+  {
+   "path": "scripts/affected-unit-tests/scope.mjs",
+   "action": "delete"
+  },
+  {
+   "path": "scripts/check-e2e-remote-targets.mjs",
+   "action": "add"
+  },
+  {
+   "path": "scripts/engineering-test-files.json",
+   "action": "add"
+  },
+  {
+   "path": "scripts/engineering-tests/process.mjs",
+   "action": "add"
+  },
+  {
+   "path": "scripts/engineering-tests/scope.mjs",
+   "action": "add"
+  },
+  {
+   "path": "scripts/run-affected-engineering-tests.mjs",
+   "action": "add"
+  },
+  {
+   "path": "scripts/run-affected-unit-tests.mjs",
+   "action": "delete"
+  },
+  {
+   "path": "scripts/test/affected-engineering-test-cli.test.mjs",
+   "action": "add"
+  },
+  {
+   "path": "scripts/test/affected-unit-test-cli.test.mjs",
+   "action": "delete"
+  },
+  {
+   "path": "scripts/test/e2e-remote-targets-check.test.mjs",
+   "action": "add"
+  },
+  {
+   "path": "scripts/test/pre-push-worktree.test.mjs",
+   "action": "add"
+  },
+  {
+   "path": "scripts/test/retired-app-unit-evidence.test.mjs",
+   "action": "add"
+  },
+  {
+   "path": "scripts/test/run-affected-unit-tests.test.mjs",
+   "action": "delete"
+  }
+ ],
+ "skipped": [],
+ "conflicts": [],
+ "semanticReview": [],
+ "driftBlocked": [],
+ "decisionRequired": [],
+ "errors": []
+}

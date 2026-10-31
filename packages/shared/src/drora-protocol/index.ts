@@ -104,7 +104,10 @@ import { browserCommandResultSchema } from "../browser-use/result.js";
 import { appToolSearchModeSchema } from "../app-runtime-preferences.js";
 import { integratedTerminalShellSelectionSchema } from "../validationAppSettings.js";
 import { droraTaskModeSchema } from "../drora-task-mode-schema.js";
-import { OFFICIAL_MCP_AUTH_PORT_FAILURE_REASONS } from "../official-mcp-auth.js";
+import {
+  OFFICIAL_AUTH_CONSUMER_KINDS,
+  OFFICIAL_MCP_AUTH_PORT_FAILURE_REASONS,
+} from "../official-mcp-auth.js";
 import {
   droraSyntheticUserMessageSourceSchema as legacyDroraSyntheticUserMessageSourceSchema,
   droraDeliveryKindSchema,
@@ -129,7 +132,7 @@ import {
   droraWorkspaceRefSchema,
 } from "../drora-protocol-legacy-types.js";
 
-export * from "../localTtft.js";
+export * from "../local-ttft/contract.js";
 export {
   hookExecutionProjectionSchema,
   hookInvocationRowSchema,
@@ -149,13 +152,29 @@ export const DRORA_PROTOCOL_VERSION = 1 as const;
 // V4 wire 与 legacy 主协议并存；禁止为了 V4 physical framing 改写 legacy 版本。
 export const DRORA_PROTOCOL_V4_WIRE_VERSION = 3 as const;
 export const droraRuntimeCapabilitiesSchema = z.object({
+  sessionDirectorySource: z.boolean().optional(),
+  sessionWorkspaceRouting: z.boolean().optional(),
+  genUiContext: z.boolean().optional(),
   historyFirst: z.boolean().optional(),
   independentPlanState: z.boolean().optional(),
   // Persona 控制合同 v1（合同 §4.1）：CLI 仅在 persona 控制路由已注册时为 true；
   // 缺失/method-not-found/断线一律视为不可用，原会话继续，不试发 persona 方法。
   // 键引用 contracts 常量，与 Host↔UI 的 hello.capabilities 同一字面量。
   [PERSONA_PROTOCOL_CAPABILITY_CONTROL_V1]: z.boolean().optional(),
+  /** CLI 认识 rowsRange 的 residency 参数；旧 CLI 会剥掉它并冷恢复，Host 据此拒绝转发。 */
+  residentRowsRange: z.boolean().optional(),
 });
+export const droraRuntimeCapabilitiesParamsSchema = z
+  .object({
+    hostCapabilities: z
+      .object({
+        sessionDirectorySource: z.boolean().optional(),
+        sessionWorkspaceRouting: z.boolean().optional(),
+      })
+      .strict()
+      .optional(),
+  })
+  .strict();
 export const droraProtocolErrorCodes = {
   sessionUnavailable: -32004,
 } as const;
@@ -776,7 +795,9 @@ export const droraProtocolMcpServerSchema = z.union([
   z
     .object({
       name: nonEmptyString,
+      scope: z.enum(["user", "workspace"]).optional(),
       command: nonEmptyString,
+      cwd: nonEmptyString.optional(),
       args: z.array(z.string()),
       env: z.array(droraProtocolMcpEntrySchema),
       isolation: z.enum(["session", "workspace"]).optional(),
@@ -788,6 +809,7 @@ export const droraProtocolMcpServerSchema = z.union([
   z
     .object({
       name: nonEmptyString,
+      scope: z.enum(["user", "workspace"]).optional(),
       type: z.enum(["http", "sse"]),
       url: nonEmptyString,
       headers: z.array(droraProtocolMcpEntrySchema),
@@ -832,9 +854,38 @@ export const MCP_SERVER_FAILURE_KINDS = [
 ] as const;
 export const mcpServerFailureKindSchema = z.enum(MCP_SERVER_FAILURE_KINDS);
 export type McpServerFailureKind = z.infer<typeof mcpServerFailureKindSchema>;
+export const workspaceMcpTrustReviewSchema = z
+  .object({
+    declarationDigest: z.string().regex(/^[a-f0-9]{64}$/u),
+    sourcePaths: z.array(nonEmptyString),
+    display: z.string(),
+    trusted: z.boolean(),
+    configuredEnabled: z.boolean(),
+    transport: z.enum(["stdio", "http", "sse"]),
+  })
+  .strict();
+export type WorkspaceMcpTrustReview = z.infer<typeof workspaceMcpTrustReviewSchema>;
+export const droraWorkspaceMcpTrustParamsSchema = z
+  .object({
+    workspace: droraWorkspaceRefSchema,
+    serverName: nonEmptyString,
+    declarationDigest: z.string().regex(/^[a-f0-9]{64}$/u),
+    trusted: z.boolean(),
+  })
+  .strict();
+export const droraWorkspaceMcpTrustResultSchema = z
+  .object({
+    accepted: z.boolean(),
+    reasonCode: z
+      .enum(["workspace_mcp_declaration_changed", "workspace_mcp_trust_unavailable"])
+      .optional(),
+  })
+  .strict();
+export type DroraWorkspaceMcpTrustResult = z.infer<typeof droraWorkspaceMcpTrustResultSchema>;
 export const droraMcpServerStatusSnapshotSchema = z
   .object({
     status: droraMcpServerStatusKindSchema,
+    workspaceTrust: workspaceMcpTrustReviewSchema.optional(),
     transport: z.enum(["stdio", "http", "sse"]),
     toolCount: z.number().int().nonnegative(),
     updatedAt: nonEmptyString,
@@ -1555,6 +1606,11 @@ export const droraTurnStartedEventPayloadSchema = z
     input: z.string(),
     inputId: nonEmptyString.optional(),
     queryId: nonEmptyString.optional(),
+    // Bugfix：CLI 会把 Host 准入的后台执行归因写入 turn.started。这里漏声明时，
+    // strict 校验会丢弃整条开始事件，复用中的 Bot 私聊订阅就无法切换到新轮次。
+    automationId: nonEmptyString.optional(),
+    offPeakTaskId: nonEmptyString.optional(),
+    offPeakRunType: z.enum(["init", "resume"]).optional(),
     inputSource: droraTurnInputSourceSchema.optional(),
     inputVisibility: droraMessageVisibilitySchema.optional(),
     executionKind: z.enum(["agent", "controlOnly"]).optional(),
@@ -2082,7 +2138,7 @@ export {
   type SubagentRuntimeConfig,
 } from "../subagent-runtime-config.js";
 export const droraSubagentsReadRuntimeConfigParamsSchema = z
-  .object({ sessionId: nonEmptyString })
+  .object({ sessionId: nonEmptyString, workspace: droraWorkspaceRefSchema.optional() })
   .strict();
 
 export const DRORA_SESSION_RUNTIME_PREFERENCES_REQUEST_TIMEOUT_MS = 15_000;
@@ -2091,6 +2147,9 @@ export const droraSessionRequestRuntimePreferencesParamsSchema = z
   .object({
     sessionId: nonEmptyString,
     scope: droraSessionRuntimePreferencesScopeSchema,
+    workspace: droraWorkspaceRefSchema.optional(),
+    // CLI 依据持久化父链给出目录来源；目标 sessionId 仍保留 child 身份。
+    directorySessionId: nonEmptyString.optional(),
   })
   .strict();
 export type DroraSessionRequestRuntimePreferencesParams = z.infer<
@@ -2742,6 +2801,7 @@ export type DroraBrowserListResult = z.infer<typeof droraBrowserListResultSchema
 /** Agent 把一条 browser-use 命令发送给 app 执行。 */
 export const droraBrowserExecuteParamsSchema = z
   .object({
+    controlScopeId: nonEmptyString.optional(),
     requestId: nonEmptyString,
     sessionId: nonEmptyString,
     turnId: nonEmptyString.optional(),
@@ -2843,6 +2903,14 @@ export type DroraProviderRuntimeHeadersCancelled = z.infer<
   typeof droraProviderRuntimeHeadersCancelledSchema
 >;
 
+// 标准 JSON-RPC error 保留旧版 schema 兼容，不向严格校验的 response 增加字段。
+export const DRORA_PROVIDER_CONFIG_NETWORK_ERROR = -32032;
+
+export const droraProviderRuntimeHeadersErrorCode = {
+  configNetwork: "request_verification_config_network",
+  configInvalid: "request_verification_config_invalid",
+} as const;
+
 export const droraProviderRuntimeHeadersResponseSchema = z.discriminatedUnion("headersApplied", [
   z
     .object({
@@ -2877,15 +2945,37 @@ export type DroraProviderRuntimeHeadersResponse = z.infer<
 // Agent 进程不是用户身份权威：它把 (pluginId, mcpKey, targetOrigin) 报给 host，由 host
 // 解析当前 Coding Plan 凭证并回传本次请求的身份头。请求侧不含任何秘密。
 // 与 interaction/requestProviderRuntimeHeaders 同类：Agent 发起、host 自动响应、零 UI。
+//
+// `consumer` 缺省为 `mcp-server`（旧版 agent 不带该字段），此时必须带 `mcpKey`；
+// `plugin-command` 是官方插件命令进程经 agent 代理端点发起的请求，没有 MCP，不带 `mcpKey`，
+// host 按「套餐可选」解析：没有套餐时只给 Drora 登录身份（技术方案 5.8）。
 export const droraOfficialMcpAuthHeadersRequestParamsSchema = z
   .object({
     requestId: nonEmptyString,
     workspace: droraWorkspaceRefSchema,
     pluginId: nonEmptyString,
-    mcpKey: nonEmptyString,
+    consumer: z.enum(OFFICIAL_AUTH_CONSUMER_KINDS).optional(),
+    mcpKey: nonEmptyString.optional(),
     targetOrigin: nonEmptyString,
   })
-  .strict();
+  .strict()
+  .superRefine((params, ctx) => {
+    const isCommand = params.consumer === "plugin-command";
+    if (isCommand && params.mcpKey !== undefined) {
+      ctx.addIssue({
+        code: "custom",
+        message: "plugin-command must not carry mcpKey",
+        path: ["mcpKey"],
+      });
+    }
+    if (!isCommand && params.mcpKey === undefined) {
+      ctx.addIssue({
+        code: "custom",
+        message: "mcpKey is required for mcp-server",
+        path: ["mcpKey"],
+      });
+    }
+  });
 export type DroraOfficialMcpAuthHeadersRequestParams = z.infer<
   typeof droraOfficialMcpAuthHeadersRequestParamsSchema
 >;
@@ -3937,6 +4027,7 @@ export type DroraAutomationProtocol = z.infer<typeof droraAutomationProtocolSche
 
 export const droraAutomationCreateParamsSchema = z
   .object({
+    workspace: droraWorkspaceRefSchema.optional(),
     title: z.string().optional(),
     cronExpr: nonEmptyString,
     relativeDelayMinutes: z.number().int().positive().max(525_600).optional(),
@@ -3980,6 +4071,7 @@ export type DroraAutomationCreateProtocolResult = z.infer<typeof droraAutomation
 
 export const droraAutomationUpdateParamsSchema = z
   .object({
+    workspace: droraWorkspaceRefSchema.optional(),
     automationId: nonEmptyString,
     title: nonEmptyString.optional(),
     cronExpr: nonEmptyString.optional(),
@@ -4035,7 +4127,9 @@ export const droraAutomationUpdateResultSchema = z
   .strict();
 export type DroraAutomationUpdateProtocolResult = z.infer<typeof droraAutomationUpdateResultSchema>;
 
-export const droraAutomationListParamsSchema = z.object({}).strict();
+export const droraAutomationListParamsSchema = z
+  .object({ workspace: droraWorkspaceRefSchema.optional() })
+  .strict();
 export type DroraAutomationListProtocolParams = z.infer<typeof droraAutomationListParamsSchema>;
 export const droraAutomationListResultSchema = z
   .object({ automations: z.array(droraAutomationProtocolSchema) })
@@ -4043,7 +4137,7 @@ export const droraAutomationListResultSchema = z
 export type DroraAutomationListProtocolResult = z.infer<typeof droraAutomationListResultSchema>;
 
 export const droraAutomationCheckTaskBindingParamsSchema = z
-  .object({ targetTaskId: nonEmptyString })
+  .object({ workspace: droraWorkspaceRefSchema.optional(), targetTaskId: nonEmptyString })
   .strict();
 export type DroraAutomationCheckTaskBindingProtocolParams = z.infer<
   typeof droraAutomationCheckTaskBindingParamsSchema
@@ -4056,15 +4150,24 @@ export type DroraAutomationCheckTaskBindingProtocolResult = z.infer<
 >;
 
 export const droraAutomationDeleteParamsSchema = z
-  .object({ automationId: nonEmptyString })
+  .object({ workspace: droraWorkspaceRefSchema.optional(), automationId: nonEmptyString })
   .strict();
 export type DroraAutomationDeleteProtocolParams = z.infer<typeof droraAutomationDeleteParamsSchema>;
 export const droraAutomationDeleteResultSchema = z.object({ deleted: z.boolean() }).strict();
 export type DroraAutomationDeleteProtocolResult = z.infer<typeof droraAutomationDeleteResultSchema>;
 
+// 执行轮自暂停（CronPauseSelf）：automationId 来自 CLI loop state，Host 只在当前 workspace
+// 内做条件暂停（active 且 enabled 才转 paused）并回报是否生效。
+export const droraAutomationPauseParamsSchema = z
+  .object({ workspace: droraWorkspaceRefSchema.optional(), automationId: nonEmptyString })
+  .strict();
+export type DroraAutomationPauseProtocolParams = z.infer<typeof droraAutomationPauseParamsSchema>;
+export const droraAutomationPauseResultSchema = z.object({ paused: z.boolean() }).strict();
+export type DroraAutomationPauseProtocolResult = z.infer<typeof droraAutomationPauseResultSchema>;
+
 // ---- Off-Peak（闲时任务）会话内创建协议----
 // 与 automation 兄弟并列（独立域，禁止互相复用标记/表）。workspace 由 host 端从
-// 当前 session 注入，不进协议参数（对称 automation/create）。permissionMode 只开放产品
+// 当前 session 的已协商 workspace 注入。permissionMode 只开放产品
 // 四档词表（D29-4）；缺省解析在 host 端（D49-4：yolo / allowed_models 末位 / 最高推理档）。
 export const droraOffPeakPermissionModeSchema = z.enum([
   "build",
@@ -4077,6 +4180,7 @@ export type DroraOffPeakProtocolPermissionMode = z.infer<typeof droraOffPeakPerm
 
 export const droraOffPeakCreateParamsSchema = z
   .object({
+    workspace: droraWorkspaceRefSchema.optional(),
     title: nonEmptyString,
     prompt: nonEmptyString,
     permissionMode: droraOffPeakPermissionModeSchema.optional(),
@@ -4125,7 +4229,9 @@ export const droraOffPeakCreateResultSchema = z.discriminatedUnion("ok", [
 ]);
 export type DroraOffPeakCreateProtocolResult = z.infer<typeof droraOffPeakCreateResultSchema>;
 
-export const droraOffPeakListParamsSchema = z.object({}).strict();
+export const droraOffPeakListParamsSchema = z
+  .object({ workspace: droraWorkspaceRefSchema.optional() })
+  .strict();
 export type DroraOffPeakListProtocolParams = z.infer<typeof droraOffPeakListParamsSchema>;
 export const droraOffPeakListResultSchema = z
   .object({ tasks: z.array(droraOffPeakTaskSnapshotSchema) })
@@ -4640,7 +4746,44 @@ export type DroraPersonaGetLearningOverviewResult = z.infer<
 >;
 
 
+// Session 运行实例生命周期；不同于 session/stop（停止生成）。
+export const sessionLifecycleParamsSchema = z.object({ sessionId: z.string().min(1) }).strict();
+export const sessionLifecycleStateSchema = z.enum([
+  "unloaded",
+  "starting",
+  "ready",
+  "stopping",
+  "faulted",
+]);
+export const sessionLifecycleOperationSchema = z.enum(["ensureReady", "stop", "restart"]);
+export const sessionLifecycleFailureSchema = z
+  .object({
+    operation: sessionLifecycleOperationSchema,
+    code: z.string(),
+    message: z.string(),
+  })
+  .strict();
+export const sessionLifecycleSnapshotSchema = z
+  .object({
+    sessionId: z.string().min(1),
+    state: sessionLifecycleStateSchema,
+    generation: z.number().int().nonnegative().default(0),
+    revision: z.number().int().nonnegative().default(0),
+    lastError: sessionLifecycleFailureSchema.nullable(),
+  })
+  .strict();
+export const sessionLifecycleResultSchema = z.object({ completed: z.literal(true) }).strict();
+export type SessionLifecycleState = z.infer<typeof sessionLifecycleStateSchema>;
+export type SessionLifecycleOperation = z.infer<typeof sessionLifecycleOperationSchema>;
+export type SessionLifecycleFailure = z.infer<typeof sessionLifecycleFailureSchema>;
+export type SessionLifecycleSnapshot = z.infer<typeof sessionLifecycleSnapshotSchema>;
+
 export const droraProtocolMethods = {
+  sessionLifecycleChanged: "session/lifecycle/changed",
+  sessionLifecycleGetState: "session/lifecycle/getState",
+  sessionLifecycleEnsureReady: "session/lifecycle/ensureReady",
+  sessionLifecycleStop: "session/lifecycle/stop",
+  sessionLifecycleRestart: "session/lifecycle/restart",
   runtimeCapabilities: "runtime/capabilities",
   computerUseOperationEvent: "computer-use/operation-event",
   sessionCreate: "session/create",
@@ -4696,6 +4839,7 @@ export const droraProtocolMethods = {
   workspaceCancelGenerateText: "workspace/cancelGenerateText",
   providerTestModelConnectivity: "provider/testModelConnectivity",
   mcpList: "mcp/list",
+  workspaceMcpTrust: "workspace/mcp/trust",
   mcpReadResource: "mcp/readResource",
   mcpUiOpenInstance: "mcp/uiOpenInstance",
   mcpUiCloseInstance: "mcp/uiCloseInstance",
@@ -4754,6 +4898,7 @@ export const droraProtocolMethods = {
   automationCheckTaskBinding: "automation/checkTaskBinding",
   automationList: "automation/list",
   automationDelete: "automation/delete",
+  automationPause: "automation/pause",
   // Off-Peak 会话内创建：与 automation 兄弟并列的独立方法族。
   offPeakCreate: "offPeak/create",
   offPeakList: "offPeak/list",
@@ -4817,6 +4962,10 @@ export const droraProtocolSessionMethodContracts = {
   [droraProtocolMethods.workspaceHookTrustGrant]: {
     params: droraWorkspaceHookTrustGrantParamsSchema,
     result: droraWorkspaceHookTrustGrantResultSchema,
+  },
+  [droraProtocolMethods.workspaceMcpTrust]: {
+    params: droraWorkspaceMcpTrustParamsSchema,
+    result: droraWorkspaceMcpTrustResultSchema,
   },
   [droraProtocolMethods.mcpList]: {
     params: droraMcpListParamsSchema,
@@ -4919,7 +5068,7 @@ export const droraStoragePathReadySchema = z
   .strict();
 
 // 桌面本地 TTFT 的严格事实合同；检查点不能替代实际内容帧。
-export { localTtftFactsSchema } from "../localTtft.js";
+export { localTtftFactsSchema } from "../local-ttft/contract.js";
 // 群来源由可信 Host 注入，V4 命令与持久化输入使用相同运行时校验。
 export {
   botIdentitySchema,

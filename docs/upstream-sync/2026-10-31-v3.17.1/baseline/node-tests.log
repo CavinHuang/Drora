@@ -1,0 +1,161 @@
+✔ saved built-in IDs retain selection while sizes and geometry use the Codex contract (684.6035ms)
+✔ missing and unknown selections fall back to a standard pack, with no old geometry (196.2208ms)
+✔ renderer configuration rejects legacy layouts, missing versions and out-of-atlas tracks (60.3638ms)
+✔ normal Agent skill adapter discovers and loads the bundled pet skill (659.9609ms)
+✔ SEA collection retains the complete pet skill and verified upstream license/helpers (119.1141ms)
+﹣ publisher output loads through the production desktop library (0.5874ms) # Set PYTHON to an interpreter with Pillow for the processing integration
+﹣ prepare emits the thirteen-job dependency graph, prompts and real layout guides (0.2741ms) # Set PYTHON to an interpreter with Pillow for preparation integration
+✔ Codex v1/v2 packs import unchanged, survive restart, export, and delete without touching the source (1371.4488ms)
+✔ valid dimensions in a truncated PNG/WebP header do not admit a corrupt pack (171.6631ms)
+✔ upgrade preparation resolves the real legacy path and never changes source artwork (107.7763ms)
+✔ manifest defaults and legacy precedence, invalid packs and path escapes are isolated (51.4988ms)
+✔ oversized/wrong-sized sprites and directory junctions cannot escape the owned library (32.722ms)
+(node:45748) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+[2026-10-31 18:37:09.090] [pid:45748] [knowledge-index][trace:索引任务结束] {
+  jobId: 'job-f7c757bc-cbfa-4a53-83c2-69768f7c851f',
+  kind: 'reconcile',
+  durationMs: 11
+}
+✔ A12 前置：prepare 签发绑定完整的 opaque receipt，resolveCitation 返回 current (151.2114ms)
+[2026-10-31 18:37:09.198] [pid:45748] [knowledge-index][trace:索引任务结束] {
+  jobId: 'job-b04d5845-e947-43c3-ad1b-e58ab392248f',
+  kind: 'reconcile',
+  durationMs: 2
+}
+✔ A12：文件修改 → stale；文件删除 → missing (59.0529ms)
+[2026-10-31 18:37:09.260] [pid:45748] [knowledge-index][trace:索引任务结束] {
+  jobId: 'job-70111a28-f16c-4892-a662-aa43a347ad16',
+  kind: 'reconcile',
+  durationMs: 5
+}
+✔ A13：切库 → forbidden/vault_switched；撤权 → forbidden；重授权 → stale/source_reauthorized (114.1403ms)
+[2026-10-31 18:37:09.368] [pid:45748] [knowledge-index][trace:索引任务结束] {
+  jobId: 'job-b1809875-c462-4dd2-b24c-b7077edc37b6',
+  kind: 'reconcile',
+  durationMs: 2
+}
+✔ A14：伪造/未知 receiptId → forbidden/unknown_receipt，绝不当可信引用 (81.7119ms)
+[2026-10-31 18:37:09.445] [pid:45748] [knowledge-index][trace:索引任务结束] {
+  jobId: 'job-b40d7a3f-ff80-4a4c-8506-eea029c3188b',
+  kind: 'reconcile',
+  durationMs: 2
+}
+✔ A15：quote 切片校验——账本行被篡改（chunk sha 不符）→ stale/quote_moved 不静默 (82.0933ms)
+[2026-10-31 18:37:09.530] [pid:45748] [knowledge-index][trace:索引任务结束] {
+  jobId: 'job-3cd57e6d-28cc-46cc-b732-aad727b0ba5c',
+  kind: 'reconcile',
+  durationMs: 3
+}
+✔ A19：会话绑定——他 session 与未携 session 都不得解析绑定 receipt (93.8025ms)
+[2026-10-31 18:37:09.622] [pid:45748] [knowledge-index][trace:索引任务结束] {
+  jobId: 'job-f0ad114d-57f8-424b-b17d-0090eb7e2e51',
+  kind: 'reconcile',
+  durationMs: 2
+}
+✔ prepare 的复验门：源失效/文件已改/未知候选 → 结构化拒绝且不签发 receipt (34.9534ms)
+[2026-10-31 18:37:09.655] [pid:45748] [knowledge-index][trace:索引任务结束] {
+  jobId: 'job-f61e9dae-b7b5-4e75-a63c-474980448f2d',
+  kind: 'reconcile',
+  durationMs: 2
+}
+✔ A18（W03 部分）：无模型/断网下检索与 Receipt 全链可用 (79.808ms)
+[2026-10-31 18:37:09.732] [pid:45748] [knowledge-index][trace:索引任务结束] {
+  jobId: 'job-39d609bd-a392-4858-9be3-81a2e29706ee',
+  kind: 'reconcile',
+  durationMs: 2
+}
+✔ 账本持久化：跨服务实例（进程重启模型）receipt 仍可解析 (31.2815ms)
+[2026-10-31 18:37:09.765] [pid:45748] [knowledge-index][trace:索引任务结束] {
+  jobId: 'job-eb18bd8c-a88c-4227-b090-05fe9d8ad87e',
+  kind: 'reconcile',
+  durationMs: 1
+}
+✔ migration v2 建表与共享 DDL 常量同源（CLI 只读侧契约） (73.938ms)
+✔ K-JEV-7：开关缺省/关闭 → 返回 null（fail-closed） (0.9777ms)
+✔ K-JEV-8：开关开但 Key 缺失/空白 → 返回 null（不出站、grant disabled 同语义） (0.1718ms)
+✔ K-JEV-9：开关开 + Key 存在 → 快照返回，baseURL trim/空白回落官方托管端点 (0.7547ms)
+✔ K-JEV-11：远程提供商缺 Key/model 任一 → fail-closed 禁用（baseURL 缺省回落内置端点） (0.258ms)
+✔ K-JEV-11：openrouter 配置齐备 → openrouter 快照（独立凭据键 + 必填 baseURL） (0.3309ms)
+✔ K-JEV-11：ai-gateway 配置齐备 → ai-gateway 快照（独立凭据键 + 部署 baseURL） (0.2557ms)
+✔ provider 工厂：远程提供商标识覆盖 + typesafe 缺省注入 policy 预算 (0.3721ms)
+(node:45124) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+[lease-child] (node:60112) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+[2026-10-31 18:37:11.119] [pid:45124] [knowledge-index][trace:索引任务结束] {
+  jobId: 'job-3e8443fd-2c8f-4fd6-aac5-7b772d392144',
+  kind: 'reconcile',
+  durationMs: 3
+}
+✔ A05：子进程 Host 持有租约时父进程被拒；硬杀后 TTL 到期接管且 fence 提升、旧 fence 写入被拒 (1997.2778ms)
+✔ store 级 fencing：接管提升 epoch，旧持有者写事务被拒，新持有者可写 (120.3401ms)
+✔ encodeForBge：CJK 逐字查找 + [CLS]/[SEP] 包裹 (1.3552ms)
+✔ encodeForBge：WordPiece 贪心最长匹配（整词 → ## 续片）与 [UNK] 兜底 (0.2894ms)
+✔ encodeForBge：英文小写化 + 窗口截断（512 含 [CLS]/[SEP]） (1.0169ms)
+✔ 端口：模型缺失且下载失败 → embed 显式抛错（调用方降级接管），id 如实 (16.5139ms)
+(node:44912) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+[2026-10-31 18:37:09.258] [pid:44912] [knowledge-index][trace:索引任务结束] {
+  jobId: 'job-e3cbe26e-fcb6-4cb2-816e-d82950a25d80',
+  kind: 'reconcile',
+  durationMs: 9
+}
+✔ G35/G42: equal display citation numbers cannot cross-bind distinct source Receipts (162.9875ms)
+(node:13728) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+[2026-10-31 18:37:09.326] [pid:13728] [knowledge-review][trace:提案已创建] { proposalId: 'prp_74d2a1dfc0c3f31be407195a', changes: 1 }
+[2026-10-31 18:37:09.329] [pid:13728] [knowledge-review][trace:提案已批准] { proposalId: 'prp_74d2a1dfc0c3f31be407195a', revision: 1 }
+[2026-10-31 18:37:09.351] [pid:13728] [knowledge-review][trace:提案已修订] { proposalId: 'prp_74d2a1dfc0c3f31be407195a', revision: 2 }
+[2026-10-31 18:37:09.357] [pid:13728] [knowledge-review][trace:审核写入部分冲突] {
+  operationId: 'rop_effe5da771ff62f5e69e3197',
+  error: 'conflict: 提案已修订，旧批准不可继续写入'
+}
+✔ L2 写前最新授权复验：等待期间 revise 后不得写入 (94.0462ms)
+[2026-10-31 18:37:09.396] [pid:13728] [knowledge-review][trace:提案已创建] { proposalId: 'prp_756ecb9563470088c51da8b5', changes: 1 }
+[2026-10-31 18:37:09.397] [pid:13728] [knowledge-review][trace:提案已批准] { proposalId: 'prp_756ecb9563470088c51da8b5', revision: 1 }
+[2026-10-31 18:37:09.403] [pid:13728] [knowledge-review][trace:审核写入部分冲突] {
+  operationId: 'rop_9dd99d349d05d5e8b08d4c7b',
+  error: 'conflict: 提案已被拒绝，停止写入'
+}
+✔ L2 写前最新授权复验：等待期间 reject 后不得写入 (42.2744ms)
+[2026-10-31 18:37:09.434] [pid:13728] [knowledge-review][trace:提案已创建] { proposalId: 'prp_5fe27b4fee61f81a9808d4d9', changes: 1 }
+[2026-10-31 18:37:09.436] [pid:13728] [knowledge-review][trace:提案已批准] { proposalId: 'prp_5fe27b4fee61f81a9808d4d9', revision: 1 }
+[2026-10-31 18:37:09.439] [pid:13728] [knowledge-review][trace:提案已批准] { proposalId: 'prp_5fe27b4fee61f81a9808d4d9', revision: 1 }
+[2026-10-31 18:37:09.440] [pid:13728] [knowledge-review][trace:审核写入部分冲突] {
+  operationId: 'rop_2d085458ebc136eaddbbbe2b',
+  error: 'conflict: 批准已过期，必须重新批准'
+}
+✔ L2 写前最新授权复验：等待期间 expire 后不得写入 (35.9069ms)
+[2026-10-31 18:37:09.466] [pid:13728] [knowledge-review][trace:提案已创建] { proposalId: 'prp_5895de39d5ea7caaee61269d', changes: 1 }
+[2026-10-31 18:37:09.467] [pid:13728] [knowledge-review][trace:提案已批准] { proposalId: 'prp_5895de39d5ea7caaee61269d', revision: 1 }
+[2026-10-31 18:37:09.473] [pid:13728] [knowledge-review][trace:审核写入部分冲突] {
+  operationId: 'rop_c2eeec1196d3372f1ee492a0',
+  error: 'conflict: 写入期间授权或 Vault 已变化；停止剩余变更'
+}
+✔ L2 写前最新授权复验：等待期间 revoke 后不得写入 (32.5015ms)
+(node:16196) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ S03 release policy grants local desktop capability only; user opt-in still defaults off (29.5322ms)
+✔ WSG-UI-3：setVaultReviewWritePathEnabled 持久化读-改-写；坏值视为关闭 (47.9008ms)
+✔ S03 NO-GO: production never restores or activates L2 writes from a persisted true flag (59.7837ms)
+✔ S03 explicit verified gate: persisted preference restores, toggles are serialized and survive restart (106.3995ms)
+✔ S03 approved runtime cannot carry an L2 preference to a newly configured Vault (31.0463ms)
+✔ L2 toggle fails closed when no valid Vault configuration is available (1.1219ms)
+✔ WSG-UI-4b：显式传参（测试形态）以参数为准、不读配置——false 保持关闭 (44.2427ms)
+✔ interaction takes priority and preserves workspace identity for navigation (1.4581ms)
+✔ selected task carries only its bounded assistant preview into the pet (0.4048ms)
+✔ initial historical completion is idle, later terminal edge is shown once (0.2788ms)
+✔ background work stays active and empty runtime state becomes idle (0.2657ms)
+✔ a later approval request outranks concurrent work (0.1578ms)
+✔ tray orders input, blocked, ready and running, and retains identity on every row (0.2438ms)
+✔ terminal activity survives later preview updates but not a restarted run (0.1978ms)
+✔ tray projection is bounded and initial historical failures do not create fresh activity (0.3549ms)
+ℹ tests 55
+ℹ suites 0
+ℹ pass 53
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 2
+ℹ todo 0
+ℹ duration_ms 5299.6751

@@ -27,14 +27,24 @@
 
 ## P0：执行环境、原功能与 refs 冻结
 
-前置：方案进入实际执行阶段，当前输入重新核验。以下均未执行。
+前置：方案进入实际执行阶段，当前输入重新核验。2026-10-31 18:32–18:50 执行完毕，证据见本节与 baseline/ 目录。
 
-- [ ] P0-01 重取官方及 Drora remote refs，记录 fetch 结果；U2 若变化先保持本轮 pin，C/F 变化则做增量调查并更新清单，不使用移动的 origin/main 作 theirs。
-- [ ] P0-02 枚举所有 worktree/WIP/未推送分支；保存各 ref 与必要 patch/未跟踪文件清单；不自动 stash、不触碰其他任务 checkout。
-- [ ] P0-03 为 C/F/U1/U2 建立可恢复只读锚点；核对外部已创建的 `codex/upstream-v3.17.1-integration`（HEAD=C）的归属、WIP 与隔离条件，决定复用或独立 checkout；不重建/重置已有分支，核对 push remote 是 drora。当前只观察到分支存在，不表示本任务的冻结/隔离门已完成。
-- [ ] P0-04 将本规划文件带入集成分支，验证 C 已含 F 的既有历史；核查 C0→F 的 11 提交与 176 路径，不重复合入 F，不额外混入其他 feature 分支。
-- [ ] P0-05 在候选集成环境建立 RG01–RG24 的升级前基线；原有未完成/失败单独列 baseline-gap，不将 spec 的目标功能写成已交付。
-- [ ] P0-06 人格原功能发布门、Relay GUI/真实部署等原未完成项逐条登记；若不能满足本方案的 main 交付门，保持集成分支待验，不删除功能求绿。
+- [x] P0-01 重取官方及 Drora remote refs，记录 fetch 结果；U2 若变化先保持本轮 pin，C/F 变化则做增量调查并更新清单，不使用移动的 origin/main 作 theirs。
+  证据：`git fetch drora` 无新对象；U2=`a60ba6a7e`（refs/usync/v3171/target 锚定）；C=`66c9193fd`（drora/main）；origin fetch 成功且 origin/main 未变。
+- [x] P0-02 枚举所有 worktree/WIP/未推送分支；保存各 ref 与必要 patch/未跟踪文件清单；不自动 stash、不触碰其他任务 checkout。
+  证据：9 个 worktree（codex-pet-recovery 持 [main]、3dd3/6135/dc74 locked detached、c3a1/db77 detached、pr23 临时、agents-team、vaultview-handoff）；领先 C 的分支：feat/agents-team 3、feat/vaultview-w10-gui-e2e 7、feat/virtual-pet-management 3、fix/d-g20-1-and-cleanups 6；stash 1 条（fix/d-g20-1 codex-pull-preserve-20261021）。全部原样保留，S8-06 复核。
+- [x] P0-03 为 C/F/U1/U2 建立可恢复只读锚点；在独立 checkout 从 C 建 `codex/upstream-v3.17.1-integration`；核对 push remote 是 drora。
+  证据：refs/usync/v3171/{base,middle,target,main,main-prev,feature} 六锚点；集成分支建于本仓 checkout（偏离「独立 checkout」：tree(F)==tree(C) 使切换零改动，且复用既有依赖安装；规划会话已在执行日志 171 行认可「P0-03 改为核对已有分支，不复建或重置」）。push remote 待 S8 用 `git push drora` 显式指定。
+- [x] P0-04 将本规划文件带入集成分支，保留 F 的既有提交历史；核查 11 提交与 176 路径，不额外混入其他 feature 分支。
+  证据：提交 `5481c73d7`（spec+tasks+矩阵+README+三清单）；PR #32 已使 F 成为 C 的祖先（rev-list F ^C = 0，C 的双亲 = C0+F），无需重复纳入；工作区除规划文档外零改动。
+- [x] P0-05 在候选集成环境建立 RG01–RG24 的升级前基线；原有未完成/失败单独列 baseline-gap，不将 spec 的目标功能写成已交付。
+  证据：baseline/battery.log + node-tests.log——vitest unit 4 文件 44 测试过（desktopPetPersonaExpression、webRemoteControl{EndpointUrls,SharedHostAttachments,ManagerV2}）；CLI core team+persona 16 文件过；bootstrap persona 17 文件过；relay-v2-server 10 文件过；node:test 11 文件 53 过/0 失败/2 跳过（knowledge 7 + desktopPet 3 + ui desktopPetProjection）。Node 24.14.0/pnpm 10.33.2（volta run）。
+- [x] P0-06 人格原功能发布门、Relay GUI/真实部署等原未完成项逐条登记；若不能满足本方案的 main 交付门，保持集成分支待验，不删除功能求绿。
+  baseline-gap 清单（升级前即未完成，不因合并转绿）：
+  1. persona：真实模型效果实验（需授权）、语义负例归因、PM57 阈值冻结、G 门正式收口（PR#32 跳过的 3 项 R 套件）。
+  2. relay：GUI 弹窗实测与真实部署联调（webRemoteControlRelayOrigin 链只有单测绿）。
+  3. `packages/ui/test/teamConversationSummaryStagedApproval.test.tsx` 不在任何默认执行通道（vitest include 只收 .ts，node:test 不收 .tsx）——既有注册缺口，RG03/S5 处理。
+  4. E2E/跨平台/真包 parity：本机环境准入未做（Windows only），维持 blocked 待跑入口。
 
 退出：锚点可恢复、C/F 关系明确、原功能证据和待验边界已登记。
 
@@ -177,3 +187,4 @@ rollback checkpoint:
 2. 原 persona、Vault、跨平台/真实服务联调未完成的门需要与原任务结果合并核对，不自动转成“升级已验证”。
 3. 对应官方发行 bundle、SSH/WSL/macOS/Linux/云引擎等资源是否可用，尚未做执行环境准入；受限则保留待跑证据。
 4. 当前 149 文本冲突、367 删除本地修改、314 文本 clean 语义合并均未解决或验证；“预演完成”不等于“可以直接合入”。
+| 2026-10-31 18:50 | P0-01–06 | refs 锚点六枚；9 worktree/4 领先分支/1 stash 冻结不动；规划文档入集成分支 5481c73d7；升级前基线电池全绿（vitest 4+16+17+10 文件、node:test 53 过） | baseline-gap 4 项登记（persona 实验门/relay GUI/teamApproval tsx 注册缺口/跨平台准入）；P1 启动 |

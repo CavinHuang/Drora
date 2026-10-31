@@ -184,6 +184,9 @@ const droraEndpointOriginSchema = z.preprocess((value) => {
     return undefined;
   }
 }, z.string().optional());
+// 远控「官方/自建 Relay」切换（specs/relay-v2-server.md §8.7）：坏值只丢该字段，
+// 与 droraEndpointOrigin 同款容错——误配不能拖垮整份 settings 读取。
+const webRemoteControlRelayOriginSchema = droraEndpointOriginSchema;
 
 function sanitizeDroraEndpointOrigin(value: unknown): unknown {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
@@ -623,6 +626,7 @@ const appSettingsObjectSchema = z.object({
   webRemoteControlExternalRelayDevice: webRemoteControlExternalRelayDeviceSchema.optional(),
   webRemoteControlLastEnabledContext: webRemoteControlLastEnabledContextSchema.optional(),
   droraEndpointOrigin: droraEndpointOriginSchema.optional(),
+  webRemoteControlRelayOrigin: webRemoteControlRelayOriginSchema.optional(),
   // Jev 出站决策（obsidian-knowledge.md §5d.10）：缺省关闭，显式存过 true 的用户保持开启。
   knowledgeJevEnabled: z.boolean().default(false),
   knowledgeSemanticEnabled: z.boolean().default(false),
@@ -772,6 +776,7 @@ export const appSettingsPatchSchema = z.object({
   webRemoteControlExternalRelayDevice: webRemoteControlExternalRelayDeviceSchema.optional(),
   webRemoteControlLastEnabledContext: webRemoteControlLastEnabledContextSchema.optional(),
   droraEndpointOrigin: droraEndpointOriginSchema.optional(),
+  webRemoteControlRelayOrigin: webRemoteControlRelayOriginSchema.optional(),
   /** Jev 出站决策（obsidian-knowledge.md §5d.10）；更新补丁全可选。 */
   knowledgeJevEnabled: z.boolean().optional(),
   knowledgeSemanticEnabled: z.boolean().optional(),

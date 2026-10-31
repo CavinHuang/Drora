@@ -146,6 +146,9 @@ export default defineConfig({
             // P1b 有限学习管理（§5/§8/§10：L 开关/关闭 U 级联确认/来源状态列表/
             // 解除抑制 CAS/概览读取失败降级）；同理必须进默认单测通道。
             "packages/ui/src/drora-persona/usePersonaLearning.test.tsx",
+            // 远控「官方/自建 Relay」切换（specs/relay-v2-server.md §8.7）：弹窗配置区
+            // 交互守护（官方缺省/非法 origin 拒写/保存→停止→重启顺序/空串哨兵切回官方）。
+            "packages/ui/src/web-remote-control/WebRemoteControlRelaySourceSection.test.tsx",
             "packages/ui/src/voice/AnnouncementIndicator.test.tsx",
             "packages/ui/src/store/voiceSessionStore.test.ts",
             "packages/ui/src/v4/composer/composerTextAppend.test.ts",

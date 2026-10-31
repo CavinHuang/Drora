@@ -22,6 +22,7 @@ import {
   normalizeDroraEndpointOrigin,
   resolveBigModelApiOrigin,
   resolveRuntimeProductEndpointConfig,
+  resolveWebRemoteControlEndpointOrigin,
   resolveWebRemoteControlRelayWsUrl,
   resolveZaiBusinessBaseUrl,
   resolveZaiOAuthClientId,
@@ -161,6 +162,51 @@ describe("droraEndpoint", () => {
     ).toBe("ws://localhost:8787/api/v1/remote/ws2");
   });
 
+  // 远控「官方/自建 Relay」切换（specs/relay-v2-server.md §8.7）：
+  // 设置键只覆盖远控面，缺失/空白回落全局 endpoint 链，origin 归一走统一入口。
+  describe("resolveWebRemoteControlEndpointOrigin", () => {
+    it("falls back to the endpoint origin chain when the relay origin setting is absent", () => {
+      expect(resolveWebRemoteControlEndpointOrigin({})).toBe(DEFAULT_DRORA_ENDPOINT_ORIGIN);
+      expect(
+        resolveWebRemoteControlEndpointOrigin({
+          endpointOrigin: TEST_DRORA_ENDPOINT_ORIGIN,
+        }),
+      ).toBe(TEST_DRORA_ENDPOINT_ORIGIN);
+      expect(
+        resolveWebRemoteControlEndpointOrigin({
+          relayOrigin: undefined,
+          endpointOrigin: TEST_DRORA_ENDPOINT_ORIGIN,
+        }),
+      ).toBe(TEST_DRORA_ENDPOINT_ORIGIN);
+      expect(
+        resolveWebRemoteControlEndpointOrigin({
+          relayOrigin: "   ",
+          endpointOrigin: TEST_DRORA_ENDPOINT_ORIGIN,
+        }),
+      ).toBe(TEST_DRORA_ENDPOINT_ORIGIN);
+    });
+
+    it("prefers the relay origin setting and normalizes it", () => {
+      expect(
+        resolveWebRemoteControlEndpointOrigin({
+          relayOrigin: "https://relay.example.com",
+          endpointOrigin: TEST_DRORA_ENDPOINT_ORIGIN,
+        }),
+      ).toBe("https://relay.example.com");
+      expect(
+        resolveWebRemoteControlEndpointOrigin({
+          relayOrigin: " https://relay.example.com/ ",
+        }),
+      ).toBe("https://relay.example.com");
+      expect(
+        resolveWebRemoteControlEndpointOrigin({
+          relayOrigin: "http://127.0.0.1:8080",
+          endpointOrigin: DEFAULT_DRORA_ENDPOINT_ORIGIN,
+        }),
+      ).toBe("http://127.0.0.1:8080");
+    });
+  });
+
   it("derives BigModel API origin from DRORA_ENV", () => {
     expect(resolveBigModelApiOrigin({ DRORA_ENV: "production" })).toBe("https://bigmodel.cn");
     expect(resolveBigModelApiOrigin({ DRORA_ENV: "test" })).toBe("https://bigmodel.cn");
@@ -294,5 +340,26 @@ describe("droraEndpoint", () => {
       appSettingsPatchSchema.parse({ droraEndpointOrigin: "http://localhost:3030/foo" })
         .droraEndpointOrigin,
     ).toBe("http://localhost:3030");
+  });
+
+  it("persists the web remote control relay origin setting with bad values dropped", () => {
+    // 合法 origin 归一（剥 path），坏值/空白归 undefined——坏值只丢该字段不拖垮整份 settings。
+    expect(
+      appSettingsSchema.parse({ webRemoteControlRelayOrigin: "https://relay.example.com/base" })
+        .webRemoteControlRelayOrigin,
+    ).toBe("https://relay.example.com");
+    expect(
+      appSettingsPatchSchema.parse({ webRemoteControlRelayOrigin: " http://127.0.0.1:8080 " })
+        .webRemoteControlRelayOrigin,
+    ).toBe("http://127.0.0.1:8080");
+    expect(
+      appSettingsSchema.parse({ webRemoteControlRelayOrigin: "not a url" })
+        .webRemoteControlRelayOrigin,
+    ).toBeUndefined();
+    expect(
+      appSettingsPatchSchema.parse({ webRemoteControlRelayOrigin: "   " })
+        .webRemoteControlRelayOrigin,
+    ).toBeUndefined();
+    expect(appSettingsSchema.parse({}).webRemoteControlRelayOrigin).toBeUndefined();
   });
 });

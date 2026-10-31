@@ -33,6 +33,11 @@
 > （`STATIC_ROOT`）与官方 catch-all 回源（`OFFICIAL_UPSTREAM_ORIGIN`，§9 两键、§11 第 12 条定性），
 > deploy 面新增多阶段 Dockerfile 与单服务 compose（与 relay+caddy 双服务形态并存，选择指引见 §8.6）；
 > §13：tsup `noExternal` 并入 `ws`，dist 全自包含（容器 runtime 免 node_modules 闭包）。
+> ⑪ 2026-10-31 新增 §8.7「桌面客户端『官方/自建 Relay』切换」——客户端侧产品化入口落地（解冻 §8.4
+> 边界决策 3，该次「明确不做」就此废止）：新增设置键 `webRemoteControlRelayOrigin`（生产可写），
+> 仅作用于远控三 URL 面（注册 HTTP/relay WS/二维码页），优先级 env 覆盖 > 设置键 > 全局 endpoint
+> 链；入口为远控弹窗内 Relay 来源区，切换=停止当前远控并按新源自动重启。同批修复手机页同源 WS
+> 推导 `/ws` → `/api/v1/remote/ws2`（v1 路径退役，决策记录见 §8.7）。
 
 ## 1. 背景与目标
 
@@ -403,7 +408,7 @@ relay.example.com {
 
 | 客户端       | 配置                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | 出处                                                                                  |
 | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
-| 桌面（生产） | 启动环境变量 `DRORA_ENDPOINT_ORIGIN=https://relay.example.com`；一般无需再设 `DRORA_WEB_REMOTE_CONTROL_RELAY_WS_URL` / `DRORA_WEB_REMOTE_CONTROL_URL`（同为 env、优先级更高的显式调试覆盖）                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | `droraEndpoint.ts:80,218`；`desktop/src/main/index.ts:913-914`                        |
+| 桌面（生产） | 设置项 `webRemoteControlRelayOrigin=https://relay.example.com`（v2.5 起，仅作用于远控三 URL 面，全局 endpoint 链不动；优先级与切换语义见 §8.7）；或沿用启动环境变量 `DRORA_ENDPOINT_ORIGIN=https://relay.example.com`（整条端点链随迁，依赖自建域 catch-all 回源）；一般无需再设 `DRORA_WEB_REMOTE_CONTROL_RELAY_WS_URL` / `DRORA_WEB_REMOTE_CONTROL_URL`（同为 env、优先级更高的显式调试覆盖）                                                                                                                                                                                                                                                                                                                                                        | `droraEndpoint.ts:80,218`；`desktop/src/main/index.ts:913-914`；`validationAppSettings.ts`（`webRemoteControlRelayOriginSchema`） |
 | 桌面（开发） | 设置项 `droraEndpointOrigin`（仅非 production 构建生效）                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | `validationAppSettings.ts:192`                                                        |
 | 桌面 OAuth   | `ZAI_OAUTH_ORIGIN`（独立于端点，不经自建域）                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | `droraEndpoint.ts:96`                                                                 |
 | 手机页面构建 | **必须**带构建期 env：`VITE_DRORA_ENDPOINT_ORIGIN=https://relay.example.com`（OAuth `redirect_uri` 与 relay 推导都从这里烘焙，`webZaiOAuthConfig.ts`；漏掉则整条手机登录链路指向官方域）。**实测注意（v2.2）**：本仓 `packages/web/vite.config.ts` 的 `define` 把 `import.meta.env.VITE_DRORA_ENDPOINT_ORIGIN` 解析自 `resolveRuntimeDroraEndpointOrigin`，后者消费的是**无 `VITE_` 前缀的 `DRORA_ENDPOINT_ORIGIN`**（`droraEndpoint.ts`）——只设 `VITE_` 变量时 define 仍解析官方默认域并烘焙进产物（实测 dist 中 `VITE_DRORA_ENDPOINT_ORIGIN:'https://zcode.z.ai'`）。构建须**同时**设置两者；`tools/verify-v4-build.mjs` 校验烘焙结果。测试隔离时跟随 `VITE_BIGMODEL_OAUTH_ORIGIN` 等。clientId 沿用官方公开值（`client_P8X5…`） / appId `drora` | `packages/web/src/auth/webZaiOAuthConfig.ts`；`packages/web/vite.config.ts` define 段 |
@@ -426,7 +431,7 @@ relay.example.com {
 
 1. **自托管域下的 UI 验收纳入 L1/L2（必做，已并入 §10）**：同一份页面在自建域必须逐面验证——双平台登录门禁与回调参数保留、设备列表（在线/离线分组、最近设备自动连接、多连接选择）、扫码直连、KICKED 提示、主题/i18n、以及 §8.3 的版本失配表现。UI 用例不新写，复用契约 05/06 的既有浏览器回归（`remote-login-v2.mjs` 等 pending 用例）打自建域。
 2. **relay 运维管理面（V1 不做）**：官方 relay 没有用户可见管理 UI，设备管理由手机端设备列表承担（删除/在线态都在那里）。V1 对齐此形态：运维信息走 `/healthz` + 结构化日志 + CLI，不做 Web 管理台。若后续单实例自用确有需要，可加只读 admin 页（连接列表/owner 状态/收发计数），作为后续可选扩展登记，不进里程碑。
-3. **桌面指向自建域的产品化入口（明确不做，记录代价）**：生产版桌面目前只能用 `DRORA_ENDPOINT_ORIGIN` 环境变量指向自建域，设置项 `droraEndpointOrigin` 仅非 production 构建生效；v1 时代的 `relayServerUrl` 设置项已随 d1a46eaf 删除。零客户端改动是本设计的立身原则，因此**面向非技术用户的一键切换 UI 不在本期范围**——目标读者是能设环境变量的维护者。若未来要产品化，需先立客户端 spec 恢复设置面，属新决策不属本服务。
+3. **桌面指向自建域的产品化入口（~~明确不做，记录代价~~ → 2026-10-31 解冻，见 §8.7）**：本条原裁定「零客户端改动、产品化切换 UI 不做」。2026-10-31 随客户端「官方/自建 Relay」切换特性落地而废止：新增设置键 `webRemoteControlRelayOrigin` + 远控弹窗内切换入口，设计、优先级链与切换语义见 §8.7。历史记录保留：生产版桌面曾只能用 `DRORA_ENDPOINT_ORIGIN` 环境变量指向自建域，设置项 `droraEndpointOrigin` 仅非 production 构建生效；v1 时代的 `relayServerUrl` 设置项已随 d1a46eaf 删除。新设置键与被删的 `relayServerUrl` 无继承关系（后者指向旧 v1 自建 relay 协议）。
 
 ### 8.5 外部依赖（不在本服务控制内）
 
@@ -472,6 +477,36 @@ relay.example.com {
 5. 值非法（非 http/https URL）→ 按 §9 容错策略回退为未设置并记 `config-fallback` warn。
 
 **部署产物**：`packages/relay-v2-server/deploy/Dockerfile`（多阶段：build 阶段过滤安装 `@drora/relay-v2-server` + `@drora/web`、tsup 产出 dist、`vite build --base=/remote/v4/` 产出静态；runtime 阶段仅 dist + `deploy/run-relay.mjs` + 静态产物，dist 自包含见 §13）；`packages/relay-v2-server/deploy/docker-compose.standalone.yml`（单服务编排，`DRORA_PUBLIC_ORIGIN` 为必填构建参数——OAuth `redirect_uri` 构建期烘焙，§8.2）。手机 OAuth 白名单前提与 §8.5 完全一致，不因形态改变。
+
+### 8.7 桌面客户端「官方/自建 Relay」切换（v2.5 新增，2026-10-31）
+
+客户端侧产品化入口，解冻 §8.4 边界决策 3。语义为**切换式**：一次只连一个 relay，不做并行双链路（双二维码/双 transport 不在本设计内）。
+
+**作用面（仅远控三 URL，全局 endpoint 链不动）**：
+
+1. 设备注册/删除/一次性 token 的 HTTP origin（`/api/v1/remote/*`）；
+2. relay WebSocket（`/api/v1/remote/ws2`）；
+3. 二维码页面 URL（`<origin>/remote/{v3|v4}`，v3/v4 仍按现有版本门控）。
+
+Coding Plan、计费、OAuth token 交换等其余端点不跟随该键——指向自建域时不依赖自建域 catch-all 回源，规避 §11.7 WAF 风险面。
+
+**解析优先级**（`resolveWebRemoteControlEndpointOrigin`，`packages/shared/src/droraEndpoint.ts`）：
+
+```
+env 调试覆盖（DRORA_WEB_REMOTE_CONTROL_RELAY_WS_URL / DRORA_WEB_REMOTE_CONTROL_URL，现状保留）
+  > 设置键 webRemoteControlRelayOrigin（本节新增，生产可写，无 DRORA_ENV 门禁）
+  > 全局链（settings droraEndpointOrigin[仅 test] → env 端点链 → 官方 zcode.z.ai）
+```
+
+设置键写入口复用既有 settings 面管道：类型 `AppSettings`（`packages/shared/src/protocol.ts`）+ zod 双 schema 登记（`validationAppSettings.ts`，`normalizeDroraEndpointOrigin` 预处理、坏值归 undefined）+ 空串删除哨兵（`normalizeSettingsPatch.ts`）。
+
+**入口与切换语义**：配置区在远控弹窗（`WebRemoteControlDialog`）连接卡下方（`WebRemoteControlRelaySourceSection`），官方/自建 radio + origin 输入。保存后由弹窗触发停止当前远控，弹窗既有轮询按目标不匹配自动以新源重启（manager 每次 start 现查 `getEndpointUrls`，无缓存；endpointOrigin 漂移防护与旧源注册清理为 manager 既有行为，不新增机制）。兜底：设置在弹窗外被改且远控运行中时，main 侧 `syncImmediateAppSettings` 对该键分支执行 `suspend(win.id, "endpoint-changed")`（不 rebuild 菜单，区别于全局 endpoint 变更路径）。
+
+**手机页同源 WS 推导退役 `/ws`（决策记录）**：`packages/web/src/drora-extensions/remoteEndpoint.ts` 原把同源托管页推导到 `ws(s)://{host}/ws`——该路径属旧 v1 自建 relay（`packages/relay-server`，dist-only、仓内无 server 源码与 package.json 消费者），与 relay-v2 网关的严格路径校验（`relay-v2-server/src/ws.ts:417`，仅 `/api/v1/remote/ws2`）不兼容，是自建页「静态托管修好后仍无法配对」的第二处断裂。现改为同源 `/api/v1/remote/ws2`。官方页不受影响（zcode.z.ai 服务官方自有 bundle，不经本仓代码）。若仍有外部 v1 部署依赖 `/ws`，属未登记的存量——须先登记再评估，不做静默兼容。
+
+**与被删 `relayServerUrl` 的关系**：无继承。`relayServerUrl`（d1a46eaf 删除）指向旧 v1 自建 relay 协议；本键指向 Relay V2 协议域，仅作 origin 覆盖。
+
+**验收边界**：本特性补单测/组件测试；打包 E2E 全链（真自建 relay + 真机扫码）仍属 §10 L1 范畴，不在本批承诺。
 
 ## 9. 配置项与可观测性
 

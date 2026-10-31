@@ -79,6 +79,19 @@ export function normalizeSettingsPatch(patch: Partial<AppSettings>): Partial<App
   }
 
   if (
+    "webRemoteControlRelayOrigin" in normalizedPatch &&
+    typeof normalizedPatch.webRemoteControlRelayOrigin === "string"
+  ) {
+    // 远控「官方/自建 Relay」切换（specs/relay-v2-server.md §8.7）：切回官方 = 清空该键。
+    // RPC 会吞掉 undefined，空串哨兵归一成删除，避免旧自建域残留在 setting.json。
+    const trimmedWebRemoteControlRelayOrigin = normalizedPatch.webRemoteControlRelayOrigin.trim();
+    normalizedPatch.webRemoteControlRelayOrigin =
+      trimmedWebRemoteControlRelayOrigin.length > 0
+        ? trimmedWebRemoteControlRelayOrigin
+        : undefined;
+  }
+
+  if (
     "providerFamilyDomain" in normalizedPatch &&
     typeof normalizedPatch.providerFamilyDomain === "string"
   ) {

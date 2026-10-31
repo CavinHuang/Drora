@@ -82,8 +82,14 @@ RUN pnpm --filter @drora/relay-v2-server run build
 # redirect 仍会静默烘焙官方默认域 zcode.z.ai。产物形态由 relay 包 tools/verify-v4-build.mjs
 # 的判别逻辑背书（base=/remote/v4/ 前缀 + 自建域 redirect 烘焙）。
 ARG DRORA_PUBLIC_ORIGIN
+# 自建页 OAuth 应用（spec §8.5/§8.7）：官方 client_id 的 redirect 白名单不含任意自建域，
+# 自有 OAuth 应用经这里透传烘焙；缺省沿用官方公开值（与桌面对齐）。
+ARG VITE_ZAI_OAUTH_CLIENT_ID
+ARG VITE_BIGMODEL_OAUTH_APP_ID
 ENV VITE_DRORA_ENDPOINT_ORIGIN=${DRORA_PUBLIC_ORIGIN} \
-    DRORA_ENDPOINT_ORIGIN=${DRORA_PUBLIC_ORIGIN}
+    DRORA_ENDPOINT_ORIGIN=${DRORA_PUBLIC_ORIGIN} \
+    VITE_ZAI_OAUTH_CLIENT_ID=${VITE_ZAI_OAUTH_CLIENT_ID} \
+    VITE_BIGMODEL_OAUTH_APP_ID=${VITE_BIGMODEL_OAUTH_APP_ID}
 RUN pnpm --filter @drora/web exec vite build --base=/remote/v4/
 
 # ————— runtime：仅三件运行闭包 —————

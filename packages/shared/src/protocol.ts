@@ -484,6 +484,12 @@ export interface AppSettings {
   /** 设置页里的临时 endpoint override；正式/测试默认 base url 由 DRORA_BASE_URL env 管理。 */
   droraEndpointOrigin?: string;
   /**
+   * 远控「官方/自建 Relay」切换（specs/relay-v2-server.md §8.7）：仅覆盖远控三 URL 面
+   * （注册 HTTP/relay WS/二维码页），缺失或空表示跟随全局 endpoint 链。生产可写，
+   * 与 droraEndpointOrigin 的 test-only 门禁有意不同。
+   */
+  webRemoteControlRelayOrigin?: string;
+  /**
    * VaultView 智能问库 Jev 出站决策开关（specs/obsidian-knowledge.md §5d.10）。
    * 默认关闭（ADR #5：零出站）；开启仅表示允许装配，实际出站仍需逐 run 用户授权。
    * 装配期快照，变更重启 Host 后生效。

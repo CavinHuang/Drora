@@ -2703,6 +2703,20 @@ const enUS: Record<string, string> = {
   "webRemoteControl.botChannel.telegram.description": "Open this workspace from Telegram.",
   "webRemoteControl.botChannel.configure": "Configure in bot channels",
   "webRemoteControl.botChannel.manageBots": "Manage bots",
+  "webRemoteControl.relaySource.title": "Relay service",
+  "webRemoteControl.relaySource.official": "Official",
+  "webRemoteControl.relaySource.officialDescription":
+    "Use the official relay service. No extra configuration needed.",
+  "webRemoteControl.relaySource.custom": "Self-hosted",
+  "webRemoteControl.relaySource.customDescription":
+    "Point to your self-hosted relay origin. Only affects the mobile remote control connection.",
+  "webRemoteControl.relaySource.originPlaceholder": "https://relay.example.com",
+  "webRemoteControl.relaySource.originRequired": "Enter your self-hosted relay origin.",
+  "webRemoteControl.relaySource.originInvalid":
+    "Invalid origin. Use a full URL starting with http(s)://.",
+  "webRemoteControl.relaySource.apply": "Save and reconnect",
+  "webRemoteControl.relaySource.applied": "Relay source switched. Reconnecting.",
+  "webRemoteControl.relaySource.applyFailed": "Failed to switch relay source: {error}",
   "webRemoteControl.linkLabel": "Remote control link",
   "webRemoteControl.linkPending": "The remote control link will appear here once ready.",
   "webRemoteControl.singlePageNote":

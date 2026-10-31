@@ -8,14 +8,14 @@ describe("hosted Relay deployment", () => {
         protocol: "http:",
         host: "192.168.1.2:4500",
       }),
-    ).toBe("ws://192.168.1.2:4500/ws");
+    ).toBe("ws://192.168.1.2:4500/api/v1/remote/ws2");
     expect(
       resolveHostedRemoteRelayUrl({
         pathname: "/remote/v4/index.html",
         protocol: "https:",
         host: "relay.example",
       }),
-    ).toBe("wss://relay.example/ws");
+    ).toBe("wss://relay.example/api/v1/remote/ws2");
     expect(
       resolveHostedRemoteRelayUrl({ pathname: "/", protocol: "https:", host: "app.example" }),
     ).toBeUndefined();

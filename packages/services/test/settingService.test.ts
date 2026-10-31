@@ -1000,6 +1000,24 @@ describe("settingService", () => {
     );
   });
 
+  it("支持保存并清空远控自建 relay origin（specs/relay-v2-server.md §8.7）", async () => {
+    const home = makeTempHome();
+    const settingsFile = join(home, ".drora", "v2", "setting.json");
+    const service = await createSettingServiceInHome(home);
+
+    await service.update({ webRemoteControlRelayOrigin: "https://relay.example.com/base" });
+    await expect(service.get()).resolves.toMatchObject({
+      webRemoteControlRelayOrigin: "https://relay.example.com",
+    });
+
+    await service.update({ webRemoteControlRelayOrigin: "" });
+
+    await expect(service.get()).resolves.not.toHaveProperty("webRemoteControlRelayOrigin");
+    expect(JSON.parse(readFileSync(settingsFile, "utf-8"))).not.toHaveProperty(
+      "webRemoteControlRelayOrigin",
+    );
+  });
+
   it("忽略损坏的 Drora endpoint override，保留其它 settings", async () => {
     const home = makeTempHome();
     const settingsDir = join(home, ".drora", "v2");

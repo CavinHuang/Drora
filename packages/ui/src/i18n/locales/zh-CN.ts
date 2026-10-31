@@ -2503,6 +2503,18 @@ const zhCN: Record<string, string> = {
   "webRemoteControl.botChannel.telegram.description": "从 Telegram 打开这个工作区。",
   "webRemoteControl.botChannel.configure": "去 Bot Channels 配置",
   "webRemoteControl.botChannel.manageBots": "机器人管理",
+  "webRemoteControl.relaySource.title": "Relay 服务",
+  "webRemoteControl.relaySource.official": "官方",
+  "webRemoteControl.relaySource.officialDescription": "使用官方 relay 服务，无需额外配置。",
+  "webRemoteControl.relaySource.custom": "自建",
+  "webRemoteControl.relaySource.customDescription":
+    "指向自建 relay 服务的地址，仅影响手机远程控制连接。",
+  "webRemoteControl.relaySource.originPlaceholder": "https://relay.example.com",
+  "webRemoteControl.relaySource.originRequired": "请填写自建 relay 服务地址。",
+  "webRemoteControl.relaySource.originInvalid": "地址无效，需要 http(s):// 开头的完整地址。",
+  "webRemoteControl.relaySource.apply": "保存并重连",
+  "webRemoteControl.relaySource.applied": "已切换 Relay 来源，正在重新连接。",
+  "webRemoteControl.relaySource.applyFailed": "切换 Relay 来源失败：{error}",
   "webRemoteControl.linkLabel": "远程控制链接",
   "webRemoteControl.linkPending": "远程控制链接就绪后会显示在这里。",
   "webRemoteControl.singlePageNote":

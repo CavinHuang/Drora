@@ -273,3 +273,45 @@ S2 应用 917 路径+18 冲突解决（16 源码+2 dist 产物取 theirs）+3 zo
 - S3-06：段内 typecheck/tests 门禁通过（见上）；schema 校验、逐表 hash/失败恢复/旧版兼容、服务与 Relay 回归、远端 build、RG04–06/13/15/16/18/20、三项复核、git commit 均未执行（「S3 门禁补记」遗留登记确认未执行 git commit）。
 
 S3-01–S3-06 复选框按状态规则维持 `[ ]`，待证据齐全后逐项关闭。本补记只改 tasks.md，未提交。
+
+## S4 执行补记（2026-11-01）
+
+### 应用与决策统计
+
+来源：`apply/S4-report.json`（segment=S4、dry=false、ledger=upstream-ledger.tsv sha256=95150a67…28bfc——本补记以 node crypto 实测该 TSV sha256 与报告一致；driftBlocked=0、errors=0；1,755 条 applied 路径全部位于 `packages/desktop/`，node 前缀核验 0 条例外）：
+
+- applied=1,755，动作分布（node 统计实测与报告 counts 一致）：add 655 / take-theirs 422 / text-clean-needs-semantic-review 91 / delete（随上游删除）420 / keep-ours（delete-local-change-review，Drora 保留测试与本地修改）123 / text-conflict 44；六项合计恰为 1,755。keep-ours 123 与 `S4-decisions-draft.json` 123 条决策（全部 keep-ours，node 统计实测）一一对应。
+- conflicts=44 文件、共 101 hunks（逐文件 hunk 数见报告 conflicts 数组；单文件最多：upstream fixture subagent-model-boundary 10 hunks、manual-review compact-timeline-projection 9、fork 8、upstream fixture tool-groups-history-restore 8）。44 文件逐一 grep `^(<{7}|={7}|>{7})` 全部 0 残留标记；扩展扫描 packages/desktop 的 src/scripts/test 全目录同样 0 命中（`grep -rlE` 计数=0）。
+- decisionRequired=0；skipped=2（already-deleted：`test/forceUpdateGuard.test.ts`、`test/manifestUpdateProvider.test.ts`——本补记实测两文件在 HEAD 与工作树均不存在，对应 specs/update-feed-github.md 有意删除的服务端 manifestUpdateProvider 链）；semanticReview=91 文件（清单见报告）。
+- applied 1,755 + skipped 2 = 1,757 路径，与 S4 段标题数一致。
+
+### 冲突裁决摘要
+
+裁决细节未随本轮执行摘要提供，以下为记录员终态归因复核：工作树 vs HEAD=821b68f5b（ours）vs `refs/usync/v3171/target`（theirs）逐文件 CRLF 归一后字节比对；行号为当前工作树 grep 实测锚点。
+
+- 整文件取上游 18 个，全部在 test/e2e 区：spec 2 个（v4-rewind-queue-background、manual-review compact-auto-actions）+ upstream fixture JSON 16 个（ssh-remote 族 4 个、subagent-model-boundary、tool-groups-history-restore、goal-resume-stale-target 等），终态与 U2 字节一致。
+- 整文件保 ours 1 个：`scripts/test-installer-nsh-smoke.mjs`（Drora NSIS 安装烟测，与 target 保持 14 行差异）。
+- 混合合并 25 个（产品 8 + 测试 17）。产品文件保留要点：
+  - `electron-builder.config.js`（3 hunks，vs HEAD +62 行）：Drora 身份与签名全保留——`desktopProductIdentity.appId`（:606）/`productName`（:636）、Windows vsign 校验与 browser-import-helper 签名钩子（:553–:598、afterPack :751）、`.drora-install-manifest`（:176）、Preview macOS 签名门（:242）；上游打包增量吸收。
+  - `src/main/autoUpdater.ts`（3 hunks）：`applyDroraUpdateFeed`/GitHub Release 更新源保留（:25、:843–:847）；服务端 manifestUpdateProvider 链维持有意删除（:27 注释），上游 v3.17.1 的 endpointOrigin 收紧与 manifestUrl 打包态禁用随删除一并不吸收（:845 文件内注释明示）。
+  - `src/host/index.ts`（1 hunk，vs HEAD +216 行）与 `src/host/windowHostAttachmentRpcPolicy.ts`（2 hunks，+179 行）：windowHostAttachmentRegistry/Policy 接线（host/index.ts:174/:179）、taskRealtimePort lease（:1516–:1522）、remoteWorkspaceServiceCollection 与远端身份准备保留；Drora owner/lease 语义注释（windowHostAttachmentRpcPolicy.ts:200/:210/:225「先撤销旧 owner 再异步回收」等）与上游 attachment policy 增量并存。
+  - `src/main/index.ts`（3 hunks，vs HEAD +90 行）：自建 Relay 链保留——webRemoteControlManager/getEndpointUrls 与三 URL 切换（:976–:980，注释引 specs/relay-v2-server.md §8.7）、`DRORA_WEB_REMOTE_CONTROL_URL`（:941）；上游通知/Renderer actions 增量吸收。
+  - `package.json`（2）、`scripts/prepare-agent-node-bundle.mjs`（4）、`src/main/mcpUserDirectory/index.ts`（1）：混合合并；配套 root 级改动见 S4-04 条。
+  - 17 个测试文件（manual-review spec 3、其他 spec/单测 3、fixture 8、helper 3）：Drora 侧修改与上游 fixture/断言演进并集；记录员仅做终态三方分类，未逐 hunk 审计（归 S4-05/S4-06 审计范围）。
+
+### 门禁
+
+门禁=[{"name":"typecheck-main","exit":0},{"name":"typecheck-remote","exit":0},{"name":"tests","exit":0}]——数值由本轮 S4 执行摘要提供，本补记未重跑。入口对应根 `package.json` scripts.typecheck 的 desktop 部分：typecheck-main=`tsc -b` 链中的 `packages/desktop/tsconfig.main.json`（同链还含 host/e2e/pet 三个 project），typecheck-remote=`tsc -p packages/desktop/tsconfig.remote-main.json --noEmit`。
+
+### 专项任务完成情况
+
+分目录 ledger 路径规模为记录员按前缀归类的 node 实测（合计=1,755）：test/e2e 1,340 {add 593/take-theirs 338/delete 219/keep-ours 87/semantic 70/conflict 33}；test 非 e2e 275 {delete 186/keep-ours 36/take-theirs 28/add 21/conflict 2/semantic 2}；src/main 56；scripts 43；src/host 22；src/renderer 12；desktop 根 4；src/preload 3。
+
+- S4-01：host attachment policy/调度/RPC 与 main 转发路径按 ledger 落地（src/host 22 条、src/main 56 条）；owner/lease/一窗口一 Local Host 语义在冲突文件终态保留（见裁决摘要）；「远端连接表、跨 Host lease」专项复核未见记录，任务保持未关闭。
+- S4-02：main/index.ts 保留自建 Relay 来源、设置读取与 getEndpointUrls 三 URL（:941/:976–:980 grep 证据）；通知/Renderer actions 随上游吸收；切换与重连时序验证未见记录。
+- S4-03：Pet/Voice/Persona/knowledgeHost 实现文件被动保留——applied 清单经关键字扫描（pet|voice|persona|knowledge|drora-extension）仅 3 条假阳性命中（"personal-lifecycle"/"personalization" 含 persona 子串），真实现路径 0 条；`git status --porcelain` 对 src/drora-extensions、src/main/desktopPet*、voicePermissionPolicy.ts、src/shared 无任何改动。update feed 面在 autoUpdater.ts 冲突裁决中显式保 Drora；claim 接线/表达资源/麦克风策略等专项验证未见记录。
+- S4-04：builder/runtime node/SEA/source-server 构建路径落地；electron-builder.config.js 保 Drora 签名与更新渠道（见裁决摘要）。段内配套 root 级改动（在 S4-report.json 范围外，共 5 文件）：`scripts/native-search-tools-config.mjs` 新增 `NATIVE_SEARCH_TOOLS_ARTIFACT_SOURCE` 显式来源开关（非法取值 fail-fast，注释注明随上游 v3.17.1 契约 prepare-native-search-tools.test.ts 固化）、`scripts/prepare-native-search-tools.mjs`（+5 行）、`pnpm-lock.yaml`（+2,428 行）、root `package.json` 移除 devDependencies 的 `@drora/drora-cua: workspace:*`、package-lock.json。真包构建/worker/Sharp 产物入包验证未见记录。
+- S4-05：E2E spec/fixture/helper 的上游移动与删除在 apply 层落地（test/e2e 1,340 条，规模见上）；A/D 配对与 case ID 对齐的逐项审计未见记录，任务保持未关闭。
+- S4-06：typecheck-main/typecheck-remote/tests 三门禁通过（见上门禁节）；真 Electron E2E、RG07–09/12–15/17/19/21、Windows 与 macOS 分平台证据、三项复核、git commit 均未执行——HEAD 仍 821b68f5b，工作树 packages/desktop 560 M / 420 D / 636 ??（420 D 与 ledger delete 420 一致；`apply/S4-report.json` 自身亦未跟踪）。
+
+S4-01–S4-06 复选框按状态规则维持 `[ ]`，待证据齐全后逐项关闭。本补记只改 tasks.md，未提交。

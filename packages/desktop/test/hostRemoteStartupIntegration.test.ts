@@ -192,6 +192,9 @@ describe("Window Host 的 Source 重连与数据库启动整合", () => {
       `${compile(`async function run() { ${initNode.getText(source)} }`)};run;`,
       {
         databaseStartup: undefined,
+        // 上游 v3.17.1：InitLocal 现在会把 msg.browserBackendIdentity 记录到模块级
+        // browserBackendIdentity（browser-use 桥的后端代次标识）；VM 边界补上该自由变量。
+        browserBackendIdentity: undefined,
         activeSessionRealtimePort: null,
         activeServices: null,
         activeHostApiNetworkTransport: null,
@@ -288,6 +291,43 @@ describe("Window Host 的 Source 重连与数据库启动整合", () => {
         },
         randomUUID: () => "id",
         logWindowHostTopology() {},
+        // 上游 v3.17.1 InitLocal 块新增的自由变量：设备同步状态注册、远端身份绑定、
+        // dynamic workflow 推送与 Agent 预热等。多数位于 createLocalServices 收到的惰性
+        // resolver 闭包内（测试 stub 不展开），这里提供惰性 no-op，保证顶层注册语句可执行。
+        IDeviceSyncStateService: {},
+        createDeviceSyncStateService: () => ({}),
+        join: (...parts: string[]) => parts.join("/"),
+        getAppConfigDir: () => "/tmp/drora-appconfig",
+        IProviderProvisioningStatusService: {},
+        hostProviderProvisioningStatus: { service: {} },
+        IProjectService: {},
+        IDroraAgentService: {},
+        warmUpDroraAgent: () => undefined,
+        createReportingRemoteDroraTaskService: <T extends object>(service: T) => service,
+        pushDynamicWorkflowUserModeToRemoteHosts: () => undefined,
+        bindRemoteProjectIdentities: () => ({}),
+        resolveServerProjectService: () => ({}),
+        parseRemoteWorkspaceIdentity: () => undefined,
+        buildServerRemoteWorkspaceIdentity: () => "server-identity",
+        buildRemoteHostWorkspaceIdentity: () => "host-identity",
+        remoteHostIdFromWorkspaceIdentity: () => "host-1",
+        remoteProjectHostIdForProfile: () => "host-1",
+        remoteProjectHostIdForTarget: () => "host-1",
+        registryProjectIdentityRegistrations: () => ({}),
+        managerProjectIdentityRegistrations: () => ({}),
+        windowRemoteConnectionRegistry: {
+          listSessions: () => [],
+          listConnections: () => [],
+          getOnlineSource: () => undefined,
+          connectSource: async () => undefined,
+        },
+        sourceServerDisplayNameById: new Map(),
+        shouldDetachSourceSettingsAttachment: () => false,
+        setWorkspaceProjection: () => undefined,
+        resolveBotRemoteWorkspace: () => undefined,
+        resolveSourceServerReleaseAsset: async () => undefined,
+        RemoteProjectHost: undefined,
+        prepareLegacyAccountConnections: () => undefined,
       },
     ) as () => Promise<void>;
     const complete = run();

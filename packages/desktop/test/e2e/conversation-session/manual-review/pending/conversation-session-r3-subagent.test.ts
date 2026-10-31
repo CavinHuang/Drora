@@ -2,28 +2,50 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import {
   TID_CHAT_ASSISTANT_HISTORY_TRIGGER,
+  TID_TASK_ITEM,
+  testId,
   TID_V4_SESSION_PANE,
   TID_V4_RETRY_SUBSCRIBE,
   TID_V4_SUBAGENT_OPEN_SIDE_PANE,
   TID_V4_STOP,
+  TID_V4_COMPOSER_INPUT,
+  TID_V4_COMPOSER_SEND,
 } from "@drora/shared/test-ids";
-import { clearAppData } from "../../../helpers/desktop-app.js";
+import { clearAppData, switchToWorkspaceRendererWindow } from "../../../helpers/desktop-app.js";
+import { reloadElectronSessionPreservingBrowserProfile } from "../../../helpers/e2e-electron-reload.js";
 import {
   getUpstreamRequestRecordCount,
+  getUpstreamRequestEvidence,
   waitForUpstreamRequest,
 } from "../../../helpers/conversation-session-network.js";
 import {
   connectSSHWorkspaceAndSendFirstTurn,
   listRemoteAgentProcesses,
-  prepareSSHLifecycle,
+  readRemoteCoreIdentity,
+  terminateRemoteProcess,
+  SSH_LIFECYCLE_MODEL_ID,
   type SSHLifecycleProvider,
 } from "../../../helpers/ssh-remote-lifecycle.js";
-import { readRemoteTabSnapshot, runSSHCommand } from "../../../helpers/ssh-remote-p0.js";
 import {
+  seedCustomAnthropicMessagesProvider,
+  refreshSeededOpenAIProvidersThroughSettings,
+} from "../../../helpers/custom-openai-provider.js";
+import {
+  createSSHReplayTunnel,
+  readHostProcesses,
+  readRemoteTabSnapshot,
+  waitForRemoteTab,
+  readSSHRuntimeConfig,
+  runSSHCommand,
+} from "../../../helpers/ssh-remote-p0.js";
+import {
+  approveV4Permission,
   clickV4StopInPane,
   getV4ConfigProjection,
   getV4ConversationState,
+  prepareV4ConversationE2E,
   sendV4Prompt,
+  selectV4TaskById,
   sendV4PromptAndWaitAccepted,
   switchV4Mode,
   waitForV4ConversationState,
@@ -32,6 +54,8 @@ import {
 } from "../../../helpers/v4-conversation.js";
 
 const CASE_MARKER = "E2E_R3_SUBAGENT";
+// 远端用例前置：Server 启动时设置 DRORA_DYNAMIC_WORKFLOW_MODE=alwaysOn；WDIO 也为本文件开启。
+// 常驻 Server 不继承客户端环境；本用例验证会话归属，灰度另有专用用例。
 const artifactDir = resolve(process.env.DRORA_E2E_ARTIFACT_DIR ?? ".e2e-artifacts/r3-subagent");
 const REMOTE_RELEASE_DIR = "/home/dev/r3-workspace-a/.drora-e2e/r3-subagent";
 const REMOTE_RELEASE_FILE = `${REMOTE_RELEASE_DIR}/release-child`;
@@ -77,7 +101,7 @@ async function readPanes(): Promise<
   );
 }
 
-describe(`${CASE_MARKER}: 远端 task 的子 Agent 会话：打开、继续观察、父 task 停止`, () => {
+describe(`${CASE_MARKER}: 远端 Agent、工作流 actor 与辅助对话的项目归属`, () => {
   let provider: SSHLifecycleProvider | null = null;
   const facts: Record<string, unknown> = {};
 
@@ -90,13 +114,35 @@ describe(`${CASE_MARKER}: 远端 task 的子 Agent 会话：打开、继续观�
     await clearAppData();
   });
 
-  it("R3A-TASK-06 子会话与父 task 同 Source、独立 session；从 Agent 行打开子会话；父 task 停止后父/子状态收口", async function () {
+  it("R3A-TASK-06 子会话与父 task 同 Source、独立 session；从 Agent 行打开子会话；父 task 停止后父/子状态收口；工作流 actor 可读、辅助对话可续发", async function () {
     this.timeout(30 * 60_000);
-    const prepared = await prepareSSHLifecycle(CASE_MARKER, {
-      apiType: "anthropic-messages",
-      tunnelUsername: "tunnel",
+    expect(await browser.electron.execute(() => process.env.DRORA_DYNAMIC_WORKFLOW_MODE)).toBe(
+      "alwaysOn",
+    );
+    const prepared = { config: readSSHRuntimeConfig(CASE_MARKER) };
+    await prepareV4ConversationE2E({ skipProvider: true });
+    expect(await readHostProcesses()).toHaveLength(1);
+    const tunnel = await createSSHReplayTunnel(prepared.config, CASE_MARKER, {
+      username: "tunnel",
     });
-    provider = prepared.provider;
+    provider = { id: "", name: "", tunnel };
+    Object.assign(
+      provider,
+      await seedCustomAnthropicMessagesProvider({
+        baseURL: `${tunnel.baseURL}/anthropic`,
+        modelId: SSH_LIFECYCLE_MODEL_ID,
+        providerId: `e2e-ssh-remote-lifecycle-${Date.now()}`,
+        providerName: "SSH workflow lifecycle",
+      }),
+    );
+    // 主/子模型在同一次刷新、首连同步前配置，确保远端 Agent 启动时拥有完整 provider 配置。
+    await seedCustomAnthropicMessagesProvider({
+      baseURL: `${provider.tunnel.baseURL}/anthropic`,
+      modelId: "GLM-5.3",
+      providerId: "e2e-workflow-actors",
+      providerName: "Workflow actors",
+    });
+    await refreshSeededOpenAIProvidersThroughSettings([provider.name, "Workflow actors"]);
     const [workspaceA] = prepared.config.workspacePaths;
     await runSSHCommand(
       prepared.config,
@@ -236,24 +282,18 @@ describe(`${CASE_MARKER}: 远端 task 的子 Agent 会话：打开、继续观�
     // 子会话属于同一 Source（同一 remote tab 下），远端 workspace Agent 仍只有一个。
     const tab = await readRemoteTabSnapshot(taskA.identity);
     expect(tab.remoteSessionId).toBe(taskA.remoteSessionId);
-    // cwd 可能带 "(deleted)" 后缀（目录被重建后旧 Agent 仍存活，见 O-11），按前缀匹配。
-    // 0911 诊断：两次 FAIL 均为过滤后 0，但远端 daemon status runningTaskCount=1、
-    // cli 日志有双 session_create（父+子），进程应在跑。先落未过滤全量（pid/cwd），
-    // 区分"远端无 app-server 进程"与"cwd 口径不符"（chat lane 不做空闲回收）。
+    // Agent 的 cwd 由 Server 启动方式决定；进程归属以 Core 的直接子进程为准。
     const allRemoteAgents = await listRemoteAgentProcesses(prepared.config);
     facts.remoteAllAgents = allRemoteAgents.map((agent) => ({
       pid: agent.pid,
       ppid: agent.ppid,
+      startTicks: agent.startTicks,
       cwd: agent.cwd,
     }));
     const remoteAgents = allRemoteAgents.filter(
       (agent) => agent.cwd === workspaceA || agent.cwd.startsWith(`${workspaceA} `),
     );
     facts.remoteWorkspaceAgents = remoteAgents.map((agent) => ({ pid: agent.pid, cwd: agent.cwd }));
-    // 0911 round 35 取证实锤：agent 进程 cwd 是 daemon home（/home/dev）而非
-    // workspace 路径（daemon spawn cwd 实现细节，§37 剩余主嫌坐实——remoteAllAgents
-    // 有进程、remoteWorkspaceAgents 空）。进程存在性以 args 匹配（app-server
-    // --stdio）为准，cwd 不作为必要条件；双 session 同进程（§37 cli 日志），上界 2 宽松保留。
     expect(allRemoteAgents.length).toBeGreaterThanOrEqual(1);
     expect(allRemoteAgents.length).toBeLessThanOrEqual(2);
     // 子 pane 可以是只读视图，不能把“没有停止按钮”当成已完成。
@@ -335,5 +375,177 @@ describe(`${CASE_MARKER}: 远端 task 的子 Agent 会话：打开、继续观�
       },
     );
     expect(await childPane.$(`[data-testid="${TID_V4_RETRY_SUBSCRIBE}"]`).isExisting()).toBe(false);
+
+    // 同一远端项目里的工作流 actor 没有 tasks 行，必须沿真实 CLI 父链打开正文。
+    await sendV4Prompt("/workflow E2E_R3_WORKFLOW_START");
+    await approveV4Permission();
+    await waitForV4TimelineContaining("R3_WORKFLOW_STARTED", 120_000);
+    await browser.waitUntil(
+      async () =>
+        browser.execute(() => {
+          const pill = document.querySelector<HTMLElement>(
+            '[data-testid="workflow-agent-pill"][data-agent-open="true"][data-agent-status="done"]',
+          );
+          if (!pill) return false;
+          pill.click();
+          return true;
+        }),
+      { timeout: 120_000, timeoutMsg: "工作流 actor 没有完成或没有详情入口" },
+    );
+    let actorSessionId = "";
+    await browser.waitUntil(
+      async () => {
+        const actor = (await readPanes()).find((pane) => pane.sessionId?.startsWith("sess_dwf-"));
+        actorSessionId = actor?.sessionId ?? "";
+        return Boolean(actor?.projectionSeq && actor.rowCount > 0 && !actor.subscriptionFailed);
+      },
+      { timeout: 30_000, timeoutMsg: "远端工作流 actor 详情没有加载" },
+    );
+    const actorPane = $(`[data-session-id="${actorSessionId}"]`);
+    expect(await actorPane.getText()).toContain("R3_WORKFLOW_CHILD_DONE");
+    expect(await actorPane.$(`[data-testid="${TID_V4_COMPOSER_INPUT}"]`).isExisting()).toBe(false);
+    const actorRequests = await getUpstreamRequestEvidence({
+      lastUserMessageIncludes: ["E2E_R3_WORKFLOW_CHILD"],
+    });
+    expect(
+      actorRequests.some(
+        (request) => (request.requestJson as { model?: string })?.model === "GLM-5.3",
+      ),
+    ).toBe(true);
+    facts.workflowActor = { actorSessionId, model: "GLM-5.3", panes: await readPanes() };
+
+    // 辅助对话也继承项目，但保留用户输入；不能跟工作流一起被设为只读。
+    await sendV4Prompt("/side E2E_R3_SIDE_CHAT");
+    let sideSessionId = "";
+    await browser.waitUntil(
+      async () => {
+        const pane = (await readPanes()).find(
+          (entry) =>
+            entry.sessionId !== taskA.taskId &&
+            entry.sessionId !== childSessionId &&
+            entry.sessionId !== actorSessionId &&
+            Boolean(entry.projectionSeq) &&
+            !entry.subscriptionFailed,
+        );
+        if (!pane?.paneTestId || !pane.sessionId) return false;
+        sideSessionId = pane.sessionId;
+        return (await $(`[data-session-id="${sideSessionId}"]`).getText()).includes(
+          "R3_SIDE_CHAT_DONE",
+        );
+      },
+      { timeout: 60_000, timeoutMsg: "远端辅助对话未打开或无法发送" },
+    );
+    // 辅助对话直接挂载 SessionPane，没有分屏的 pane shell；在真实输入框中键入续发。
+    const sidePane = $(`[data-session-id="${sideSessionId}"]`);
+    const sideInput = sidePane.$(`[data-testid="${TID_V4_COMPOSER_INPUT}"]`);
+    await browser.waitUntil(
+      async () => (await sideInput.getAttribute("contenteditable")) === "true",
+      { timeout: 15_000, timeoutMsg: "辅助对话输入框不可编辑" },
+    );
+    await sideInput.click();
+    await browser.keys("E2E_R3_SIDE_FOLLOWUP");
+    await browser.waitUntil(async () => (await sideInput.getText()) === "E2E_R3_SIDE_FOLLOWUP", {
+      timeout: 15_000,
+      timeoutMsg: "辅助对话续发内容没有进入输入框",
+    });
+    const sideSend = sidePane.$(`[data-testid="${TID_V4_COMPOSER_SEND}"]`);
+    await sideSend.waitForClickable();
+    await sideSend.click();
+    await browser.waitUntil(
+      async () =>
+        (await $(`[data-session-id="${sideSessionId}"]`).getText()).includes(
+          "R3_SIDE_FOLLOWUP_DONE",
+        ),
+      { timeout: 60_000, timeoutMsg: "辅助对话续发未完成" },
+    );
+    facts.selectionSideChat = { sideSessionId, panes: await readPanes() };
+    // 原回归只打开热 child，漏掉进程重启后的反向设置请求。先终止真实远端 Agent，
+    // 再重启桌面清空 renderer 缓存；仅挂载 pane 或保留旧正文不算冷恢复成功。
+    const beforeRestart = await listRemoteAgentProcesses(prepared.config);
+    expect(beforeRestart.length).toBeGreaterThan(0);
+    const core = await readRemoteCoreIdentity(prepared.config, CASE_MARKER);
+    expect(beforeRestart.every((process) => process.ppid === core.pid)).toBe(true);
+    await reloadElectronSessionPreservingBrowserProfile(browser, {
+      afterElectronProcessExit: async () => {
+        // 桌面先退出，防止旧订阅在故障注入后立即重启 Agent，污染冷恢复前置。
+        for (const process of beforeRestart) {
+          await terminateRemoteProcess(prepared.config, process, CASE_MARKER);
+        }
+        expect(await listRemoteAgentProcesses(prepared.config)).toEqual([]);
+      },
+    });
+    await switchToWorkspaceRendererWindow("", 60_000);
+    await waitForRemoteTab({
+      caseMarker: CASE_MARKER,
+      expectedIdentity: taskA.identity,
+      expectedPath: workspaceA,
+    });
+    await selectV4TaskById(taskA.taskId, 60_000);
+    await waitForV4TimelineContaining("R3_SUBAGENT_PARENT_LAUNCHED", 90_000);
+    await browser.waitUntil(
+      async () =>
+        browser.execute(
+          (prefix, historyTrigger, childId) => {
+            for (const trigger of document.querySelectorAll<HTMLElement>(
+              `[data-testid^="${historyTrigger}"]`,
+            )) {
+              if (
+                trigger.getAttribute("aria-expanded") !== "true" &&
+                trigger.getAttribute("data-history-open") !== "true"
+              )
+                trigger.click();
+            }
+            const button = document.querySelector<HTMLElement>(
+              `[data-testid="${prefix}-${childId}"]`,
+            );
+            if (!button?.getClientRects().length) return false;
+            button.click();
+            return true;
+          },
+          TID_V4_SUBAGENT_OPEN_SIDE_PANE,
+          TID_CHAT_ASSISTANT_HISTORY_TRIGGER,
+          childSessionId,
+        ),
+      {
+        timeout: 30_000,
+        timeoutMsg: "冷启后原子会话没有详情入口",
+      },
+    );
+    await browser.waitUntil(
+      async () => {
+        const pane = (await readPanes()).find((entry) => entry.sessionId === childSessionId);
+        return (
+          Boolean(pane?.projectionSeq && pane.rowCount > 0 && !pane.subscriptionFailed) &&
+          (await $(`[data-session-id="${childSessionId}"]`).getText()).includes(
+            "R3_SUBAGENT_CHILD_DONE",
+          )
+        );
+      },
+      { timeout: 60_000, timeoutMsg: "远端 Agent 重启后原子会话没有恢复历史正文" },
+    );
+    const afterRestart = await listRemoteAgentProcesses(prepared.config);
+    expect(afterRestart.length).toBeGreaterThan(0);
+    expect(
+      afterRestart.every((current) =>
+        beforeRestart.every(
+          (previous) => current.pid !== previous.pid || current.startTicks !== previous.startTicks,
+        ),
+      ),
+    ).toBe(true);
+    expect(
+      await $(`[data-session-id="${childSessionId}"]`)
+        .$(`[data-testid="${TID_V4_COMPOSER_INPUT}"]`)
+        .isExisting(),
+    ).toBe(false);
+    facts.coldResume = { beforeRestart, afterRestart, childSessionId, panes: await readPanes() };
+    await browser.saveScreenshot(resolve(artifactDir, "cold-resume-child.png"));
+    expect(await $(`[data-testid="${testId(TID_TASK_ITEM, taskA.taskId)}"]`).isExisting()).toBe(
+      true,
+    );
+    for (const hiddenId of [childSessionId, actorSessionId, sideSessionId]) {
+      expect(await $(`[data-testid="${testId(TID_TASK_ITEM, hiddenId)}"]`).isExisting()).toBe(
+        false,
+      );
+    }
   });
 });

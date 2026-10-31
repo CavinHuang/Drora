@@ -147,10 +147,17 @@ vi.mock("electron-updater", () => {
     setRequestHeaders() {}
   }
 
+  // 上游 v3.17.1 的 initAutoUpdater 用 `autoUpdater instanceof NsisUpdater` 决定是否挂
+  // verifyUpdateCodeSignature hook；autoUpdaterMock 不是 NsisUpdater 实例，这里只提供
+  // 可供 instanceof 判定的类，保持 mock 与真实 electron-updater 导出形状一致。
+  class NsisUpdaterMock {}
+
   return {
     CancellationToken: CancellationTokenMock,
     Provider: ProviderMock,
+    NsisUpdater: NsisUpdaterMock,
     default: {
+      NsisUpdater: NsisUpdaterMock,
       autoUpdater: autoUpdaterMock,
     },
   };
@@ -158,6 +165,15 @@ vi.mock("electron-updater", () => {
 
 vi.mock("node:fs/promises", () => ({
   readFile: readFileMock,
+}));
+
+// 上游 v3.17.1 在 quitAndInstall 前用 PowerShell 复查已下载安装包的 Authenticode 签名；
+// 单测环境没有真实签名文件，这里固定返回 null（校验通过），隔离签名链路只测安装流程本身。
+const { verifyWindowsAuthenticodeSignatureMock } = vi.hoisted(() => ({
+  verifyWindowsAuthenticodeSignatureMock: vi.fn(async () => null),
+}));
+vi.mock("../scripts/powershell-command.mjs", () => ({
+  verifyWindowsAuthenticodeSignature: verifyWindowsAuthenticodeSignatureMock,
 }));
 
 // Bugfix: 这里之前把模块路径写死成开发者本机绝对路径，换一台机器跑单测就会直接找不到模块。
@@ -690,6 +706,9 @@ describe("autoUpdater ready state sync", () => {
   });
 
   it("启动参数中的 update feed URL 优先于环境变量", async () => {
+    // 上游 v3.17.1 收紧：正式包忽略调试更新源（argv/env 都不能接管安装包来源），
+    // 调试覆盖只在未打包运行时生效，这里切换到 dev 形态再验证优先级解析。
+    appMock.isPackaged = false;
     const { resolveUpdateFeedSourceFromStartupConfig } = await import("../src/main/autoUpdater.js");
 
     expect(

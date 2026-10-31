@@ -21,7 +21,7 @@ const CASE_MARKER = "E2E_R3_INSTALL_ENVIRONMENT";
 const artifactDir = resolve(
   process.env.DRORA_E2E_ARTIFACT_DIR ?? ".e2e-artifacts/r3-install-environment",
 );
-type InstallEnvironmentCase = "noexec-tmp" | "no-tar" | "no-forwarding";
+type InstallEnvironmentCase = "noexec-tmp" | "no-tar" | "no-forwarding" | "old-glibc";
 const SUBCASE = (process.env.R3_INSTALL_ENV_CASE ?? "") as InstallEnvironmentCase;
 
 async function readRemoteFacts(config: SSHConnectionConfig) {
@@ -31,6 +31,8 @@ async function readRemoteFacts(config: SSHConnectionConfig) {
       'echo "forwarding=$(grep -iE "^AllowTcpForwarding" /etc/ssh/sshd_config | tail -n1)"; ' +
       'echo "current=$(test -f "$HOME/.drora/server/current.json" && grep -o \'"archiveSha256": *"[0-9a-f]*"\' "$HOME/.drora/server/current.json" || echo none)"; ' +
       'echo "staging=$(ls -d "$HOME"/.drora/server/staging* "$HOME"/.drora/server/bootstrap* 2>/dev/null | tr "\\n" ",")"; ' +
+      'echo "serverRoot=$(ls -A "$HOME/.drora/server" 2>/dev/null | tr "\\n" ",")"; ' +
+      'echo "libc=$(getconf GNU_LIBC_VERSION 2>/dev/null || echo none)"; ' +
       'echo "tmpEntries=$(ls /tmp 2>/dev/null | tr "\\n" ",")"; echo "status=$(cat "$HOME/.drora/server/run/status.json" 2>/dev/null | tr -d "\\n ")"',
   );
   return Object.fromEntries(
@@ -88,23 +90,48 @@ describe(`${CASE_MARKER}: 受限远端环境下的安装与连接（${SUBCASE}�
 
   it(`R3A-BLD-09/CON-06 ${SUBCASE}`, async function () {
     this.timeout(20 * 60_000);
-    if (!["noexec-tmp", "no-tar", "no-forwarding"].includes(SUBCASE)) {
-      throw new Error(`${CASE_MARKER}: R3_INSTALL_ENV_CASE 必须为 noexec-tmp|no-tar|no-forwarding`);
+    if (!["noexec-tmp", "no-tar", "no-forwarding", "old-glibc"].includes(SUBCASE)) {
+      throw new Error(
+        `${CASE_MARKER}: R3_INSTALL_ENV_CASE 必须为 noexec-tmp|no-tar|no-forwarding|old-glibc`,
+      );
     }
     const config = readSSHRuntimeConfig(CASE_MARKER);
     const before = await readRemoteFacts(config);
     expect(before.current).toBe("none");
     await prepareV4ConversationE2E({ skipProvider: true });
+    await browser.execute(() => {
+      const state = window as Window & {
+        __installEnvironmentLogs?: Array<{ message: string; level: string }>;
+        drora?: {
+          onRemoteConnectionLog: (
+            callback: (entry: { message: string; level: string }) => void,
+          ) => () => void;
+        };
+      };
+      state.__installEnvironmentLogs = [];
+      if (!state.drora) throw new Error("Missing desktop platform");
+      state.drora.onRemoteConnectionLog(({ message, level }) =>
+        state.__installEnvironmentLogs!.push({ message, level }),
+      );
+    });
     const initialHosts = await readHostProcesses();
     expect(initialHosts).toHaveLength(1);
 
     const outcome = await connectUntilErrorOrReady(config);
+    const connectionLogs = await browser.execute(
+      () =>
+        (
+          window as Window & {
+            __installEnvironmentLogs?: Array<{ message: string; level: string }>;
+          }
+        ).__installEnvironmentLogs ?? [],
+    );
     const after = await readRemoteFacts(config);
     const hosts = await readHostProcesses();
     await mkdir(artifactDir, { recursive: true });
     await writeFile(
       resolve(artifactDir, `${SUBCASE}.json`),
-      JSON.stringify({ subcase: SUBCASE, before, outcome, after, hosts }, null, 2),
+      JSON.stringify({ subcase: SUBCASE, before, outcome, connectionLogs, after, hosts }, null, 2),
     );
     expect(hosts).toEqual(initialHosts);
     expect(outcome.errorText).not.toContain(config.password);
@@ -128,6 +155,21 @@ describe(`${CASE_MARKER}: 受限远端环境下的安装与连接（${SUBCASE}�
       expect(outcome.connectionLog.toLowerCase()).toContain("tar");
       expect(outcome.connectionLog).not.toMatch(/Uploading|上传/u);
       expect(after.current).toBe("none");
+      return;
+    }
+    if (SUBCASE === "old-glibc") {
+      // 仅注入 getconf 的低版本报告，真实 runtime 仍可运行：警告不得阻断首装、握手和项目绑定。
+      expect(before.libc).toBe("glibc 2.17");
+      expect(connectionLogs).toContainEqual(
+        expect.objectContaining({
+          level: "warn",
+          message: expect.stringMatching(/glibc 2\.17.*glibc 2\.28.*may fail.*Continuing/u),
+        }),
+      );
+      expect(outcome.errorText).toBe("");
+      expect(outcome.ready).toBe(true);
+      expect(after.current).toMatch(/archiveSha256/u);
+      expect(after.status).toContain('"state":"ready"');
       return;
     }
     // 主规格与 Transport Adapter 明确支持 direct-tcpip 被禁后回退 proxy-stdio。

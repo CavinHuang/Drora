@@ -6,27 +6,41 @@ const state = vi.hoisted(() => {
     images: unknown[];
     tooltips: string[];
   }> = [];
-  const createFromBitmapCalls: Array<{ buffer: Buffer; width: number; height: number }> = [];
+  // 上游 v3.17.1：托盘合成改为 createEmpty + addRepresentation（1x/2x 双表示），
+  // 这里记录每次 addRepresentation 的入参以断言几何与缓存行为。
+  const representationCalls: Array<{
+    scaleFactor: number;
+    width: number;
+    height: number;
+    buffer: Buffer;
+  }> = [];
   let baseImageCounter = 0;
 
-  // 32×32 不透明蓝底（预乘 BGRA），模拟托盘底图
-  const baseBuffer = Buffer.alloc(32 * 32 * 4);
-  for (let offset = 0; offset < baseBuffer.length; offset += 4) {
-    baseBuffer[offset] = 200;
-    baseBuffer[offset + 1] = 40;
-    baseBuffer[offset + 2] = 10;
-    baseBuffer[offset + 3] = 255;
-  }
+  // 指定边长的不透明蓝底（预乘 BGRA），模拟托盘底图；resize 后的 toBitmap
+  // 必须与请求尺寸一致，否则会触发生产代码的位深防御而放弃合成。
+  const blueBuffer = (size: number): Buffer => {
+    const buffer = Buffer.alloc(size * size * 4);
+    for (let offset = 0; offset < buffer.length; offset += 4) {
+      buffer[offset] = 200;
+      buffer[offset + 1] = 40;
+      buffer[offset + 2] = 10;
+      buffer[offset + 3] = 255;
+    }
+    return buffer;
+  };
+  const baseBuffer = blueBuffer(32);
 
   const fakeBaseImage = () => ({
     __baseImage: ++baseImageCounter,
     isEmpty: () => false,
-    resize: () => ({ toBitmap: () => baseBuffer }),
+    resize: ({ width }: { width: number; height: number }) => ({
+      toBitmap: () => blueBuffer(width),
+    }),
   });
 
   return {
     trayInstances,
-    createFromBitmapCalls,
+    representationCalls,
     baseBuffer,
     fakeBaseImage,
     resetBaseImageCounter: () => {
@@ -59,10 +73,17 @@ vi.mock("electron", () => ({
   },
   nativeImage: {
     createFromPath: () => state.fakeBaseImage(),
-    createFromBitmap: (buffer: Buffer, options: { width: number; height: number }) => {
-      state.createFromBitmapCalls.push({ buffer, width: options.width, height: options.height });
-      return { __composed: state.createFromBitmapCalls.length, buffer };
-    },
+    createEmpty: () => ({
+      __composed: state.representationCalls.length + 1,
+      addRepresentation(representation: {
+        scaleFactor: number;
+        width: number;
+        height: number;
+        buffer: Buffer;
+      }) {
+        state.representationCalls.push(representation);
+      },
+    }),
   },
 }));
 
@@ -70,7 +91,7 @@ describe("desktop tray unread badge", () => {
   beforeEach(() => {
     vi.resetModules();
     state.trayInstances.length = 0;
-    state.createFromBitmapCalls.length = 0;
+    state.representationCalls.length = 0;
     state.resetBaseImageCounter();
   });
 
@@ -86,8 +107,8 @@ describe("desktop tray unread badge", () => {
     logger: { warn: vi.fn() },
   };
 
-  function pixelOf(buffer: Buffer, x: number, y: number): number[] {
-    const offset = (y * 32 + x) * 4;
+  function pixelOf(buffer: Buffer, x: number, y: number, size = 32): number[] {
+    const offset = (y * size + x) * 4;
     return [buffer[offset]!, buffer[offset + 1]!, buffer[offset + 2]!, buffer[offset + 3]!];
   }
 
@@ -98,7 +119,7 @@ describe("desktop tray unread badge", () => {
     expect(state.trayInstances).toHaveLength(0);
   });
 
-  it("计数非零时在 Logo 圆角透明缺口合成红点，按 label 缓存", async () => {
+  it("计数非零时按 1x/2x 双表示合成右上红点，按 label 缓存", async () => {
     const mod = await loadModule();
     mod.createDesktopTray({ ...trayOptions, platform: "win32" });
     expect(state.trayInstances).toHaveLength(1);
@@ -106,39 +127,50 @@ describe("desktop tray unread badge", () => {
     mod.applyDesktopTrayUnreadBadge(3);
     mod.applyDesktopTrayUnreadBadge(3);
 
-    // 同一 label 只合成一次
-    expect(state.createFromBitmapCalls).toHaveLength(1);
+    // 同一 label 只合成一次：一次 createEmpty 携带 1x 与 2x 两个表示
+    expect(state.representationCalls).toHaveLength(2);
     // 创建时 + 两次换图
     const images = state.trayInstances[0]!.images;
     expect(images).toHaveLength(2);
 
-    const { buffer } = state.createFromBitmapCalls[0]!;
-    expect(state.createFromBitmapCalls[0]!).toMatchObject({ width: 32, height: 32 });
-    expect(buffer.length).toBe(32 * 32 * 4);
-    // 画布 32×32、Logo 满幅；红点 9×9（画布 10、radius 4）圆心 (28.5, 3.5)，
-    // 嵌进 Logo 圆角的透明缺口，与图片上边缘、右边缘正切。
-    expect(pixelOf(buffer, 26, 4)).toEqual([53, 57, 229, 255]);
-    expect(pixelOf(buffer, 25, 3)).toEqual([53, 57, 229, 255]);
-    // 正切：红点像素触达图片第 0 行（上边缘）与第 31 列（右边缘）
-    expect(pixelOf(buffer, 28, 0)).toEqual([53, 57, 229, 255]);
-    expect(pixelOf(buffer, 31, 3)).toEqual([53, 57, 229, 255]);
-    // Logo 本体与远离红点的底图保持蓝色
-    expect(pixelOf(buffer, 16, 16)).toEqual([200, 40, 10, 255]);
-    expect(pixelOf(buffer, 22, 0)).toEqual([200, 40, 10, 255]);
-    // 整图不应出现白色笔画像素
-    let hasWhitePixel = false;
-    for (let offset = 0; offset + 3 < buffer.length; offset += 4) {
-      if (
-        buffer[offset] === 255 &&
-        buffer[offset + 1] === 255 &&
-        buffer[offset + 2] === 255 &&
-        buffer[offset + 3] === 255
-      ) {
-        hasWhitePixel = true;
-        break;
+    expect(state.representationCalls[0]!).toMatchObject({
+      scaleFactor: 1,
+      width: 16,
+      height: 16,
+    });
+    expect(state.representationCalls[1]!).toMatchObject({
+      scaleFactor: 2,
+      width: 32,
+      height: 32,
+    });
+    const oneX = state.representationCalls[0]!.buffer;
+    const twoX = state.representationCalls[1]!.buffer;
+    expect(oneX.length).toBe(16 * 16 * 4);
+    expect(twoX.length).toBe(32 * 32 * 4);
+    // 2x 表示：红点 origin(22,0)+圆心(5.5,4.5)、radius 3.75；(27,4) 距圆心 0.71，
+    // 超采样全覆盖 → 纯红预乘像素（B=53,G=57,R=229）。
+    expect(pixelOf(twoX, 27, 4)).toEqual([53, 57, 229, 255]);
+    // 1x 表示：origin(11,0)+圆心(2.75,2.25)、radius 1.875；(14,2) 距圆心 0.35，全覆盖。
+    expect(pixelOf(oneX, 14, 2, 16)).toEqual([53, 57, 229, 255]);
+    // Logo 本体保持蓝色
+    expect(pixelOf(twoX, 16, 16)).toEqual([200, 40, 10, 255]);
+    expect(pixelOf(twoX, 8, 24)).toEqual([200, 40, 10, 255]);
+    // 两个表示都不应出现白色笔画像素
+    for (const buffer of [oneX, twoX]) {
+      let hasWhitePixel = false;
+      for (let offset = 0; offset + 3 < buffer.length; offset += 4) {
+        if (
+          buffer[offset] === 255 &&
+          buffer[offset + 1] === 255 &&
+          buffer[offset + 2] === 255 &&
+          buffer[offset + 3] === 255
+        ) {
+          hasWhitePixel = true;
+          break;
+        }
       }
+      expect(hasWhitePixel).toBe(false);
     }
-    expect(hasWhitePixel).toBe(false);
   });
 
   it("计数归零时恢复原始托盘底图", async () => {
@@ -160,6 +192,6 @@ describe("desktop tray unread badge", () => {
 
     mod.applyDesktopTrayUnreadBadge(1);
 
-    expect(state.createFromBitmapCalls).toHaveLength(1);
+    expect(state.representationCalls).toHaveLength(2);
   });
 });

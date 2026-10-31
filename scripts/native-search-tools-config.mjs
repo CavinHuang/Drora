@@ -383,11 +383,23 @@ export function resolveNativeSearchRipgrepDownloadBaseUrl(env = process.env) {
 
 /**
  * native search 预编译归档来源的唯一判定，desktop / SEA / server-cli / remote 准备共用：
- * - 显式配置 NATIVE_SEARCH_TOOLS_DOWNLOAD_BASE_URL，或内网依赖源可解析：`intranet`，沿用原有下载链路；
- * - 内网依赖源未配置（resolveIntranetDepsBaseUrl 抛错或返回空）：`repository`，解包仓库内置归档。
+ * - 显式 NATIVE_SEARCH_TOOLS_ARTIFACT_SOURCE=repository/intranet（允许首尾空白）优先于一切推断：
+ *   依赖源已配置也可强制走仓库归档，依赖源未配置也可强制走内网镜像；
+ * - 未显式指定时：配置了 NATIVE_SEARCH_TOOLS_DOWNLOAD_BASE_URL，或内网依赖源可解析：`intranet`，
+ *   沿用原有下载链路；内网依赖源未配置（resolveIntranetDepsBaseUrl 抛错或返回空）：`repository`，解包仓库内置归档。
+ * - 显式取值非法时直接抛错，不静默回落到推断来源（拼写错误必须当场暴露）。
  * 两种来源使用同一份 release plan 与固定 SHA-256，只是字节来源不同。
  */
 export function resolveNativeSearchArtifactSource(env = process.env) {
+  // 上游 v3.17.1 契约（packages/desktop/test/prepare-native-search-tools.test.ts 固化）：
+  // 显式来源开关优先，非法取值 fail-fast。
+  const explicitSource = env.NATIVE_SEARCH_TOOLS_ARTIFACT_SOURCE?.trim();
+  if (explicitSource === "repository" || explicitSource === "intranet") {
+    return explicitSource;
+  }
+  if (explicitSource) {
+    throw new Error(`Unsupported NATIVE_SEARCH_TOOLS_ARTIFACT_SOURCE: ${explicitSource}`);
+  }
   if (env.NATIVE_SEARCH_TOOLS_DOWNLOAD_BASE_URL?.trim()) return "intranet";
   try {
     return resolveIntranetDepsBaseUrl(env) ? "intranet" : "repository";

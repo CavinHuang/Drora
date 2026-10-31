@@ -10,13 +10,11 @@ import semver from "semver";
 const { autoUpdater } = pkg;
 import {
   DEFAULT_LOCALE,
-  DEFAULT_DRORA_ENDPOINT_ORIGIN,
   PlatformChannels,
   DRORA_VERSION,
   desktopMenuMessageIds,
   formatDesktopMenuMessage,
   getDesktopMenuMessage,
-  resolveRuntimeDroraEndpointOrigin,
   type ElectronReleaseChannel,
   type Locale,
   type PostUpdateReleaseNotesPayload,
@@ -25,6 +23,9 @@ import {
 } from "@drora/shared";
 import { logger } from "./logger.js";
 import { applyDroraUpdateFeed } from "../drora-extensions/updateFeed.js";
+// 上游 v3.17.1 新增：Windows 下载包 Authenticode 校验（verifyUpdateCodeSignature 与安装前复查共用）。
+// 服务端 manifestUpdateProvider 链按 specs/update-feed-github.md 有意删除，不随本次合并恢复。
+import { verifyWindowsAuthenticodeSignature } from "../../scripts/powershell-command.mjs";
 
 export const CHECK_FOR_UPDATE_MENU_ID = "check-for-update";
 const AUTO_UPDATE_POLL_INTERVAL_MS = 15 * 60 * 1000;
@@ -490,6 +491,22 @@ async function quitAndInstallUpdate(rejectUnavailable = false) {
   // 也不能让一次挂起的后台网络请求扣押用户已经选择的安装。
   quitAndInstallState = "preparing";
   logger.info("[auto-update] user requested quit and install");
+  if (process.platform === "win32" && app.isPackaged) {
+    try {
+      // 6.8.10 命中已下载缓存时跳过下载 hook；在退出服务前复查实际待安装文件。
+      // 读取既有 updater 的安装路径，避免另存一份路径导致 ready 与安装目标不同步。
+      const installerPath = (autoUpdater as unknown as { readonly installerPath: string | null })
+        .installerPath;
+      if (!installerPath) throw new Error("Windows update installer is missing");
+      const failure = await verifyWindowsAuthenticodeSignature(installerPath);
+      if (failure) throw new Error(failure);
+    } catch (error) {
+      quitAndInstallState = "idle";
+      handleAutoUpdateFailure(error, "Windows update signature verification failed");
+      if (rejectUnavailable) throw error;
+      return;
+    }
+  }
   // macOS 上 quitAndInstall() 在关窗前不会先走 app.before-quit。
   // 如果仍然只靠 before-quit 去放行窗口 close，现有的“红绿灯关闭=隐藏窗口”逻辑会把退出拦住，
   // 表现成点击更新后界面消失但进程没退、安装流程也不再继续。
@@ -748,6 +765,8 @@ function readSwitchValue(argv: readonly string[], switchName: string): string | 
   const equalsPrefix = `${switchName}=`;
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
+    // 协议注册使用 -- 分隔外部 URL；其后的内容不能重新解释为应用开关。
+    if (arg === "--") break;
     if (!arg) {
       continue;
     }
@@ -771,6 +790,9 @@ export function resolveUpdateFeedSourceFromStartupConfig(
     env?: Record<string, string | undefined>;
   } = {},
 ): RuntimeUpdateFeedSource | undefined {
+  // Windows 深链中的引号可拆出额外 argv。正式包必须忽略调试更新源，
+  // 不能让不可信启动参数（或继承的环境变量）接管安装包下载来源。
+  if (app.isPackaged) return undefined;
   const argv = options.argv ?? process.argv;
   const env = options.env ?? process.env;
   const feedUrl = readSwitchValue(argv, UPDATE_FEED_URL_SWITCH) ?? env[UPDATE_FEED_URL_ENV]?.trim();
@@ -820,6 +842,7 @@ async function syncAutoUpdateCheckChannelFromSettings(
 
 // Drora 更新源走 GitHub Release（specs/update-feed-github.md）：服务端 manifest provider
 // （上游 applyManifestUpdateProvider / ManifestUpdateProvider / deviceMid 遥测链）按 spec 有意删除。
+// 上游 v3.17.1 对该函数的 endpointOrigin 收紧与 manifestUrl 打包态禁用改动随删除一并不吸收。
 function applyReleaseFeed(options: InitAutoUpdaterOptions): void {
   applyDroraUpdateFeed(autoUpdater, options.updateFeedSource?.url);
 }
@@ -1642,6 +1665,12 @@ export async function initAutoUpdater(options: InitAutoUpdaterOptions = {}): Pro
   // 由 before-quit 主动安装，避免目标已经升高后退出装上旧包。
   autoUpdater.autoInstallOnAppQuit = false;
   autoUpdater.logger = logger;
+  // 上游 v3.17.1 新增：NSIS 更新包下载后校验 Authenticode 签名，与 quitAndInstall 前复查共用同一校验器。
+  if (autoUpdater instanceof pkg.NsisUpdater) {
+    // 保留包内 publisherName 来激活 NSIS hook，但不把旧 DN 当作未来换证的准入条件。
+    autoUpdater.verifyUpdateCodeSignature = (_publisherNames, filePath) =>
+      verifyWindowsAuthenticodeSignature(filePath);
+  }
   applyReleaseFeed(options);
 
   const triggerCheckForUpdates = (reason: string) => {

@@ -1,0 +1,93 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-10-31",
+  "timezone": "Asia/Shanghai",
+  "status": "PLAN_READY; implementation not started",
+  "repositories": {
+    "upstream": "https://github.com/zai-org/ZCode",
+    "product": "https://github.com/CavinHuang/Drora",
+    "targetBranch": "main"
+  },
+  "refs": {
+    "base": "0a1fc56d279fd1001f78387bd81aec1c26767411",
+    "middle": "3c5b227649371507ddc4eb46ac5133afe6db1cab",
+    "target": "a60ba6a7e5a06742270ca605f5d2cc2766afa7e1",
+    "main": "66c9193fdd006df0bb30f0cc7c6ab316553d6052",
+    "localMain": "02b0e30410b7547226abec2a65a0fc1206508fb2",
+    "head": "1a0081c230f578c420ed9d41545ad6d67bd641b5",
+    "ours": "66c9193fdd006df0bb30f0cc7c6ab316553d6052",
+    "previousMain": "8ee406fc92d4f217ccdc2c3f357c341621f15e3c"
+  },
+  "mainAdvance": {
+    "pullRequest": "https://github.com/CavinHuang/Drora/pull/32",
+    "headIsAncestor": true,
+    "mainAndHeadTreeEqual": true
+  },
+  "upstreamSourceCommit": "73158b64ace2c753b67e77e1f83bbaca31b43944",
+  "trees": {
+    "base": "c367bd5e2163d07ca61065de6c938ca6c90026cf",
+    "target": "c7d409e5843751d97f45f3a8787290b6d5ed8604",
+    "previousMain": "1108b7ed1d70e9a7911cf3104b3d6352db443d05",
+    "main": "0be1e6aa4938e25b12c77bbab5daf382c02cd6f8",
+    "feature": "0be1e6aa4938e25b12c77bbab5daf382c02cd6f8"
+  },
+  "transform": {
+    "path": "scripts/upstream/transform-upstream-tree.mjs",
+    "gitBlob": "d6e31df35cdadf4518d0d132f78d52c1c2991396",
+    "sha256": "c9e811d6b15c23e33c9b35f27430ef0d047cd59634c98d0f139602f84554b6ea",
+    "authority": "specs/drora-rename.md"
+  },
+  "runtimes": {
+    "node": "24.14.0",
+    "pnpm": "10.33.2",
+    "git": "git version 2.46.0.windows.1"
+  },
+  "verification": {
+    "freshness": {
+      "exitCode": 0,
+      "note": "origin/main is official; this does not establish product main freshness"
+    },
+    "typecheck": {
+      "exitCode": 0,
+      "ref": "1a0081c230f578c420ed9d41545ad6d67bd641b5",
+      "note": "same tree as current main"
+    },
+    "lint": {
+      "exitCode": 0,
+      "warnings": 395,
+      "errors": 0,
+      "ref": "1a0081c230f578c420ed9d41545ad6d67bd641b5"
+    },
+    "architectureChanged": {
+      "exitCode": 0,
+      "violations": 0,
+      "note": "baseline check before planning docs; not merged-candidate proof"
+    },
+    "productE2E": "not run",
+    "rootFullUnit": "not run",
+    "cliFullSuite": "not run",
+    "bundleParity": "not run",
+    "productBuild": "not run"
+  },
+  "artifacts": {
+    "upstream-ledger.tsv": {
+      "sha256": "8e1c507199cb4d50d876c6c23d2ff2a3f335496eec29bf4f433b62a341a3e2cc",
+      "bytes": 2146191,
+      "rows": 5548
+    },
+    "local-preservation.tsv": {
+      "sha256": "380b56167a4872fc01c5293f495ae219f4d6b196ad369fe50d5c84f55e5ed47f",
+      "bytes": 1950914,
+      "rows": 10164
+    },
+    "feature-branch-delta.tsv": {
+      "sha256": "789af45f843acc82c8faa770a74e0ae106b71dfddcb0e67b63efe8675a59127d",
+      "bytes": 25193,
+      "rows": 176
+    },
+    "summary.json": {
+      "sha256": "fb6b53093537c4ae6ddbe5cb0b9cfdf69cc5dad4826be6ed67e2339898a9d846",
+      "bytes": 5585
+    }
+  }
+}

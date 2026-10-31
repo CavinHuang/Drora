@@ -1,0 +1,179 @@
+# v3.17.1 合并任务、检查点与执行日志
+
+日期：2026-10-31。总体状态：**EXECUTION_IN_PROGRESS**。规划轮（同日早间会话）完成方案与只读预演；执行轮自 2026-10-31 18:32 起在 `codex/upstream-v3.17.1-integration`（起点 C=`66c9193fd`，本仓当前 checkout）按 P0→S8 推进，进度以本文件执行日志为准。目标分支为 CavinHuang/Drora:main。
+
+合同：[迁移 spec](../../../specs/upstream-v3.17.1-migration.md)；保护与场景：[feature-preservation.md](feature-preservation.md)；固定输入与机器清单：[README.md](README.md)。不得在聊天中说完成后忘记回填本文件。
+
+## 状态规则
+
+- `[x]` 只能用于实际完成且有证据的任务；其余使用 `[ ]`，在日志说明 pending / in-progress / blocked / failed。
+- 关闭一项至少填写：输入/候选 SHA、涉及 ledger ID、操作/决策、执行平台、命令与退出码、产物路径、复核结论。
+- 任何输入 SHA、转换规则或依赖改变，重开受影响任务。复用旧通过证据必须证明输入未变。
+- 一段失败时回到该段修复，不跨段把失败变为“已有问题”。已有失败单独列 baseline-gap 与处理方式，main 放行条件保持不变。
+- 本文件任务 ID 与 ledger ID 稳定不复用；新增问题继续编号。S0 为本次规划工作，不等于后续 P0 冻结已执行。
+
+## S0：已完成的调查与计划
+
+- [x] S0-01 运行 freshness 并保存当前 branch/HEAD、工作区、remotes、worktrees、Node/pnpm 事实。证据：README 的基线和命令结果；原工作区干净。
+- [x] S0-02 通过 GitHub 最新提交与远端 ref 确认 U2；核对 B/U1/U2 与 Source-Commit。证据：manifest.json 固定 SHA 与上游链接。
+- [x] S0-03 核实 main 与分支关系：初期 L 落后 C0 132 提交；F 领先 C0 11 提交、176 路径。调查期间 PR #32 将 F 合入最新 C（66c9193fd），L 现落后 C 144；C/F 同树。证据：manifest 与 feature-branch-delta.tsv。
+- [x] S0-04 读取现行 v3.16.1 迁移/审计、rename/divergence、当前 package/policy、关键新上游合同，区分历史决策和当前源码。
+- [x] S0-05 计算 B→U1、U1→U2 与 B→U2 全路径；按唯一段分配，累计 5,548 路径。证据：upstream-ledger.tsv / summary.json。
+- [x] S0-06 对旧 C0、F 做 blob 级只读三方预演；不改产品树。证据：C0 为 140 文本冲突，F/当前 C 同树为 149；逐路径 outcome 保存在 ledger。
+- [x] S0-07 保存全部本地差异、独有目录/共享触点、现有删除与生成物，避免只按目录名保护。证据：local-preservation.tsv 的 10,164 条 F 差异。
+- [x] S0-08 写先行 spec、17 类特性保护与 24 组验收、D01–D08 决策建议、任务/回滚/交付门。证据：本目录及迁移 spec。
+- [x] S0-09 当前基线静态验证：Node 24.14.0 / pnpm 10.33.2；typecheck exit 0；lint exit 0（395 warnings / 0 errors）；architecture changed exit 0（0 violations）。不是升级后通过证据。
+- [x] S0-10 核对文档链接、TSV 总数/唯一性/输入 blob、hash、格式与 Git diff；结果回填 README。未执行任何产品 merge/push。
+
+## P0：执行环境、原功能与 refs 冻结
+
+前置：方案进入实际执行阶段，当前输入重新核验。以下均未执行。
+
+- [ ] P0-01 重取官方及 Drora remote refs，记录 fetch 结果；U2 若变化先保持本轮 pin，C/F 变化则做增量调查并更新清单，不使用移动的 origin/main 作 theirs。
+- [ ] P0-02 枚举所有 worktree/WIP/未推送分支；保存各 ref 与必要 patch/未跟踪文件清单；不自动 stash、不触碰其他任务 checkout。
+- [ ] P0-03 为 C/F/U1/U2 建立可恢复只读锚点；核对外部已创建的 `codex/upstream-v3.17.1-integration`（HEAD=C）的归属、WIP 与隔离条件，决定复用或独立 checkout；不重建/重置已有分支，核对 push remote 是 drora。当前只观察到分支存在，不表示本任务的冻结/隔离门已完成。
+- [ ] P0-04 将本规划文件带入集成分支，验证 C 已含 F 的既有历史；核查 C0→F 的 11 提交与 176 路径，不重复合入 F，不额外混入其他 feature 分支。
+- [ ] P0-05 在候选集成环境建立 RG01–RG24 的升级前基线；原有未完成/失败单独列 baseline-gap，不将 spec 的目标功能写成已交付。
+- [ ] P0-06 人格原功能发布门、Relay GUI/真实部署等原未完成项逐条登记；若不能满足本方案的 main 交付门，保持集成分支待验，不删除功能求绿。
+
+退出：锚点可恢复、C/F 关系明确、原功能证据和待验边界已登记。
+
+## P1：设计裁决与可重放工具
+
+前置：P0。修改实现前更新目标 spec/验收，再按 architecture-governance 读取受控模块上下文。
+
+- [ ] P1-01 关闭 D01：上游工程测试链 + Drora 自研回归的发现/执行/affected/CI 合同；列 2,259 条测试资产删除的归属、移动/退役与保留消费者。未完成前禁止批量删测试。
+- [ ] P1-02 关闭 D02/D03：Lifecycle、Team、Persona、CommandInbox 的唯一 owner/时序；用户指令编辑与 persona 的独立性；将 RG10/RG11/RG17 写入对应 catalog/matrix。
+- [ ] P1-03 关闭 D04：旧/新官方 Relay 客户端和自建服务能力表；新增 mobile push/输入预测协议、未知能力降级、三 URL 切换链与端点优先级。
+- [ ] P1-04 关闭 D05：project purge 调用链/授权、0007–0009 与本地迁移 checksum、远程入口软删除/缓存/重复创建的产品合同与 fixture。
+- [ ] P1-05 关闭 D06–D08：Drora 发行版本与闭包、治理快照/例外、外部 appId/header/clientType 字面量的证据；常设性取舍写 divergence ledger。
+- [ ] P1-06 将 local-preservation 全部行分配特性或工程/历史资产 owner；补充机器分类没覆盖的能力，unknown 不得漏入 S7。
+- [ ] P1-07 以新文件实现显式 base/ours/theirs/out 的预演/应用工具：异步 IO、Windows 参数数组、输入 hash、mode/symlink/binary/UTF-8/大小写冲突校验；禁止硬编码旧 ref 与缓存复用。
+- [ ] P1-08 先写工具回归：add/add、modify/delete、ours 删除、binary、错误 exit、映射碰撞、空 base、非法路径；不能把 merge-file 错误当 clean。
+- [ ] P1-09 黄金转换：T(B) 与现产品残差逐项归类；appId 对象/URL/常量、wire header、manifest、CUA provenance、品牌 D 水印和新增字面量例子确认。
+- [ ] P1-10 取得匹配的官方 bundle/发行资产并保存 SHA256/版本；先跑 key-parity，再做冻结目录 diff。拿不到对应资产标 blocked，不能用源码通过替代。
+- [ ] P1-11 在工具终态重放 F 预演，确认路径和 outcome 差异都有解释；保存分段列表、受保护触点和人工队列，固定 apply 的输入 manifest。
+
+退出：所有设计风险有可实施决定，工具可靠，验收合同先于产品代码；每条待人工项有任务归属。
+
+## S1：根配置与共享协议（284 路径）
+
+前置：P1；S6 的必要治理子批可提前列明为 S6-pre。
+
+- [ ] S1-01 将 root scripts/依赖/overrides/patch/tsconfig 与 D01/D06/D07 合同合并；保留 CLI 版本策略、自研 packages、seed 排除、CI 闭包修复。
+- [ ] S1-02 shared/rpc 严格类型及 runtime schema 增量：lifecycle、v4 input prediction/session-data、relay mobile push、data-sync、platform/capabilities。
+- [ ] S1-03 保留 Team/Persona/Vault/Voice/Pet/Relay 自研契约、公共导出和权限；生产消费全链 grep，常量唯一出处，改名豁免逐项对照。
+- [ ] S1-04 跑 shared/rpc 与契约相关验证；列出待 S2–S5 消费方修复的中间态，完成覆盖/保真/一致性三项复核并保存提交/ledger。
+
+## S2：CLI 与运行时（920 路径）
+
+前置：S1；不能用根 affected 冒充 CLI 测试。
+
+- [ ] S2-01 导入官方 SessionLifecycleController 与协议 façade；统一冷恢复、create/fork、lease、hydration、stop/restart，先补竞态/失败回归。
+- [ ] S2-02 合并 workflow quota/concurrency/resume、插件 metadata/search/MCP Node fallback、model feature header、工具权限与恢复逻辑。
+- [ ] S2-03 回接 Team runtime/skills gate/工具注册/审批历史和 vaultSearchPort、write-tier，不新增 owner 或还原文件内自研逻辑。
+- [ ] S2-04 回接 Persona capture/control/learning notification/worker；验证 E/U/L、每轮冻结、取消/销毁和独立存储，避免新 lifecycle 绕过捕获或留下旧 lease。
+- [ ] S2-05 合并新 site 插件与相关 seed/manifest、node-repl-host 生成物；保持官方字节/生产者边界，生成类型通过对应 build 重生。
+- [ ] S2-06 执行实际 CLI 包级 typecheck 与所改/扩展测试，完成 RG02/03/05/10/11/17/20；三项复核、提交和 ledger 回填。
+
+## S3：服务、存储与远端（609 路径）
+
+前置：S1/S2；存储改动必读 session-management。
+
+- [ ] S3-01 合并 project-storage 0007–0009/schema/repos/task-facts/remote projects；保留分组、NULL 归属、CLI 时间、离线本地入口与同路径身份隔离。
+- [ ] S3-02 按 D05 验证 purge 的实际授权/调用，不自动改变软删除产品边界；旧 migration checksum 不重写。
+- [ ] S3-03 合并 data-sync/settings/provisioning/Provider/客户端 SDK/server-cli，公开入口与 source-settings/手机白名单同步。
+- [ ] S3-04 保留知识库、Jev/local embedding、Obsidian 的服务注册与插件/协议；安全 NO-GO、receipt/fencing/epoch/批准不放松。
+- [ ] S3-05 自建 Relay 服务与新 shared 契约对齐，完成新增能力可用性审计与兼容降级；服务端必要扩展按独立模块/spec 任务落地。
+- [ ] S3-06 运行 schema、逐表 hash/失败恢复/旧版兼容、服务与 Relay 回归、远端 build；完成 RG04–06/13/15/16/18/20，三项复核、提交与 ledger。
+
+## S4：Desktop main/Host/preload/构建（1,757 路径）
+
+前置：S1–S3。
+
+- [ ] S4-01 合并 Host attachment policy/调度/RPC、Main 转发与窗口/托盘/未读；保留一窗口一 Local Host、远端连接表、跨 Host lease。
+- [ ] S4-02 合并远控新能力与通知/Renderer actions；保留自建 Relay 来源、设置读取与 getEndpointUrls，三 URL 一致，验证切换与重连时序。
+- [ ] S4-03 保留 Pet 主进程/预加载/资源/设置/表达、Voice 麦克风策略与 claim 接线、Persona 本地控制能力、knowledgeHost 与 update feed。
+- [ ] S4-04 合并 builder/native search/runtime Node/SEA/source-server 构建及发布依赖；Drora 签名/更新渠道不被覆盖，worker/Sharp 产物入包。
+- [ ] S4-05 E2E spec/fixture/helper 的上游移动与删除逐项审计：A/D 配对与 case ID 对齐，保留 Drora 修改；不得仅拷 spec 丢 fixture 或让 runner 不再发现。
+- [ ] S4-06 执行 desktop 类型、真 Electron、RG07–09/12–15/17/19/21；记录 Windows 与 macOS/Linux 各自证据；三项复核、提交与 ledger。
+
+## S5：UI、Web 与手机（1,532 路径）
+
+前置：S1–S4；阅读 DESIGN，插件面另读 CONTEXT。
+
+- [ ] S5-01 合并 Root/App/WorkspaceShell/SessionPane/full view/preview/find；单一 SessionPane、Team/Vault/Voice/Pet 接线及保活逐项核对。
+- [ ] S5-02 合并 settings-scope/data-sync/用户指令编辑与新设置导航；保留 Persona/Knowledge/Voice/Pet，scope/capability 与本地/远端门控正确。
+- [ ] S5-03 合并 project-sidebar 与远端项目/分组/活动视图；保留 Vault 可选入口、TeamSessionLine 和审批回到会话。
+- [ ] S5-04 合并手机事件推送/输入预测/session-data/登录恢复；保留 replayable、overlay 与 ws2、自建来源、Host/runtime 复用和身份隔离。
+- [ ] S5-05 中英文 key、浅深色、窄屏/手机和平台入口；保护 D 水印与图标，不把原版 Z 图形重新引入 live UI。
+- [ ] S5-06 执行相关 UI/浏览器/Electron E2E 与 RG01–04/07–15/18–20；新场景先 catalog/matrix 后 pending，未转正不写已覆盖；三项复核、提交与 ledger。
+
+## S6：还原资产、工程工具、文档与验证入口（446 路径）
+
+前置：P1；工具必要子批提前为 S6-pre，其他跟随对应产品段。
+
+- [ ] S6-01 CUA/seed/runtime 与原版 bundle 逐字审计；每项变更有版本/hash/偏移/片段，缺证据保持冻结；检查 helper 品牌/权限和跨平台能力。
+- [ ] S6-02 工程/架构/adopt/pre-push/affected 工具按 D01/D07 落地；验证显式基线 C..候选、自研 owner/规则/例外，禁用无差别 snapshot 洗白。
+- [ ] S6-03 完成全部待删除测试/资源的消费者与替代证据审计；保留自研和修改用例的可执行回归集合，Node/CLI/CUA/E2E 不误入退役范围。
+- [ ] S6-04 测试 catalog/matrix/feature graph/roadmap 与真实文件/runner 统一；移除证据明确 retired/missing，保留历史报告原貌；不能靠删除矩阵消除缺口。
+- [ ] S6-05 合并技能/AGENTS/README/third-party/许可/native/patch 文档，保留 Drora 决策与真实命令；不运行全仓 fmt sweep。
+- [ ] S6-06 跑工程工具/架构/格式/许可证/原版 parity 与 RG21–24；三项复核、提交与 ledger。
+
+## S7：依赖终态、全路径对账与终验
+
+前置：S1–S6。所有项为必需门，不按“基本通过”放行。
+
+- [ ] S7-01 用 Node 24.14.0 / pnpm 10.33.2 重生成 lock；核对 importer/seed 排除、native/worker/patch 闭包，保留受 Git 跟踪的 vendored 内容。
+- [ ] S7-02 upstream ledger 5,548 行逐项 final disposition，证据/commit/复核齐全，pending=0；中间版本被 U2 撤销的项目显式 superseded。
+- [ ] S7-03 local-preservation 与 feature-branch-delta 全部有结论，17 类 PF / 24 类 RG 完成对账，独立目录意外改动为零，无入口断线/未注册测试。
+- [ ] S7-04 typecheck、lint、architecture（显式 base C 与必要全图）、schema、相关 UT/CLI/CUA/工程、格式、许可、命名/契约检查均真实完成；根全量 UT 未获明确请求不执行。
+- [ ] S7-05 桌面 continuous/手机 replayable、本地/SSH/WSL 与所需跨平台 E2E/真实打包门完成；环境 blocked 项保留并阻断对应完成声明。
+- [ ] S7-06 原功能原缺口逐条给结果；Persona/自建 Relay 等若仍有必需发布门缺失，保持待验，不删实现、不放宽验收。
+- [ ] S7-07 输出最终 completeness/feature-fidelity/literal-consistency 报告及回滚演练，证据无占位、无真实用户数据/凭据。
+
+## S8：上游祖先、PR 与 main 收口
+
+前置：S7 全部通过。此阶段尚未执行。
+
+- [ ] S8-01 重取 Drora main，若前进先合入集成分支并重开相关任务；更新 merge candidate 与输入 manifest，重新复验。
+- [ ] S8-02 记录上游双 parent 祖先，tree 前后严格一致；验证 C/F/U2 为祖先及逐路径内容已吸收，不以 ours merge 替代实际迁移。
+- [ ] S8-03 创建以 Drora main 为 base 的完整 PR，附本计划/ledger/验证；保留上游祖先关系，禁止 squash/rebase 丢失记账；不向官方仓库发功能 PR。
+- [ ] S8-04 PR 最终候选 SHA 上跑 required checks 和 pre-push；main 再前进则回到 S8-01，不复用旧 SHA 绿灯。
+- [ ] S8-05 合入 main 后重新取远端，验证祖先、关键文件/tree、PF/RG 结果与版本/发行入口；回填最终 commit、PR、日志和 remaining issues。
+- [ ] S8-06 盘点未并入的 feature 分支并做升级后兼容预演；保留所有 WIP/ref，不替其实施未授权功能合并；不遗忘待跟进分支。
+
+## 每段提交检查卡（复制填写）
+
+```text
+checkpoint: <stage/task IDs>
+inputs: B=<sha> U1=<sha> U2=<sha> C=<sha> F=<sha>
+before=<sha> after=<sha> tree=<sha>
+ledger IDs / protected PF / acceptance RG:
+decisions / moved-path mapping / divergence references:
+commands + exit codes + platform + evidence paths:
+upstream completeness review:
+Drora feature fidelity review:
+literal / dependency / owner consistency review:
+baseline gaps / blocked / follow-up tasks:
+rollback checkpoint:
+```
+
+## 执行日志
+
+| 日期 | 任务 | 已发生事实 | 结果 / 下一步 |
+| --- | --- | --- | --- |
+| 2026-10-31 | S0-01–04 | 当前分支 F、干净工作区；发现 L 落后 C0；GitHub/ls-remote pin U2；origin 首次 fetch TLS 失败，drora fetch/双方 ls-remote 成功 | 未切 main；保留固定历史对照 |
+| 2026-10-31 | S0-05–07 | B→U2 5,548 路径，C0/F 两轮临时 blob 三方预演；C0 140、F 149 文本冲突；F 本地差异 10,164 | 仅完成文本预演，全部 ledger 最终裁决仍 pending |
+| 2026-10-31 18:15 后 | S0-03 复核 | PR #32 在外部将 F 合入 Drora main C=66c9193fd；ls-remote 确认，C/F tree 完全相同 | 起点更新 C；不重复合 F；149 冲突预演适用于 C 内容；L 落后 144 |
+| 2026-10-31 | S0-08–09 | spec/矩阵/任务文件；当前 typecheck/lint/architecture 基线通过 | 未跑产品 E2E、CLI 全包、根全量、bundle parity 或打包；产品集成尚未开始 |
+| 2026-10-31 | S0-10 | 5,548/10,164/176 行与固定对象逐项核对、ID/路径唯一、SHA256、18 个相对链接、9 文件空白检查通过；迁移 spec 格式通过；显式 C 基线架构 0 违规 | 全部产品裁决仍 pending，未执行上游合并 |
+| 2026-10-31 终检 | 环境变动 | 外部将当前目录切到 codex/upstream-v3.17.1-integration，HEAD=C；与 F 同树，规划文件仍未提交 | 本聊天未执行 checkout；P0-03 改为核对已有分支，不复建或重置 |
+| 2026-10-31 18:32 | 执行轮启动 | 执行会话接管：确认规划写入已静默（18:29:49 后无变化）、manifest ours=C；在既有 `codex/upstream-v3.17.1-integration` 分支提交规划文档并开始 P0 | 规划会话与执行会话经本文件协调，规划侧不再动产品树 |
+
+## 当前阻断/未确认事项
+
+1. D01–D08 是具体建议，需在执行 P1 落实；特别是测试退役、生命周期、purge 与自建 Relay 新能力。
+2. 原 persona、Vault、跨平台/真实服务联调未完成的门需要与原任务结果合并核对，不自动转成“升级已验证”。
+3. 对应官方发行 bundle、SSH/WSL/macOS/Linux/云引擎等资源是否可用，尚未做执行环境准入；受限则保留待跑证据。
+4. 当前 149 文本冲突、367 删除本地修改、314 文本 clean 语义合并均未解决或验证；“预演完成”不等于“可以直接合入”。

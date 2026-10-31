@@ -11,7 +11,8 @@
     "src/main/desktopPet*.ts",
     "src/preload/desktopPet*.ts",
     "src/shared/desktopPet*.ts",
-    "src/drora-extensions/desktopPet.ts"
+    "src/drora-extensions/desktopPet.ts",
+    "src/drora-extensions/desktopPetPersonaExpression.ts"
   ],
   "references": [{ "path": "../shared" }, { "path": "../services" }]
 }

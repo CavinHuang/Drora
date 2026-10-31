@@ -5,6 +5,7 @@ import type {
   DroraSessionContentProfile,
 } from "@drora/shared";
 /* eslint-disable max-lines -- Drora agent service 接口集中声明 protocol/session/workspace 方法，拆分会增加 service descriptor 迁移成本。 */
+import type { RemoteConversationTelemetryEvent } from "@drora/shared/conversation-telemetry";
 import type { Event, IDisposable } from "@drora/rpc";
 import { ServiceChannels } from "@drora/shared";
 import type { AppUsageRange, AppUsageSnapshot, DroraTaskTokenUsageResult } from "@drora/shared";
@@ -29,6 +30,8 @@ import type {
   DroraToolExecResource,
   DroraProcessChildProcess,
   DroraMcpListResult,
+  WorkspaceMcpTrustDecision,
+  DroraWorkspaceMcpTrustResult,
   DroraPluginsListResult,
   DroraPluginsOverviewResult,
   DroraPersonaCoreResult,
@@ -75,6 +78,7 @@ import type {
   DroraPluginsCancelOperationResult,
   DroraPluginOperationProgressNotification,
   DroraProviderRuntimeHeadersRequestParams,
+  RequestVerificationConfig,
   DroraProviderRuntimeHeadersCancelled,
   DroraProviderTestModelConnectivityParams,
   DroraProviderTestModelConnectivityResult,
@@ -121,6 +125,7 @@ import type {
   V4ConnectionFlowState,
   V4ConversationFileChangesResult,
   V4ConversationFileRewindPreviewResult,
+  V4ConversationInputPredictionResult,
   V4ConversationPlansResult,
   V4ConversationWorkflowRunEventsResult,
   V4ConversationWorkflowRunArtifactDataResult,
@@ -135,6 +140,11 @@ import type {
   V4SessionsIndexSubscribeResult,
   V4WorkspaceConfigSubscribeResult,
   WorkspaceConfigTopicWireCandidate,
+} from "@drora/shared/drora-protocol-v4";
+import type {
+  V4SessionDataMeasureResult,
+  V4SessionDataParams,
+  V4SessionDataPurgeResult,
 } from "@drora/shared/drora-protocol-v4";
 import { createServiceDescriptor } from "../descriptors.js";
 
@@ -435,10 +445,25 @@ export interface DroraAgentConversationRowsRangeParams extends DroraAgentSession
   beforeRowId?: number;
   /** 1..rowsRangeMaxLimit（200）。 */
   limit: number;
+  /**
+   * 手机预加载：只读热会话。工作区 CLI 未运行、执行端不支持、会话不在内存都报
+   * proto.sessionNotResident，不拉起进程、不冷恢复。
+   */
+  residency?: "resident-only";
 }
 
 /** 当前有效分支里的终态 ExitPlanMode 目录。 */
 export type DroraAgentConversationPlansParams = DroraAgentSessionTarget;
+
+/** 手机远控输入预测（ghost hint）；线格式见 docs/web-remote-control/mobile-input-prediction.md。 */
+export interface DroraAgentConversationInputPredictionParams extends DroraAgentSessionTarget {
+  /** 手机当前看到的会话 revision；参与 CLI 侧缓存键，回包据此丢弃过期结果。 */
+  revision: number;
+  /** 当前草稿；缺省/空 = 预测下一条输入，非空 = 续写草稿。 */
+  draft?: string;
+  /** 手机侧请求 id，原样回声，用于丢弃过期回包。 */
+  requestId?: string;
+}
 
 /** workflow run 的事件日志分页（详情页审计面）；cursor = journal sequence。 */
 export interface DroraAgentConversationWorkflowRunEventsParams extends DroraAgentSessionTarget {
@@ -599,6 +624,11 @@ export interface DroraAgentWorkspaceConfigSubscribeParams extends DroraAgentWork
   runtimePolicy?: DroraAgentRuntimePolicy;
 }
 
+/** Host 为 App 应答方绑定的本次配置；不扩展 Agent wire 协议。 */
+export type DroraAgentProviderRuntimeHeadersRequest = DroraProviderRuntimeHeadersRequestParams & {
+  requestVerificationConfig?: RequestVerificationConfig;
+};
+
 export type DroraAgentServiceEvent =
   | { type: "session.event"; event: DroraSessionEvent }
   | { type: "state.updated"; notification: DroraStateUpdatedNotification }
@@ -609,7 +639,7 @@ export type DroraAgentServiceEvent =
       requestId: string;
       response: DroraUserInputResponse;
     }
-  | { type: "providerRuntimeHeaders.request"; request: DroraProviderRuntimeHeadersRequestParams }
+  | { type: "providerRuntimeHeaders.request"; request: DroraAgentProviderRuntimeHeadersRequest }
   | { type: "snapshot"; snapshot: DroraSessionStateSnapshot };
 
 export interface DroraAgentAppRuntimePreferences {
@@ -660,6 +690,15 @@ export interface IDroraAgentService {
     params: DroraAgentListSessionSubagentsParams,
   ): Promise<DroraSessionSubagentsResult>;
   getAppUsageStats(params: DroraAgentAppUsageParams): Promise<AppUsageSnapshot>;
+  /** 项目数据删除前的测量：只读，用本机已有 runtime 或管理面进程，不为某个项目拉起 Agent。 */
+  measureSessionData?(params: V4SessionDataParams): Promise<V4SessionDataMeasureResult>;
+  /**
+   * 彻底删除会话与目录记忆。workspace 已有 Agent 进程时交给它（它持有会话运行态，能判断运行中
+   * 并释放已加载会话）；否则交给管理面进程。只用于本机。
+   */
+  purgeSessionData?(
+    params: V4SessionDataParams & { workspace: DroraAgentWorkspaceTarget },
+  ): Promise<V4SessionDataPurgeResult>;
   getTaskTokenUsage(params: DroraAgentTaskTokenUsageParams): Promise<DroraTaskTokenUsageResult>;
   readSession(params: DroraAgentReadSessionParams): Promise<DroraSessionStateSnapshot>;
   readSessionMessages(
@@ -674,6 +713,7 @@ export interface IDroraAgentService {
   grantWorkspaceHookTrust(
     params: DroraAgentGrantWorkspaceHookTrustParams,
   ): Promise<DroraWorkspaceHookTrustGrantResult>;
+  setWorkspaceMcpTrust(params: WorkspaceMcpTrustDecision): Promise<DroraWorkspaceMcpTrustResult>;
   listMcpServerStatuses(params: DroraAgentListMcpServerStatusesParams): Promise<DroraMcpListResult>;
   listPlugins(params: DroraAgentPluginViewParams): Promise<DroraPluginsListResult>;
   /**
@@ -907,7 +947,7 @@ export interface IDroraAgentService {
    */
   onDynamicProviderRuntimeHeadersRequest(
     params: DroraAgentSessionTarget,
-  ): Event<DroraProviderRuntimeHeadersRequestParams>;
+  ): Event<DroraAgentProviderRuntimeHeadersRequest>;
   /**
    * Start Plan runtime headers 的 workspace 级订阅入口（生产应答方使用）。
    * Bug 原因（2026-08-16 web 远控卡死）：session 级入口只随桌面 pane 挂载订阅，
@@ -917,7 +957,7 @@ export interface IDroraAgentService {
    */
   onDynamicWorkspaceProviderRuntimeHeadersRequest(
     params: DroraAgentWorkspaceTarget,
-  ): Event<DroraProviderRuntimeHeadersRequestParams>;
+  ): Event<DroraAgentProviderRuntimeHeadersRequest>;
   /** 只投递本 workspace 的校验取消，不属于 conversation stream。 */
   onDynamicWorkspaceProviderRuntimeHeadersCancelled(
     params: DroraAgentWorkspaceTarget,
@@ -930,6 +970,9 @@ export interface IDroraAgentService {
    */
   onDynamicProcessResourceSample(): Event<AgentLaneResourceSample>;
   /** MCP 进程生命周期与低频内存事件，仅供可信 Host relay 上报 ARMS。 */
+  /** 仅 trusted Host relay 订阅；手机统计不依赖 renderer 生命周期。 */
+  onDynamicRemoteConversationTelemetry(): Event<RemoteConversationTelemetryEvent>;
+
   onDynamicMcpTelemetry(): Event<DroraMcpTelemetryEvent>;
   /** MCP 进程树资源事实，只供可信 Host 汇总上报。 */
   onDynamicMcpResourceSamples(): Event<DroraMcpResourceSample[]>;
@@ -963,6 +1006,10 @@ export interface IDroraAgentService {
   conversationPlansV4(
     params: DroraAgentConversationPlansParams,
   ): Promise<V4ConversationPlansResult>;
+  /** 输入预测：只读、无状态；Host 开关关闭 / 无运行时 / 失败一律回空结果，不抛错。 */
+  conversationInputPredictionV4(
+    params: DroraAgentConversationInputPredictionParams,
+  ): Promise<V4ConversationInputPredictionResult>;
   /** workflow run 事件日志分页；与 plans 同族（只读、无状态、超时重发安全）。 */
   conversationWorkflowRunEventsV4(
     params: DroraAgentConversationWorkflowRunEventsParams,
@@ -1020,6 +1067,16 @@ export interface IDroraAgentService {
   conversationAttachmentStatV4(
     params: DroraAgentConversationAttachmentStatParams,
   ): Promise<V4ConversationAttachmentStatResult>;
+  getSessionLifecycle(
+    params: DroraAgentSessionTarget,
+  ): Promise<import("@drora/shared").SessionLifecycleSnapshot | null>;
+  ensureSessionReady(params: DroraAgentSessionTarget): Promise<void>;
+  stopSessionRuntime(params: DroraAgentSessionTarget): Promise<void>;
+  restartSessionRuntime(params: DroraAgentSessionTarget): Promise<void>;
+  /** 独立于可被释放的 conversation publisher 的生命周期事实。 */
+  onDynamicSessionLifecycle(
+    params: DroraAgentWorkspaceTarget,
+  ): Event<import("@drora/shared").SessionLifecycleSnapshot>;
   /** workspace 级下行帧流（v4/conversation/frame），renderer 侧按 topic 自行路由。 */
   onDynamicConversationFrame(
     params: DroraAgentWorkspaceTarget,
@@ -1044,7 +1101,6 @@ export interface IDroraAgentService {
   onDynamicPluginUiToolResult(): Event<
     PluginUiToolResultNotification & { workspacePath: string; workspaceIdentity?: string }
   >;
-
   /** 只读 CLI 持久事实；不恢复会话运行实例。旧远端可以不提供此能力。 */
   reconcileSessionsIndexV4?(
     params: DroraAgentWorkspaceTarget & { sessionIds: string[] },
@@ -1088,7 +1144,9 @@ export interface IDroraAgentService {
   ) => IDisposable;
   /** 当前 desktop-local CUA turn 是否仍在执行，用于 Helper recovery 避免中途回收 Agent。 */
   hasActiveCuaOperationTurn(): boolean;
-  disposeWorkspace(params: DroraAgentWorkspaceTarget): Promise<void>;
+  disposeWorkspace(
+    params: DroraAgentWorkspaceTarget & { releasePreparation?: boolean },
+  ): Promise<void>;
   disposeAll(): void;
 }
 

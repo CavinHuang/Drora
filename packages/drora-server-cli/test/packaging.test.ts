@@ -13,6 +13,7 @@ import {
   resolveProductionPackageClosure,
   stageRelease,
 } from "../src/packaging/stage.js";
+import { assertNodePtyNativeMatchesJs } from "../src/packaging/stageDependencies.js";
 import { resolveHostTarCommand } from "../src/packaging/tarCommand.js";
 
 const execFileAsync = promisify(execFile);
@@ -36,6 +37,7 @@ afterEach(async () => {
 });
 
 interface FakePackageSpec {
+  version?: string;
   dependencies?: Record<string, string>;
   optionalDependencies?: Record<string, string>;
   devDependencies?: Record<string, string>;
@@ -53,7 +55,7 @@ async function writeFakePackage(
     join(packageDir, "package.json"),
     JSON.stringify({
       name,
-      version: "0.0.1",
+      version: spec.version ?? "0.0.1",
       main: "./index.js",
       dependencies: spec.dependencies,
       optionalDependencies: spec.optionalDependencies,
@@ -146,11 +148,37 @@ describe("isNodePtyRuntimePath", () => {
   });
 });
 
+describe("assertNodePtyNativeMatchesJs", () => {
+  it("rejects a native prebuild whose source version differs from the node-pty JS", () => {
+    // 现场组合：官方 node-pty 1.1.0 JS + @lydell 1.2.0-beta.10 native。
+    expect(() =>
+      assertNodePtyNativeMatchesJs({
+        target: "linux-x64",
+        jsVersion: "1.1.0",
+        nativeSource: "@lydell/node-pty-linux-x64",
+        nativeVersion: "1.2.0-beta.10",
+      }),
+    ).toThrow(/node-pty JS 1\.1\.0 .*@lydell\/node-pty-linux-x64 1\.2\.0-beta\.10/);
+  });
+
+  it("accepts JS and native from the same version", () => {
+    expect(() =>
+      assertNodePtyNativeMatchesJs({
+        target: "linux-x64",
+        jsVersion: "1.2.0-beta.10",
+        nativeSource: "@lydell/node-pty-linux-x64",
+        nativeVersion: "1.2.0-beta.10",
+      }),
+    ).not.toThrow();
+  });
+});
+
 describe("stageRelease", () => {
   async function makeStageFixture(): Promise<{
     distDir: string;
     workspaceNodeModulesDir: string;
     agentBundlePath: string;
+    bundledSkillsDir: string;
     nodeBinaryPath: string;
     outputDir: string;
     notices: { thirdParty: string; node: string; nodeSource: string };
@@ -171,9 +199,10 @@ describe("stageRelease", () => {
     });
     await writeFakePackage(workspaceNodeModulesDir, "fake-transitive");
     await writeFakePackage(workspaceNodeModulesDir, "node-pty", {
+      version: "1.1.0",
       files: {
         LICENSE: "node-pty license\n",
-        "lib/index.js": "module.exports = {};\n",
+        "lib/index.js": "// official node-pty js\n",
         "typings/node-pty.d.ts": "export {};\n",
         "build/Release/pty.node": "host-binary",
         "prebuilds/darwin-arm64/pty.node": "darwin-binary",
@@ -181,10 +210,23 @@ describe("stageRelease", () => {
         "prebuilds/win32-x64/pty.node": "windows-binary",
       },
     });
+    // 平台包是同版本 node-pty 的 linux 子集：JS 与 native 同在一个包里。
     await writeFakePackage(workspaceNodeModulesDir, "@lydell/node-pty-linux-x64", {
-      files: { "prebuilds/linux-x64/pty.node": "linux-binary" },
+      version: "1.2.0-beta.10",
+      files: {
+        LICENSE: "platform license\n",
+        "lib/index.js": "// platform node-pty js\n",
+        "prebuilds/linux-x64/pty.node": "linux-binary",
+      },
     });
 
+    const bundledSkillsDir = join(root, "bundled-skills");
+    await mkdir(join(bundledSkillsDir, "skills/dynamic-workflows"), { recursive: true });
+    await writeFile(join(bundledSkillsDir, "README.md"), "bundled skills");
+    await writeFile(join(bundledSkillsDir, "scratch.txt"), "local only");
+    for (const name of ["SKILL.md", "patterns.md", "examples.md"]) {
+      await writeFile(join(bundledSkillsDir, "skills/dynamic-workflows", name), `fixture ${name}`);
+    }
     const agentBundlePath = join(root, "drora.cjs");
     await writeFile(agentBundlePath, "// fake agent bundle\n", "utf8");
     const nodeBinaryPath = join(root, "node-binary");
@@ -200,6 +242,7 @@ describe("stageRelease", () => {
       distDir,
       workspaceNodeModulesDir,
       agentBundlePath,
+      bundledSkillsDir,
       nodeBinaryPath,
       outputDir,
       notices,
@@ -281,6 +324,16 @@ describe("stageRelease", () => {
       "utf8",
     );
     expect(linuxPty).toBe("linux-binary");
+    // Bug 回归：旧 staging 只拷平台包的 pty.node（1.2.0-beta.10，resize 要 5 个参数），
+    // JS 仍是官方 1.1.0（只传 3 个参数），远端终端 resize 必然失败。JS 必须与 native 同包同版本。
+    const stagedNodePty = JSON.parse(
+      await readFile(join(releaseDir, "runtime/node_modules/node-pty/package.json"), "utf8"),
+    ) as { version: string };
+    expect(stagedNodePty.version).toBe("1.2.0-beta.10");
+    await expect(
+      readFile(join(releaseDir, "runtime/node_modules/node-pty/lib/index.js"), "utf8"),
+    ).resolves.toBe("// platform node-pty js\n");
+    await expect(stat(join(releaseDir, "runtime/node_modules/node-pty/typings"))).rejects.toThrow();
 
     const manifest = JSON.parse(await readFile(join(releaseDir, "manifest.json"), "utf8")) as {
       product: string;
@@ -303,7 +356,51 @@ describe("stageRelease", () => {
     expect(staged.archivePath).toBeNull();
   });
 
-  it("keeps official darwin prebuilds including spawn-helper for darwin targets", async () => {
+  it("fails closed when the linux platform package cannot supply matching node-pty JS", async () => {
+    const fixture = await makeStageFixture();
+    // 只有 pty.node、没有 lib 的平台包无法提供同版本 JS；不能退回“官方 JS + 平台 native”混装。
+    await rm(join(fixture.workspaceNodeModulesDir, "@lydell", "node-pty-linux-x64", "lib"), {
+      recursive: true,
+      force: true,
+    });
+    await expect(
+      stageRelease({ target: "linux-x64", appVersion: "9.9.9-test", archive: false, ...fixture }),
+    ).rejects.toThrow(/@lydell\/node-pty-linux-x64 does not ship node-pty JS/);
+  });
+
+  it("takes the whole linux platform package even when the workspace node-pty already has a linux native", async () => {
+    const fixture = await makeStageFixture();
+    // Bug 场景：同一 checkout 先做桌面 Linux 打包，beforePack 把平台包的 pty.node 回填进共享的
+    // 官方 node-pty。旧逻辑看到 pty.node 已存在就跳过整包替换，产出官方 1.1.0 JS + 1.2.0-beta.10 native。
+    const backfilledDir = join(
+      fixture.workspaceNodeModulesDir,
+      "node-pty",
+      "prebuilds",
+      "linux-x64",
+    );
+    await mkdir(backfilledDir, { recursive: true });
+    await writeFile(join(backfilledDir, "pty.node"), "desktop-backfilled-binary", "utf8");
+
+    const staged = await stageRelease({
+      target: "linux-x64",
+      appVersion: "9.9.9-test",
+      archive: false,
+      ...fixture,
+    });
+    const stagedNodePtyDir = join(staged.releaseDir, "runtime/node_modules/node-pty");
+    const stagedNodePty = JSON.parse(
+      await readFile(join(stagedNodePtyDir, "package.json"), "utf8"),
+    ) as { version: string };
+    expect(stagedNodePty.version).toBe("1.2.0-beta.10");
+    await expect(readFile(join(stagedNodePtyDir, "lib/index.js"), "utf8")).resolves.toBe(
+      "// platform node-pty js\n",
+    );
+    await expect(
+      readFile(join(stagedNodePtyDir, "prebuilds/linux-x64/pty.node"), "utf8"),
+    ).resolves.toBe("linux-binary");
+  });
+
+  it("keeps official darwin JS and prebuilds including spawn-helper for darwin targets", async () => {
     const fixture = await makeStageFixture();
     const staged = await stageRelease({
       target: "darwin-arm64",
@@ -316,6 +413,10 @@ describe("stageRelease", () => {
       "runtime/node_modules/node-pty/prebuilds/darwin-arm64",
     );
     await expect(stat(join(prebuildDir, "pty.node"))).resolves.toBeTruthy();
+    // darwin 官方包自带同版本 prebuild，JS 保持官方包，不受 linux 平台包影响。
+    await expect(
+      readFile(join(staged.releaseDir, "runtime/node_modules/node-pty/lib/index.js"), "utf8"),
+    ).resolves.toBe("// official node-pty js\n");
     const helperStat = await stat(join(prebuildDir, "spawn-helper"));
     // Bugfix: 同上，NTFS 无 POSIX exec 位，可执行性断言只在 POSIX 宿主生效。
     if (process.platform !== "win32") expect(helperStat.mode & 0o111).not.toBe(0);
@@ -433,6 +534,68 @@ describe("stageRelease", () => {
     expect(tarText).not.toContain("SCHILY.xattr");
   });
 
+  it("bundled workflow skills ship in the agent component and affect its hash", async () => {
+    const fixture = await makeStageFixture();
+    const officialPluginsDir = join(await makeTempDir(), "packages");
+    await writeOfficialPluginFixture(officialPluginsDir, "drora-guide-plugin");
+    const options = {
+      ...fixture,
+      officialPluginsDir,
+      target: "linux-x64" as const,
+      appVersion: "test",
+      archive: false,
+    };
+    const staged = await stageRelease(options);
+    const manifest = JSON.parse(await readFile(join(staged.releaseDir, "manifest.json"), "utf8"));
+    const component = manifest.components.find(
+      (entry: { id: string }) => entry.id === "agent-runtime",
+    );
+    expect(component.paths).toContain("runtime/packages/bundled-skills");
+    expect(manifest.plugins).not.toContain("bundled-skills");
+    const archive = gunzipSync(
+      await readFile(join(fixture.outputDir, component.archivePath)),
+    ).toString("utf8");
+    for (const name of ["SKILL.md", "patterns.md", "examples.md"]) {
+      expect(
+        await readFile(
+          join(staged.releaseDir, "runtime/packages/bundled-skills/skills/dynamic-workflows", name),
+          "utf8",
+        ),
+      ).toBe(`fixture ${name}`);
+      expect(archive).toContain(`fixture ${name}`);
+    }
+    await writeFile(
+      join(fixture.bundledSkillsDir, "skills/dynamic-workflows/examples.md"),
+      "updated example",
+    );
+    const updated = await stageRelease(options);
+    const next = JSON.parse(await readFile(join(updated.releaseDir, "manifest.json"), "utf8"));
+    expect(
+      next.components.find((entry: { id: string }) => entry.id === "agent-runtime").sha256,
+    ).not.toBe(component.sha256);
+    expect(
+      next.components.find((entry: { id: string }) => entry.id === "official-plugins").sha256,
+    ).toBe(
+      manifest.components.find((entry: { id: string }) => entry.id === "official-plugins").sha256,
+    );
+  });
+
+  it.each(["SKILL.md", "patterns.md", "examples.md", "entire-pack"])(
+    "rejects missing bundled skill asset %s",
+    async (missing) => {
+      const fixture = await makeStageFixture();
+      await rm(
+        missing === "entire-pack"
+          ? fixture.bundledSkillsDir
+          : join(fixture.bundledSkillsDir, "skills/dynamic-workflows", missing),
+        { recursive: true },
+      );
+      await expect(
+        stageRelease({ ...fixture, target: "linux-x64", appVersion: "test", archive: false }),
+      ).rejects.toThrow(/bundled skill/i);
+    },
+  );
+
   async function writeOfficialPluginFixture(
     officialPluginsDir: string,
     name: string,
@@ -469,6 +632,89 @@ describe("stageRelease", () => {
       );
     }
   }
+
+  it.each(["absent", "incomplete", "stale"])(
+    "stages bundled skills from the agent source when the plugin cache is %s",
+    async (cacheState) => {
+      const fixture = await makeStageFixture();
+      const officialPluginsDir = join(await makeTempDir(), "packages");
+      await writeOfficialPluginFixture(officialPluginsDir, "drora-guide-plugin");
+      if (cacheState !== "absent") {
+        const cachedPackDir = join(officialPluginsDir, "bundled-skills");
+        await mkdir(join(cachedPackDir, "skills/dynamic-workflows"), { recursive: true });
+        await writeFile(join(cachedPackDir, "README.md"), "old cached pack");
+        const files =
+          cacheState === "stale" ? ["SKILL.md", "patterns.md", "examples.md"] : ["SKILL.md"];
+        for (const name of files) {
+          await writeFile(
+            join(cachedPackDir, "skills/dynamic-workflows", name),
+            "old cached skill",
+          );
+        }
+      }
+
+      // 冲突整合时两条复制路径曾并存：插件缓存缺文件会拒绝有效技能包，旧缓存会覆盖 Agent 源。
+      // 技能包只从 bundledSkillsDir 读取，并只由 agent-runtime 交付。
+      const staged = await stageRelease({
+        ...fixture,
+        target: "linux-x64",
+        appVersion: "test",
+        archive: false,
+        officialPluginsDir,
+      });
+      const stagedPackDir = join(staged.releaseDir, "runtime/packages/bundled-skills");
+      expect(await readFile(join(stagedPackDir, "README.md"), "utf8")).toBe("bundled skills");
+      for (const name of ["SKILL.md", "patterns.md", "examples.md"]) {
+        expect(await readFile(join(stagedPackDir, "skills/dynamic-workflows", name), "utf8")).toBe(
+          `fixture ${name}`,
+        );
+      }
+      // 保留发布白名单：本地临时文件不能进入发行包或组件归档。
+      await expect(stat(join(stagedPackDir, "scratch.txt"))).rejects.toThrow();
+      const manifest = JSON.parse(
+        await readFile(join(staged.releaseDir, "manifest.json"), "utf8"),
+      ) as {
+        plugins: string[];
+        components: Array<{ id: string; paths: string[]; archivePath: string }>;
+      };
+      expect(manifest.plugins).toEqual(["drora-guide"]);
+      const agentComponent = manifest.components.find((entry) => entry.id === "agent-runtime")!;
+      expect(agentComponent.paths).toContain("runtime/packages/bundled-skills");
+      const agentExtractDir = await makeTempDir();
+      await runTar([
+        "-xf",
+        join(fixture.outputDir, agentComponent.archivePath),
+        "-C",
+        agentExtractDir,
+      ]);
+      expect(
+        await readFile(
+          join(
+            agentExtractDir,
+            "runtime/packages/bundled-skills/skills/dynamic-workflows/SKILL.md",
+          ),
+          "utf8",
+        ),
+      ).toBe("fixture SKILL.md");
+      await expect(
+        stat(join(agentExtractDir, "runtime/packages/bundled-skills/scratch.txt")),
+      ).rejects.toThrow();
+      const pluginComponent = manifest.components.find((entry) => entry.id === "official-plugins")!;
+      const pluginExtractDir = await makeTempDir();
+      await runTar([
+        "-xf",
+        join(fixture.outputDir, pluginComponent.archivePath),
+        "-C",
+        pluginExtractDir,
+      ]);
+      await expect(
+        stat(join(pluginExtractDir, "runtime/packages/drora-guide-plugin")),
+      ).resolves.toBeTruthy();
+      await expect(
+        stat(join(pluginExtractDir, "runtime/packages/bundled-skills")),
+      ).rejects.toThrow();
+    },
+  );
 
   it("stages the official plugin set and excludes the on-demand superpowers package", async () => {
     const fixture = await makeStageFixture();
@@ -637,7 +883,11 @@ describe("stageRelease", () => {
     async (target) => {
       const fixture = await makeStageFixture();
       await writeFakePackage(fixture.workspaceNodeModulesDir, "@lydell/node-pty-linux-arm64", {
-        files: { "prebuilds/linux-arm64/pty.node": "linux-arm64-binary" },
+        version: "1.2.0-beta.10",
+        files: {
+          "lib/index.js": "// platform node-pty js\n",
+          "prebuilds/linux-arm64/pty.node": "linux-arm64-binary",
+        },
       });
       const options = { ...fixture, target, appVersion: "9.9.9-test" };
       const original = await stageRelease(options);

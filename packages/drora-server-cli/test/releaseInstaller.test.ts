@@ -217,7 +217,7 @@ describe("release installer", () => {
     ).toEqual([]);
   });
 
-  it("rejects an existing release whose immutable archive identity is missing", async () => {
+  it("replaces a damaged release copy whose disk content diverged from its identity record", async () => {
     const root = await mkdtemp(join(tmpdir(), "drora-release-installer-conflict-"));
     const layout = resolveServerLayout(join(root, "server"));
     const archiveRoot = join(root, "drora-server-linux-x64");
@@ -257,8 +257,17 @@ describe("release installer", () => {
     });
     await writeFile(join(first.releaseDir, "runtime", "server-core.js"), "tampered", "utf8");
 
+    // 上游 v3.17.1 A2 修复：identity 记录与 archive 一致、仅磁盘内容偏离的现存 release
+    // 判为 damaged 副本并替换重装（旧行为抛 immutable release conflict，同一 archive 的
+    // 强制重装永远失败，用户只能手动删目录）。
+    const repaired = await installer.installArchive({
+      archivePath,
+      target: "linux-x64",
+      version: "2.1.0",
+    });
+    expect(repaired.releaseDir).toBe(first.releaseDir);
     await expect(
-      installer.installArchive({ archivePath, target: "linux-x64", version: "2.1.0" }),
-    ).rejects.toThrow(/immutable release conflict/);
+      readFile(join(first.releaseDir, "runtime", "server-core.js"), "utf8"),
+    ).resolves.toBe("");
   });
 });

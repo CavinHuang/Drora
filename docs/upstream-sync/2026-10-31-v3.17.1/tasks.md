@@ -120,6 +120,16 @@
 - [ ] S3-05 自建 Relay 服务与新 shared 契约对齐，完成新增能力可用性审计与兼容降级；服务端必要扩展按独立模块/spec 任务落地。
 - [ ] S3-06 运行 schema、逐表 hash/失败恢复/旧版兼容、服务与 Relay 回归、远端 build；完成 RG04–06/13/15/16/18/20，三项复核、提交与 ledger。
 
+### S3 门禁补记（2026-11-01，门禁修复轮）
+
+- 门禁报错与根因（四类，全部段内包 services/server/drora-server-cli）：
+  1. typecheck：`services/src/cua-permission-broker/windowsCuaHelperHostSupport.ts` 从 `@drora/drora-cua/broker` 导入 `HELPER_GHOST_CURSOR_OVERLAY_ARG`——该导出来自上游 zcode-cua 0.6.5 占位包（上游 target 树 c7d409e 的 broker.js/broker-helper-constants.js 新增 re-export），本仓仍 0.6.3，且该包属台账 UP05433–UP05436（S6 段、cua-limited zone）。**跨段中间态处理**：services 内临时本地声明 `--ghost-cursor-overlay`（已对 zcode-cua-helper helperConstants.ts 与 zcode-cua 还原 launcher bh 两处产方二次校验），源码注释已标注；**S6 落地 0.6.5 导出后必须回切 producer 导入**。不改 zcode-cua 是为避免 S6 apply 漂移阻断（apply-ledger.mjs 工作区≠current_main blob 即 driftBlocked）。
+  2. 4 个 suite 加载失败＝S3 apply 删 fixtures 但 keep-ours 消费方仍在：恢复 `test/botsService.fixtures.ts`（2 消费方）、`test/helpers/taskIndexFixture.ts`、`test/providerConfigFixtures.ts`（内容＝HEAD，无修改）。
+  3. keep-ours 保留用例 vs take-theirs 源码契约演进的断言/mock 更新（保原意，随上游 v3.17.1 契约更新）：taskIndex `releasePreparation: true`；settingService `taskAutoArchiveOlderThanDays` 默认 7→30；workspaceHookTrust mock 补 `isSharedRuntime` 与 `runtime/capabilities` 空能力；lock.test 两用例改 ownerToken 语义（自 PID 锁须经 acquire 登记 token，手写裸 PID 锁＝stale）；immutableRelease A2 修复后 tampered release 由 conflict 改为 damaged 自动替换（componentCache/releaseInstaller 两用例）；wslBackend mock 改部分 mock（保留真实 `createWslExecError`）+ 身份输出补 `__DRORA_WSL_IDENTITY__` 哨兵行 + 身份探测 argv 断言改 `bash --noprofile --norc -c`；sourceServerTransportAdapter mock 补必需 `ROOT` 段 + `ensureDaemon` 复用返回新增 `reusedProbeStatus: true`。
+  4. 上游退役 API 的保留用例处置：`skillSyncService.test.ts` 删除（19/19 用例走上游已退役的服务对象 API；上游 v3.17.1 改造为 data-sync 分类服务，实现已随 S3 合并在 `src/data-sync/skillDataSync.ts`，端到端覆盖见上游 conversation-session-remote-data-sync-* E2E）；`pluginSyncService.test.ts` 裁剪至仍存活 API（保留 8 个 marketplace 镜像用例；移除 10 个旧 inline 插件 API 用例，其中 3 个 win32-skip 假绿——symlink/大小上限防护由 data-sync listItem exportBlockedReason 承载）。`generate-drora-test-files.mjs` 重跑收敛（drora 502/isolated 12；同时收敛了 S3 删除但清单未更新的 10 个 isolated 条目与 3 个新增上游用例）。
+- 终态（Windows 本机）：`pnpm typecheck` 段内包 0 错（余 67 错＝ui 57/desktop 8/web 2，全部 S4/S5 跨段中间态）；drora 工程全量 501 文件中 services/server/drora-server-cli/client/provider*/model-option-map 0 失败（余 9 失败文件 15 用例全部 desktop 3/ui 6＝S4/S5 待落地）；engineering 工程 drora-server-cli 4 文件 49 过 1 skip；改动文件 oxlint 0 告警、oxfmt 清洁（本轮新增改动部分）。
+- 遗留登记：S6-01 审计时核销 UP05433–UP05436 回切项；S6-03 测试审计时核对 skillSync/pluginSync 裁剪的替代证据；`retired-app-unit-evidence.test.mjs` 与其他段清单照 S6 计划处理。未执行 git commit。
+
 ## S4：Desktop main/Host/preload/构建（1,757 路径）
 
 前置：S1–S3。
@@ -226,3 +236,40 @@ rollback checkpoint:
 ## S2 执行补记
 
 S2 应用 917 路径+18 冲突解决（16 源码+2 dist 产物取 theirs）+3 zone 决策（zcode-cua-plugin 采纳上游 drag strategy 透传修复）；裁决摘要="总述：另一进程解决了全部 18 处冲突（S2-report.json 计 text-conflict=18，即 16 个源文件+2 个 node-repl-host 生成物），我未亲自改任何文件；我的工作=轮询等待+零标记核查+裁决抽查+编译自查。轮询证据：19:42:56/19:43:43/19:44:31 三轮 grep 标记恒 0，19:44:31 达成「零标记+近 2 分钟无文件写入」双重稳定后停止。最终核查：`grep -rlE '^(<{7}|>{7}|\\|{7})' apps/drora-cli`（无排除、三种标记形态）命中 0；`git ls-files -u -- apps/drora-cli` 为 0。逐文件：package.json=版本实测 0.0.1（规则E/台账1），scripts 并集；cli/package.json=版本保 ours 0.1.0（与 HEAD:2b7cbad62 相同），test 清单并集吸收 dwf-child-command*.test.ts 通配与 sea-official-plugin-assets.test.mjs；server.ts=runtimeCapabilities 重构为块后 persona 控制位注释与 deps.personaControl 条件展开保留于 :919-924，persona 全套路由 :930-958 未动（规则D成立）；server-operations.ts=删除行为 import 联合与缩进调整（OFF_PEAK_EXECUTION_TOOL_DENYLIST 并入 @drora/shared 联合 import），良性；protocol-slash-commands.test.ts=删除行仅 SessionId import 与临时目录字面量，随新实现更新（规则F）；product-projection.ts=关键词变更均为上游新增吸收（normalizeGenUiInput/genUiContext），无特性删除；其余 8 个源文件（adapters/plugins.test、entrypoint、session-flow、transcript-hydration、contracts/hooks、core/index、runtime-provider-request-messages、turn-loop、permission-flow、io-boundary）特性关键词删除行计数为 0；两个 dist-types 生成物 19:26 已消标记（各 grep -c=0），按 tasks.md S2-05 属「生成类型通过对应 build 重生」的段内后续，未由我重生。编译自查：`volta run --node 24.14.0 pnpm --dir apps/drora-cli exec tsc -b packages/contracts packages/core packages/adapters packages/bootstrap packages/cli` 退出码 0（Node 取 mise.toml 标准 24.14.0，PATH 默认为 24.1.0 故经 volta 固定）。抽查补充：cli 子包版本无漂移。未执行 git commit，HEAD 仍为 2b7cbad62（S2 应用为未提交工作区改动：639 M/134 ??/2 D）。限制说明：语义级保真仅做了关键词行 diff 与 server.ts persona 块深查，；门禁=[{"name":"typecheck","exit":0},{"name":"upstream-cli","exit":0}]；CLI 门禁平台性阻塞登记（用户裁决 2026-11-01：不做 Windows 平台适配，Linux/CI 终验）——a) @drora/tui 与 @drora/cli 的 tui-*.test：opentui.dll 0.2.15 在本机 Windows SIGSEGV（合并前基线树即复现，唯一版本无可升级）；b) @drora/cli SEA 5 例：exec-bit 断言 Windows 永不成立（2026-10-14 即存在）；c) @drora/adapters mcp-resource-telemetry：全量负载采样抖动、隔离通过；修复员实修内容（core 11 例/dynamic-workflow 35 快照+quotient/剪贴板/bootstrap 等转绿）；勘误注记 v3.16.1「19 包 0 失败」为 Linux 环境事实，三项阻塞入 baseline-gap（终验入口=PR checks 的 test:upstream-cli）。只改 tasks.md，不提交。
+
+## S3 执行补记（2026-11-01）
+
+### 应用与决策统计
+
+来源：`apply/S3-report.json`（segment=S3、dry=false、ledger=upstream-ledger.tsv sha256=95150a67…28bfc，driftBlocked=0、errors=0）：
+
+- applied=608，动作分布（node 统计实测与报告 counts 一致）：add 43 / take-theirs 85 / text-clean-needs-semantic-review 28 / delete（随上游删除）375 / keep-ours（Drora 保留测试与本地修改）68 / text-conflict 9。
+- conflicts=9 文件、共 17 hunks：provider-node/package.json(1)、mcpSyncService.ts(7)、node.ts(2)、project/index.ts(1)、settingsSyncService.ts(1)、independentPlanSupport.ts(1)、droraAgentConnectionScope.ts(1)、droraAgentService.ts(2)、stableLauncher.ts(1)。9 文件 grep `^(<{7}|={7}|>{7})` 全部 0 残留标记。
+- decisionRequired=0；skipped=1（already-deleted：packages/services/src/gen-ui/adapters/service.test.ts）；semanticReview=28 文件（对应 text-clean-needs-semantic-review，清单见报告）。
+
+### 冲突裁决摘要
+
+行号为门禁修复轮后当前工作树实测锚点（相对裁决时点整体漂移约 13–14 行，已按实测重锚）：
+
+- stableLauncher.ts（1 处）：规则 C 取 theirs——ours 仅引号风格变化，保留 theirs 的 cd -P/pwd -P NAS 符号链接 bug 说明注释（注释 :20-22，`ROOT=$(CDPATH= cd -P … && pwd -P)` 修复本体在冲突区下方共享区 :25）。
+- provider-node/package.json（1 处）：规则 E 并集取 ours 块——保留 ours 新增 `@types/node ^25.5.0`（:20；实测与 drora-server-cli/server/services/relay-v2-server/stream-animate/e2e-report 多数兄弟包一致，仅 zcode-cua-helper 与 drora-cli 为 ^24.0.0），vitest ^4.1.1（:22）不随上游删除——本包仍有 Drora 保留测试 test/bundled-config-replacement.test.ts（登记于 scripts/drora-test-files.json:186，:4 `import … from "vitest"`）；JSON.parse 校验有效（本轮 node 实测通过）。
+- droraAgentConnectionScope.ts（1 处）：规则 A 并集——persona 能力键（规则 D，PERSONA_PROTOCOL_CAPABILITY_CONTROL_V1 :234，仅 desktop-continuous `continuous` 分支广告）与上游新增 inputPrediction（:236 `isRemoteInputPredictionEnabled()`）/residentRowsRange（:238）两键共存于 hello capabilities，两个 import（:5、:26）均已在合并区。
+- droraAgentService.ts（2 处）：import 冲突并集（保 attachPersonaEnabledForCapability 于 :2962/:6480 消费、加 isRemoteInputPredictionEnabled 于 :7296 消费、按 theirs 重构弃 createHash——全文件 grep 无剩余消费者）；options 接口保 ours 的 startPlanCaptchaResolver（规则 D，spec=start-plan-captcha-verification，声明 :1141、消费 :1723，node.ts:2574 传入链路完整），弃 base 接口内 accountRequestAuthService（theirs 已移入 :1113 AccountRequestAuthOptions 成对 union 并于 :1121 引用——注释明示「两者必须成对注入」；node.ts:2496-2497 accountRequestAuthService+readRequestVerificationConfig 实际成对传入，语义不放松）。
+- independentPlanSupport.ts（1 处）：规则 A 并集——ours 的 persona 能力探测三函数（supportsPersonaControlV1 :61、attachPersonaEnabledForCapability :88，3s 短超时+WeakMap 语义原样）与 theirs 新增 ensureGenUiContextSupport（:100）并存。
+- mcpSyncService.ts（7 处）：全部规则 B/C 取 theirs——逐块比对确认 ours 侧对 base 仅为 prettier 格式化（零语义差异），上游 v3.17.1 删除五个显式远端接口（本轮按 `git diff refs/usync/v3171/base` 复核命名：listRemoteUserMcpStatuses、exportMcpServers、checkRemoteUserMcpWriteAccess、importMcpServers 四方法及 checkRemoteSyncDirectoryWriteAccess 依赖）。
+- node.ts（2 处）/project/index.ts（1 处）/settingsSyncService.ts（1 处）：裁决细节未随本轮执行摘要提供，以下为终态归因复核（`git diff refs/usync/v3171/{main,target}`）——node.ts=theirs 新装配（data-sync、provider-provisioning-status、project data port、atomicFileUtils 严格读写导出）与 ours 自研装配（knowledge/webhook/CUA helper env、obsidian-vault、output-style、startPlanCaptchaResolver、accountRequestAuthService）并集；project/index.ts=吸收 theirs 新能力（ProjectDataPort/data 命令、restoreProject、远端身份登记缓存、in-flight stat 去重）并保留 ours 的 normalizeDirectoryPath win32/posix 归一修复；settingsSyncService.ts=吸收 theirs 的 updateJsonObjectFile 原子写重构（config.json 不再被整文件写回冲掉），ours 改名层（Zcode→Drora 标识符、.drora 路径）原样保留。
+
+### 门禁
+
+门禁=[{"name":"typecheck","exit":0},{"name":"tests","exit":0}]（段内包 services/server/drora-server-cli/client/provider*/model-option-map；数值沿用 S3 执行与门禁修复轮记录，本补记未重跑）。跨段中间态（typecheck 余 67 错=ui 57/desktop 8/web 2；drora 工程余 9 失败文件 15 用例全为 desktop/ui=S4/S5 待落地）与修复明细见上方「S3 门禁补记」。
+
+### 专项任务完成情况
+
+- S3-01：合并落地——project-storage 增量（migration-order/migration.ts、purge/contract.ts、repository-contract.ts、project/data 族新增；schema/repos/task-facts/remote-projects 按 ledger 动作落地，见 applied 清单）；三项复核与提交未做（归 S3-06）。
+- S3-02：apply 层面 purge 契约入库（purge/contract.ts=add）；D05 授权/调用审计与旧 migration checksum 不重写的验证记录未见，任务保持未关闭。
+- S3-03：合并落地——data-sync（17 文件）、provider-provisioning-status（7 文件）、conversation-telemetry（6 文件）新增，settings/provisioning/Provider/client SDK/server-cli 路径全部按 ledger 动作落地；手机白名单同步验证未见记录。
+- S3-04：node.ts 终态保留 knowledge/obsidian-vault/output-style 服务装配（vs target diff 证实）；安全 NO-GO、receipt/fencing/epoch/批准链回归验证未见记录。
+- S3-05：connection scope 新键（inputPrediction/residentRowsRange）与自建 persona 键共存已验证（见裁决摘要）；自建 Relay 完整能力可用性审计未见记录（与 S4-02 关联）。
+- S3-06：段内 typecheck/tests 门禁通过（见上）；schema 校验、逐表 hash/失败恢复/旧版兼容、服务与 Relay 回归、远端 build、RG04–06/13/15/16/18/20、三项复核、git commit 均未执行（「S3 门禁补记」遗留登记确认未执行 git commit）。
+
+S3-01–S3-06 复选框按状态规则维持 `[ ]`，待证据齐全后逐项关闭。本补记只改 tasks.md，未提交。

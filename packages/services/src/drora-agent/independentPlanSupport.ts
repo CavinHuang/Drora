@@ -94,3 +94,23 @@ export async function attachPersonaEnabledForCapability<Preferences extends obje
   }
   return preferences;
 }
+
+const genUiChecks = new WeakMap<object, Promise<void>>();
+/** 状态不能回退到拼接用户正文；不支持时保留草稿并拒绝发送。 */
+export function ensureGenUiContextSupport(
+  client: Pick<DroraProtocolClient, "request">,
+): Promise<void> {
+  const cached = genUiChecks.get(client);
+  if (cached) return cached;
+  const check = client
+    .request(droraProtocolMethods.runtimeCapabilities, {}, droraRuntimeCapabilitiesSchema)
+    .then((result) => {
+      if (result.genUiContext !== true) throw new Error("proto.genUiContextUnsupported");
+    })
+    .catch((cause: unknown) => {
+      genUiChecks.delete(client);
+      throw new Error("proto.genUiContextUnsupported", { cause });
+    });
+  genUiChecks.set(client, check);
+  return check;
+}

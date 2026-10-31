@@ -1,8 +1,14 @@
+import type { DatabaseSync } from "node:sqlite";
 import { ProjectRepository } from "#src/project-storage/project-repository.js";
 import { sqliteMigrations } from "@drora/shared/sqlite-migrations";
 import type { ProjectStorageContract } from "#src/project-storage/contract.js";
+import type { ProjectDataRepositoryContract } from "#src/project-storage/purge/contract.js";
 import { reconcileLegacy, admitTaskIdentity } from "#src/project-storage/legacy-tasks.js";
 import { migrateProjects } from "#src/project-storage/migrate-projects.js";
+import {
+  INITIAL_WORKSPACE_ORDER_SQL,
+  migrateInitialWorkspaceOrder,
+} from "#src/project-storage/migration-order/migration.js";
 import {
   DEFAULT_WORKSPACE_CANDIDATES_SQL,
   migrateDefaultWorkspaceTasks,
@@ -10,6 +16,8 @@ import {
 import {
   PROJECT_MIGRATION_TABLES,
   PROJECT_SCHEMA_SQL,
+  REMOTE_ENTRY_DELETED_CACHE_SQL,
+  SESSION_CREATION_COMMANDS_SQL,
   TASK_PROJECT_COLUMNS,
 } from "#src/project-storage/schema.js";
 
@@ -17,8 +25,18 @@ export type {
   ProjectMigrationContext,
   ProjectStorageContract,
 } from "#src/project-storage/contract.js";
+export type { ProjectDataRepositoryContract } from "#src/project-storage/purge/contract.js";
+
+/** 彻底删除项目数据的行操作；与 repository() 同一 Host 范围（规格见 purge/contract.ts）。 */
+export function createProjectDataRepository(
+  db: DatabaseSync,
+  hostId?: string,
+): ProjectDataRepositoryContract {
+  return new ProjectRepository(db, hostId);
+}
 export const projectStorage: ProjectStorageContract = {
   migrate: async (db, context) => {
+    let firstProjectMigration = false;
     const result = await sqliteMigrations.migrate(
       db,
       [
@@ -28,7 +46,10 @@ export const projectStorage: ProjectStorageContract = {
           appVersion: "3.12.0",
           touchedTables: PROJECT_MIGRATION_TABLES,
           sql: `${PROJECT_SCHEMA_SQL}\n-- tasks columns: ${JSON.stringify(TASK_PROJECT_COLUMNS)}\n-- v3 workspace/group first assignment and CLI intent handoff`,
-          apply: (database) => migrateProjects(database, context),
+          apply: (database) => {
+            migrateProjects(database, context);
+            firstProjectMigration = true;
+          },
         },
         {
           id: "0006_default_workspace_tasks",
@@ -36,6 +57,28 @@ export const projectStorage: ProjectStorageContract = {
           touchedTables: ["tasks", "projects"],
           sql: `${DEFAULT_WORKSPACE_CANDIDATES_SQL}\n-- v1 clear project ownership and soft-delete the unedited system container; preserve task facts`,
           apply: (database) => migrateDefaultWorkspaceTasks(database, context),
+        },
+        {
+          id: "0007_initial_workspace_order",
+          appVersion: "3.16.2",
+          touchedTables: ["projects", "remote_project_entries"],
+          sql: `${INITIAL_WORKSPACE_ORDER_SQL}\n-- seed mixed order only when 0005 runs in this transaction`,
+          apply: (database) => {
+            database.exec(INITIAL_WORKSPACE_ORDER_SQL);
+            if (firstProjectMigration) migrateInitialWorkspaceOrder(database, context);
+          },
+        },
+        {
+          id: "0008_remote_entry_deleted_cache",
+          appVersion: "3.16.3",
+          touchedTables: ["remote_project_entries"],
+          sql: REMOTE_ENTRY_DELETED_CACHE_SQL,
+        },
+        {
+          id: "0009_session_creation_commands",
+          appVersion: "3.16.3",
+          touchedTables: ["session_creation_commands"],
+          sql: SESSION_CREATION_COMMANDS_SQL,
         },
       ],
       {

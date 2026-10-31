@@ -57,6 +57,23 @@ export function getAppConfigDir(): string {
   return join(getDroraDataRootDir(), "v2");
 }
 
+/**
+ * Agent 侧用户级默认指令（个性化）文件的 home 解析。
+ * 必须与 CLI adapter（apps/drora-cli/packages/adapters/src/context/index.ts 的
+ * resolveUserHomeDir）保持完全一致：只认 HOME/USERPROFILE。不能改用
+ * DRORA_DATA_BASE_DIR（CLI 读该文件时忽略它）或 DRORA_DESKTOP_HOME_DIR
+ * （agent 子进程不认），否则 App 写的文件和 Agent 读的文件会分叉。
+ */
+export function resolveAgentUserInstructionsHomeDir(env: NodeJS.ProcessEnv = process.env): string {
+  const envHome = env.HOME?.trim() || env.USERPROFILE?.trim();
+  return envHome && envHome.length > 0 ? envHome : homedir();
+}
+
+/** `{home}/.drora/AGENTS.md`：用户自定义指令（个性化）的唯一事实源文件。 */
+export function getAgentUserInstructionsFilePath(env: NodeJS.ProcessEnv = process.env): string {
+  return join(resolveAgentUserInstructionsHomeDir(env), ".drora", "AGENTS.md");
+}
+
 function readEnvValue(env: Record<string, string | undefined>, key: string): string | undefined {
   const direct = env[key]?.trim();
   if (direct) {

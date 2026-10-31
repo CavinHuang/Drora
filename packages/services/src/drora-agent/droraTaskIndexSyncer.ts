@@ -1,3 +1,4 @@
+import { isAuxiliarySessionKind } from "@drora/shared";
 /* eslint-disable max-lines -- task index 的 v4 帧摄入、snapshot upsert 和 workspace 广播必须共享同一份闭包状态。 */
 import { repairSubagentTaskIndex } from "#src/task-facts/repairSubagentTaskIndex.js";
 import {
@@ -188,8 +189,12 @@ function resolveTerminalUnreadSignal(
   if (summary.phase === "error") {
     return "background_terminal";
   }
+  // completedInterrupted 表示用户主动停止、发新消息打断或新建对话时中断旧执行。
+  // 它仍是 terminal/ready 边界，task status 仍收口为 completed；这里只不制造未读提醒，
+  // 避免用户主动动作后出现红点且必须切走再切回才能清除。
+  if (summary.phase === "completedInterrupted") return undefined;
   if (
-    (summary.phase === "completedSuccess" || summary.phase === "completedInterrupted") &&
+    summary.phase === "completedSuccess" &&
     (summary.goalStatus === undefined || summary.goalStatus === "verified")
   ) {
     return "background_terminal";
@@ -1683,7 +1688,7 @@ export function createDroraTaskIndexSyncer(
       broadcastReason: DroraWorkspaceTaskListChanged["reason"] | null;
     },
   ): Promise<DroraTaskMeta> {
-    if (snapshot.session.sessionKind === "subagent_child")
+    if (isAuxiliarySessionKind(snapshot.session.sessionKind))
       return {
         ...snapshot.session.workspace,
         taskId: snapshot.session.sessionId,

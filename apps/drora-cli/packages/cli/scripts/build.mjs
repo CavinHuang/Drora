@@ -1,8 +1,10 @@
 import { chmod, readFile, rm } from "node:fs/promises";
+import { existsSync } from "node:fs";
 import { basename, dirname, relative, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { build } from "esbuild";
 import sharedPackage from "../../../../../packages/shared/package.json" with { type: "json" };
+import corePackage from "../../../../drora-cli/packages/core/package.json" with { type: "json" };
 import { stageBuiltinProviderConfig } from "../../../../../scripts/builtin-provider-config.mjs";
 import { stageThirdPartyNotices } from "../../../../../scripts/third-party-notices.mjs";
 
@@ -13,6 +15,25 @@ const packageJsonFile = "package.json";
 const rootPackageVersionError = "Root package.json must define a non-empty string version.";
 const desktopAgentBuildFlag = "--desktop-agent";
 export const resolveBuildExternal = () => ["@drora/tui", "playwright-core", "koffi"];
+// persona 独立库的异步 worker 入口。drora.cjs 是单文件 bundle（desktop-agent 只内置这一份），
+// 旁挂文件不会随包发布；worker 入口的 esbuild 打包由 @drora/adapters 的 build 脚本完成
+// （dist/storage/persona/persona-store-worker-main.bundle.cjs），这里把它作为 define 字符串
+// 注入主 bundle（__DRORA_PERSONA_WORKER_SOURCE__），运行时以 eval 形态 spawn
+// （fs/ripgrep worker 同款先例）。「worker 资源在单文件产物内」由构建成立。
+const personaWorkerBundleRelative =
+  "../adapters/dist/storage/persona/persona-store-worker-main.bundle.cjs";
+export const resolvePersonaWorkerBundlePath = ({ cliDirectory = cliRoot } = {}) =>
+  resolve(cliDirectory, personaWorkerBundleRelative);
+
+export const readPersonaWorkerBundleSource = async ({ cliDirectory = cliRoot } = {}) => {
+  const bundlePath = resolvePersonaWorkerBundlePath({ cliDirectory });
+  if (!existsSync(bundlePath)) {
+    throw new Error(
+      `Persona worker bundle is missing: ${bundlePath}. Build @drora/adapters before building the CLI.`,
+    );
+  }
+  return readFile(bundlePath, "utf8");
+};
 
 export const readZodBuildVersion = async () => {
   const sharedPackage = JSON.parse(
@@ -148,7 +169,18 @@ export const resolveBuildAliases = ({
         resolve(rootDirectory, "../../packages/shared", target),
       ]),
   ),
-  "@drora/core": resolve(cliDirectory, "../core/dist/index.js"),
+  // Bugfix: @drora/core 曾只登记裸前缀 alias，新增 ./persona 子路径导出后
+  // `@drora/core/persona` 被前缀改写成不存在的 dist/index.js/persona，desktop-agent
+  // 打包整体失败。与 shared 同款 exports 派生；core 的 exports 是 {types,import}
+  // 条件对象，取 import 条件（与运行时 resolve 行为一致）。
+  ...Object.fromEntries(
+    Object.entries(corePackage.exports)
+      .sort(([a], [b]) => Number(a === ".") - Number(b === "."))
+      .map(([subpath, target]) => [
+        subpath === "." ? "@drora/core" : `@drora/core/${subpath.slice(2)}`,
+        resolve(cliDirectory, "../core", typeof target === "string" ? target : target.import),
+      ]),
+  ),
 });
 
 export const buildCli = async ({
@@ -164,6 +196,9 @@ export const buildCli = async ({
   const cliVersion = await version;
   const outfile = resolve(cliDirectory, "dist/drora.cjs");
   const sourcemapFile = `${outfile}.map`;
+  // 先取 persona worker bundle（见 readPersonaWorkerBundleSource 注释），作为 define
+  // 字符串注入主 bundle——保证「worker 资源在单文件产物内」由构建成立，而不是靠旁挂文件。
+  const personaWorkerSource = await readPersonaWorkerBundleSource({ cliDirectory });
 
   await stageBuiltinProviderConfig({
     root: resolve(rootDirectory, "../.."),
@@ -178,6 +213,7 @@ export const buildCli = async ({
     bundle: true,
     define: {
       __CLI_VERSION__: JSON.stringify(cliVersion),
+      __DRORA_PERSONA_WORKER_SOURCE__: JSON.stringify(personaWorkerSource),
     },
     entryPoints: [resolve(cliDirectory, "src/main.ts")],
     // Ink 7 and yoga-layout use top-level await, so the CJS CLI bundle loads the TUI

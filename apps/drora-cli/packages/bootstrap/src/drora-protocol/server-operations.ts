@@ -73,12 +73,16 @@ import {
   droraPersonaGetApplicationResultSchema,
   droraPersonaGetCoreParamsSchema,
   droraPersonaGetCoreResultSchema,
+  droraPersonaGetLearningOverviewParamsSchema,
+  droraPersonaGetLearningOverviewResultSchema,
   droraPersonaGetOverviewParamsSchema,
   droraPersonaGetOverviewResultSchema,
   droraPersonaInitializeParamsSchema,
   droraPersonaInitializeResultSchema,
   droraPersonaListPreferencesParamsSchema,
   droraPersonaListPreferencesResultSchema,
+  droraPersonaAllowLearningParamsSchema,
+  droraPersonaAllowLearningResultSchema,
   droraPersonaForgetPreferenceParamsSchema,
   droraPersonaForgetPreferenceResultSchema,
   droraPersonaPrepareExportParamsSchema,
@@ -4385,6 +4389,29 @@ export async function preparePersonaExportOp(
   parseParams(droraPersonaPrepareExportParamsSchema, params);
   return droraPersonaPrepareExportResultSchema.parse(
     await requirePersonaControl(context).preparePersonaExport(),
+  );
+}
+
+// ── P1b 有限学习管理（合同 §3 allowLearningForKey＋读侧概览；spec §5/§8/§10）：
+// 与 P1a 管理同走 deps.personaControl 端口；strict schema 与仓储行/服务组合结果逐键对齐。
+
+export async function allowLearningForKeyOp(
+  context: DroraProtocolAgentServerContext,
+  params: unknown,
+) {
+  const input = parseParams(droraPersonaAllowLearningParamsSchema, params);
+  return droraPersonaAllowLearningResultSchema.parse(
+    await requirePersonaControl(context).allowLearningForKey(input),
+  );
+}
+
+export async function getPersonaLearningOverviewOp(
+  context: DroraProtocolAgentServerContext,
+  params: unknown,
+) {
+  parseParams(droraPersonaGetLearningOverviewParamsSchema, params);
+  return droraPersonaGetLearningOverviewResultSchema.parse(
+    await requirePersonaControl(context).getPersonaLearningOverview(),
   );
 }
 

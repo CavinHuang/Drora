@@ -12,6 +12,7 @@ import {
   PERSONA_ERROR_CODES,
   PERSONA_RECEIPT_SCOPES,
   PERSONA_STORE_SCHEMA_VERSION,
+  type PersonaAllowLearningResult,
   type PersonaForgetResult,
   type PersonaManagementResult,
   type PersonaPolicyMutationResult,
@@ -19,11 +20,16 @@ import {
   type PersonaPreferenceMutationResult,
 } from "@drora/shared";
 import { ensureSqliteSchemaMigrationTable, sqliteMigrations } from "@drora/shared/sqlite-migrations";
-import { PERSONA_STORE_DEFAULTS, PersonaStoreError } from "./contract.js";
+import {
+  PERSONA_STORE_DEFAULTS,
+  PersonaStoreError,
+  type ResolvedPersonaStoreOptions,
+} from "./contract.js";
 import type {
   PersonaStoreAuthorityFacts,
   PersonaStoreCoreFacts,
   PersonaStoreExportSnapshot,
+  PersonaStoreAllowLearningInput,
   PersonaStoreForgetPreferenceInput,
   PersonaStoreInitializeInput,
   PersonaStoreInitializedValue,
@@ -36,36 +42,35 @@ import type {
   PersonaStoreUpdatePolicyInput,
 } from "./contract.js";
 import { PERSONA_MIGRATIONS } from "./migrations.js";
+import type { PersonaLearningStorePort } from "./persona-learning-contract.js";
+import { PersonaLearningSqliteStore } from "./persona-learning-store.js";
 import {
   asInteger,
-  asString,
   code,
   coreContentEquals,
   decodeEditableCore,
-  decodePreferenceRow,
+  deleteLearningBodiesForKey,
   ensureReceiptCapacity,
   failCorruptRow,
   insertReceiptRow,
+  readPreferenceSlotRow,
   readPreferenceSlotRows,
   readPolicyRow,
   readReceiptRow,
+  readAuthorityRow as readAuthorityRowShared,
   toManagementResult,
   unwrap,
   value,
-  type StoreOutcome,
 } from "./persona-rows.js";
 import {
-  isMemoryDatabase,
-  isSqliteBusyError,
-  readJournalMode,
-  sleep,
-  toPersonaStoreError,
-} from "./persona-store-errors.js";
+  clearAllPendingCandidates,
+  terminateNonTerminalWorksForPolicy,
+} from "./persona-learning-rows.js";
+import { isMemoryDatabase, readJournalMode } from "./persona-store-errors.js";
+import { PersonaSqliteTxnRunner } from "./persona-store-txn.js";
 
 export { toPersonaStoreError } from "./persona-store-errors.js";
 
-const BUSY_RETRY_INITIAL_DELAY_MS = 10;
-const BUSY_RETRY_MAX_DELAY_MS = 200;
 const INITIAL_CORE_REVISION = 1;
 
 
@@ -73,26 +78,26 @@ export class PersonaSqliteStore implements PersonaStorePort {
   private readonly db: DatabaseSync;
   private readonly dbPath: string;
   private readonly lockWaitTimeoutMs: number;
-  private readonly adminRequestBudgetMs: number;
   private readonly receiptRetentionMs: number;
   private readonly receiptMaxPerAuthority: number;
-  private closed = false;
   /**
-   * 进程内事务队列：node:sqlite 单连接上重叠的 begin 会报 errcode 1「cannot start a
-   * transaction within a transaction」，而 toStoreError 对 errcode 1 只能归类为
-   * storage_unavailable——会把内部串行化缺陷伪装成环境故障。同实例的每个事务按到达顺序
+   * 管理事务与学习事务共享的队列化运行器（persona-store-txn.ts）：单连接上重叠的 begin
+   * 会被误分类为 storage_unavailable，两个仓储面的所有短事务都按到达顺序经同一队列
    * 串行执行（含提交/回滚完全落定）；每个事务的预算在真正开跑时才起算，排队等待不消耗
    * 管理请求总预算（合同 §2）。队列自身不会 reject，失败只通过事务自己的 Promise 传播。
    */
-  private txnQueue: Promise<unknown> = Promise.resolve();
+  private readonly txn: PersonaSqliteTxnRunner;
+  /** P1b 学习面（证据接收/工作队列/预算/候选提交）；与本实例同库同队列。 */
+  readonly learning: PersonaLearningStorePort;
 
   private constructor(db: DatabaseSync, options: ResolvedPersonaStoreOptions) {
     this.db = db;
     this.dbPath = options.dbPath;
     this.lockWaitTimeoutMs = options.lockWaitTimeoutMs;
-    this.adminRequestBudgetMs = options.adminRequestBudgetMs;
     this.receiptRetentionMs = options.receiptRetentionMs;
     this.receiptMaxPerAuthority = options.receiptMaxPerAuthority;
+    this.txn = new PersonaSqliteTxnRunner(db, options.dbPath, options.adminRequestBudgetMs);
+    this.learning = new PersonaLearningSqliteStore(db, this.txn, options);
   }
 
   /** 打开并迁移库。路径必须由调用方从可信存储根解析后传入；不存在时创建（首次显式初始化前库文件可以为空库——「未初始化」是可区分的正常状态）。 */
@@ -131,7 +136,7 @@ export class PersonaSqliteStore implements PersonaStorePort {
   }
 
   async readSnapshot(): Promise<PersonaStoreSnapshot> {
-    const outcome = await this.withTxn(false, () => {
+    const outcome = await this.txn.withTxn(false, () => {
       const authority = this.readAuthorityRow();
       if (!authority) return value<PersonaStoreSnapshot>({ state: "uninitialized" });
       // policy/偏好与 authority/core 同一短事务读取（合同 §4.2 cutoff）；U off 时偏好零出库。
@@ -150,7 +155,7 @@ export class PersonaSqliteStore implements PersonaStorePort {
   async initializeAuthority(
     input: PersonaStoreInitializeInput,
   ): Promise<PersonaManagementResult<PersonaStoreInitializedValue>> {
-    const outcome = await this.withTxn(true, () => {
+    const outcome = await this.txn.withTxn(true, () => {
       // authority 存在性先于 receipt 查询（合同 §2「权限/authority 校验先于 receipt 查询」）。
       const authority = this.readAuthorityRow();
       if (authority) {
@@ -254,7 +259,7 @@ export class PersonaSqliteStore implements PersonaStorePort {
   async updateCore(
     input: PersonaStoreUpdateCoreInput,
   ): Promise<PersonaManagementResult<PersonaStoreUpdateCoreResult>> {
-    const outcome = await this.withTxn(true, () => {
+    const outcome = await this.txn.withTxn(true, () => {
       const authority = this.readAuthorityRow();
       if (!authority) return code(PERSONA_ERROR_CODES.uninitialized);
       const receipt = readReceiptRow(this.db, PERSONA_RECEIPT_SCOPES.core, input.mutationId);
@@ -329,7 +334,7 @@ export class PersonaSqliteStore implements PersonaStorePort {
   async updatePolicy(
     input: PersonaStoreUpdatePolicyInput,
   ): Promise<PersonaManagementResult<PersonaPolicyMutationResult>> {
-    const outcome = await this.withTxn(true, () => {
+    const outcome = await this.txn.withTxn(true, () => {
       const authority = this.readAuthorityRow();
       if (!authority) return code(PERSONA_ERROR_CODES.uninitialized);
       const receipt = readReceiptRow(this.db, PERSONA_RECEIPT_SCOPES.policy, input.mutationId);
@@ -350,10 +355,17 @@ export class PersonaSqliteStore implements PersonaStorePort {
         // CAS：失效回执不能绕过（合同 §2）；冲突不写 receipt。
         return code(PERSONA_ERROR_CODES.revisionConflict);
       }
-      if (current.usePreferences === input.usePreferences) {
+      // P1b（合同 §1 Policy/P1b、§4.2）：autoLearn 是 patch 字段（缺省＝保持当前值）；
+      // 关闭 U 必须同一事务强制 L=false。learningGeneration 在 autoLearn 真值变 false
+      // 的事务内递增（学习域单调屏障）。
+      const nextUsePreferences = input.usePreferences;
+      const nextAutoLearn = nextUsePreferences ? (input.autoLearn ?? current.autoLearn) : false;
+      const contentChanged =
+        current.usePreferences !== nextUsePreferences || current.autoLearn !== nextAutoLearn;
+      if (!contentChanged) {
         // 无内容变化的策略提交返回 unchanged，不推进 epoch（屏障只在真实变更时前进）。
         if (!ensureReceiptCapacity(this.db, this.receiptMaxPerAuthority, this.receiptRetentionMs, input.now)) return code(PERSONA_ERROR_CODES.storageCapacity);
-        insertReceiptRow(this.db, 
+        insertReceiptRow(this.db,
           PERSONA_RECEIPT_SCOPES.policy,
           input.mutationId,
           input.requestDigest,
@@ -367,17 +379,38 @@ export class PersonaSqliteStore implements PersonaStorePort {
       if (!ensureReceiptCapacity(this.db, this.receiptMaxPerAuthority, this.receiptRetentionMs, input.now)) return code(PERSONA_ERROR_CODES.storageCapacity);
       const nextRevision = current.policyRevision + 1;
       const nextEpoch = current.policyEpoch + 1;
+      const learningDisabled = current.autoLearn && !nextAutoLearn;
+      const nextLearningGeneration = learningDisabled
+        ? current.learningGeneration + 1
+        : current.learningGeneration;
       this.db
         .prepare(
-          `insert into persona_policy (id, use_preferences, policy_revision, policy_epoch, time_updated)
-           values (1, ?, ?, ?, ?)
+          `insert into persona_policy (id, use_preferences, auto_learn, learning_generation,
+                                       policy_revision, policy_epoch, time_updated)
+           values (1, ?, ?, ?, ?, ?, ?)
            on conflict(id) do update set use_preferences = excluded.use_preferences,
+             auto_learn = excluded.auto_learn,
+             learning_generation = excluded.learning_generation,
              policy_revision = excluded.policy_revision,
              policy_epoch = excluded.policy_epoch,
              time_updated = excluded.time_updated`,
         )
-        .run(input.usePreferences ? 1 : 0, nextRevision, nextEpoch, input.now);
-      insertReceiptRow(this.db, 
+        .run(
+          nextUsePreferences ? 1 : 0,
+          nextAutoLearn ? 1 : 0,
+          nextLearningGeneration,
+          nextRevision,
+          nextEpoch,
+          input.now,
+        );
+      if (learningDisabled) {
+        // 合同 §4.2 级联（U=false 或 L=false 同事务）：撤全部学习租约＝非终态工作终态化
+        // （rejected/policy_off，无正文可清），清全部未提交候选正文。在飞提交随后被
+        // epoch/工作状态屏障拒绝，不能靠预算重试复活。
+        terminateNonTerminalWorksForPolicy(this.db, input.now);
+        clearAllPendingCandidates(this.db);
+      }
+      insertReceiptRow(this.db,
         PERSONA_RECEIPT_SCOPES.policy,
         input.mutationId,
         input.requestDigest,
@@ -398,7 +431,7 @@ export class PersonaSqliteStore implements PersonaStorePort {
   async savePreference(
     input: PersonaStoreSavePreferenceInput,
   ): Promise<PersonaManagementResult<PersonaPreferenceMutationResult>> {
-    const outcome = await this.withTxn(true, () => {
+    const outcome = await this.txn.withTxn(true, () => {
       const authority = this.readAuthorityRow();
       if (!authority) return code(PERSONA_ERROR_CODES.uninitialized);
       const receipt = readReceiptRow(this.db, PERSONA_RECEIPT_SCOPES.preference, input.mutationId);
@@ -414,7 +447,7 @@ export class PersonaSqliteStore implements PersonaStorePort {
               keyGeneration: receipt.resultGeneration,
             });
       }
-      const slot = this.readPreferenceRow(input.key);
+      const slot = readPreferenceSlotRow(this.db, input.key);
       if ((slot?.revision ?? 0) !== input.expectedRevision) {
         // 同一 preferenceKey 的所有编辑入口共享 revision 与写 API（合同 §2/PM22）。
         return code(PERSONA_ERROR_CODES.revisionConflict);
@@ -422,7 +455,7 @@ export class PersonaSqliteStore implements PersonaStorePort {
       if (slot?.status === "active" && slot.value === input.value) {
         // 同值重存返回 unchanged，不推进 generation（合同 §2 unchanged 语义）。
         if (!ensureReceiptCapacity(this.db, this.receiptMaxPerAuthority, this.receiptRetentionMs, input.now)) return code(PERSONA_ERROR_CODES.storageCapacity);
-        insertReceiptRow(this.db, 
+        insertReceiptRow(this.db,
           PERSONA_RECEIPT_SCOPES.preference,
           input.mutationId,
           input.requestDigest,
@@ -436,12 +469,15 @@ export class PersonaSqliteStore implements PersonaStorePort {
       if (!ensureReceiptCapacity(this.db, this.receiptMaxPerAuthority, this.receiptRetentionMs, input.now)) return code(PERSONA_ERROR_CODES.storageCapacity);
       const nextRevision = (slot?.revision ?? 0) + 1;
       const nextGeneration = (slot?.keyGeneration ?? 0) + 1;
+      // 显式保存解决该键争议并清候选（合同 §3「savePreference…清该键候选」）；旧 inferred
+      // 合并来源不描述新值，一并清除。
+      deleteLearningBodiesForKey(this.db, input.key);
       this.db
         .prepare(
           `insert into persona_preference
              (key, value, revision, key_generation, provenance_kind, epistemic_status,
-              status, pinned, auto_suppressed, time_updated)
-           values (?, ?, ?, ?, 'settings', 'explicit', 'active', 1, 0, ?)
+              status, pinned, auto_suppressed, disputed, time_updated)
+           values (?, ?, ?, ?, 'settings', 'explicit', 'active', 1, 0, 0, ?)
            on conflict(key) do update set value = excluded.value,
              revision = excluded.revision,
              key_generation = excluded.key_generation,
@@ -450,6 +486,7 @@ export class PersonaSqliteStore implements PersonaStorePort {
              status = excluded.status,
              pinned = excluded.pinned,
              auto_suppressed = excluded.auto_suppressed,
+             disputed = excluded.disputed,
              time_updated = excluded.time_updated`,
         )
         .run(input.key, input.value, nextRevision, nextGeneration, input.now);
@@ -474,7 +511,7 @@ export class PersonaSqliteStore implements PersonaStorePort {
   async forgetPreference(
     input: PersonaStoreForgetPreferenceInput,
   ): Promise<PersonaManagementResult<PersonaForgetResult>> {
-    const outcome = await this.withTxn(true, () => {
+    const outcome = await this.txn.withTxn(true, () => {
       const authority = this.readAuthorityRow();
       if (!authority) return code(PERSONA_ERROR_CODES.uninitialized);
       const receipt = readReceiptRow(this.db, PERSONA_RECEIPT_SCOPES.preference, input.mutationId);
@@ -490,25 +527,28 @@ export class PersonaSqliteStore implements PersonaStorePort {
           keyGeneration: receipt.resultGeneration,
         });
       }
-      const slot = this.readPreferenceRow(input.key);
+      const slot = readPreferenceSlotRow(this.db, input.key);
       if ((slot?.revision ?? 0) !== input.expectedRevision) {
         return code(PERSONA_ERROR_CODES.revisionConflict);
       }
       if (!ensureReceiptCapacity(this.db, this.receiptMaxPerAuthority, this.receiptRetentionMs, input.now)) return code(PERSONA_ERROR_CODES.storageCapacity);
       const nextRevision = (slot?.revision ?? 0) + 1;
       const nextGeneration = (slot?.keyGeneration ?? 0) + 1;
+      // 忘记是逻辑撤销屏障：清候选正文/合并来源、disputed 归零（忘记是并列解决路径）。
+      deleteLearningBodiesForKey(this.db, input.key);
       this.db
         .prepare(
           `insert into persona_preference
              (key, value, revision, key_generation, provenance_kind, epistemic_status,
-              status, pinned, auto_suppressed, time_updated)
-           values (?, NULL, ?, ?, 'settings', 'explicit', 'forgotten', 0, 1, ?)
+              status, pinned, auto_suppressed, disputed, time_updated)
+           values (?, NULL, ?, ?, 'settings', 'explicit', 'forgotten', 0, 1, 0, ?)
            on conflict(key) do update set value = excluded.value,
              revision = excluded.revision,
              key_generation = excluded.key_generation,
              status = excluded.status,
              pinned = excluded.pinned,
              auto_suppressed = excluded.auto_suppressed,
+             disputed = excluded.disputed,
              time_updated = excluded.time_updated`,
         )
         .run(input.key, nextRevision, nextGeneration, input.now);
@@ -530,8 +570,77 @@ export class PersonaSqliteStore implements PersonaStorePort {
     return toManagementResult(outcome);
   }
 
+  async allowLearningForKey(
+    input: PersonaStoreAllowLearningInput,
+  ): Promise<PersonaManagementResult<PersonaAllowLearningResult>> {
+    const outcome = await this.txn.withTxn(true, () => {
+      const authority = this.readAuthorityRow();
+      if (!authority) return code(PERSONA_ERROR_CODES.uninitialized);
+      const receipt = readReceiptRow(this.db, PERSONA_RECEIPT_SCOPES.preference, input.mutationId);
+      if (receipt) {
+        if (receipt.requestDigest !== input.requestDigest) {
+          return code(PERSONA_ERROR_CODES.mutationConflict);
+        }
+        return receipt.resultCode === "unchanged"
+          ? value<PersonaAllowLearningResult>({ status: "unchanged" })
+          : value<PersonaAllowLearningResult>({
+              status: "saved",
+              revision: receipt.resultRevision,
+              keyGeneration: receipt.resultGeneration,
+            });
+      }
+      const slot = readPreferenceSlotRow(this.db, input.key);
+      // CAS 前置＝该键当前 generation（合同 §3；槽缺席按 0），失效凭据不能绕过（合同 §2）。
+      if ((slot?.keyGeneration ?? 0) !== input.expectedGeneration) {
+        return code(PERSONA_ERROR_CODES.revisionConflict);
+      }
+      if (!slot || !slot.autoSuppressed) {
+        // 无抑制可解除：unchanged 不推进 generation（合同 §2），不为不存在的抑制建屏障槽。
+        if (!ensureReceiptCapacity(this.db, this.receiptMaxPerAuthority, this.receiptRetentionMs, input.now)) return code(PERSONA_ERROR_CODES.storageCapacity);
+        insertReceiptRow(this.db,
+          PERSONA_RECEIPT_SCOPES.preference,
+          input.mutationId,
+          input.requestDigest,
+          "unchanged",
+          slot?.revision ?? 0,
+          slot?.keyGeneration ?? 0,
+          input.now,
+        );
+        return value<PersonaAllowLearningResult>({ status: "unchanged" });
+      }
+      if (!ensureReceiptCapacity(this.db, this.receiptMaxPerAuthority, this.receiptRetentionMs, input.now)) return code(PERSONA_ERROR_CODES.storageCapacity);
+      const nextRevision = slot.revision + 1;
+      const nextGeneration = slot.keyGeneration + 1;
+      // 只解除抑制（status/value/pinned/disputed 原样——争议仍由保存/忘记解决，合同 §8；
+      // 「不恢复旧源/旧值」）。generation++ 使旧工作/候选的接收期快照失效（合同 §4.2
+      // 「只接受之后的新机会」），旧工作提交被 generation 屏障拒绝，不复活旧来源。
+      this.db
+        .prepare(
+          `update persona_preference
+             set revision = ?, key_generation = ?, auto_suppressed = 0, time_updated = ?
+           where key = ?`,
+        )
+        .run(nextRevision, nextGeneration, input.now, input.key);
+      insertReceiptRow(this.db,
+        PERSONA_RECEIPT_SCOPES.preference,
+        input.mutationId,
+        input.requestDigest,
+        "saved",
+        nextRevision,
+        nextGeneration,
+        input.now,
+      );
+      return value<PersonaAllowLearningResult>({
+        status: "saved",
+        revision: nextRevision,
+        keyGeneration: nextGeneration,
+      });
+    });
+    return toManagementResult(outcome);
+  }
+
   async listPreferences(): Promise<PersonaManagementResult<readonly PersonaPreferenceFacts[]>> {
-    const outcome = await this.withTxn(false, () => {
+    const outcome = await this.txn.withTxn(false, () => {
       const authority = this.readAuthorityRow();
       // 未初始化是查询成功的空答案。返回全部槽（含 forgotten 屏障槽及其 revision）：
       // 忘记并列于保存是解决路径（合同 §4.2），重设的 CAS 需要可观测的当前 revision。
@@ -542,25 +651,26 @@ export class PersonaSqliteStore implements PersonaStorePort {
   }
 
   async readExportSnapshot(): Promise<PersonaManagementResult<PersonaStoreExportSnapshot>> {
-    const outcome = await this.withTxn(false, () => {
+    const outcome = await this.txn.withTxn(false, () => {
       const authority = this.readAuthorityRow();
       // 无资料返回 uninitialized，不为导出初始化默认身份（合同 §7）。
       if (!authority) return code(PERSONA_ERROR_CODES.uninitialized);
+      // 导出快照冻结全部未忘记且有效的当前值（合同 §7「只含未忘记且有效的当前值」）：
+      // 显式（settings）与 inferred（extraction）一并携带；inferred 槽的来源复验与
+      // 「不可验证→省略」计数发生在事务外（服务层，合同 §7 时序「仅复验 inferred 来源」）
+      // ——仓储无法验证来源，不做预省略、不把「未尝试验证」预记为「不可验证」。
+      const slots = readPreferenceSlotRows(this.db).filter((slot) => slot.status === "active");
       return value<PersonaStoreExportSnapshot>({
         core: this.readCoreRowOrThrow(),
         policy: readPolicyRow(this.db),
-        // 导出只含未忘记且有效的当前值（合同 §7「只含未忘记且有效的当前值」）。
-        preferences: readPreferenceSlotRows(this.db).filter(
-          (slot) => slot.status === "active",
-        ),
-        counts: { inferredOmittedUnverifiable: 0 },
+        preferences: slots,
       });
     });
     return toManagementResult(outcome);
   }
 
   async close(): Promise<void> {
-    this.closed = true;
+    this.txn.markClosed();
     try {
       this.db.close();
     } catch {
@@ -569,100 +679,20 @@ export class PersonaSqliteStore implements PersonaStorePort {
   }
 
   // ---------------------------------------------------------------------------
-  // 事务与预算（合同 §2：锁等待初始 100ms、管理请求总预算初始 5s）
-  // ---------------------------------------------------------------------------
-
-  /** 预算内对 BUSY 做退避重试；预算耗尽把最后一个 BUSY 交给调用方按读/写分类。 */
-  private async acquire<T>(deadline: number, operation: () => T): Promise<T> {
-    let delay = BUSY_RETRY_INITIAL_DELAY_MS;
-    for (;;) {
-      try {
-        return operation();
-      } catch (error) {
-        if (!isSqliteBusyError(error)) throw error;
-        const remaining = deadline - Date.now();
-        if (remaining <= 0) throw error;
-        await sleep(Math.min(delay, remaining));
-        delay = Math.min(BUSY_RETRY_MAX_DELAY_MS, delay * 2);
-      }
-    }
-  }
-
-  private async withTxn<T>(write: boolean, fn: () => StoreOutcome<T>): Promise<StoreOutcome<T>> {
-    // 单连接互斥：入队等前序事务落定后再开跑，重叠调用不会撞出第二个 begin。
-    const outcome = this.txnQueue.then(() => this.runTxn(write, fn));
-    this.txnQueue = outcome.then(
-      () => undefined,
-      () => undefined,
-    );
-    return outcome;
-  }
-
-  private async runTxn<T>(write: boolean, fn: () => StoreOutcome<T>): Promise<StoreOutcome<T>> {
-    this.assertOpen();
-    const deadline = Date.now() + this.adminRequestBudgetMs;
-    try {
-      await this.acquire(deadline, () =>
-        this.db.exec(write ? "begin immediate" : "begin deferred"),
-      );
-    } catch (error) {
-      throw this.toStoreError(error, { write });
-    }
-    try {
-      const outcome = fn();
-      if (outcome.kind === "value") {
-        // WAL 下提交也可能与并发写者撞忙；同一预算内重试，超时按写请求表达 outcome_unknown。
-        await this.acquire(deadline, () => this.db.exec("commit"));
-      } else if (this.db.isTransaction) {
-        this.db.exec("rollback");
-      }
-      return outcome;
-    } catch (error) {
-      if (this.db.isTransaction) {
-        try {
-          this.db.exec("rollback");
-        } catch {
-          /* 保留首个错误。 */
-        }
-      }
-      throw this.toStoreError(error, { write });
-    }
-  }
-
-  /**
-   * 传输层错误分类（合同 §2/§3）：损坏/checksum 不符 → schema_incompatible（只停扩展，
-   * 不降级写旧 schema）；写超预算的 BUSY → outcome_unknown；其余 → storage_unavailable。
-   * 打开/迁移阶段按读分类（迁移要么已回滚要么已提交，不存在未知结局）。
-   */
-  private toStoreError(error: unknown, context: { write: boolean }): PersonaStoreError {
-    return toPersonaStoreError(error, { write: context.write, dbPath: this.dbPath });
-  }
-
-  private assertOpen(): void {
-    if (this.closed || !this.db.isOpen) {
-      throw new PersonaStoreError("Persona store is closed", {
-        code: PERSONA_ERROR_CODES.storageUnavailable,
-        dbPath: this.dbPath,
-      });
-    }
-  }
-
-  // ---------------------------------------------------------------------------
   // 打开期 schema 处置（迁移未知版本/损坏 → schema_incompatible，只停扩展）
   // ---------------------------------------------------------------------------
 
   private async initializeSchema(): Promise<void> {
-    const deadline = Date.now() + this.adminRequestBudgetMs;
     try {
       if (!isMemoryDatabase(this.dbPath)) {
-        await this.acquire(deadline, () => {
+        await this.txn.acquireDuringOpen(() => {
           if (readJournalMode(this.db, true) !== "wal") {
             throw new Error(`SQLite refused WAL journal mode for ${this.dbPath}`);
           }
         });
       }
-      await this.acquire(deadline, () => this.rejectForeignMigrations());
-      await this.acquire(deadline, () => this.db.exec("begin immediate"));
+      await this.txn.acquireDuringOpen(() => this.rejectForeignMigrations());
+      await this.txn.acquireDuringOpen(() => this.db.exec("begin immediate"));
       ensureSqliteSchemaMigrationTable(this.db);
       await sqliteMigrations.migrate(this.db, PERSONA_MIGRATIONS, {
         database: "persona",
@@ -680,7 +710,7 @@ export class PersonaSqliteStore implements PersonaStorePort {
           /* 保留首个错误。 */
         }
       }
-      throw this.toStoreError(error, { write: false });
+      throw this.txn.toOpenError(error);
     }
   }
 
@@ -707,26 +737,9 @@ export class PersonaSqliteStore implements PersonaStorePort {
   // 行读取（严格解码）
   // ---------------------------------------------------------------------------
 
+  /** 行读取（严格解码）；authority 读取委托 persona-rows 的共享实现（学习面同源）。 */
   private readAuthorityRow(): PersonaStoreAuthorityFacts | undefined {
-    const row = this.db
-      .prepare(
-        "select authority_id, persona_id, schema_version, time_created from persona_authority where id = 1",
-      )
-      .get() as Record<string, unknown> | undefined;
-    if (!row) return undefined;
-    const schemaVersion = asInteger(row.schema_version);
-    if (schemaVersion !== PERSONA_STORE_SCHEMA_VERSION) {
-      throw new PersonaStoreError(
-        `Persona database schema version ${schemaVersion} is not supported by this build (${PERSONA_STORE_SCHEMA_VERSION})`,
-        { code: PERSONA_ERROR_CODES.schemaIncompatible, dbPath: this.dbPath },
-      );
-    }
-    return {
-      authorityId: asString(row.authority_id),
-      personaId: asString(row.persona_id),
-      schemaVersion,
-      createdAt: asInteger(row.time_created),
-    };
+    return readAuthorityRowShared(this.db);
   }
 
   private readCoreRowOrThrow(): PersonaStoreCoreFacts {
@@ -760,25 +773,6 @@ export class PersonaSqliteStore implements PersonaStorePort {
       preferences: policy.usePreferences ? readPreferenceSlotRows(this.db) : [],
     };
   }
-
-  private readPreferenceRow(key: string): PersonaPreferenceFacts | undefined {
-    const row = this.db
-      .prepare(
-        `select key, value, revision, key_generation, provenance_kind,
-                epistemic_status, status, pinned, auto_suppressed, time_updated
-         from persona_preference where key = ?`,
-      )
-      .get(key) as Record<string, unknown> | undefined;
-    return row ? decodePreferenceRow(row) : undefined;
-  }
-}
-
-interface ResolvedPersonaStoreOptions {
-  dbPath: string;
-  lockWaitTimeoutMs: number;
-  adminRequestBudgetMs: number;
-  receiptRetentionMs: number;
-  receiptMaxPerAuthority: number;
 }
 
 function resolveOptions(options: PersonaStoreOptions): ResolvedPersonaStoreOptions {

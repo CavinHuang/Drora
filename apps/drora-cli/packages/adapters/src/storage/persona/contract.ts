@@ -14,13 +14,16 @@
  *   （uninitialized / revision_conflict / mutation_conflict / storage_capacity 及 saved、
  *   unchanged、created 回放）以值返回；环境级故障（storage_unavailable、schema_incompatible、
  *   写超时 outcome_unknown）以 PersonaStoreError 抛出（合同 §3 错误枚举）。
- * - 正式异步 worker 线程是实施计划 §3.B 的剩余交付（「adapters worker / 正式 worker 最低
- *   可运行验证」；合同 §2「SQLite 位于异步 worker」），随发行包的三平台打包检查记录才属
- *   切片 D。本层沿 session-store 既有模式：异步方法门面 + 单连接短事务 + busy_timeout 有限
- *   等待；worker 落地前，同实例事务先由仓储内的进程队列串行化（单连接重叠 begin 会被
- *   误分类为 storage_unavailable）。
+ * - SQLite 位于异步 worker（合同 §2）：生产装配经 openWorkerPersonaStore——worker 线程
+ *   持有 DatabaseSync（PersonaSqliteStore 是 worker 内唯一实现），主线程经消息传递调用
+ *   同一 PersonaStorePort（persona-store-worker-client.ts / -main.ts / -protocol.ts）。
+ *   openPersonaStore 是在程 engine（worker 内与测试直接使用）。worker 意外退出/崩溃以
+ *   storage_unavailable 拒绝后续调用（扩展只停不崩进程），本层不自动重开。同实例事务
+ *   先由仓储内的进程队列串行化（单连接重叠 begin 会被误分类为 storage_unavailable）。
  */
 import type {
+  PersonaAllowLearningInput,
+  PersonaAllowLearningResult,
   PersonaCoreMutationResult,
   PersonaEditableCore,
   PersonaErrorCode,
@@ -34,6 +37,7 @@ import type {
   PersonaSavePreferenceInput,
   PersonaSetPolicyInput,
 } from "@drora/shared";
+import type { PersonaLearningStorePort } from "./persona-learning-contract.js";
 
 // ---------------------------------------------------------------------------
 // 预算与容量默认值（合同 §2 初始值；正式阈值须经切片 D 性能实验验证后冻结）
@@ -63,6 +67,15 @@ export interface PersonaStoreOptions {
   readonly adminRequestBudgetMs?: number;
   readonly receiptRetentionMs?: number;
   readonly receiptMaxPerAuthority?: number;
+}
+
+/** open 时解析完默认值后的选项（管理面与学习面共享；persona-store 与 learning-store 同源）。 */
+export interface ResolvedPersonaStoreOptions {
+  dbPath: string;
+  lockWaitTimeoutMs: number;
+  adminRequestBudgetMs: number;
+  receiptRetentionMs: number;
+  receiptMaxPerAuthority: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -148,17 +161,21 @@ export type PersonaStoreSavePreferenceInput = PersonaStoreMutationBase &
 export type PersonaStoreForgetPreferenceInput = PersonaStoreMutationBase &
   PersonaForgetPreferenceInput;
 
+/** allowLearningForKey 由服务层校验后传入；本仓储做 generation CAS 与抑制解除的单事务。 */
+export type PersonaStoreAllowLearningInput = PersonaStoreMutationBase & PersonaAllowLearningInput;
+
 export type PersonaStoreUpdatePolicyInput = PersonaStoreMutationBase & PersonaSetPolicyInput;
 
 /**
- * 导出快照（合同 §7）：单事务读取的冻结事实；组装 envelope 与字节上限检查属服务层。
- * counts 记录快照时刻被省略的来源数（P1a 恒 0，键位为 P1b 的推断省略预留）。
+ * 导出快照（合同 §7）：单事务冻结的全部未忘记且有效当前值——显式（settings）与 inferred
+ * （extraction）槽一并携带（「只含未忘记且有效的当前值」）。inferred 槽的来源复验与
+ * 「不可验证→省略」计数发生在事务外，属服务层（合同 §7 时序「仅复验 inferred 来源」）；
+ * 仓储无法验证来源，不做预省略、不预先计数。
  */
 export interface PersonaStoreExportSnapshot {
   readonly core: PersonaStoreCoreFacts;
   readonly policy: PersonaPolicyFacts;
   readonly preferences: readonly PersonaPreferenceFacts[];
-  readonly counts: { readonly inferredOmittedUnverifiable: number };
 }
 
 // ---------------------------------------------------------------------------
@@ -227,8 +244,25 @@ export interface PersonaStorePort {
   ): Promise<PersonaManagementResult<PersonaForgetResult>>;
   /** 全部偏好槽（含 forgotten 屏障槽及其 revision/value=空）；调用方按用途过滤（合同 §3）。 */
   listPreferences(): Promise<PersonaManagementResult<readonly PersonaPreferenceFacts[]>>;
+  /**
+   * 解除该键自动学习抑制（合同 §3 allowLearningForKey、§4.2）：CAS 前置是该键当前
+   * generation（槽缺席按 0）；只清 autoSuppressed 并 generation++——status/value/disputed
+   * 原样保留（争议仍由保存/忘记解决，两件事分开；「不恢复旧源/旧值」）。无抑制可解除
+   * （槽缺席或未抑制）返回 unchanged 不推进；generation++ 使旧工作快照失效（合同 §4.2
+   * 「只接受之后的新机会」），旧候选/工作不被此操作复活。
+   */
+  allowLearningForKey(
+    input: PersonaStoreAllowLearningInput,
+  ): Promise<PersonaManagementResult<PersonaAllowLearningResult>>;
   /** 导出快照：单事务冻结 authority 下的 core/policy/有效偏好与省略计数（合同 §7）。 */
   readExportSnapshot(): Promise<PersonaManagementResult<PersonaStoreExportSnapshot>>;
   /** 关闭连接；幂等。关闭后的调用以 PersonaStoreError(storage_unavailable) 拒绝。 */
   close(): Promise<void>;
+  /**
+   * P1b 学习面（合同 §1 Evidence/Candidate/Work 与 §6）：证据接收/工作队列（租约/fencing）/
+   * 预算台账/候选提交，与管理面共享同一连接与事务队列（同一短事务互斥语义）。
+   * 学习操作不是用户管理事务：无 mutationId receipt，幂等键是 evidenceId（合同 §3
+   * 「acceptLearningSource（内部）；外部 UI 不可调用」）。
+   */
+  readonly learning: PersonaLearningStorePort;
 }

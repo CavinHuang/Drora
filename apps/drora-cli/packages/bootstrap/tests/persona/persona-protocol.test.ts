@@ -105,6 +105,40 @@ function fakeControlPort(): PersonaControlPort {
           updatedAt: 1_700_000_000_001,
           status: "forgotten" as const,
         },
+        // P1b 行（合同 §1.2/§6）：extraction/inferred、disputed、autoSuppressed 与
+        // pendingCandidate 槽必须原样通过 strict 校验（P1a 教训：形状冲突只在协议分发测试暴露）。
+        {
+          key: "explanationDetail",
+          value: "concise",
+          revision: 3,
+          keyGeneration: 3,
+          provenanceKind: "extraction" as const,
+          epistemicStatus: "inferred" as const,
+          pinned: false,
+          disputed: true,
+          autoSuppressed: false,
+          pendingCandidate: {
+            proposedValue: "detailed",
+            evidenceId: "ev-1",
+            expectedGeneration: 3,
+            createdAt: 1_700_000_000_002,
+          },
+          updatedAt: 1_700_000_000_002,
+          status: "active" as const,
+        },
+        {
+          key: "preferredAddress",
+          value: "",
+          revision: 4,
+          keyGeneration: 4,
+          provenanceKind: "settings" as const,
+          epistemicStatus: "explicit" as const,
+          pinned: false,
+          disputed: false,
+          autoSuppressed: true,
+          updatedAt: 1_700_000_000_003,
+          status: "forgotten" as const,
+        },
       ],
     })),
     preparePersonaExport: vi.fn(async () => ({
@@ -127,6 +161,46 @@ function fakeControlPort(): PersonaControlPort {
         preferences: [],
         omittedCounts: { inferredOmittedUnverifiable: 0 },
         limitations: ["read-only snapshot"],
+      },
+    })),
+    // P1b（合同 §3 allowLearningForKey＋读侧概览；spec §5/§8）：与 P1a 管理同一控制端口。
+    allowLearningForKey: vi.fn(async () => ({
+      ok: true as const,
+      value: { status: "saved" as const, revision: 5, keyGeneration: 5 },
+    })),
+    getPersonaLearningOverview: vi.fn(async () => ({
+      ok: true as const,
+      value: {
+        state: "initialized" as const,
+        policy: {
+          usePreferences: true,
+          autoLearn: false,
+          policyRevision: 2,
+          policyEpoch: 2,
+          learningGeneration: 1,
+        },
+        budget: { day: "2026-10-31", attemptsUsed: 0, inputTokensUsed: 0, outputTokensUsed: 0 },
+        sources: [
+          {
+            key: "explanationDetail",
+            evidenceId: "ev-1",
+            workspaceKey: "/workspace/app",
+            sessionId: "sess-1",
+          },
+        ],
+        counters: {
+          received: 1,
+          droppedQueueFull: 0,
+          acceptAccepted: 1,
+          acceptAlreadyAccepted: 0,
+          acceptSkipped: { policy_disabled: 2 },
+          workApplied: 1,
+          workNoChange: 0,
+          workRejected: 0,
+          workRetryWait: 0,
+          workConflicts: 0,
+          orchestrationErrors: 0,
+        },
       },
     })),
   };
@@ -469,7 +543,20 @@ describe("persona P1a wire 方法（合同 §3：策略/偏好/导出的分发�
     expect(listValue?.value?.preferences?.map((slot) => slot.status)).toEqual([
       "active",
       "forgotten",
+      "active",
+      "forgotten",
     ]);
+    // P1b 槽原样通过：disputed/autoSuppressed/pendingCandidate 与 extraction/inferred 词汇。
+    expect(listValue?.value?.preferences?.[2]).toMatchObject({
+      provenanceKind: "extraction",
+      epistemicStatus: "inferred",
+      disputed: true,
+      pendingCandidate: { evidenceId: "ev-1", proposedValue: "detailed" },
+    });
+    expect(listValue?.value?.preferences?.[3]).toMatchObject({
+      autoSuppressed: true,
+      disputed: false,
+    });
 
     const exported = await server.handleMessage({
       id: "p5",
@@ -492,6 +579,18 @@ describe("persona P1a wire 方法（合同 §3：策略/偏好/导出的分发�
       name: "setPolicy",
       method: droraProtocolMethods.personaSetPolicy,
       params: { expectedPolicyRevision: 0, usePreferences: true, mutationId: "m", evil: 1 },
+      key: "setPersonalPolicy",
+    },
+    {
+      name: "setPolicy-autoLearn",
+      method: droraProtocolMethods.personaSetPolicy,
+      params: {
+        expectedPolicyRevision: 0,
+        usePreferences: true,
+        autoLearn: true,
+        mutationId: "m",
+        evil: 1,
+      },
       key: "setPersonalPolicy",
     },
     {
@@ -524,11 +623,124 @@ describe("persona P1a wire 方法（合同 §3：策略/偏好/导出的分发�
       params: { evil: 1 },
       key: "preparePersonaExport",
     },
+    {
+      name: "allowLearningForKey",
+      method: droraProtocolMethods.personaAllowLearningForKey,
+      params: { key: "replyLanguage", expectedGeneration: 0, mutationId: "m", evil: 1 },
+      key: "allowLearningForKey",
+    },
+    {
+      name: "getLearningOverview",
+      method: droraProtocolMethods.personaGetLearningOverview,
+      params: { evil: 1 },
+      key: "getPersonaLearningOverview",
+    },
   ])("$name 的 params 未知字段被 strict schema 拒绝（-32602）", async ({ method, params, key }) => {
     const control = fakeControlPort();
     const { server } = createServerWithFakeApp({ personaControl: control });
     const response = await server.handleMessage({ id: "x", method, params });
     expect(response).toMatchObject({ error: { code: -32602 } });
     expect(control[key as "setPersonalPolicy"]).not.toHaveBeenCalled();
+  });
+});
+
+describe("persona P1b wire 方法（合同 §3 allowLearningForKey＋读侧概览；spec §5/§8）", () => {
+  it("allowLearningForKey 直通控制端口（key/expectedGeneration/mutationId 原样透传）", async () => {
+    const control = fakeControlPort();
+    const { server } = createServerWithFakeApp({ personaControl: control });
+    const response = await server.handleMessage({
+      id: "p1b-1",
+      method: droraProtocolMethods.personaAllowLearningForKey,
+      params: { key: "preferredAddress", expectedGeneration: 4, mutationId: "allow-1" },
+    });
+    expect(response).toMatchObject({
+      result: { ok: true, value: { status: "saved", revision: 5, keyGeneration: 5 } },
+    });
+    expect(control.allowLearningForKey).toHaveBeenCalledExactlyOnceWith({
+      key: "preferredAddress",
+      expectedGeneration: 4,
+      mutationId: "allow-1",
+    });
+  });
+
+  it("getPersonaLearningOverview 直通控制端口；policy/budget/sources/counters strict 形状原样通过", async () => {
+    const control = fakeControlPort();
+    const { server } = createServerWithFakeApp({ personaControl: control });
+    const response = await server.handleMessage({
+      id: "p1b-2",
+      method: droraProtocolMethods.personaGetLearningOverview,
+      params: {},
+    });
+    expect(response).toMatchObject({
+      result: {
+        ok: true,
+        value: {
+          state: "initialized",
+          policy: { usePreferences: true, autoLearn: false, learningGeneration: 1 },
+          budget: { day: "2026-10-31", attemptsUsed: 0 },
+          sources: [{ key: "explanationDetail", evidenceId: "ev-1" }],
+          counters: { received: 1, acceptSkipped: { policy_disabled: 2 } },
+        },
+      },
+    });
+    expect(control.getPersonaLearningOverview).toHaveBeenCalledExactlyOnceWith();
+    // 无会话管理：sessions 表保持为空。
+    const sessions = (
+      server as unknown as { context: { sessions: Map<string, unknown> } }
+    ).context.sessions;
+    expect(sessions.size).toBe(0);
+  });
+
+  it("setPolicy 的 autoLearn patch 直通控制端口（缺省时不发明键）", async () => {
+    const control = fakeControlPort();
+    const { server } = createServerWithFakeApp({ personaControl: control });
+    await server.handleMessage({
+      id: "p1b-3",
+      method: droraProtocolMethods.personaSetPolicy,
+      params: { expectedPolicyRevision: 1, usePreferences: true, autoLearn: true, mutationId: "l-1" },
+    });
+    expect(control.setPersonalPolicy).toHaveBeenCalledExactlyOnceWith({
+      expectedPolicyRevision: 1,
+      usePreferences: true,
+      autoLearn: true,
+      mutationId: "l-1",
+    });
+
+    await server.handleMessage({
+      id: "p1b-4",
+      method: droraProtocolMethods.personaSetPolicy,
+      params: { expectedPolicyRevision: 2, usePreferences: false, mutationId: "u-off-1" },
+    });
+    expect(control.setPersonalPolicy).toHaveBeenLastCalledWith({
+      expectedPolicyRevision: 2,
+      usePreferences: false,
+      mutationId: "u-off-1",
+    });
+  });
+
+  it("未初始化概览（state=uninitialized）与 ok:false 错误臂原样通过 strict 校验", async () => {
+    const control = fakeControlPort();
+    control.getPersonaLearningOverview = vi.fn(async () => ({
+      ok: true as const,
+      value: { state: "uninitialized" as const },
+    }));
+    const { server } = createServerWithFakeApp({ personaControl: control });
+    const uninitialized = await server.handleMessage({
+      id: "p1b-5",
+      method: droraProtocolMethods.personaGetLearningOverview,
+      params: {},
+    });
+    expect(uninitialized).toMatchObject({ result: { ok: true, value: { state: "uninitialized" } } });
+
+    control.allowLearningForKey = vi.fn(async () => ({
+      ok: false as const,
+      code: "revision_conflict" as const,
+    }));
+    const conflicted = await server.handleMessage({
+      id: "p1b-6",
+      method: droraProtocolMethods.personaAllowLearningForKey,
+      params: { key: "preferredAddress", expectedGeneration: 1, mutationId: "allow-stale" },
+    });
+    expect(conflicted).toMatchObject({ result: { ok: false, code: "revision_conflict" } });
   });
 });

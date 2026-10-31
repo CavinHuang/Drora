@@ -4,7 +4,10 @@ import {
   droraRuntimeCapabilitiesSchema,
   droraSessionRuntimePreferencesResultSchema,
 } from "../drora-protocol/index.js";
-import { hostCapabilitiesSchema, hostSupportsPersonaControlV1 } from "../drora-protocol-v4/transport.js";
+import {
+  hostCapabilitiesSchema,
+  hostSupportsPersonaControlV1,
+} from "../drora-protocol-v4/transport.js";
 import {
   PERSONA_CAPTURE_OMITTED_REASONS,
   PERSONA_COMPILER_VERSION,
@@ -14,6 +17,9 @@ import {
   PERSONA_EXPORT_FORMAT_VERSION,
   PERSONA_EXPORT_LIMITATIONS,
   PERSONA_EXPORT_MAX_BYTES,
+  PERSONA_LEARNING_BUDGET,
+  PERSONA_LEARNING_TERMINAL_WORK_STATES,
+  PERSONA_LEARNING_WORK_STATES,
   PERSONA_PREFERENCE_ALLOWED_VALUES,
   PERSONA_PREFERENCE_KEYS,
   PERSONA_PREFERENCE_LIMITS,
@@ -25,6 +31,9 @@ import {
   PERSONA_STORE_SCHEMA_VERSION,
   PERSONA_STORAGE_KEYS,
   PERSONA_TEMPLATE_VERSION,
+  type PersonaPreferenceEpistemicStatus,
+  type PersonaPreferenceFacts,
+  type PersonaPreferenceProvenanceKind,
 } from "./persona.js";
 
 /**
@@ -98,7 +107,12 @@ describe("persona protocol literals (切片 C：能力位/偏好键/wire 方法�
   // 合同 §4.1/§3：三层字面量（含 capture 省略原因）只在 shared contracts 常量区声明一次；协议 schema（CLI
   // runtimeCapabilities、Host hello.capabilities、requestRuntimePreferences 响应）
   // 与方法表引用同一常量，从两侧消费面反查，防止任何一侧另写。
-  const legacyHello = { nativeDialogs: true, localTerminal: true, binaryFrames: false, compression: "none" } as const;
+  const legacyHello = {
+    nativeDialogs: true,
+    localTerminal: true,
+    binaryFrames: false,
+    compression: "none",
+  } as const;
 
   it("pins capability/preference keys and the P0 wire method names (合同 §3/§4.1)", () => {
     expect(PERSONA_PROTOCOL_CAPABILITY_CONTROL_V1).toBe("personaControlV1");
@@ -117,22 +131,37 @@ describe("persona protocol literals (切片 C：能力位/偏好键/wire 方法�
       forgetPreference: "persona/forgetPreference",
       listPreferences: "persona/listPreferences",
       prepareExport: "persona/preparePersonaExport",
+      // P1b（合同 §3 allowLearningForKey 原名＋本切片新增读侧概览；偏差记录见 spec §13）。
+      allowLearningForKey: "persona/allowLearningForKey",
+      getLearningOverview: "persona/getPersonaLearningOverview",
     });
     expect(Object.values(droraProtocolMethods).filter((m) => m.startsWith("persona/"))).toEqual(
       Object.values(PERSONA_PROTOCOL_METHODS),
     );
-    expect(PERSONA_CAPTURE_OMITTED_REASONS).toEqual({ permissionNotGranted: "permission_not_granted", compileFailed: "compile_failed" });
+    expect(PERSONA_CAPTURE_OMITTED_REASONS).toEqual({
+      permissionNotGranted: "permission_not_granted",
+      compileFailed: "compile_failed",
+    });
   });
 
   it("keeps the new keys optional for old peers (缺失即不可用/false；helper 只认 === true)", () => {
     expect(droraRuntimeCapabilitiesSchema.safeParse({}).success).toBe(true);
     expect(droraRuntimeCapabilitiesSchema.safeParse({ personaControlV1: true }).success).toBe(true);
     expect(hostCapabilitiesSchema.safeParse(legacyHello).success).toBe(true);
-    expect(hostCapabilitiesSchema.safeParse({ ...legacyHello, personaControlV1: true }).success).toBe(true);
+    expect(
+      hostCapabilitiesSchema.safeParse({ ...legacyHello, personaControlV1: true }).success,
+    ).toBe(true);
     expect(hostSupportsPersonaControlV1(hostCapabilitiesSchema.parse(legacyHello))).toBe(false);
-    expect(hostSupportsPersonaControlV1(hostCapabilitiesSchema.parse({ ...legacyHello, personaControlV1: true }))).toBe(true);
+    expect(
+      hostSupportsPersonaControlV1(
+        hostCapabilitiesSchema.parse({ ...legacyHello, personaControlV1: true }),
+      ),
+    ).toBe(true);
     const preferences = (extra: Record<string, unknown>) =>
-      droraSessionRuntimePreferencesResultSchema.parse({ nativeSearchEnhancementsEnabled: true, ...extra });
+      droraSessionRuntimePreferencesResultSchema.parse({
+        nativeSearchEnhancementsEnabled: true,
+        ...extra,
+      });
     expect(preferences({ personaEnabled: true }).personaEnabled).toBe(true);
     expect(preferences({}).personaEnabled).toBeUndefined();
   });
@@ -157,6 +186,8 @@ describe("persona P1a literals (交流默认与导出的受控词汇单一出处
     });
     expect(PERSONA_POLICY_DEFAULTS).toEqual({
       usePreferences: false,
+      autoLearn: false,
+      learningGeneration: 0,
       policyRevision: 0,
       policyEpoch: 0,
     });
@@ -164,5 +195,67 @@ describe("persona P1a literals (交流默认与导出的受控词汇单一出处
     expect(PERSONA_EXPORT_FORMAT_VERSION).toBe(1);
     expect(PERSONA_EXPORT_MAX_BYTES).toBe(262144);
     expect(PERSONA_EXPORT_LIMITATIONS.length).toBeGreaterThan(0);
+  });
+});
+
+describe("persona P1b literals (学习预算/状态机单一出处——合同 §6)", () => {
+  it("pins the first-version learning budget constants (合同 §6 首版上界，逐常量钉住)", () => {
+    expect(PERSONA_LEARNING_BUDGET).toEqual({
+      dailyModelAttemptsMax: 10,
+      dailyInputTokensMax: 32000,
+      dailyOutputTokensMax: 4000,
+      workMaxAgeMs: 24 * 60 * 60 * 1000,
+      workMaxAttempts: 2,
+      processPendingNotificationsMax: 64,
+      nonTerminalWorksMaxPerAuthority: 128,
+      terminalWorkRetentionMs: 7 * 24 * 60 * 60 * 1000,
+      extractionInputMessagesMax: 8,
+      extractionInputCodePointsMax: 8000,
+      candidatesMaxPerWork: 4,
+      evidenceRefsMaxPerCandidate: 4,
+      evidenceRefQuoteMaxCodePoints: 512,
+      mergedSourcesMaxPerKey: 4,
+    });
+  });
+
+  it("pins the closed learning work state machine (合同 §6 accepted→running→终态/retry_wait)", () => {
+    expect(PERSONA_LEARNING_WORK_STATES).toEqual({
+      accepted: "accepted",
+      running: "running",
+      applied: "applied",
+      noChange: "no_change",
+      rejected: "rejected",
+      retryWait: "retry_wait",
+    });
+    expect(PERSONA_LEARNING_TERMINAL_WORK_STATES).toEqual(["applied", "no_change", "rejected"]);
+  });
+
+  it("keeps provenance/epistemic widening closed (合同 §1.2 settings/explicit vs extraction/inferred)", () => {
+    const provenance: PersonaPreferenceProvenanceKind[] = ["settings", "extraction"];
+    const epistemic: PersonaPreferenceEpistemicStatus[] = ["explicit", "inferred"];
+    expect(provenance).toHaveLength(2);
+    expect(epistemic).toHaveLength(2);
+    // disputed/pendingCandidate/autoSuppressed 是槽事实的 P1b 字段（合同 §1.2/§6）。
+    const facts: PersonaPreferenceFacts = {
+      key: "replyLanguage",
+      value: "zh-CN",
+      revision: 1,
+      keyGeneration: 0,
+      provenanceKind: "extraction",
+      epistemicStatus: "inferred",
+      pinned: false,
+      disputed: true,
+      autoSuppressed: false,
+      pendingCandidate: {
+        proposedValue: "en-US",
+        evidenceId: "ev-1",
+        expectedGeneration: 0,
+        createdAt: 0,
+      },
+      updatedAt: 0,
+      status: "active",
+    };
+    expect(facts.disputed).toBe(true);
+    expect(facts.pendingCandidate?.expectedGeneration).toBe(0);
   });
 });

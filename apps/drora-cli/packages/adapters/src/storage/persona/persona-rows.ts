@@ -5,8 +5,11 @@
  */
 import { DatabaseSync } from "node:sqlite";
 import {
+  PERSONA_ERROR_CODES,
+  PERSONA_LEARNING_BUDGET,
   PERSONA_PREFERENCE_KEYS,
   PERSONA_POLICY_DEFAULTS,
+  PERSONA_STORE_SCHEMA_VERSION,
   type PersonaEditableCore,
   type PersonaErrorCode,
   type PersonaManagementResult,
@@ -14,8 +17,35 @@ import {
   type PersonaPolicyFacts,
   type PersonaPreferenceFacts,
   type PersonaPreferenceKey,
+  type PersonaPendingCandidateFacts,
 } from "@drora/shared";
-import { PersonaStoreError } from "./contract.js";
+import { PersonaStoreError, type PersonaStoreAuthorityFacts } from "./contract.js";
+
+/**
+ * authority 单例行（含 schemaVersion 校验）：管理面与学习面共用。历史库带着更大的
+ * schemaVersion 说明被更新版本写过，拒绝打开（schema_incompatible，只停扩展）。
+ */
+export function readAuthorityRow(db: DatabaseSync): PersonaStoreAuthorityFacts | undefined {
+  const row = db
+    .prepare(
+      "select authority_id, persona_id, schema_version, time_created from persona_authority where id = 1",
+    )
+    .get() as Record<string, unknown> | undefined;
+  if (!row) return undefined;
+  const schemaVersion = asInteger(row.schema_version);
+  if (schemaVersion !== PERSONA_STORE_SCHEMA_VERSION) {
+    throw new PersonaStoreError(
+      `Persona database schema version ${schemaVersion} is not supported by this build (${PERSONA_STORE_SCHEMA_VERSION})`,
+      { code: PERSONA_ERROR_CODES.schemaIncompatible },
+    );
+  }
+  return {
+    authorityId: asString(row.authority_id),
+    personaId: asString(row.persona_id),
+    schemaVersion,
+    createdAt: asInteger(row.time_created),
+  };
+}
 
 export function asString(rowValue: unknown): string {
   return typeof rowValue === "string" ? rowValue : failCorruptRow();
@@ -37,6 +67,9 @@ export function failCorruptRow(): never {
 const WARMTH_VALUES: readonly string[] = ["restrained", "balanced", "warm"];
 const DIRECTNESS_VALUES: readonly string[] = ["gentle", "balanced", "direct"];
 const HUMOR_VALUES: readonly string[] = ["off", "light"];
+/** 与 shared contracts 加宽后的来源/认识状态封闭集一致（合同 §1.2，迁移 CHECK 同词汇）。 */
+const PROVENANCE_VALUES: readonly string[] = ["settings", "extraction"];
+const EPISTEMIC_VALUES: readonly string[] = ["explicit", "inferred"];
 
 export function decodeEditableCore(row: Record<string, unknown>): PersonaEditableCore {
   const warmth = asString(row.warmth);
@@ -68,7 +101,10 @@ export function coreContentEquals(a: PersonaEditableCore, b: PersonaEditableCore
 // 仓储层只做键集合校验，扩展键时这里自动跟随。
 const PREFERENCE_KEYS: readonly string[] = Object.values(PERSONA_PREFERENCE_KEYS);
 
-/** 严格解码一个偏好槽行；内容与声明 schema 不符按损坏处理（schema_incompatible）。 */
+/**
+ * 严格解码一个偏好槽行（P1b 起 join 待确认候选）；内容与声明 schema 不符按损坏处理
+ * （schema_incompatible）。行 SELECT 形状见 PREFERENCE_SLOT_SELECT。
+ */
 export function decodePreferenceRow(row: Record<string, unknown>): PersonaPreferenceFacts {
   const key = asString(row.key);
   if (!PREFERENCE_KEYS.includes(key)) failCorruptRow();
@@ -83,48 +119,106 @@ export function decodePreferenceRow(row: Record<string, unknown>): PersonaPrefer
   }
   const pinned = asInteger(row.pinned);
   const autoSuppressed = asInteger(row.auto_suppressed);
-  if ((pinned !== 0 && pinned !== 1) || (autoSuppressed !== 0 && autoSuppressed !== 1)) {
+  const disputed = asInteger(row.disputed);
+  if (
+    (pinned !== 0 && pinned !== 1) ||
+    (autoSuppressed !== 0 && autoSuppressed !== 1) ||
+    (disputed !== 0 && disputed !== 1)
+  ) {
     failCorruptRow();
+  }
+  const provenance = asString(row.provenance_kind);
+  const epistemic = asString(row.epistemic_status);
+  if (!PROVENANCE_VALUES.includes(provenance) || !EPISTEMIC_VALUES.includes(epistemic)) {
+    failCorruptRow();
+  }
+  // 候选关联只在候选表存在对应行时出现（被拒/被取代候选整行删除，无正文残留）。
+  let pendingCandidate: PersonaPendingCandidateFacts | undefined;
+  if (row.candidate_value !== null && row.candidate_value !== undefined) {
+    pendingCandidate = {
+      proposedValue: asString(row.candidate_value),
+      evidenceId: asString(row.candidate_evidence_id),
+      expectedGeneration: asInteger(row.candidate_expected_generation),
+      createdAt: asInteger(row.candidate_created_at),
+    };
   }
   return {
     key: key as PersonaPreferenceKey,
     value: status === "active" ? (value as string) : "",
     revision: asInteger(row.revision),
     keyGeneration: asInteger(row.key_generation),
-    provenanceKind: asString(row.provenance_kind) as "settings",
-    epistemicStatus: asString(row.epistemic_status) as "explicit",
+    provenanceKind: provenance as PersonaPreferenceFacts["provenanceKind"],
+    epistemicStatus: epistemic as PersonaPreferenceFacts["epistemicStatus"],
     pinned: pinned === 1,
+    disputed: disputed === 1,
+    autoSuppressed: autoSuppressed === 1,
+    pendingCandidate,
     updatedAt: asInteger(row.time_updated),
     status,
   };
 }
 
+/** 槽行＋待确认候选关联的统一 SELECT（候选表 LEFT JOIN；P1b 起含 disputed 列）。 */
+const PREFERENCE_SLOT_SELECT = `
+  select p.key, p.value, p.revision, p.key_generation, p.provenance_kind,
+         p.epistemic_status, p.status, p.pinned, p.auto_suppressed, p.disputed, p.time_updated,
+         c.proposed_value as candidate_value, c.evidence_id as candidate_evidence_id,
+         c.expected_generation as candidate_expected_generation,
+         c.time_created as candidate_created_at
+  from persona_preference p
+  left join persona_learning_candidate c on c.key = p.key`;
+
 export function readPolicyRow(db: DatabaseSync): PersonaPolicyFacts {
   const row = db
     .prepare(
-      "select use_preferences, policy_revision, policy_epoch from persona_policy where id = 1",
+      `select use_preferences, auto_learn, learning_generation, policy_revision, policy_epoch
+       from persona_policy where id = 1`,
     )
     .get() as Record<string, unknown> | undefined;
-  // 行缺席＝读侧默认（迁移不回填；首次 setPersonalPolicy 才创建）。
-  if (!row) return { ...PERSONA_POLICY_DEFAULTS };
+  // 行缺席＝读侧默认（迁移不回填；首次 setPersonalPolicy 才创建）。learningBudget 是
+  // shared contracts 的首版冻结常量（合同 §6「不允许运行中自动扩大预算」）。
+  if (!row) {
+    return { ...PERSONA_POLICY_DEFAULTS, learningBudget: PERSONA_LEARNING_BUDGET };
+  }
   const usePreferences = asInteger(row.use_preferences);
+  const autoLearn = asInteger(row.auto_learn);
   if (usePreferences !== 0 && usePreferences !== 1) failCorruptRow();
+  if (autoLearn !== 0 && autoLearn !== 1) failCorruptRow();
   return {
     usePreferences: usePreferences === 1,
+    autoLearn: autoLearn === 1,
+    learningGeneration: asInteger(row.learning_generation),
     policyRevision: asInteger(row.policy_revision),
     policyEpoch: asInteger(row.policy_epoch),
+    learningBudget: PERSONA_LEARNING_BUDGET,
   };
 }
 
 export function readPreferenceSlotRows(db: DatabaseSync): PersonaPreferenceFacts[] {
   const rows = db
-    .prepare(
-      `select key, value, revision, key_generation, provenance_kind,
-              epistemic_status, status, pinned, auto_suppressed, time_updated
-       from persona_preference order by key`,
-    )
+    .prepare(`${PREFERENCE_SLOT_SELECT} order by p.key`)
     .all() as Array<Record<string, unknown>>;
   return rows.map(decodePreferenceRow);
+}
+
+/** 单键槽读取（含候选关联）；槽缺席返回 undefined。 */
+export function readPreferenceSlotRow(
+  db: DatabaseSync,
+  key: string,
+): PersonaPreferenceFacts | undefined {
+  const row = db.prepare(`${PREFERENCE_SLOT_SELECT} where p.key = ?`).get(key) as
+    | Record<string, unknown>
+    | undefined;
+  return row ? decodePreferenceRow(row) : undefined;
+}
+
+/**
+ * 键级联清理（合同 §3/§4.2）：显式保存「清该键候选」、忘记「清 value/版本/候选」。
+ * P1b 起同时清除该键的待确认候选正文与合并来源（旧来源不描述新值，不随槽复活）。
+ */
+export function deleteLearningBodiesForKey(db: DatabaseSync, key: string): void {
+  db.prepare("delete from persona_learning_candidate where key = ?").run(key);
+  db.prepare("delete from persona_learning_source where key = ?").run(key);
 }
 
 // ---------------------------------------------------------------------------

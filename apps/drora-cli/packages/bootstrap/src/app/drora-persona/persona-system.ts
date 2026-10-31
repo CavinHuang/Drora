@@ -15,12 +15,17 @@ import type { Logger } from "@drora/contracts";
 import type {
   PersonaCaptureOutcome,
   PersonaCapturePort,
+  PersonaLearningNotificationPort,
   PersonaTurnCaptureRequest,
 } from "@drora/core/persona";
+// 生产存储走正式异步 worker（合同 §2「SQLite 位于异步 worker」、切片 B 剩余交付）：
+// worker 线程持有 DatabaseSync，本进程只持有消息传递端口；测试注入的 openStore 不受影响。
+import { openWorkerPersonaStore } from "@drora/adapters/storage/persona";
 import {
   asPersonaCapturePort,
   PersonaAppServiceImpl,
 } from "./persona-app-service.js";
+import { createPersonaLearningCoordinator } from "./learning-coordinator.js";
 import {
   PERSONA_CAPTURE_OMITTED_PERMISSION_NOT_GRANTED,
   type DroraPersonaSystem,
@@ -30,6 +35,7 @@ import {
 } from "./contract.js";
 import { resolvePersonaDatabasePath } from "./contract.js";
 import type { PersonaInternalCapture } from "./persona-capture-port.js";
+import type { PersonaInternalLearning, PersonaLearningManagement } from "./learning-contract.js";
 
 let boundSystem: DroraPersonaSystem | undefined;
 let boundRoot: string | undefined;
@@ -66,8 +72,24 @@ export function getOrCreateDroraPersonaSystem(binding: PersonaSystemBinding): Dr
   }
   const dbPath = resolvePersonaDatabasePath(binding.trustedCliStorageRoot);
   const logger: Logger | undefined = binding.logger?.child({ module: "drora-persona" });
-  const service: PersonaAppService & PersonaInternalCapture = new PersonaAppServiceImpl({
+  // 服务实现同时是内部捕获面、内部学习面与学习管理面（capture/acceptLearningSource 均
+  // 「内部」不进管理端口；allowLearningForKey/getPersonaLearningOverview 是管理端口方法）。
+  const service: PersonaAppService &
+    PersonaInternalCapture &
+    PersonaInternalLearning &
+    PersonaLearningManagement = new PersonaAppServiceImpl({
     dbPath,
+    // 生产默认＝异步 worker（合同 §2）：SQLite 连接在 worker 线程内，主线程经消息传递
+    // 调同一 PersonaStorePort；worker 退出/崩溃按 storage_unavailable 停扩展不崩进程。
+    // 未显式传 openStore 的测试（直接构造 PersonaAppServiceImpl）仍用在程 engine。
+    openStore: (path) => openWorkerPersonaStore({ dbPath: path }),
+    learning: binding.learning,
+    logger,
+  });
+  // P1b 学习协调器（进程级单例，与服务同生命周期）：持有 64 待接收队列与计数；
+  // 通知端口工厂按 Runtime 的 E/workspaceKey 绑定闭包，全部委托同一协调器。
+  const learningCoordinator = createPersonaLearningCoordinator({
+    learning: service,
     logger,
   });
   boundSystem = {
@@ -75,6 +97,20 @@ export function getOrCreateDroraPersonaSystem(binding: PersonaSystemBinding): Dr
     // E 值由每个新建 Runtime 在装配时冻结进各自端口；warm Runtime 不重读（spec §5）。
     capturePortForPermission: (personaEnabled: boolean): PersonaCapturePort =>
       personaEnabled ? asPersonaCapturePort(service) : permissionDeniedCapturePort,
+    learningNotificationPort: (input: {
+      personaEnabled: boolean;
+      workspaceKey?: string;
+    }): PersonaLearningNotificationPort | undefined => {
+      // E off / workspaceKey 缺席＝端口缺席：Runtime 零开销，普通轮不产生学习机会。
+      if (!input.personaEnabled) return undefined;
+      const workspaceKey = input.workspaceKey?.trim();
+      if (!workspaceKey) return undefined;
+      return learningCoordinator.createNotificationPort({
+        personaPermission: input.personaEnabled,
+        workspaceKey,
+      });
+    },
+    learningCountersSnapshot: () => learningCoordinator.snapshotCounters(),
   };
   boundRoot = binding.trustedCliStorageRoot;
   return boundSystem;
@@ -104,6 +140,10 @@ export function createPersonaControlPort(binding: PersonaSystemBinding): Persona
     forgetPreference: (input) => resolve().forgetPreference(input),
     listPreferences: () => resolve().listPreferences(),
     preparePersonaExport: () => resolve().preparePersonaExport(),
+    // P1b（合同 §3 allowLearningForKey＋读侧概览；spec §5/§8）：同一进程级服务单例；
+    // 内部学习面（acceptLearningSource/processLearningWork）不经本端口暴露。
+    allowLearningForKey: (input) => resolve().allowLearningForKey(input),
+    getPersonaLearningOverview: () => resolve().getPersonaLearningOverview(),
   };
 }
 

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   PERSONA_ERROR_CODES,
+  PERSONA_LEARNING_WORK_STATES,
   PERSONA_RECEIPT_SCOPES,
   PERSONA_STORE_SCHEMA_VERSION,
   PERSONA_TEMPLATE_VERSION,
@@ -66,10 +67,25 @@ describe("cli-persona-store contract", () => {
       "unchanged",
       "forgotten",
     ]);
-    // P1a 偏好槽词汇：来源/认识状态只有显式设置（inferred 是 P1b 域）。
-    expect(checkVocabulary("persona_preference", "provenance_kind")).toEqual(["settings"]);
-    expect(checkVocabulary("persona_preference", "epistemic_status")).toEqual(["explicit"]);
+    // P1b 偏好槽词汇加宽（合同 §1.2）：自动提取＝extraction/inferred，与
+    // shared PersonaPreferenceProvenanceKind/EpistemicStatus 封闭集逐一相等。
+    expect(checkVocabulary("persona_preference", "provenance_kind")).toEqual([
+      "settings",
+      "extraction",
+    ]);
+    expect(checkVocabulary("persona_preference", "epistemic_status")).toEqual([
+      "explicit",
+      "inferred",
+    ]);
     expect(checkVocabulary("persona_preference", "status")).toEqual(["active", "forgotten"]);
+    // P1b 工作状态机词汇（合同 §6）与 shared PERSONA_LEARNING_WORK_STATES 逐一相等。
+    expect(checkVocabulary("persona_learning_work", "state")).toEqual(
+      Object.values(PERSONA_LEARNING_WORK_STATES),
+    );
+    // P1b 预算台账不落策略列：预算常量唯一出处是 shared PERSONA_LEARNING_BUDGET，
+    // 学习域 CHECK 不携带数值，这里钉住台账表存在且无预算数值词汇。
+    const budgetSql = PERSONA_MIGRATIONS.map((migration) => migration.sql).join("\n");
+    expect(budgetSql).toContain("create table if not exists persona_learning_budget_day");
   });
 
   it("core 表达枚举词汇与 PersonaEditableCore 的允许值一致", () => {

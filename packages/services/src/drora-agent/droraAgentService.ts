@@ -20,8 +20,10 @@ import {
   droraPersonaGetApplicationParamsSchema,
   droraPersonaGetApplicationResultSchema,
   droraPersonaGetCoreResultSchema,
+  droraPersonaGetLearningOverviewResultSchema,
   droraPersonaGetOverviewResultSchema,
   droraPersonaInitializeResultSchema,
+  droraPersonaAllowLearningResultSchema,
   droraPersonaForgetPreferenceResultSchema,
   droraPersonaListPreferencesResultSchema,
   droraPersonaPrepareExportResultSchema,
@@ -5141,14 +5143,27 @@ export function createDroraAgentService(
     },
 
     // ── P1a 使用策略/交流默认/导出（合同 §1.2/§3/§4.2/§7）：同一控制连接代理，只透传 ──
+    // P1b：setPersonalPolicy 透传 autoLearn patch（缺省不发明键）；allowLearningForKey 与
+    // getPersonaLearningOverview 是合同 §3 的学习管理方法，同一无会话控制端口。
 
     async setPersonalPolicy(
-      params: { expectedPolicyRevision: number; usePreferences: boolean; mutationId: string },
+      params: {
+        expectedPolicyRevision: number;
+        usePreferences: boolean;
+        autoLearn?: boolean;
+        mutationId: string;
+      },
     ) {
       const client = await getPersonaControlClient();
       return client.request(
         droraProtocolMethods.personaSetPolicy,
-        params,
+        {
+          expectedPolicyRevision: params.expectedPolicyRevision,
+          usePreferences: params.usePreferences,
+          // P1b patch 语义：缺省＝保持当前 autoLearn（wire strict 拒未知字段，可选键缺席即不发明）。
+          ...(params.autoLearn === undefined ? {} : { autoLearn: params.autoLearn }),
+          mutationId: params.mutationId,
+        },
         droraPersonaSetPolicyResultSchema,
         { timeoutMs: PERSONA_MANAGEMENT_REQUEST_TIMEOUT_MS },
       );
@@ -5194,6 +5209,32 @@ export function createDroraAgentService(
         droraProtocolMethods.personaPrepareExport,
         {},
         droraPersonaPrepareExportResultSchema,
+        { timeoutMs: PERSONA_MANAGEMENT_REQUEST_TIMEOUT_MS },
+      );
+    },
+
+    // ── P1b 有限学习管理（合同 §3 allowLearningForKey＋读侧概览；spec §5/§8/§10）──
+
+    async allowLearningForKey(params: {
+      key: string;
+      expectedGeneration: number;
+      mutationId: string;
+    }) {
+      const client = await getPersonaControlClient();
+      return client.request(
+        droraProtocolMethods.personaAllowLearningForKey,
+        params,
+        droraPersonaAllowLearningResultSchema,
+        { timeoutMs: PERSONA_MANAGEMENT_REQUEST_TIMEOUT_MS },
+      );
+    },
+
+    async getPersonaLearningOverview() {
+      const client = await getPersonaControlClient();
+      return client.request(
+        droraProtocolMethods.personaGetLearningOverview,
+        {},
+        droraPersonaGetLearningOverviewResultSchema,
         { timeoutMs: PERSONA_MANAGEMENT_REQUEST_TIMEOUT_MS },
       );
     },

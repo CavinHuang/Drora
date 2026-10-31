@@ -31,6 +31,9 @@ export type PersonaControlService = Pick<
   | "forgetPreference"
   | "listPreferences"
   | "preparePersonaExport"
+  // P1b 有限学习管理（合同 §3 allowLearningForKey＋读侧概览；spec §5/§8）。
+  | "allowLearningForKey"
+  | "getPersonaLearningOverview"
 >;
 
 export interface PersonaSavedSnapshot {

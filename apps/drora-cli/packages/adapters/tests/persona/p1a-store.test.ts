@@ -5,6 +5,7 @@ import { DatabaseSync } from "node:sqlite";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   PERSONA_ERROR_CODES,
+  PERSONA_LEARNING_BUDGET,
   PERSONA_POLICY_DEFAULTS,
   type PersonaEditableCore,
 } from "@drora/shared";
@@ -112,7 +113,16 @@ describe("persona P1a 策略/偏好/导出仓储", () => {
     });
     const snapshot = await store.readSnapshot();
     if (snapshot.state !== "initialized") throw new Error("expected initialized");
-    expect(snapshot.policy).toEqual({ usePreferences: false, policyRevision: 2, policyEpoch: 2 });
+    // P1b 加宽：autoLearn/learningGeneration/learningBudget 并入 policy 形状；L 从未
+    // 开启过，learningGeneration 保持 0（屏障只在 autoLearn true→false 时递增）。
+    expect(snapshot.policy).toEqual({
+      usePreferences: false,
+      autoLearn: false,
+      learningGeneration: 0,
+      policyRevision: 2,
+      policyEpoch: 2,
+      learningBudget: PERSONA_LEARNING_BUDGET,
+    });
   });
 
   it("策略同 ID 同摘要回放先前终态；同 ID 异摘要 mutation_conflict", async () => {
@@ -352,13 +362,60 @@ describe("persona P1a 策略/偏好/导出仓储", () => {
     const snapshot = await store.readExportSnapshot();
     if (!snapshot.ok) throw new Error("expected ok");
     expect(snapshot.value.core.coreRevision).toBe(1);
+    // P1b 加宽：policy 形状含 autoLearn/learningGeneration/learningBudget（U on、L 未开）。
     expect(snapshot.value.policy).toEqual({
       usePreferences: true,
+      autoLearn: false,
+      learningGeneration: 0,
       policyRevision: 1,
       policyEpoch: 1,
+      learningBudget: PERSONA_LEARNING_BUDGET,
     });
     expect(snapshot.value.preferences.map((p) => p.key)).toEqual(["replyLanguage"]);
-    expect(snapshot.value.counts).toEqual({ inferredOmittedUnverifiable: 0 });
+  });
+
+  it("导出快照一并携带 inferred（extraction）槽：来源复验与省略计数属服务层（合同 §7）", async () => {
+    await initialize();
+    await store.updatePolicy({
+      mutationId: "policy-on",
+      requestDigest: digest("policy-on"),
+      now,
+      expectedPolicyRevision: 0,
+      usePreferences: true,
+    });
+    await store.savePreference({
+      mutationId: "save-1",
+      requestDigest: digest("save", "replyLanguage", "zh-CN"),
+      now,
+      expectedRevision: 0,
+      key: "replyLanguage",
+      value: "zh-CN",
+    });
+    // 直写一个 inferred 槽（学习提交路径的产物形状）：快照必须携带它，服务层复验后
+    // 决定导出或省略——仓储无法验证来源，不做预省略、不预先计数。
+    const raw = new DatabaseSync(dbPath);
+    try {
+      raw
+        .prepare(
+          "insert into persona_preference (key, value, revision, key_generation, provenance_kind, epistemic_status, status, pinned, auto_suppressed, disputed, time_updated) values ('explanationDetail', 'concise', 1, 0, 'extraction', 'inferred', 'active', 0, 0, 0, ?)",
+        )
+        .run(now);
+    } finally {
+      raw.close();
+    }
+    const snapshot = await store.readExportSnapshot();
+    if (!snapshot.ok) throw new Error("expected ok");
+    expect(snapshot.value.preferences.map((p) => p.key).sort()).toEqual([
+      "explanationDetail",
+      "replyLanguage",
+    ]);
+    const inferred = snapshot.value.preferences.find((p) => p.key === "explanationDetail");
+    expect(inferred).toMatchObject({
+      provenanceKind: "extraction",
+      epistemicStatus: "inferred",
+      status: "active",
+      value: "concise",
+    });
   });
 
   it("capture 快照在一个短事务里携带 policy 与有效偏好（合同 §4.2 cutoff）", async () => {
@@ -429,7 +486,10 @@ describe("persona P1a 策略/偏好/导出仓储", () => {
     });
     const snapshot = await store.readSnapshot();
     if (snapshot.state !== "initialized") throw new Error("expected initialized");
-    expect(snapshot.policy).toEqual({ ...PERSONA_POLICY_DEFAULTS });
+    expect(snapshot.policy).toEqual({
+      ...PERSONA_POLICY_DEFAULTS,
+      learningBudget: PERSONA_LEARNING_BUDGET,
+    });
     expect(snapshot.preferences).toEqual([]);
     // U on 后同一事务读出（含 forgotten 屏障槽）。
     await store.updatePolicy({

@@ -152,7 +152,12 @@ describe("PersonaAppService（P1a 策略/偏好/导出）", () => {
         expectedRevision: 1,
         mutationId: "rl-forget",
       });
-      expect(forgotten).toEqual({ ok: true, value: { status: "forgotten", keyGeneration: 2 } });
+      // 第一层仓储（P1b 批次评审修复）让 forget 结果携带新 revision 供「忘记后重设」CAS
+      // 观测；本期望随之对齐（shared PersonaForgetResult：status/revision/keyGeneration）。
+      expect(forgotten).toEqual({
+        ok: true,
+        value: { status: "forgotten", keyGeneration: 2, revision: 2 },
+      });
       const revive = await service.savePreference({
         key: PERSONA_PREFERENCE_KEYS.replyLanguage,
         value: "zh-CN",

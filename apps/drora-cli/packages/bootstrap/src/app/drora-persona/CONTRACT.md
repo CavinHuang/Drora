@@ -55,3 +55,47 @@ resetPersonaCore / previewPersona＋内部 captureContribution），是独立库
 - 协议/UI（切片 C）：协议 server 的控制处理器经 `createPersonaControlPort` 取管理 API
   （drora-protocol/server-types 的 `personaControl` 依赖，entrypoint 装配）；设置 UI 经
   Host 服务代理，本模块不感知 UI。
+
+## P1b 有限学习（2026-10-31 批次）
+
+- 内部学习面 `PersonaInternalLearning`（`learning-contract.ts`）：`acceptLearningSource`
+  （合同 §3 标注「内部」，不经 PersonaControlPort 暴露，外部 UI 不可调用）与
+  `processLearningWork`（一个编排循环）。接收门序＝E → 结构校验 → 快照 → U&&L → owner
+  复验 → 有界窗口+预算 → evidenceId 构造 → 单事务入库；任一门不满足＝跳过并按原因计数
+  （spec §5、合同 §6「缺证据即跳过」）。同 evidenceId 幂等：同内容 already_accepted；
+  mutation_conflict 经 `hasLearningEvidence` 消歧——已存在 ⇒ 重复通知丢弃（屏障快照漂移），
+  不存在 ⇒ 请求缺陷。
+- 学习编排（processClaim）：领取（租约+fencing，并发 1 由库保证）→ 抽取输入窗口裁剪
+  （≤8 条/≤8,000 code point，服务层职责）→ paused 适配器（生产默认：零模型调用零预算
+  预留，工作 retry_wait，24h/2 次尝试由库终态化）→（configured）预算预留→抽取→预算核销
+  → 候选独立校验（受控键值/全局范围/逐字引用/上界）→ owner 重验 → 单库提交（库复核
+  epoch/generation/pinned/revision/fence）。
+- 抽取端口（`learning-extraction.ts`）：窄接口（输入=有界人类消息窗口，输出=封闭形状
+  候选草稿，无 sourceRole/origin 字段）；`pausedPersonaLearningExtractor` 是生产默认；
+  真实模型适配器属切片 D 授权后部分。
+- 来源 owner 生产适配器（`learning-source-owner.ts`）：SessionStorePort 的只读适配
+  （selectActiveConversationBranch + revert 元数据 + workspaceKey 域核对 + 真实人类消息
+  过滤），与 Project Memory extraction 同源分支语义；只读，不写 session 数据。
+- 机会通知接缝：`DroraPersonaSystem.learningNotificationPort({personaEnabled, workspaceKey})`
+  按 Runtime 冻结 E 绑定（E off/workspaceKey 缺席 → undefined 零开销）；消费者
+  （`learning-coordinator.ts`）进程内 64 待接收上限、超出丢机会并计数；不写旧库 outbox、
+  不写任务活动时间。
+- capture 读取侧（spec §8）：U on 时注入集合＝active 且非 disputed 的显式槽 + 来源复验
+  通过的 inferred 槽；owner 缺席或复验失败＝不可验证，整键省略并计数；快照版本指纹
+  （coreRevision/epoch/槽 revision）变化重读一次，仍变化按 snapshot_conflict 整份省略；
+  源查询与 Persona 库无跨库原子，复验一次后如实接受窗口。
+- `setPersonalPolicy` 接受 `autoLearn` patch（缺省保持；digest 只含出现的字段）；关 U
+  同事务关 L、撤租约、清候选/负载与 learningGeneration 屏障由 cli-persona-store 执行。
+- 学习管理面 `PersonaLearningManagement`（`learning-contract.ts`，2026-10-31 协议/UI 批次；
+  独立成面满足 contract.ts 的 max-public-methods）：`allowLearningForKey`（合同 §3 原名；
+  解除该键抑制＋generation++，争议仍由保存/忘记解决，「不恢复旧源/旧值」）与
+  `getPersonaLearningOverview`（新增读侧方法——合同 §3 无此逻辑名，偏差记录见 spec §13：
+  policy 当前值/当日预算台账/inferred 槽合并来源定位（无正文、无复验内部定位）/本进程
+  学习计数；per-work 队列行不在快照内，仓储无 per-work 只读方法，工作状态概览以计数呈现）。
+  两方法经 `PersonaControlPort` 暴露给协议路由（persona/allowLearningForKey、
+  persona/getPersonaLearningOverview，wire 名单一出处 shared PERSONA_PROTOCOL_METHODS），
+  纯辅助（校验/摘要/概览组合）在 `persona-learning-management.ts`，导出组合与导出侧
+  inferred 来源复验（合同 §7「inferred 源不可验证则省略，显式值不因聊天删除消失」、
+  时序「仅复验 inferred 来源」：可验证 inferred 槽进导出，不可验证整键省略并计入
+  omittedCounts——计数反映复验结果；判定与 capture 读取侧一致）在
+  `persona-export.ts`（均为 max-file-lines 拆分）。

@@ -38,6 +38,7 @@ import type {
 } from "@drora/shared";
 import {
   cancelBackgroundTask,
+  allowLearningForKeyOp,
   closeSession,
   compactSession,
   createSession,
@@ -45,6 +46,7 @@ import {
   generateWorkspaceText,
   getPersonaApplicationOp,
   getPersonaCoreOp,
+  getPersonaLearningOverviewOp,
   getPersonaOverviewOp,
   forgetPreferenceOp,
   goalSession,
@@ -868,6 +870,11 @@ export class DroraProtocolAgentServer {
         return await listPreferencesOp(this.context, request.params);
       case droraProtocolMethods.personaPrepareExport:
         return await preparePersonaExportOp(this.context, request.params);
+      // ── P1b 有限学习管理（合同 §3 allowLearningForKey＋读侧概览；spec §5/§8/§10）──
+      case droraProtocolMethods.personaAllowLearningForKey:
+        return await allowLearningForKeyOp(this.context, request.params);
+      case droraProtocolMethods.personaGetLearningOverview:
+        return await getPersonaLearningOverviewOp(this.context, request.params);
       case droraProtocolMethods.pluginsMarketplaceAdd:
         return await this.withPluginOperationSignal(request, (signal) =>
           addPluginMarketplace(this.context, request.params, signal),

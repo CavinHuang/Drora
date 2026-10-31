@@ -20,4 +20,6 @@ export type {
   PersonaTurnCaptureRequest,
   PersonaSettledTurnApplication,
   PersonaTurnApplicationQuery,
+  PersonaTurnLearningOpportunity,
+  PersonaLearningNotificationPort,
 } from "./contract.js";

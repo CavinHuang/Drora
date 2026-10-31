@@ -74,6 +74,9 @@ const mocks = vi.hoisted(() => {
     forgetPreference: vi.fn(),
     listPreferences: vi.fn(),
     preparePersonaExport: vi.fn(),
+    // P1b 有限学习管理（PersonaControlService Pick 扩展）：P0 用例只覆盖只读进区路径。
+    allowLearningForKey: vi.fn(),
+    getPersonaLearningOverview: vi.fn(),
   };
   return { savedCore, template, state, personaService };
 });

@@ -6,6 +6,7 @@ import {
   PERSONA_POLICY_DEFAULTS,
   PERSONA_PREFERENCE_KEYS,
   type PersonaExportPayload,
+  type PersonaLearningOverview,
   type PersonaPreferenceFacts,
   type PersonaPreferenceKey,
 } from "@drora/shared";
@@ -13,11 +14,13 @@ import { logger } from "@/logger.js";
 import { runUserActionAsync } from "@/lib/userActionTelemetry.js";
 
 /**
- * Drora Persona P1a「交流默认与导出」的状态机（specs/drora-persona-system.md §9/§10、
- * docs/design/drora-persona-data-contracts-2026-10-29.md §1.2/§2/§4.2/§7）。
+ * Drora Persona「交流默认、使用策略与有限学习管理」的状态机（specs/drora-persona-system.md
+ * §5/§8/§9/§10、docs/design/drora-persona-data-contracts-2026-10-29.md §1.2/§2/§3/§4.2/§7）。
  * 复用 usePersonaCoreEditor 的模式：服务权威值 + 局部草稿（seedRevision 做 CAS 基线）、
  * 冲突保留草稿并重读比较、outcome_unknown 保留同一 mutationId 幂等回放（PM53）、
- * 每个键（以及 U 策略、导出）各自独立的在途 mutationId。
+ * 每个键（以及 U/L 策略、解除抑制、导出）各自独立的在途 mutationId。
+ * P1b：getPersonaLearningOverview 提供策略当前值（U/L）读路径与预算/来源/计数概览——
+ * P1a 时代「本页不读取 U 全局当前值」的 workaround 由该读侧方法替代。
  */
 
 export type PersonaPreferencesService = Pick<
@@ -27,6 +30,8 @@ export type PersonaPreferencesService = Pick<
   | "setPersonalPolicy"
   | "savePreference"
   | "forgetPreference"
+  | "allowLearningForKey"
+  | "getPersonaLearningOverview"
   | "preparePersonaExport"
 >;
 
@@ -67,21 +72,29 @@ export interface PersonaPreferenceSlot {
   notice: PersonaPreferenceNotice | null;
   pending: boolean;
   forgetPending: boolean;
+  /** 解除抑制（allowLearningForKey）在途；与保存/忘记互斥（同一槽的串行编辑）。 */
+  allowPending: boolean;
   /** 「保留草稿」后已承认的服务 revision；revision 再前进才重新提示分歧。 */
   acknowledgedRevision: number | null;
 }
 
+/** U/L 两个策略开关共享同一 policy 行（同一 CAS/mutation 域），switch 区分展示归属。 */
+export type PersonaPolicySwitch = "usePreferences" | "autoLearn";
+
 export interface PersonaPolicyState {
   /**
-   * 本会话最近一次确定性策略操作结果。shared 没有暴露 policy 查询方法（listPreferences
-   * 只含偏好），所以不冒充「全局当前值」：null 表示本会话尚无事实，展示为「当前生效值未知，
-   * 以服务为准」；unchanged 结果可如实断言服务当前值（CAS 已比对一致）。
+   * 本会话最近一次确定性策略操作结果（含开关归属）。当前值以 learningOverview.policy 为准
+   * （getPersonaLearningOverview 读路径）；本字段只陈述「本会话提交过什么」。
    */
-  lastOperation: { value: boolean; kind: "saved" | "unchanged" } | null;
+  lastOperation: {
+    switch: PersonaPolicySwitch;
+    value: boolean;
+    kind: "saved" | "unchanged";
+  } | null;
   notice: PersonaPreferenceNotice | null;
   pending: boolean;
-  /** 在途操作的目标值：true=正在提交开启，false=正在提交关闭，null=空闲。 */
-  pendingTarget: boolean | null;
+  /** 在途操作的目标：哪个开关正在提交什么值；null=空闲。 */
+  pendingTarget: { switch: PersonaPolicySwitch; value: boolean } | null;
 }
 
 export type PersonaExportNotice =
@@ -102,6 +115,7 @@ function createEmptySlots(): Record<PersonaPreferenceKey, PersonaPreferenceSlot>
       notice: null,
       pending: false,
       forgetPending: false,
+      allowPending: false,
       acknowledgedRevision: null,
     };
   }
@@ -152,44 +166,46 @@ export function usePersonaPreferences(
     pending: false,
     pendingTarget: null,
   });
+  /**
+   * P1b 读侧概览（getPersonaLearningOverview）：策略当前值（U/L）、当日预算台账、inferred
+   * 槽合并来源定位与本进程计数。读取失败（旧 wire/断线）不阻塞偏好区：置 null 并按
+   * 「当前生效值未知」诚实降级，不试发写方法。
+   */
+  const [learningOverview, setLearningOverview] = useState<PersonaLearningOverview | null>(null);
   const [exportPending, setExportPending] = useState(false);
   const [exportNotice, setExportNotice] = useState<PersonaExportNotice | null>(null);
   const [forgetCandidate, setForgetCandidate] = useState<PersonaPreferenceKey | null>(null);
   // 请求 generation：进区读取与冲突重读的迟到响应不覆盖新页面（合同 §3）。
   const reloadGenRef = useRef(0);
   // PM53：写请求 outcome_unknown 后保留同一 mutationId 供重试幂等回放；确定性结果后清除。
-  // save 与 forget 共用 preference receipt scope，但 requestDigest 含操作名，各留一套在途 ID，
-  // 避免「保存未知后改点忘记」把同 ID 不同摘要的请求送上 mutation_conflict。
+  // save/forget/allow 共用 preference receipt scope，但 requestDigest 含操作名，各留一套
+  // 在途 ID，避免「保存未知后改点忘记」把同 ID 不同摘要的请求送上 mutation_conflict。
   const liveSaveMutationIdsRef = useRef<Partial<Record<PersonaPreferenceKey, string>>>({});
   const liveForgetMutationIdsRef = useRef<Partial<Record<PersonaPreferenceKey, string>>>({});
+  const liveAllowMutationIdsRef = useRef<Partial<Record<PersonaPreferenceKey, string>>>({});
   const livePolicyMutationIdRef = useRef<string | undefined>(undefined);
-  // 策略 CAS 基线：进区预读（initialized 时）、保存成功回填、冲突后重新预读；无渲染依赖。
+  // 策略 CAS 基线：learningOverview.policy.policyRevision（读路径与写路径同源）；
+  // 概览缺席时回落 PERSONA_POLICY_DEFAULTS.policyRevision（策略行缺席时正确）。
   const policyRevisionRef = useRef<number>(PERSONA_POLICY_DEFAULTS.policyRevision);
 
-  /**
-   * 预取策略 CAS 版本号。shared 契约没有 policy 查询方法，P1a wire 上唯一的策略读路径是
-   * preparePersonaExport 快照里的 policyRevision：只取该数字做 setPersonalPolicy 的
-   * expectedPolicyRevision 基线，不从中推断 usePreferences 的当前值（那个不展示、不断言）。
-   * 读取失败不阻塞界面：基线回落到 PERSONA_POLICY_DEFAULTS.policyRevision（策略行缺席时
-   * 正确）；若行已存在则提交会得到 revision_conflict，由冲突路径重新预读后请用户显式重试。
-   */
-  const armPolicyRevision = useCallback(
+  /** 只刷新学习概览（不碰 loadPhase）：冲突后重新预读策略版本号，保留用户意图。 */
+  const refreshLearningOverview = useCallback(
     async (generation: number): Promise<void> => {
       try {
-        const result = await personaService.preparePersonaExport();
+        const result = await personaService.getPersonaLearningOverview();
         if (generation !== reloadGenRef.current) return;
-        if (result.ok) {
-          policyRevisionRef.current = result.value.policyRevision;
+        if (result.ok && result.value.state === "initialized") {
+          setLearningOverview(result.value);
+          policyRevisionRef.current = result.value.policy.policyRevision;
         } else {
-          logger.warn("[persona] 策略版本号预读失败，U 提交将以缺省 revision 为基线", {
-            code: result.code,
-          });
+          setLearningOverview(null);
         }
       } catch (cause) {
         if (generation !== reloadGenRef.current) return;
-        logger.warn("[persona] 策略版本号预读失败，U 提交将以缺省 revision 为基线", {
+        logger.warn("[persona] 学习概览读取失败，U/L 当前值按未知展示", {
           error: cause instanceof Error ? cause.message : String(cause),
         });
+        setLearningOverview(null);
       }
     },
     [personaService],
@@ -197,7 +213,8 @@ export function usePersonaPreferences(
 
   /**
    * 读取服务权威状态：getPersonaOverview（初始化事实）+ listPreferences（偏好当前值；
-   * 未初始化时服务返回空答案，不是错误）。草稿原样保留——脏草稿不被重读覆盖，
+   * 未初始化时服务返回空答案，不是错误）+ getPersonaLearningOverview（P1b 策略当前值与
+   * 预算/来源/计数；失败不阻塞）。草稿原样保留——脏草稿不被重读覆盖，
    * 由 revision 分歧比较提示（与 usePersonaCoreEditor 的 reseed=false 同语义）。
    */
   const reload = useCallback(async (): Promise<void> => {
@@ -232,6 +249,7 @@ export function usePersonaPreferences(
             notice: previous?.notice ?? null,
             pending: previous?.pending ?? false,
             forgetPending: previous?.forgetPending ?? false,
+            allowPending: previous?.allowPending ?? false,
             acknowledgedRevision: previous?.acknowledgedRevision ?? null,
           };
         }
@@ -239,7 +257,9 @@ export function usePersonaPreferences(
       });
       setLoadPhase("ready");
       if (overviewResult.value.state === "initialized") {
-        void armPolicyRevision(generation);
+        await refreshLearningOverview(generation);
+      } else {
+        setLearningOverview(null);
       }
     } catch (cause) {
       if (generation !== reloadGenRef.current) return;
@@ -247,7 +267,7 @@ export function usePersonaPreferences(
       setLoadPhase("error");
       setLoadErrorCode(cause instanceof Error ? cause.message : String(cause));
     }
-  }, [personaService, armPolicyRevision]);
+  }, [personaService, refreshLearningOverview]);
 
   // 进入分区读取一次；只读，不写任何设置、不为导出/偏好初始化资料（spec §9）。
   useEffect(() => {
@@ -297,12 +317,40 @@ export function usePersonaPreferences(
     });
   }, []);
 
+  /**
+   * slot mutation 的统一失败映射（save/forget/allow 共用）：CAS 冲突重读并保留草稿；
+   * uninitialized 如实提示；outcome_unknown 保留在途 ID 供同 ID 幂等回放（PM53）；
+   * 其余封闭错误码是确定性拒绝（清除在途 ID，下次提交换新 ID）。
+   */
+  const applySlotMutationFailure = useCallback(
+    async (
+      key: PersonaPreferenceKey,
+      code: string,
+      liveIds: Partial<Record<PersonaPreferenceKey, string>>,
+    ): Promise<void> => {
+      if (code === PERSONA_ERROR_CODES.revisionConflict) {
+        delete liveIds[key];
+        await reload();
+        patchSlot(key, { notice: { tone: "error", kind: "conflict" } });
+      } else if (code === PERSONA_ERROR_CODES.uninitialized) {
+        delete liveIds[key];
+        patchSlot(key, { notice: { tone: "error", kind: "uninitialized" } });
+      } else if (code === PERSONA_ERROR_CODES.outcomeUnknown) {
+        patchSlot(key, { notice: { tone: "info", kind: "outcomeUnknown" } });
+      } else {
+        delete liveIds[key];
+        patchSlot(key, { notice: { tone: "error", kind: "code", code } });
+      }
+    },
+    [reload, patchSlot],
+  );
+
   /** 单键保存：CAS 携带草稿基线 revision（槽缺席=0）与本键在途/新 mutationId；成功后重读。 */
   const handleSavePreference = useCallback(
     async (key: PersonaPreferenceKey): Promise<void> => {
       const slot = slots[key];
       const draft = slot?.draft;
-      if (!slot || !draft || slot.pending || slot.forgetPending) return;
+      if (!slot || !draft || slot.pending || slot.forgetPending || slot.allowPending) return;
       if (!initialized) {
         patchSlot(key, { notice: { tone: "error", kind: "uninitialized" } });
         return;
@@ -326,22 +374,7 @@ export function usePersonaPreferences(
               mutationId,
             });
             if (!result.ok) {
-              if (result.code === PERSONA_ERROR_CODES.revisionConflict) {
-                // CAS 冲突：确定性拒绝，清除在途 ID；保留草稿并重读，由分歧比较引导。
-                delete liveSaveMutationIdsRef.current[key];
-                await reload();
-                patchSlot(key, { notice: { tone: "error", kind: "conflict" } });
-              } else if (result.code === PERSONA_ERROR_CODES.uninitialized) {
-                delete liveSaveMutationIdsRef.current[key];
-                patchSlot(key, { notice: { tone: "error", kind: "uninitialized" } });
-              } else if (result.code === PERSONA_ERROR_CODES.outcomeUnknown) {
-                // 结果未知：保留同一 mutationId，重试同 ID 幂等回放。
-                patchSlot(key, { notice: { tone: "info", kind: "outcomeUnknown" } });
-              } else {
-                // 其余封闭错误码是确定性拒绝：清除在途 ID，下次提交换新 ID。
-                delete liveSaveMutationIdsRef.current[key];
-                patchSlot(key, { notice: { tone: "error", kind: "code", code: result.code } });
-              }
+              await applySlotMutationFailure(key, result.code, liveSaveMutationIdsRef.current);
               return;
             }
             delete liveSaveMutationIdsRef.current[key];
@@ -373,14 +406,14 @@ export function usePersonaPreferences(
         patchSlot(key, { pending: false });
       }
     },
-    [slots, initialized, personaService, reload, patchSlot],
+    [slots, initialized, personaService, reload, patchSlot, applySlotMutationFailure],
   );
 
   /** 单键忘记：需确认（逻辑撤销范围见确认文案）；CAS 槽缺席=0；成功后重读。 */
   const handleForgetPreference = useCallback(
     async (key: PersonaPreferenceKey): Promise<void> => {
       const slot = slots[key];
-      if (!slot || slot.forgetPending || slot.pending) return;
+      if (!slot || slot.forgetPending || slot.pending || slot.allowPending) return;
       if (!initialized) {
         patchSlot(key, { notice: { tone: "error", kind: "uninitialized" } });
         return;
@@ -409,19 +442,7 @@ export function usePersonaPreferences(
               mutationId,
             });
             if (!result.ok) {
-              if (result.code === PERSONA_ERROR_CODES.revisionConflict) {
-                delete liveForgetMutationIdsRef.current[key];
-                await reload();
-                patchSlot(key, { notice: { tone: "error", kind: "conflict" } });
-              } else if (result.code === PERSONA_ERROR_CODES.uninitialized) {
-                delete liveForgetMutationIdsRef.current[key];
-                patchSlot(key, { notice: { tone: "error", kind: "uninitialized" } });
-              } else if (result.code === PERSONA_ERROR_CODES.outcomeUnknown) {
-                patchSlot(key, { notice: { tone: "info", kind: "outcomeUnknown" } });
-              } else {
-                delete liveForgetMutationIdsRef.current[key];
-                patchSlot(key, { notice: { tone: "error", kind: "code", code: result.code } });
-              }
+              await applySlotMutationFailure(key, result.code, liveForgetMutationIdsRef.current);
               return;
             }
             delete liveForgetMutationIdsRef.current[key];
@@ -444,15 +465,79 @@ export function usePersonaPreferences(
         patchSlot(key, { forgetPending: false });
       }
     },
-    [slots, initialized, personaService, reload, patchSlot],
+    [slots, initialized, personaService, reload, patchSlot, applySlotMutationFailure],
   );
 
   /**
-   * U 使用许可（spec §5）：两态按钮各自发起 setPersonalPolicy；开启/关闭都是显式用户提交。
-   * 当前值不做全局断言（无查询方法）：界面只展示本会话最近一次确定性操作结果。
+   * 解除该键自动学习抑制（合同 §3 allowLearningForKey、§4.2）：CAS 携带该键当前
+   * generation；成功（saved/unchanged）后重读。争议不由它解决——保存/忘记才是
+   * 争议解决路径（合同 §8），界面不提供「解除争议」按钮。
+   */
+  const handleAllowLearning = useCallback(
+    async (key: PersonaPreferenceKey): Promise<void> => {
+      const slot = slots[key];
+      if (!slot || slot.allowPending || slot.pending || slot.forgetPending) return;
+      if (!initialized) {
+        patchSlot(key, { notice: { tone: "error", kind: "uninitialized" } });
+        return;
+      }
+      patchSlot(key, { allowPending: true, notice: null });
+      try {
+        await runUserActionAsync({
+          input: {
+            featureId: "settings.drora",
+            action: "allow_persona_learning",
+            trigger: "button",
+          },
+          operation: async () => {
+            const mutationId = liveAllowMutationIdsRef.current[key] ?? createMutationId();
+            liveAllowMutationIdsRef.current[key] = mutationId;
+            const result = await personaService.allowLearningForKey({
+              key,
+              expectedGeneration: slot.saved?.keyGeneration ?? 0,
+              mutationId,
+            });
+            if (!result.ok) {
+              await applySlotMutationFailure(key, result.code, liveAllowMutationIdsRef.current);
+              return;
+            }
+            delete liveAllowMutationIdsRef.current[key];
+            patchSlot(key, {
+              notice: {
+                tone: "success",
+                kind: result.value.status === "saved" ? "saved" : "unchanged",
+              },
+            });
+            await reload();
+          },
+          completed: { resultSource: "authority_ack" },
+          failureStage: "persona_commit",
+        });
+      } catch (cause) {
+        patchSlot(key, {
+          notice: {
+            tone: "error",
+            kind: "rpc",
+            message: cause instanceof Error ? cause.message : String(cause),
+          },
+        });
+      } finally {
+        patchSlot(key, { allowPending: false });
+      }
+    },
+    [slots, initialized, personaService, reload, patchSlot, applySlotMutationFailure],
+  );
+
+  /**
+   * U/L 策略开关（spec §5）：两态按钮各自发起 setPersonalPolicy；当前值以
+   * learningOverview.policy 为准（getPersonaLearningOverview 读路径）。
+   * - 开启 L：同时携带 usePreferences=true（学习前置＝U&&L，一次 CAS 完成一致状态）；
+   * - 关闭 L：保持 overview 观察到的 U 值不变（不知道 U 时按钮禁用，不用猜测值发请求）；
+   * - 关闭 U：只提交 usePreferences=false——级联（同事务关 L、撤租约、清未提交候选/负载）
+   *   由 CLI 存储侧执行（合同 §4.2）；重新开启 U 不恢复 L。
    */
   const handleSetPolicy = useCallback(
-    async (usePreferences: boolean): Promise<void> => {
+    async (usePreferences: boolean, autoLearn?: boolean): Promise<void> => {
       if (policy.pending) return;
       if (!initialized) {
         setPolicy((current) => ({
@@ -461,10 +546,12 @@ export function usePersonaPreferences(
         }));
         return;
       }
+      const targetSwitch: PersonaPolicySwitch =
+        autoLearn === undefined ? "usePreferences" : "autoLearn";
       setPolicy((current) => ({
         ...current,
         pending: true,
-        pendingTarget: usePreferences,
+        pendingTarget: { switch: targetSwitch, value: autoLearn ?? usePreferences },
         notice: null,
       }));
       try {
@@ -480,6 +567,8 @@ export function usePersonaPreferences(
             const result = await personaService.setPersonalPolicy({
               expectedPolicyRevision: policyRevisionRef.current,
               usePreferences,
+              // P1b patch 语义：autoLearn 缺席＝保持当前值；关闭 U 时不发明该键。
+              ...(autoLearn === undefined ? {} : { autoLearn }),
               mutationId,
             });
             if (!result.ok) {
@@ -487,7 +576,7 @@ export function usePersonaPreferences(
                 delete livePolicyMutationIdRef.current;
                 // 其他窗口已推进策略：重新预读版本号，保留用户意图，由用户显式再次点击；
                 // 不静默重试，也不以本地值覆盖服务事实（禁止 last-write-wins）。
-                await armPolicyRevision(reloadGenRef.current);
+                await refreshLearningOverview(reloadGenRef.current);
                 setPolicy((current) => ({
                   ...current,
                   notice: { tone: "error", kind: "conflict" },
@@ -519,12 +608,18 @@ export function usePersonaPreferences(
             }
             setPolicy((current) => ({
               ...current,
-              lastOperation: { value: usePreferences, kind: result.value.status },
+              lastOperation: {
+                switch: targetSwitch,
+                value: autoLearn ?? usePreferences,
+                kind: result.value.status,
+              },
               notice: {
                 tone: "success",
                 kind: result.value.status === "saved" ? "saved" : "unchanged",
               },
             }));
+            // 策略提交成功后重读概览：当前值/预算/学习域屏障值回到服务权威。
+            await refreshLearningOverview(reloadGenRef.current);
           },
           completed: { resultSource: "authority_ack" },
           failureStage: "persona_commit",
@@ -542,7 +637,7 @@ export function usePersonaPreferences(
         setPolicy((current) => ({ ...current, pending: false, pendingTarget: null }));
       }
     },
-    [policy.pending, initialized, personaService, armPolicyRevision],
+    [policy.pending, initialized, personaService, refreshLearningOverview],
   );
 
   /**
@@ -611,6 +706,7 @@ export function usePersonaPreferences(
     initialized,
     slots,
     policy,
+    learningOverview,
     exportPending,
     exportNotice,
     forgetCandidate,
@@ -622,6 +718,7 @@ export function usePersonaPreferences(
     requestForget: setForgetCandidate,
     cancelForget,
     handleForgetPreference,
+    handleAllowLearning,
     handleSetPolicy,
     handleExport,
   };

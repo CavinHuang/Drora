@@ -39,17 +39,14 @@ import {
   PERSONA_STORE_DEFAULTS,
   PersonaStoreError,
   type PersonaStorePort,
-  type PersonaStoreSnapshot,
 } from "@drora/adapters/storage/persona";
 import {
   PERSONA_ERROR_CODES,
-  PERSONA_EXPORT_FORMAT,
-  PERSONA_EXPORT_FORMAT_VERSION,
-  PERSONA_EXPORT_LIMITATIONS,
-  PERSONA_EXPORT_MAX_BYTES,
   PERSONA_PREFERENCE_ALLOWED_VALUES,
   PERSONA_PREFERENCE_KEYS,
   PERSONA_PREFERENCE_LIMITS,
+  type PersonaAllowLearningInput,
+  type PersonaAllowLearningResult,
   type PersonaCoreMutationResult,
   type PersonaCorePatch,
   type PersonaCoreSnapshot,
@@ -59,6 +56,7 @@ import {
   type PersonaForgetResult,
   type PersonaInitializeInput,
   type PersonaInitializeResult,
+  type PersonaLearningOverview,
   type PersonaManagementResult,
   type PersonaOverview,
   type PersonaPolicyMutationResult,
@@ -79,6 +77,25 @@ import {
   type PersonaAppServiceOptions,
 } from "./contract.js";
 import { getProductPersonaTemplate } from "./product-template.js";
+import {
+  createPersonaLearningCounters,
+  type PersonaInternalLearning,
+  type PersonaLearningAcceptanceOutcome,
+  type PersonaLearningAcceptanceRequest,
+  type PersonaLearningCounters,
+  type PersonaLearningManagement,
+} from "./learning-contract.js";
+import {
+  canonicalJson,
+  createPersonaLearningRuntime,
+  type PersonaLearningRuntime,
+} from "./persona-learning-service.js";
+import {
+  allowLearningRequestDigest,
+  composeLearningOverview,
+  isValidAllowLearningInput,
+} from "./persona-learning-management.js";
+import { prepareExportPayload } from "./persona-export.js";
 
 /** 服务层对 opaque mutationId 的进程内上界（wire 层严格 schema 属切片 C；超界 validation_failed）。 */
 const MUTATION_ID_MAX_CODE_POINTS = 256;
@@ -96,17 +113,6 @@ function sha256Canonical(value: unknown): string {
   return createHash("sha256")
     .update(canonicalJson(value), "utf8")
     .digest("hex");
-}
-
-/** 键序无关的紧凑 JSON；requestDigest 与客户端对象键序解耦。 */
-function canonicalJson(value: unknown): string {
-  if (value === null || typeof value !== "object")
-    return JSON.stringify(value) ?? "null";
-  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
-  const entries = Object.entries(value as Record<string, unknown>)
-    .filter(([, item]) => item !== undefined)
-    .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0));
-  return `{${entries.map(([key, item]) => `${JSON.stringify(key)}:${canonicalJson(item)}`).join(",")}}`;
 }
 
 function isValidMutationId(mutationId: unknown): mutationId is string {
@@ -204,12 +210,24 @@ function isCorePatch(value: unknown): value is PersonaCorePatch {
   );
 }
 
-export class PersonaAppServiceImpl implements PersonaAppService, PersonaInternalCapture {
+
+export class PersonaAppServiceImpl
+  implements
+    PersonaAppService,
+    PersonaInternalCapture,
+    PersonaInternalLearning,
+    PersonaLearningManagement
+{
   private readonly dbPath: string;
   private readonly now: () => number;
   private readonly captureBudgetMs: number;
   private readonly openStore: (dbPath: string) => Promise<PersonaStorePort>;
   private readonly logger: PersonaAppServiceOptions["logger"];
+  private readonly learningOptions: PersonaAppServiceOptions["learning"]; // sourceOwner 供导出侧 inferred 复验与学习运行时共用
+  /** 学习计数（进程内观测；所有者=本服务，学习运行时经依赖引用同一对象）。 */
+  private readonly learningCounters: PersonaLearningCounters = createPersonaLearningCounters();
+  /** P1b 学习运行时（persona-learning-service.ts）：接收门序/工作循环/capture 复验。 */
+  private readonly learningRuntime: PersonaLearningRuntime;
   private store: PersonaStorePort | undefined;
   /** schema_incompatible 的进程内终态：损坏/未知 schema 只停扩展，不再重复迁移尝试。 */
   private storeFatal: PersonaStoreError | undefined;
@@ -227,6 +245,15 @@ export class PersonaAppServiceImpl implements PersonaAppService, PersonaInternal
     this.openStore =
       options.openStore ?? ((path) => openPersonaStore({ dbPath: path }));
     this.logger = options.logger;
+    this.learningOptions = options.learning;
+    this.learningRuntime = createPersonaLearningRuntime({
+      counters: this.learningCounters,
+      dbPath: this.dbPath,
+      logger: this.logger,
+      now: this.now,
+      options: options.learning,
+      requireStore: () => this.requireStore(),
+    });
   }
 
   async getPersonaOverview(): Promise<
@@ -425,11 +452,11 @@ export class PersonaAppServiceImpl implements PersonaAppService, PersonaInternal
     // 是进程内终态、环境故障按封闭错误码省略，原 session/provider 错误不经本服务。
     const startedAt = Date.now();
     try {
-      // capture 总预算（合同 §2）：打开库+迁移+读快照整体限时；超预算按 budget_exhausted
-      // 省略扩展、原任务继续（PM16），首个合格主请求不被慢盘/迁移/worker 卡死无上界延迟。
-      // 竞速在 try 内：操作先于预算失败时仍走下方封闭错误码映射（原语义）。
+      // capture 总预算（合同 §2）：打开库+迁移+读快照+inferred 来源复验整体限时；超预算按
+      // budget_exhausted 省略扩展、原任务继续（PM16），首个合格主请求不被慢盘/迁移/worker
+      // 卡死无上界延迟。竞速在 try 内：操作先于预算失败时仍走下方封闭错误码映射（原语义）。
       const raced = await raceWithinCaptureBudget(this.captureBudgetMs, () =>
-        this.readCaptureSnapshot(),
+        this.learningRuntime.readVerifiedCaptureSnapshot(),
       );
       if (!raced.settled) {
         this.logger?.warn("persona capture exceeded its total budget; omitting extension", {
@@ -440,23 +467,21 @@ export class PersonaAppServiceImpl implements PersonaAppService, PersonaInternal
         });
         return { status: "omitted", reason: PERSONA_ERROR_CODES.budgetExhausted };
       }
-      const snapshot = raced.value;
+      const snapshot = raced.value.snapshot;
       if (snapshot.state === "uninitialized") {
         return { status: "omitted", reason: PERSONA_ERROR_CODES.uninitialized };
       }
-      // 交流默认门＝E && Q && U（spec §5）：U on 才读偏好并注入；偏好与 core 同一短事务
-      // 快照（合同 §4.2），U off 时存储侧连偏好槽都不出库（preferences 为空数组）。
+      // 交流默认门＝E && Q && U（spec §5）：U on 才读偏好并注入。注入集合＝显式槽 +
+      // 复验通过的 inferred 槽（disputed 停止注入；来源不可验证的推测省略，spec §8）。
       // capture 只消费 active 槽——forgotten 槽的正文已清，仅为重设 CAS 保留 revision。
       const compiled = snapshot.policy.usePreferences
         ? compilePersonaContribution(
             snapshot.core.core,
             snapshot.core.coreRevision,
-            snapshot.preferences
-              .filter((preference) => preference.status === "active")
-              .map((preference) => ({
-                key: preference.key,
-                value: preference.value,
-              })),
+            raced.value.preferences.map((preference) => ({
+              key: preference.key,
+              value: preference.value,
+            })),
             snapshot.policy.policyEpoch,
           )
         : compilePersonaCore(snapshot.core.core, snapshot.core.coreRevision);
@@ -489,7 +514,11 @@ export class PersonaAppServiceImpl implements PersonaAppService, PersonaInternal
     if (
       !isValidMutationId(input.mutationId) ||
       !isExpectedRevision(input.expectedPolicyRevision) ||
-      typeof input.usePreferences !== "boolean"
+      typeof input.usePreferences !== "boolean" ||
+      // P1b（合同 §1 Policy/P1b、§3「usePreferences/autoLearn/预算 patch」）：autoLearn 是
+      // 可选 patch 字段，出现时必须是布尔。级联（关 U 同事务关 L、撤租约、清候选/负载）
+      // 与 learningGeneration 屏障由 cli-persona-store 的策略事务执行（第一层仓储语义）。
+      (input.autoLearn !== undefined && typeof input.autoLearn !== "boolean")
     ) {
       return failure(PERSONA_ERROR_CODES.validationFailed);
     }
@@ -501,10 +530,13 @@ export class PersonaAppServiceImpl implements PersonaAppService, PersonaInternal
             op: "setPersonalPolicy",
             expectedPolicyRevision: input.expectedPolicyRevision,
             usePreferences: input.usePreferences,
+            // digest 只含出现的 patch 字段：旧（P1a）请求的幂等回放不受新字段影响。
+            ...(input.autoLearn === undefined ? {} : { autoLearn: input.autoLearn }),
           }),
           now: this.now(),
           expectedPolicyRevision: input.expectedPolicyRevision,
           usePreferences: input.usePreferences,
+          ...(input.autoLearn === undefined ? {} : { autoLearn: input.autoLearn }),
         }),
       ),
     );
@@ -567,6 +599,55 @@ export class PersonaAppServiceImpl implements PersonaAppService, PersonaInternal
     );
   }
 
+  /**
+   * 解除该键自动学习抑制（合同 §3 allowLearningForKey、§4.2；spec §9「重新授权不能给旧
+   * 来源重新编号使其复活」）。校验/摘要辅助在 persona-learning-management（拆分满足
+   * max-file-lines）；CAS 与屏障语义在 cli-persona-store 的单事务。
+   */
+  async allowLearningForKey(
+    input: PersonaAllowLearningInput,
+  ): Promise<PersonaManagementResult<PersonaAllowLearningResult>> {
+    if (!isValidAllowLearningInput(input, isValidMutationId)) {
+      return failure(PERSONA_ERROR_CODES.validationFailed);
+    }
+    return this.runManaged("allowLearningForKey", async () =>
+      this.requireStore().then((store) =>
+        store.allowLearningForKey({
+          mutationId: input.mutationId,
+          requestDigest: allowLearningRequestDigest(sha256Canonical, input),
+          now: this.now(),
+          expectedGeneration: input.expectedGeneration,
+          key: input.key,
+        }),
+      ),
+    );
+  }
+
+  /**
+   * P1b 读侧概览（新增读侧方法，偏差记录见 spec §13）：单次读路径组合 store 的三个只读
+   * 方法与本进程学习计数；行形状组合在 persona-learning-management.composeLearningOverview。
+   */
+  async getPersonaLearningOverview(): Promise<
+    PersonaManagementResult<PersonaLearningOverview>
+  > {
+    return this.runManaged("getPersonaLearningOverview", async () => {
+      const store = await this.requireStore();
+      const snapshot = await store.readSnapshot();
+      if (snapshot.state === "uninitialized") {
+        return { state: "uninitialized" } satisfies PersonaLearningOverview;
+      }
+      const [budget, sources] = await Promise.all([
+        store.learning.readLearningBudgetUsage(this.now()),
+        store.learning.readInferredSlotSources(),
+      ]);
+      if (!budget.ok) return budget;
+      if (!sources.ok) return sources;
+      return composeLearningOverview(snapshot.policy, budget.value, sources.value, {
+        ...this.learningCounters,
+      });
+    });
+  }
+
   async listPreferences(): Promise<
     PersonaManagementResult<readonly PersonaPreferenceFacts[]>
   > {
@@ -575,64 +656,21 @@ export class PersonaAppServiceImpl implements PersonaAppService, PersonaInternal
     );
   }
 
-  async preparePersonaExport(): Promise<
-    PersonaManagementResult<PersonaExportPayload>
-  > {
-    return this.runManaged("preparePersonaExport", async () => {
-      const snapshotResult = await this.requireStore().then((store) =>
-        store.readExportSnapshot(),
-      );
-      if (!snapshotResult.ok) return snapshotResult;
-      const snapshot = snapshotResult.value;
-      const template = getProductPersonaTemplate();
-      // 冻结快照（合同 §7）：不含 authorityId、来源定位、历史值、候选、抑制内部记录、
-      // 令牌与授权；pinned 等内部控制态不进 envelope。
-      const payload: PersonaExportPayload = {
-        format: PERSONA_EXPORT_FORMAT,
-        formatVersion: PERSONA_EXPORT_FORMAT_VERSION,
-        capturedAt: new Date(this.now()).toISOString(),
-        coreRevision: snapshot.core.coreRevision,
-        policyRevision: snapshot.policy.policyRevision,
-        core: snapshot.core.core,
-        templateVersion: template.templateVersion,
-        compilerVersion: template.compilerVersion,
-        preferences: snapshot.preferences.map((preference) => ({
-          key: preference.key,
-          value: preference.value,
-          revision: preference.revision,
-          provenanceKind: preference.provenanceKind,
-          epistemicStatus: preference.epistemicStatus,
-        })),
-        omittedCounts: snapshot.counts,
-        limitations: PERSONA_EXPORT_LIMITATIONS,
-      };
-      const bytes = Buffer.byteLength(JSON.stringify(payload, null, 2), "utf8");
-      if (bytes > PERSONA_EXPORT_MAX_BYTES) {
-        // 超限报 validation_failed，不交付截断 JSON（合同 §7）。
-        return failure(PERSONA_ERROR_CODES.validationFailed);
-      }
-      return { ok: true, value: payload };
-    });
-  }
-
-  async close(): Promise<void> {
-    // close 是终态（测试/进程退出释放句柄）：关闭后的管理调用以 storage_unavailable 拒绝，
-    // 不静默重开库——否则 teardown 期间会重建连接与库文件。
-    this.closed = true;
-    const store = this.store;
-    this.store = undefined;
-    this.storeFatal = undefined;
-    await store?.close();
+  async preparePersonaExport(): Promise<PersonaManagementResult<PersonaExportPayload>> {
+    // 冻结组合与 inferred 来源复验在 persona-export；owner 与学习运行时共用同一端口（合同 §7）。
+    return this.runManaged("preparePersonaExport", async () =>
+      prepareExportPayload({
+        store: await this.requireStore(),
+        now: this.now,
+        sourceOwner: this.learningOptions?.sourceOwner,
+        logger: this.logger,
+      }),
+    );
   }
 
   // ---------------------------------------------------------------------------
   // 惰性存储与错误通道
   // ---------------------------------------------------------------------------
-
-  /** capture 路径的存储读取（受 captureBudgetMs 总预算竞速包裹）。 */
-  private readCaptureSnapshot(): Promise<PersonaStoreSnapshot> {
-    return this.requireStore().then((store) => store.readSnapshot());
-  }
 
   private requireStore(): Promise<PersonaStorePort> {
     if (this.closed) {
@@ -698,6 +736,31 @@ export class PersonaAppServiceImpl implements PersonaAppService, PersonaInternal
       return failure(PERSONA_ERROR_CODES.storageUnavailable);
     }
   }
+
+  async acceptLearningSource(
+    request: PersonaLearningAcceptanceRequest,
+  ): Promise<PersonaLearningAcceptanceOutcome> {
+    return this.learningRuntime.acceptLearningSource(request);
+  }
+
+  async processLearningWork(): Promise<"idle" | "claimed"> {
+    return this.learningRuntime.processLearningWork();
+  }
+
+  /** 学习计数快照（测试/诊断；进程内观测，不落盘）。 */
+  get learningCountersSnapshot(): PersonaLearningCounters {
+    return this.learningCounters;
+  }
+
+  async close(): Promise<void> {
+    // close 是终态（测试/进程退出释放句柄）：关闭后的管理调用以 storage_unavailable 拒绝，
+    // 不静默重开库——否则 teardown 期间会重建连接与库文件。
+    this.closed = true;
+    const store = this.store;
+    this.store = undefined;
+    this.storeFatal = undefined;
+    await store?.close();
+  }
 }
 
 function isManagementResult<T>(
@@ -722,6 +785,7 @@ function toTemplateSummary(
 function failure<T>(code: PersonaErrorCode): PersonaManagementResult<T> {
   return { ok: false, code };
 }
+
 
 /** PersonaCapturePort 的生产默认装配；与 PersonaAppServiceImpl.captureContribution 同源。 */
 export function asPersonaCapturePort(service: {

@@ -3245,17 +3245,33 @@ const zhCN: Record<string, string> = {
   "settings.drora.preferences.forgetting": "正在忘记…",
   "settings.drora.preferences.notice.forgotten":
     "已忘记该偏好（逻辑撤销）。只影响之后的轮；已冻结的轮、聊天记录与项目记忆不变。",
+  // P1b 来源状态（合同 §1.2/§8）：来源类别、认识状态、争议、抑制是三件事，分行如实展示；
+  // 争议只经保存/忘记解决；抑制经「解除抑制」（generation++，只接受之后的新机会）。
+  "settings.drora.preferences.provenance.settings": "来源：设置保存",
+  "settings.drora.preferences.provenance.extraction": "来源：自动提取",
+  "settings.drora.preferences.epistemic.explicit": "显式",
+  "settings.drora.preferences.epistemic.inferred": "推断",
+  "settings.drora.preferences.disputedBadge": "存在冲突推断，已暂停注入该键",
+  "settings.drora.preferences.disputedHint":
+    "可通过「保存」或「忘记」解决冲突：两种操作都会清除冲突并推进版本；自动值本身不会被保留。",
+  "settings.drora.preferences.suppressedBadge": "该键已抑制自动学习",
+  "settings.drora.preferences.allowLearning": "解除抑制",
+  "settings.drora.preferences.allowing": "正在解除…",
+  "settings.drora.preferences.pendingCandidate":
+    "有一条待确认建议：{value}（保存或忘记可解决；自动内容只有经你确认才会保留）",
   "settings.drora.forget.confirmTitle": "忘记「{key}」？",
   "settings.drora.forget.confirmDescription":
     "这是逻辑撤销：将清除应用内该键已保存的值与候选，不会删除聊天记录、项目记忆或诊断，也不承诺介质级擦除；已冻结的轮不受影响。",
   "settings.drora.policy.title": "使用许可（偏好注入）",
   "settings.drora.policy.description":
-    "开启后，交流默认才会随新轮注入会话。切换立即生效于新轮；已冻结的轮不变。本页不读取该开关的全局当前值，以下状态来自本会话最近一次操作；当前生效值以服务为准。",
+    "开启后，交流默认才会随新轮注入会话。切换立即生效于新轮；已冻结的轮不变。「当前」是页面读取的服务事实；其他窗口的修改在重新读取后刷新。",
   "settings.drora.policy.enable": "开启",
   "settings.drora.policy.disable": "关闭",
   "settings.drora.policy.enabling": "正在开启…",
   "settings.drora.policy.disabling": "正在关闭…",
-  "settings.drora.policy.state.unknown": "当前生效值未知（本页不读取全局当前值，以服务为准）",
+  "settings.drora.policy.state.unknown": "当前生效值未知（读取失败，以服务为准）",
+  "settings.drora.policy.state.on": "当前：开启（页面读取自服务）",
+  "settings.drora.policy.state.off": "当前：关闭（页面读取自服务）",
   "settings.drora.policy.state.savedOn": "本会话已提交：开启（对新轮生效）",
   "settings.drora.policy.state.savedOff": "本会话已提交：关闭（对新轮生效）",
   "settings.drora.policy.state.unchangedOn": "服务端当前即为「开启」（本次提交无内容变化）",
@@ -3265,6 +3281,25 @@ const zhCN: Record<string, string> = {
   "settings.drora.policy.notice.conflict":
     "使用许可已被其他窗口修改：已重新读取版本号，请再次点击以应用你的选择。",
   "settings.drora.policy.notice.uninitialized": "资料尚未初始化，初始化后才能修改使用许可。",
+  // 关闭 U 的级联（合同 §4.2）：同一事务关 L、撤租约、清未提交候选/负载；重开 U 不恢复 L。
+  "settings.drora.policy.cascade.title": "关闭使用许可？",
+  "settings.drora.policy.cascade.description":
+    "关闭使用许可会在同一事务内同时关闭自动学习：立即停止新的学习接收与提交、撤回全部学习租约，并清除未提交的学习候选与工作负载。已保存的显式交流默认保留；已冻结的轮不变。重新开启使用许可不会恢复自动学习。",
+  "settings.drora.policy.cascade.action": "关闭使用许可",
+  // P1b 自动学习（spec §5/§8）：独立授权、默认 off；只学四类交流默认，无经历/记忆页；
+  // 预算上界为服务冻结常量；计数只描述本进程，不当全局事实。
+  "settings.drora.learning.title": "自动学习（推测交流默认）",
+  "settings.drora.learning.description":
+    "开启后，Drora 才会在普通成功的对话轮获得有界学习机会，只推测上面四类交流默认；不创建经历或记忆页，不改变核心身份、工具权限或执行范围。学习有每日预算上限；关闭即停止新的接收与提交，并撤回未完成的学习工作。",
+  "settings.drora.learning.enable": "开启",
+  "settings.drora.learning.disable": "关闭",
+  "settings.drora.learning.enabling": "正在开启…",
+  "settings.drora.learning.disabling": "正在关闭…",
+  "settings.drora.learning.budget":
+    "今日学习预算（UTC）：{attempts}/{attemptsMax} 次模型尝试 · 输入 {input}/{inputMax} · 输出 {output}/{outputMax} token",
+  "settings.drora.learning.counters":
+    "本进程学习活动：接收 {received} · 队列满丢弃 {dropped} · 完成 {applied} · 无变化 {noChange} · 拒绝 {rejected}",
+  "settings.drora.learning.sourcesCount": "合并来源：{count} 条",
   "settings.drora.export.title": "导出资料",
   "settings.drora.export.description":
     "生成只读 JSON 快照（当前核心、交流默认、格式版本与省略计数），不含聊天原文、学习证据或凭据；经系统另存为对话框保存，最大 256KiB。导入不受支持。",

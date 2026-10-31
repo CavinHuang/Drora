@@ -16,11 +16,11 @@ import { PlatformProvider } from "@/hooks/usePlatform.js";
  * - 忘记：确认文案必须写明「逻辑撤销」范围（清除应用内该键的值与候选，不删除聊天记录、
  *   项目记忆或诊断），禁止「彻底忘记/所有地方删除」类表述；
  * - outcome_unknown：结果未知文案 + 重试复用同一 mutationId（PM53），成功后换新 ID；
- * - U 使用许可：无全局查询方法——初始如实显示「当前生效值未知」，两态按钮各自显式提交
- *   setPersonalPolicy；冲突后重新预读 policyRevision（wire 上唯一策略读路径是导出快照的
- *   policyRevision）并由用户显式重试；
+ * - U/L 使用策略：当前值经 getPersonaLearningOverview 读侧展示（读取失败按「未知」降级）；
+ *   两态按钮各自显式提交；关闭 U 走级联确认（同事务关 L——合同 §4.2）；冲突后重新预读
+ *   policyRevision（概览读路径）并由用户显式重试；P1b L 开关/解除抑制/来源状态守护见
+ *   usePersonaLearning.test.tsx；
  * - 导出：成功经 IPlatformService.saveFile 保存 2 空格缩进 JSON；取消不显示已保存；
- *   uninitialized 显示「尚无资料」且不调用 saveFile；
  * - i18n：zh-CN 与 en-US 的 settings.drora.* 键集一致且关键文案符合诚实边界。
  */
 
@@ -33,7 +33,7 @@ window.HTMLElement.prototype.releasePointerCapture = () => undefined;
 const mocks = vi.hoisted(() => {
   const state = {
     initialized: true,
-    policy: { usePreferences: false, policyRevision: 0, policyEpoch: 0 },
+    policy: { usePreferences: false, autoLearn: false, policyRevision: 0, policyEpoch: 0 },
     // 服务权威偏好行（含 forgotten 行保持 revision 连续性，与 SQLite 仓储语义一致）。
     rows: {} as Record<
       string,
@@ -42,6 +42,16 @@ const mocks = vi.hoisted(() => {
         revision: number;
         keyGeneration: number;
         status: "active" | "forgotten";
+        provenanceKind?: "settings" | "extraction";
+        epistemicStatus?: "explicit" | "inferred";
+        disputed?: boolean;
+        autoSuppressed?: boolean;
+        pendingCandidate?: {
+          proposedValue: string;
+          evidenceId: string;
+          expectedGeneration: number;
+          createdAt: number;
+        };
       }
     >,
   };
@@ -51,6 +61,8 @@ const mocks = vi.hoisted(() => {
     setPersonalPolicy: vi.fn(),
     savePreference: vi.fn(),
     forgetPreference: vi.fn(),
+    allowLearningForKey: vi.fn(),
+    getPersonaLearningOverview: vi.fn(),
     preparePersonaExport: vi.fn(),
   };
   // 桌面 IPlatformService.saveFile：导出测试用（PersonaPreferencesSection 经
@@ -84,7 +96,12 @@ function personaExportPayload(): Record<string, unknown> {
 
 function defaultResponses(): void {
   mocks.state.initialized = true;
-  mocks.state.policy = { usePreferences: false, policyRevision: 0, policyEpoch: 0 };
+  mocks.state.policy = {
+    usePreferences: false,
+    autoLearn: false,
+    policyRevision: 0,
+    policyEpoch: 0,
+  };
   mocks.state.rows = {
     replyLanguage: { value: "follow_user", revision: 1, keyGeneration: 1, status: "active" },
     preferredAddress: { value: "阿明", revision: 1, keyGeneration: 1, status: "active" },
@@ -105,18 +122,23 @@ function defaultResponses(): void {
   mocks.personaService.listPreferences.mockImplementation(async () => ({
     ok: true,
     value: {
-      // 未初始化时服务返回空答案（与 PersonaAppService 一致），不是错误。
+      // 未初始化时服务返回空答案（与 PersonaAppService 一致），不是错误；
+      // 已初始化时返回全部槽（含 forgotten 屏障槽）——与 SQLite 仓储 listPreferences 一致。
       preferences: Object.entries(mocks.state.rows)
-        .filter(([, row]) => row.status === "active" && mocks.state.initialized)
+        .filter(() => mocks.state.initialized)
         .map(([key, row]) => ({
           key,
           value: row.value ?? "",
           revision: row.revision,
           keyGeneration: row.keyGeneration,
-          provenanceKind: "settings",
-          epistemicStatus: "explicit",
-          pinned: true,
+          provenanceKind: row.provenanceKind ?? "settings",
+          epistemicStatus: row.epistemicStatus ?? "explicit",
+          pinned: row.status === "active",
+          disputed: row.disputed ?? false,
+          autoSuppressed: row.autoSuppressed ?? false,
+          ...(row.pendingCandidate ? { pendingCandidate: row.pendingCandidate } : {}),
           updatedAt: 0,
+          status: row.status,
         })),
     },
   }));
@@ -155,21 +177,91 @@ function defaultResponses(): void {
         revision: (row?.revision ?? 0) + 1,
         keyGeneration: (row?.keyGeneration ?? 0) + 1,
         status: "forgotten" as const,
+        autoSuppressed: true,
       };
       mocks.state.rows[input.key] = next;
-      return { ok: true, value: { status: "forgotten", keyGeneration: next.keyGeneration } };
+      return {
+        ok: true,
+        value: { status: "forgotten", revision: next.revision, keyGeneration: next.keyGeneration },
+      };
     },
   );
+  mocks.personaService.allowLearningForKey.mockImplementation(
+    async (input: { key: string; expectedGeneration: number }) => {
+      const row = mocks.state.rows[input.key];
+      if ((row?.keyGeneration ?? 0) !== input.expectedGeneration) {
+        return { ok: false, code: "revision_conflict" };
+      }
+      if (!row || !row.autoSuppressed) {
+        return { ok: true, value: { status: "unchanged" } };
+      }
+      const next = {
+        ...row,
+        revision: row.revision + 1,
+        keyGeneration: row.keyGeneration + 1,
+        autoSuppressed: false,
+      };
+      mocks.state.rows[input.key] = next;
+      return {
+        ok: true,
+        value: { status: "saved", revision: next.revision, keyGeneration: next.keyGeneration },
+      };
+    },
+  );
+  // P1b 读侧概览（getPersonaLearningOverview）：policy 当前值与状态机同源；预算/来源/计数零值。
+  mocks.personaService.getPersonaLearningOverview.mockImplementation(async () => {
+    if (!mocks.state.initialized) return { ok: true, value: { state: "uninitialized" } };
+    return {
+      ok: true,
+      value: {
+        state: "initialized",
+        policy: {
+          usePreferences: mocks.state.policy.usePreferences,
+          autoLearn: mocks.state.policy.autoLearn,
+          policyRevision: mocks.state.policy.policyRevision,
+          policyEpoch: mocks.state.policy.policyEpoch,
+          learningGeneration: 0,
+        },
+        budget: { day: "2026-10-31", attemptsUsed: 0, inputTokensUsed: 0, outputTokensUsed: 0 },
+        sources: [],
+        counters: {
+          received: 0,
+          droppedQueueFull: 0,
+          acceptAccepted: 0,
+          acceptAlreadyAccepted: 0,
+          acceptSkipped: {},
+          workApplied: 0,
+          workNoChange: 0,
+          workRejected: 0,
+          workRetryWait: 0,
+          workConflicts: 0,
+          orchestrationErrors: 0,
+        },
+      },
+    };
+  });
   mocks.personaService.setPersonalPolicy.mockImplementation(
-    async (input: { expectedPolicyRevision: number; usePreferences: boolean }) => {
+    async (input: {
+      expectedPolicyRevision: number;
+      usePreferences: boolean;
+      autoLearn?: boolean;
+    }) => {
       if (mocks.state.policy.policyRevision !== input.expectedPolicyRevision) {
         return { ok: false, code: "revision_conflict" };
       }
-      if (mocks.state.policy.usePreferences === input.usePreferences) {
+      // 关 U 的级联在存储侧执行：usePreferences=false 同事务强制 autoLearn=false。
+      const nextAutoLearn = input.usePreferences
+        ? (input.autoLearn ?? mocks.state.policy.autoLearn)
+        : false;
+      if (
+        mocks.state.policy.usePreferences === input.usePreferences &&
+        mocks.state.policy.autoLearn === nextAutoLearn
+      ) {
         return { ok: true, value: { status: "unchanged" } };
       }
       mocks.state.policy = {
         usePreferences: input.usePreferences,
+        autoLearn: nextAutoLearn,
         policyRevision: mocks.state.policy.policyRevision + 1,
         policyEpoch: mocks.state.policy.policyEpoch + 1,
       };
@@ -277,19 +369,19 @@ describe("PersonaPreferencesSection（P1a 交流默认与导出）", () => {
     expect(screen.getByTestId("settings-persona-pref-replyLanguage-value").textContent).toBe(
       "当前值：跟随用户消息",
     );
-    // 槽缺席的键显示未设置、不提供忘记入口。
+    // 槽缺席的键显示未设置、不提供忘记入口；U/L 当前值经读侧概览如实显示服务值。
     expect(screen.getByTestId("settings-persona-pref-explanationDetail-value").textContent).toBe(
       "当前值：未设置",
     );
     expect(screen.queryByTestId("settings-persona-pref-explanationDetail-forget")).toBeNull();
-    // U 无全局查询方法：初始如实显示未知，不做当前值断言。
-    expect(screen.getByTestId("settings-persona-policy-state").textContent).toContain(
-      "当前生效值未知",
+    expect(screen.getByTestId("settings-persona-policy-state").textContent).toContain("当前：关闭");
+    expect(screen.getByTestId("settings-persona-learning-state").textContent).toContain(
+      "当前：关闭",
     );
     expect(mocks.personaService.savePreference).not.toHaveBeenCalled();
     expect(mocks.personaService.forgetPreference).not.toHaveBeenCalled();
     expect(mocks.personaService.setPersonalPolicy).not.toHaveBeenCalled();
-    // 保存/取消在无改动时禁用。
+    // 保存/取消在无改动时禁用；L 当前值已知（关闭）时关闭按钮可点（unchanged 路径）。
     expect(buttonById("settings-persona-pref-preferredAddress-save").disabled).toBe(true);
     expect(buttonById("settings-persona-pref-preferredAddress-cancel").disabled).toBe(true);
   });
@@ -412,7 +504,6 @@ describe("PersonaPreferencesSection（P1a 交流默认与导出）", () => {
       expect(screen.getByTestId("settings-persona-forget-confirm")).toBeTruthy();
     });
     const dialogText = screen.getByTestId("settings-persona-forget-confirm").textContent ?? "";
-    // 硬边界：必须写明逻辑撤销与清除范围；禁止「彻底忘记/所有地方删除」类表述。
     expect(dialogText).toContain("逻辑撤销");
     expect(dialogText).toContain("不会删除聊天记录、项目记忆或诊断");
     expect(dialogText).not.toContain("彻底忘记");
@@ -430,10 +521,10 @@ describe("PersonaPreferencesSection（P1a 交流默认与导出）", () => {
     expect(forgetInput.key).toBe("preferredAddress");
     expect(forgetInput.expectedRevision).toBe(1);
     expect(typeof forgetInput.mutationId).toBe("string");
-    // 成功后重读：当前值显示未设置，成功文案如实说明影响范围。
+    // 成功后重读：forgotten 屏障槽如实显示「已忘记（可重新设置）」，抑制徽标同步出现。
     await waitFor(() => {
       expect(screen.getByTestId("settings-persona-pref-preferredAddress-value").textContent).toBe(
-        "当前值：未设置",
+        "当前值：已忘记（可重新设置）",
       );
     });
     expect(
@@ -512,51 +603,60 @@ describe("PersonaPreferencesSection（P1a 交流默认与导出）", () => {
     expect(mutationIds[2]).not.toBe(mutationIds[0]);
   });
 
-  it("U 使用许可：初始未知态；两态按钮各自显式提交；冲突后重新预读并由用户重试", async () => {
+  it("U 使用许可：当前值来自读侧概览；开启/关闭显式提交；关闭走级联确认；冲突后重新预读并重试", async () => {
     await openReadyPrefsSection();
-    // 开启：以预读的 policyRevision（0）做 CAS（calls[0]）。
+    // 开启：以概览读取的 policyRevision（0）做 CAS（calls[0]）；不发明 autoLearn 键。
     fireEvent.click(buttonById("settings-persona-policy-enable"));
     await waitFor(() => {
       expect(mocks.personaService.setPersonalPolicy).toHaveBeenCalledTimes(1);
     });
-    expect(mocks.personaService.setPersonalPolicy.mock.calls[0]?.[0]).toMatchObject({
+    expect(mocks.personaService.setPersonalPolicy.mock.calls[0]?.[0]).toEqual({
       expectedPolicyRevision: 0,
       usePreferences: true,
+      mutationId: expect.any(String),
     });
     await waitFor(() => {
       expect(screen.getByTestId("settings-persona-policy-state").textContent).toContain(
-        "本会话已提交：开启",
+        "当前：开启",
       );
     });
 
-    // 同值再点开启（calls[1]）：unchanged 可如实断言服务当前值。
     fireEvent.click(buttonById("settings-persona-policy-enable"));
     await waitFor(() => {
       expect(mocks.personaService.setPersonalPolicy).toHaveBeenCalledTimes(2);
     });
     await waitFor(() => {
-      expect(screen.getByTestId("settings-persona-policy-state").textContent).toContain(
-        "服务端当前即为「开启」",
+      expect(screen.getByTestId("settings-persona-policy-notice").textContent ?? "").toContain(
+        "未生成新版本",
       );
     });
 
     // 关闭（calls[2]）：另一窗口已把策略推进到 revision 2 → 冲突；重新预读后请用户显式重试。
-    mocks.state.policy = { usePreferences: true, policyRevision: 2, policyEpoch: 2 };
+    mocks.state.policy = {
+      usePreferences: true,
+      autoLearn: true,
+      policyRevision: 2,
+      policyEpoch: 2,
+    };
     mocks.personaService.setPersonalPolicy.mockImplementationOnce(async () => ({
       ok: false,
       code: "revision_conflict",
     }));
-    const exportCallsBefore = mocks.personaService.preparePersonaExport.mock.calls.length;
+    const overviewCallsBefore = mocks.personaService.getPersonaLearningOverview.mock.calls.length;
     fireEvent.click(buttonById("settings-persona-policy-disable"));
+    // 关闭 U 需经级联确认对话框（同事务关 L 的提示）。
+    await waitFor(() => {
+      expect(screen.getByTestId("settings-persona-cascade-confirm")).toBeTruthy();
+    });
+    fireEvent.click(screen.getByTestId("settings-persona-cascade-confirm-action"));
     await waitFor(() => {
       expect(screen.getByTestId("settings-persona-policy-notice").textContent ?? "").toContain(
         "其他窗口",
       );
     });
-    // 冲突路径重新预读了策略版本号（导出快照的 policyRevision 是 wire 上唯一策略读路径）。
     await waitFor(() => {
-      expect(mocks.personaService.preparePersonaExport.mock.calls.length).toBeGreaterThan(
-        exportCallsBefore,
+      expect(mocks.personaService.getPersonaLearningOverview.mock.calls.length).toBeGreaterThan(
+        overviewCallsBefore,
       );
     });
     expect(mocks.personaService.setPersonalPolicy.mock.calls[2]?.[0]).toMatchObject({
@@ -564,8 +664,12 @@ describe("PersonaPreferencesSection（P1a 交流默认与导出）", () => {
       usePreferences: false,
     });
 
-    // 用户显式重试（calls[3]）：以重新预读的 revision 2 提交，成功后状态行如实陈述。
+    // 用户显式重试（calls[3]）：以重新预读的 revision 2 提交关闭（级联确认再次出现）。
     fireEvent.click(buttonById("settings-persona-policy-disable"));
+    await waitFor(() => {
+      expect(screen.getByTestId("settings-persona-cascade-confirm")).toBeTruthy();
+    });
+    fireEvent.click(screen.getByTestId("settings-persona-cascade-confirm-action"));
     await waitFor(() => {
       expect(mocks.personaService.setPersonalPolicy).toHaveBeenCalledTimes(4);
     });
@@ -575,7 +679,7 @@ describe("PersonaPreferencesSection（P1a 交流默认与导出）", () => {
     });
     await waitFor(() => {
       expect(screen.getByTestId("settings-persona-policy-state").textContent).toContain(
-        "本会话已提交：关闭",
+        "当前：关闭",
       );
     });
   });
@@ -619,8 +723,9 @@ describe("PersonaPreferencesSection（P1a 交流默认与导出）", () => {
     expect(buttonById("settings-persona-policy-enable").disabled).toBe(true);
     expect(buttonById("settings-persona-policy-disable").disabled).toBe(true);
     expect(buttonById("settings-persona-pref-preferredAddress-save").disabled).toBe(true);
-    // 未初始化时 listPreferences 返回空答案：槽缺席 → 无忘记入口。
+    // 未初始化时 listPreferences 返回空答案：槽缺席 → 无忘记入口；L 开关同样禁用。
     expect(screen.queryByTestId("settings-persona-pref-preferredAddress-forget")).toBeNull();
+    expect(buttonById("settings-persona-learning-enable").disabled).toBe(true);
 
     fireEvent.click(buttonById("settings-persona-export"));
     await waitFor(() => {

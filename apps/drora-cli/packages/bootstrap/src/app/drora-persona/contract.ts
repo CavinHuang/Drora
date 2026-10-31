@@ -18,12 +18,17 @@
  *   不吞原 session/provider 错误。
  * - 同根多进程共享靠库事务/CAS；本模块不提供内存锁，进程内服务是惰性单例。
  */
-import type { PersonaCapturePort } from "@drora/core/persona";
+import type { PersonaCapturePort, PersonaLearningNotificationPort } from "@drora/core/persona";
 import type { Logger } from "@drora/contracts";
 import type { PersonaStorePort } from "@drora/adapters/storage/persona";
 import { PERSONA_CAPTURE_OMITTED_REASONS, PERSONA_STORAGE_KEYS } from "@drora/shared";
 import { join } from "node:path";
 import type { PersonaInternalCapture } from "./persona-capture-port.js";
+import type {
+  PersonaLearningCounters,
+  PersonaLearningManagement,
+  PersonaLearningServiceOptions,
+} from "./learning-contract.js";
 import type {
   PersonaCoreMutationResult,
   PersonaCoreSnapshot,
@@ -110,16 +115,23 @@ export interface PersonaAppServiceOptions {
   readonly now?: () => number;
   /**
    * capture 总预算毫秒（合同 §2「capture 总预算初始 250ms」、spec §6）：打开库+迁移+
-   * 读快照的整个捕获路径限时；超预算按 budget_exhausted 省略扩展、原任务继续（PM16），
-   * 不让慢盘/迁移/worker 卡死无上界延迟首个合格主请求。缺省取
+   * 读快照+inferred 来源复验的整个捕获路径限时；超预算按 budget_exhausted 省略扩展、
+   * 原任务继续（PM16），不让慢盘/迁移/worker 卡死无上界延迟首个合格主请求。缺省取
    * PERSONA_STORE_DEFAULTS.captureBudgetMs。
    */
   readonly captureBudgetMs?: number;
   /**
-   * 存储端口工厂；缺省 openPersonaStore。测试注入受控实现以演练环境级故障；
-   * 生产代码不得用它绕过 cli-persona-store 的迁移/事务语义。
+   * 存储端口工厂；缺省 openPersonaStore（在程 engine）。生产组合（persona-system.ts）
+   * 显式传 openWorkerPersonaStore——合同 §2「SQLite 位于异步 worker」。测试注入受控实现
+   * 以演练环境级故障；生产代码不得用它绕过 cli-persona-store 的迁移/事务语义。
    */
   readonly openStore?: (dbPath: string) => Promise<PersonaStorePort>;
+  /**
+   * P1b 有限学习（spec §8/合同 §6）：来源 owner 端口、抽取端口与预算旋钮。缺省＝
+   * paused 抽取器 + 无 owner（学习接收与 inferred 注入按「缺证据即跳过」降级）；
+   * 真实模型适配器属切片 D 授权后部分，本轮零真实调用。
+   */
+  readonly learning?: PersonaLearningServiceOptions;
   /** 固定 scope 的服务日志；只记固定类别/ID/耗时，不落个人正文（合同 §3）。 */
   readonly logger?: Logger;
 }
@@ -133,6 +145,11 @@ export interface PersonaSystemBinding {
   /** 可信 CLI 存储根（getCliStorageRoot 的结果）；库路径由此解析，进程内首个绑定生效。 */
   readonly trustedCliStorageRoot: string;
   readonly logger?: Logger;
+  /**
+   * P1b 学习装配（可选）：来源 owner 端口与抽取端口。缺省＝paused 抽取器 + 无 owner，
+   * 学习按「缺证据即跳过」降级；生产装配传入 SessionStorePort 派生的只读 owner。
+   */
+  readonly learning?: PersonaLearningServiceOptions;
 }
 
 /**
@@ -144,20 +161,39 @@ export interface PersonaSystemBinding {
 export type PersonaControlPortFactory = (binding: PersonaSystemBinding) => PersonaControlPort;
 
 export interface DroraPersonaSystem {
-  /** 进程内惰性服务单例；构造无 IO，首显式管理调用才打开库。含内部捕获面（capture）。 */
-  readonly appService: () => PersonaAppService & PersonaInternalCapture;
+  /** 进程内惰性服务单例；构造无 IO，首显式管理调用才打开库。含内部捕获面（capture）、
+   *  内部学习面（PersonaInternalLearning）与学习管理面（PersonaLearningManagement）。 */
+  readonly appService: () => PersonaAppService & PersonaInternalCapture & PersonaLearningManagement;
   /**
    * 按执行许可 E 冻结的捕获端口（spec §5）：每个新建 Runtime 用自己的 E 值绑定一次，
    * warm Runtime 不重读；普通 fork 由协议启动偏好继承原许可。E off 一律快速
    * omitted(permission_not_granted)（零 IO、不起 worker）；E on 走真实存储捕获。
    */
   readonly capturePortForPermission: (personaEnabled: boolean) => PersonaCapturePort;
+  /**
+   * P1b 学习机会通知端口工厂（spec §8「只在普通成功轮获得有界机会通知」）：按本 Runtime
+   * 冻结的 E 与 workspaceKey 绑定。E off 或 workspaceKey 缺席返回 undefined——Runtime 不
+   * 装配端口，零开销。消费者（学习协调器）在进程内有界队列（64 待接收，超出丢机会并
+   * 计数）；不写旧库 outbox、不写任务活动时间。
+   */
+  readonly learningNotificationPort: (input: {
+    readonly personaEnabled: boolean;
+    readonly workspaceKey?: string;
+  }) => PersonaLearningNotificationPort | undefined;
+  /**
+   * 学习消费者计数快照（诊断/测试）：接收、64 满丢弃、门跳过原因、工作终态计数。
+   * 固定类别，无来源正文。
+   */
+  readonly learningCountersSnapshot: () => PersonaLearningCounters;
 }
 
 /**
  * 无会话管理的独立组合端口（spec §4「新控制处理器在进程组合层惰性取得 Persona 服务，
  * 不能通过构造 AgentRuntime 来取得仓储」）：协议 server 的控制处理器只经装配层注入的
  * 该端口访问管理 API；端口缺席时控制路由不注册、能力位不广告（合同 §3 unsupported）。
+ * P1b 学习管理方法（allowLearningForKey/getPersonaLearningOverview）在
+ * PersonaLearningManagement（learning-contract.ts）独立成面以满足 contract.ts 的
+ * max-public-methods 上限；acceptLearningSource/processLearningWork 是内部面，不在此暴露。
  */
 export type PersonaControlPort = Pick<
   PersonaAppService,
@@ -172,7 +208,8 @@ export type PersonaControlPort = Pick<
   | "forgetPreference"
   | "listPreferences"
   | "preparePersonaExport"
->;
+> &
+  PersonaLearningManagement;
 
 /**
  * 把可信 CLI 存储根解析为 persona.sqlite 路径（单一出处：shared PERSONA_STORAGE_KEYS；

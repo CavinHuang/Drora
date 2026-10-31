@@ -1,11 +1,13 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import {
+  PERSONA_LEARNING_BUDGET,
   PERSONA_PREFERENCE_ALLOWED_VALUES,
   PERSONA_PREFERENCE_KEYS,
   PERSONA_PREFERENCE_LIMITS,
   type PersonaPreferenceKey,
 } from "@drora/shared";
 import { Button } from "@/components/ui/button.js";
+import { PersonaSourceStatus } from "./PersonaSourceStatus.js";
 import { Input } from "@/components/ui/input.js";
 import {
   AlertDialog,
@@ -39,18 +41,18 @@ import {
 } from "./usePersonaPreferences.js";
 
 /**
- * Drora Persona P1a「交流默认与导出」分区（specs/drora-persona-system.md §9/§10、
- * docs/design/drora-persona-data-contracts-2026-10-29.md §1.2/§4.2/§7）。
- *
- * 诚实呈现边界：
+ * Drora Persona「交流默认、使用策略与有限学习」分区（specs/drora-persona-system.md
+ * §5/§8/§9/§10、docs/design/drora-persona-data-contracts-2026-10-29.md §1.2/§3/§4.2/§7/§8）。
+ * 诚实呈现边界（争议/抑制/来源类别是三件事，分行如实展示，不合并成一个状态）：
  * - 偏好当前值来自 listPreferences（服务权威）；草稿是 UI 局部状态，CAS revision 冲突
  *   保留草稿并给出「已保存 vs 草稿」比较，不静默 last-write-wins；
- * - U 使用许可没有查询方法（shared 只暴露 setPersonalPolicy 写路径）：本区展示两态切换
- *   按钮，状态行只陈述本会话最近一次确定性操作结果，初始如实显示「当前生效值未知，
- *   以服务为准」；不做「当前会话已关闭」类断言，切换只对新轮生效；
- * - 忘记是逻辑撤销：确认文案写明清除范围，不承诺介质擦除、不声称删除聊天记录/项目记忆/诊断；
- * - 导出是只读快照：无资料显示「尚无资料」且不为导出初始化；取消/失败如实提示，
- *   只有平台 saveFile success 才显示已保存。
+ * - U/L 当前值来自 getPersonaLearningOverview（服务权威读路径）；读取失败按「当前生效值
+ *   未知」诚实降级；不做「当前会话已关闭」类断言，切换只对新轮生效；关闭 U 有级联确认
+ *   （同一事务关 L、撤租约、清未提交候选/负载，重开 U 不恢复 L——合同 §4.2）；
+ * - 争议（disputed）只提示经保存/忘记解决（合同 §8），不提供「解除争议」按钮；抑制经
+ *   allowLearningForKey 解除（generation++，只接受之后的新机会）；忘记是逻辑撤销，确认
+ *   文案写明清除范围，不承诺介质擦除、不声称删除聊天记录/项目记忆/诊断；
+ * - 学习只覆盖四类交流默认：无虚构经历页、不建记忆/履历；导出是只读快照，取消/失败不虚报。
  */
 
 const SELECT_PREFERENCE_KEYS = [
@@ -74,9 +76,14 @@ function codePointLength(value: string): number {
   return [...value].length;
 }
 
+type IntlLike = { formatMessage: (descriptor: { id: string }) => string };
+type IntlValues = {
+  formatMessage: (descriptor: { id: string }, values?: Record<string, string>) => string;
+};
+
 /** 受控值 → 用户文案（preferredAddress 是自由文本原样展示；其余走受控词汇键）。 */
 function preferenceValueText(
-  intl: { formatMessage: (descriptor: { id: string }) => string },
+  intl: IntlLike,
   key: PersonaPreferenceKey,
   value: string | null,
 ): string {
@@ -88,10 +95,7 @@ function preferenceValueText(
 }
 
 /** 偏好/策略共用的结果文案；saved/unchanged/forgotten 由调用方按区域选择键。 */
-function noticeText(
-  intl: { formatMessage: (descriptor: { id: string }, values?: Record<string, string>) => string },
-  notice: PersonaPreferenceNotice,
-): string {
+function noticeText(intl: IntlValues, notice: PersonaPreferenceNotice): string {
   switch (notice.kind) {
     case "saved":
       return intl.formatMessage({ id: "settings.drora.notice.saved" });
@@ -120,6 +124,32 @@ function noticeClassName(tone: PersonaPreferenceNotice["tone"]): string {
       : "text-ui-sm text-foreground-subtle";
 }
 
+/** 策略开关状态行：当前值来自 overview（服务权威）；无 overview 时诚实降级为未知。 */
+function policyStateText(
+  intl: IntlLike,
+  currentValue: boolean | null,
+  lastOperation: { value: boolean; kind: "saved" | "unchanged" } | null,
+): string {
+  const current =
+    currentValue === null
+      ? intl.formatMessage({ id: "settings.drora.policy.state.unknown" })
+      : intl.formatMessage({
+          id: currentValue ? "settings.drora.policy.state.on" : "settings.drora.policy.state.off",
+        });
+  if (!lastOperation) return current;
+  const submitted = intl.formatMessage({
+    id:
+      lastOperation.kind === "saved"
+        ? lastOperation.value
+          ? "settings.drora.policy.state.savedOn"
+          : "settings.drora.policy.state.savedOff"
+        : lastOperation.value
+          ? "settings.drora.policy.state.unchangedOn"
+          : "settings.drora.policy.state.unchangedOff",
+  });
+  return `${current}　${submitted}`;
+}
+
 export function PersonaPreferencesSection({
   personaService,
 }: {
@@ -134,6 +164,7 @@ export function PersonaPreferencesSection({
     initialized,
     slots,
     policy,
+    learningOverview,
     exportPending,
     exportNotice,
     forgetCandidate,
@@ -145,9 +176,12 @@ export function PersonaPreferencesSection({
     requestForget,
     cancelForget,
     handleForgetPreference,
+    handleAllowLearning,
     handleSetPolicy,
     handleExport,
   } = preferences;
+  // 关闭 U 的级联确认（合同 §4.2 同事务关 L）：确认文案写明级联与不可恢复范围。
+  const [cascadeConfirmOpen, setCascadeConfirmOpen] = useState(false);
 
   if (loadPhase === "loading") {
     return (
@@ -186,22 +220,26 @@ export function PersonaPreferencesSection({
     );
   }
 
-  const policyStateText = policy.lastOperation
-    ? policy.lastOperation.kind === "saved"
-      ? intl.formatMessage({
-          id: policy.lastOperation.value
-            ? "settings.drora.policy.state.savedOn"
-            : "settings.drora.policy.state.savedOff",
-        })
-      : intl.formatMessage({
-          id: policy.lastOperation.value
-            ? "settings.drora.policy.state.unchangedOn"
-            : "settings.drora.policy.state.unchangedOff",
-        })
-    : intl.formatMessage({ id: "settings.drora.policy.state.unknown" });
+  const overviewPolicy =
+    learningOverview && learningOverview.state === "initialized" ? learningOverview.policy : null;
+  const overviewBudget =
+    learningOverview && learningOverview.state === "initialized" ? learningOverview.budget : null;
+  const overviewSources =
+    learningOverview && learningOverview.state === "initialized" ? learningOverview.sources : null;
+  const overviewCounters =
+    learningOverview && learningOverview.state === "initialized" ? learningOverview.counters : null;
 
   const policyPending = policy.pending;
   const policyButtonsDisabled = !initialized || policyPending;
+  // L 关闭需要保持当前 U 值（wire 的 usePreferences 必填）：概览缺席时不猜测，禁用该按钮。
+  // L 开关的「开启」语义是显式的「同时开启 U 与 L」，目标值明确，不依赖概览。
+  const learningEnableDisabled = policyButtonsDisabled;
+  const learningDisableDisabled = policyButtonsDisabled || overviewPolicy === null;
+
+  const lastOperationFor = (switchName: "usePreferences" | "autoLearn") =>
+    policy.lastOperation && policy.lastOperation.switch === switchName
+      ? { value: policy.lastOperation.value, kind: policy.lastOperation.kind }
+      : null;
 
   const renderPreferenceActions = (key: PersonaPreferenceKey): ReactNode => {
     const slot = slots[key];
@@ -215,6 +253,7 @@ export function PersonaPreferencesSection({
     const addressInvalid =
       key === PERSONA_PREFERENCE_KEYS.preferredAddress &&
       codePointLength((draftValue ?? "").trim()) === 0;
+    const mergedSourceCount = overviewSources?.filter((source) => source.key === key).length ?? 0;
     return (
       <div className="w-full space-y-2">
         <div className="flex flex-wrap items-center gap-2">
@@ -232,7 +271,12 @@ export function PersonaPreferencesSection({
             size="sm"
             data-testid={`settings-persona-pref-${key}-save`}
             disabled={
-              !initialized || !dirty || addressInvalid || slot.pending || slot.forgetPending
+              !initialized ||
+              !dirty ||
+              addressInvalid ||
+              slot.pending ||
+              slot.forgetPending ||
+              slot.allowPending
             }
             onClick={() => {
               void handleSavePreference(key);
@@ -247,7 +291,7 @@ export function PersonaPreferencesSection({
             size="sm"
             variant="outline"
             data-testid={`settings-persona-pref-${key}-cancel`}
-            disabled={!dirty || slot.pending || slot.forgetPending}
+            disabled={!dirty || slot.pending || slot.forgetPending || slot.allowPending}
             onClick={() => cancelPreferenceDraft(key)}
           >
             {intl.formatMessage({ id: "settings.drora.identity.cancel" })}
@@ -258,7 +302,7 @@ export function PersonaPreferencesSection({
               size="sm"
               variant="outline"
               data-testid={`settings-persona-pref-${key}-forget`}
-              disabled={!initialized || slot.pending || slot.forgetPending}
+              disabled={!initialized || slot.pending || slot.forgetPending || slot.allowPending}
               onClick={() => requestForget(key)}
             >
               {slot.forgetPending
@@ -267,6 +311,19 @@ export function PersonaPreferencesSection({
             </Button>
           ) : null}
         </div>
+        {/* 来源状态（合同 §1.2/§8）：类别/认识状态/争议/抑制分行如实展示，互不混淆。 */}
+        {slot.saved ? (
+          <PersonaSourceStatus
+            intl={intl}
+            saved={slot.saved}
+            mergedSourceCount={mergedSourceCount}
+            allowPending={slot.allowPending}
+            initialized={initialized}
+            onAllowLearning={() => {
+              void handleAllowLearning(key);
+            }}
+          />
+        ) : null}
         {diverged ? (
           <div
             className="space-y-2 rounded-lg bg-warning-surface px-3 py-3 text-warning-surface-foreground"
@@ -302,7 +359,7 @@ export function PersonaPreferencesSection({
                 size="sm"
                 variant="outline"
                 data-testid={`settings-persona-pref-${key}-discard-draft`}
-                disabled={slot.pending || slot.forgetPending}
+                disabled={slot.pending || slot.forgetPending || slot.allowPending}
                 onClick={() => cancelPreferenceDraft(key)}
               >
                 {intl.formatMessage({ id: "settings.drora.divergence.discardDraft" })}
@@ -344,7 +401,7 @@ export function PersonaPreferencesSection({
           ) : null}
         </div>
 
-        {/* U 使用许可（spec §5）：两态按钮各自显式提交；无全局查询，不冒充当前值。 */}
+        {/* U 使用许可（spec §5）：两态按钮各自显式提交；关闭走级联确认（合同 §4.2）。 */}
         <SettingsRow
           controlLayout="wide"
           label={intl.formatMessage({ id: "settings.drora.policy.title" })}
@@ -355,12 +412,18 @@ export function PersonaPreferencesSection({
                 type="button"
                 size="sm"
                 data-testid="settings-persona-policy-enable"
-                disabled={policyButtonsDisabled || policy.pendingTarget === true}
+                disabled={
+                  policyButtonsDisabled ||
+                  (policy.pendingTarget !== null &&
+                    !(
+                      policy.pendingTarget.switch === "usePreferences" && policy.pendingTarget.value
+                    ))
+                }
                 onClick={() => {
                   void handleSetPolicy(true);
                 }}
               >
-                {policy.pendingTarget === true
+                {policy.pendingTarget?.switch === "usePreferences" && policy.pendingTarget.value
                   ? intl.formatMessage({ id: "settings.drora.policy.enabling" })
                   : intl.formatMessage({ id: "settings.drora.policy.enable" })}
               </Button>
@@ -369,12 +432,17 @@ export function PersonaPreferencesSection({
                 size="sm"
                 variant="outline"
                 data-testid="settings-persona-policy-disable"
-                disabled={policyButtonsDisabled || policy.pendingTarget === false}
-                onClick={() => {
-                  void handleSetPolicy(false);
-                }}
+                disabled={
+                  policyButtonsDisabled ||
+                  (policy.pendingTarget !== null &&
+                    !(
+                      policy.pendingTarget.switch === "usePreferences" &&
+                      !policy.pendingTarget.value
+                    ))
+                }
+                onClick={() => setCascadeConfirmOpen(true)}
               >
-                {policy.pendingTarget === false
+                {policy.pendingTarget?.switch === "usePreferences" && !policy.pendingTarget.value
                   ? intl.formatMessage({ id: "settings.drora.policy.disabling" })
                   : intl.formatMessage({ id: "settings.drora.policy.disable" })}
               </Button>
@@ -383,7 +451,11 @@ export function PersonaPreferencesSection({
           detail={
             <div className="w-full space-y-2">
               <p className="text-ui-sm text-foreground" data-testid="settings-persona-policy-state">
-                {policyStateText}
+                {policyStateText(
+                  intl,
+                  overviewPolicy ? overviewPolicy.usePreferences : null,
+                  lastOperationFor("usePreferences"),
+                )}
               </p>
               {policy.notice ? (
                 <p
@@ -400,6 +472,111 @@ export function PersonaPreferencesSection({
                         : policy.notice.kind === "uninitialized"
                           ? intl.formatMessage({ id: "settings.drora.policy.notice.uninitialized" })
                           : noticeText(intl, policy.notice)}
+                </p>
+              ) : null}
+            </div>
+          }
+        />
+
+        {/* L 自动学习（spec §5/§8）：独立授权、默认 off；开启＝U&&L 一次提交；无虚构经历页。 */}
+        <SettingsRow
+          controlLayout="wide"
+          label={intl.formatMessage({ id: "settings.drora.learning.title" })}
+          description={intl.formatMessage({ id: "settings.drora.learning.description" })}
+          control={
+            <div className="flex shrink-0 items-center gap-2">
+              <Button
+                type="button"
+                size="sm"
+                data-testid="settings-persona-learning-enable"
+                disabled={
+                  learningEnableDisabled ||
+                  (policy.pendingTarget !== null &&
+                    !(policy.pendingTarget.switch === "autoLearn" && policy.pendingTarget.value))
+                }
+                onClick={() => {
+                  // 学习前置＝U&&L：一次 CAS 完成一致状态（概览缺席也安全——显式开 U 是该按钮语义）。
+                  void handleSetPolicy(true, true);
+                }}
+              >
+                {policy.pendingTarget?.switch === "autoLearn" && policy.pendingTarget.value
+                  ? intl.formatMessage({ id: "settings.drora.learning.enabling" })
+                  : intl.formatMessage({ id: "settings.drora.learning.enable" })}
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                data-testid="settings-persona-learning-disable"
+                disabled={learningDisableDisabled}
+                onClick={() => {
+                  // 关闭 L 保持当前 U 值不变（概览缺席时按钮已禁用，不猜测发请求）。
+                  void handleSetPolicy(
+                    overviewPolicy ? overviewPolicy.usePreferences : true,
+                    false,
+                  );
+                }}
+              >
+                {policy.pendingTarget?.switch === "autoLearn" && !policy.pendingTarget.value
+                  ? intl.formatMessage({ id: "settings.drora.learning.disabling" })
+                  : intl.formatMessage({ id: "settings.drora.learning.disable" })}
+              </Button>
+            </div>
+          }
+          detail={
+            <div className="w-full space-y-2">
+              <p
+                className="text-ui-sm text-foreground"
+                data-testid="settings-persona-learning-state"
+              >
+                {policyStateText(
+                  intl,
+                  overviewPolicy ? overviewPolicy.autoLearn : null,
+                  lastOperationFor("autoLearn"),
+                )}
+              </p>
+              {overviewBudget ? (
+                <p
+                  className="text-ui-sm text-foreground-subtle"
+                  data-testid="settings-persona-learning-budget"
+                >
+                  {intl.formatMessage(
+                    { id: "settings.drora.learning.budget" },
+                    {
+                      attempts: String(overviewBudget.attemptsUsed),
+                      attemptsMax: String(PERSONA_LEARNING_BUDGET.dailyModelAttemptsMax),
+                      input: String(overviewBudget.inputTokensUsed),
+                      inputMax: String(PERSONA_LEARNING_BUDGET.dailyInputTokensMax),
+                      output: String(overviewBudget.outputTokensUsed),
+                      outputMax: String(PERSONA_LEARNING_BUDGET.dailyOutputTokensMax),
+                    },
+                  )}
+                </p>
+              ) : null}
+              {overviewCounters ? (
+                <p
+                  className="text-ui-sm text-foreground-subtle"
+                  data-testid="settings-persona-learning-counters"
+                >
+                  {intl.formatMessage(
+                    { id: "settings.drora.learning.counters" },
+                    {
+                      received: String(overviewCounters.received),
+                      dropped: String(overviewCounters.droppedQueueFull),
+                      applied: String(overviewCounters.workApplied),
+                      noChange: String(overviewCounters.workNoChange),
+                      rejected: String(overviewCounters.workRejected),
+                    },
+                  )}
+                </p>
+              ) : null}
+              {policy.notice ? (
+                <p
+                  role="status"
+                  className={noticeClassName(policy.notice.tone)}
+                  data-testid="settings-persona-learning-notice"
+                >
+                  {noticeText(intl, policy.notice)}
                 </p>
               ) : null}
             </div>
@@ -536,6 +713,40 @@ export function PersonaPreferencesSection({
           }
         />
       </SettingsGroupCard>
+
+      {/* 关闭 U 的级联确认（合同 §4.2）：同事务关 L、撤租约、清未提交候选/负载；重开 U 不恢复 L。 */}
+      <AlertDialog
+        open={cascadeConfirmOpen}
+        onOpenChange={(open) => {
+          if (!open) setCascadeConfirmOpen(false);
+        }}
+      >
+        <AlertDialogContent data-testid="settings-persona-cascade-confirm">
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {intl.formatMessage({ id: "settings.drora.policy.cascade.title" })}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {intl.formatMessage({ id: "settings.drora.policy.cascade.description" })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setCascadeConfirmOpen(false)}>
+              {intl.formatMessage({ id: "common.cancel" })}
+            </AlertDialogCancel>
+            <AlertDialogAction
+              data-testid="settings-persona-cascade-confirm-action"
+              onClick={(event) => {
+                event.preventDefault();
+                setCascadeConfirmOpen(false);
+                void handleSetPolicy(false);
+              }}
+            >
+              {intl.formatMessage({ id: "settings.drora.policy.cascade.action" })}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* 忘记确认（spec §9）：准确范围说明——逻辑撤销，不叫「彻底忘记/所有地方删除」。 */}
       <AlertDialog

@@ -3480,18 +3480,35 @@ const enUS: Record<string, string> = {
   "settings.drora.preferences.forgetting": "Forgetting…",
   "settings.drora.preferences.notice.forgotten":
     "Preference forgotten (a logical undo). Only later turns are affected; turns already frozen, chat history and project memory stay unchanged.",
+  // P1b source status (contract §1.2/§8): provenance category, epistemic status, dispute and
+  // suppression are separate facts shown on separate lines; disputes are resolved only via
+  // save/forget; suppression is lifted via "allow learning" (generation++, new opportunities only).
+  "settings.drora.preferences.provenance.settings": "Source: saved in settings",
+  "settings.drora.preferences.provenance.extraction": "Source: automatic extraction",
+  "settings.drora.preferences.epistemic.explicit": "Explicit",
+  "settings.drora.preferences.epistemic.inferred": "Inferred",
+  "settings.drora.preferences.disputedBadge": "Conflicting inferred values; injection paused for this key",
+  "settings.drora.preferences.disputedHint":
+    "Resolve the conflict via \"Save\" or \"Forget\": both clear the dispute and advance the revision; the automatic value itself is not kept.",
+  "settings.drora.preferences.suppressedBadge": "Automatic learning suppressed for this key",
+  "settings.drora.preferences.allowLearning": "Allow learning",
+  "settings.drora.preferences.allowing": "Allowing…",
+  "settings.drora.preferences.pendingCandidate":
+    "One suggestion awaits confirmation: {value} (resolve via Save or Forget; automatic content is only kept after your confirmation)",
   "settings.drora.forget.confirmTitle": 'Forget "{key}"?',
   "settings.drora.forget.confirmDescription":
     "This is a logical undo: it clears the app-accessible saved value and candidates for this key. It does not delete chat history, project memory, or diagnostics, and it is not a media-level erase; turns already frozen stay unchanged.",
   "settings.drora.policy.title": "Usage permission (preference injection)",
   "settings.drora.policy.description":
-    "Communication defaults are only injected into new turns while this permission is on. A switch takes effect on the next new turn; turns already frozen stay unchanged. This page does not read the global current value of the switch; the status below reflects this session's latest operation, and the effective value on the service is authoritative.",
+    "Communication defaults are only injected into new turns while this permission is on. A switch takes effect on the next new turn; turns already frozen stay unchanged. The current value is read from the service; changes made in other windows appear after a refresh.",
   "settings.drora.policy.enable": "Turn on",
   "settings.drora.policy.disable": "Turn off",
   "settings.drora.policy.enabling": "Turning on…",
   "settings.drora.policy.disabling": "Turning off…",
   "settings.drora.policy.state.unknown":
-    "Current effective value unknown (not read by this page; the service is authoritative)",
+    "Current effective value unknown (read failed; the service is authoritative)",
+  "settings.drora.policy.state.on": "Currently on (read from the service)",
+  "settings.drora.policy.state.off": "Currently off (read from the service)",
   "settings.drora.policy.state.savedOn": "Submitted in this session: on (applies to new turns)",
   "settings.drora.policy.state.savedOff": "Submitted in this session: off (applies to new turns)",
   "settings.drora.policy.state.unchangedOn":
@@ -3506,6 +3523,27 @@ const enUS: Record<string, string> = {
     "The usage permission was changed in another window: the revision has been re-read; click again to apply your choice.",
   "settings.drora.policy.notice.uninitialized":
     "The persona is not initialized yet. Initialize it before changing the usage permission.",
+  // Turning U off cascades in the same transaction (contract §4.2): L off, leases revoked,
+  // uncommitted candidates/workloads cleared; turning U back on does not restore L.
+  "settings.drora.policy.cascade.title": "Turn off usage permission?",
+  "settings.drora.policy.cascade.description":
+    "Turning off the usage permission also turns off automatic learning in the same transaction: new learning intake and submission stop immediately, all learning leases are revoked, and uncommitted learning candidates and workloads are cleared. Explicitly saved communication defaults are kept; turns already frozen stay unchanged. Turning the permission back on does not restore automatic learning.",
+  "settings.drora.policy.cascade.action": "Turn off usage permission",
+  // P1b automatic learning (spec §5/§8): independent authorization, off by default; covers
+  // only the four communication defaults; no fabricated-experience page; budget caps are
+  // frozen service constants; counters describe this process only, not a global fact.
+  "settings.drora.learning.title": "Automatic learning (inferred defaults)",
+  "settings.drora.learning.description":
+    "When on, Drora gets bounded learning opportunities from ordinary successful turns and only infers the four communication defaults above. It creates no experiences or memory pages and never changes the core identity, tool permissions, or execution scope. Learning has a daily budget cap; turning it off stops new intake and submission and revokes unfinished learning work.",
+  "settings.drora.learning.enable": "Turn on",
+  "settings.drora.learning.disable": "Turn off",
+  "settings.drora.learning.enabling": "Turning on…",
+  "settings.drora.learning.disabling": "Turning off…",
+  "settings.drora.learning.budget":
+    "Today's learning budget (UTC): {attempts}/{attemptsMax} model attempts · input {input}/{inputMax} · output {output}/{outputMax} tokens",
+  "settings.drora.learning.counters":
+    "Learning activity in this process: received {received} · dropped (queue full) {dropped} · applied {applied} · no change {noChange} · rejected {rejected}",
+  "settings.drora.learning.sourcesCount": "Merged sources: {count}",
   "settings.drora.export.title": "Export persona",
   "settings.drora.export.description":
     "Creates a read-only JSON snapshot (current core, communication defaults, format version and omission counts) without chat transcripts, learning evidence or credentials; saved through the system save dialog, 256 KiB max. Importing is not supported.",

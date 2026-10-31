@@ -4,6 +4,7 @@ import { dirname, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
+  PERSONA_LEARNING_BUDGET,
   PERSONA_RECEIPT_SCOPES,
   PERSONA_STORE_SCHEMA_VERSION,
   PERSONA_TEMPLATE_VERSION,
@@ -60,6 +61,11 @@ describe("persona 独立库仓储（切片 B）", () => {
           expect(tables).toEqual([
             "persona_authority",
             "persona_core",
+            "persona_learning_budget_day",
+            "persona_learning_candidate",
+            "persona_learning_evidence",
+            "persona_learning_source",
+            "persona_learning_work",
             "persona_mutation_receipt",
             "persona_policy",
             "persona_preference",
@@ -134,8 +140,16 @@ describe("persona 独立库仓储（切片 B）", () => {
                 core: defaultCore(),
                 updatedAt: 1_000,
               },
-              // P1a：策略行缺席＝读侧默认，偏好列表为空（迁移不回填）。
-              policy: { usePreferences: false, policyRevision: 0, policyEpoch: 0 },
+              // P1a：策略行缺席＝读侧默认，偏好列表为空（迁移不回填）；P1b 加宽字段
+              // （autoLearn/learningGeneration/learningBudget）同为读侧默认。
+              policy: {
+                usePreferences: false,
+                autoLearn: false,
+                learningGeneration: 0,
+                policyRevision: 0,
+                policyEpoch: 0,
+                learningBudget: PERSONA_LEARNING_BUDGET,
+              },
               preferences: [],
             },
           },
@@ -663,8 +677,8 @@ describe("persona 存储默认值与迁移清单", () => {
     expect(PERSONA_STORE_DEFAULTS.receiptMaxPerAuthority).toBe(4096);
   });
 
-  it("迁移清单：切片 B 建 P0 三类表，P1a 追加 policy/preference 并扩展 receipt 词汇", () => {
-    expect(PERSONA_MIGRATIONS).toHaveLength(2);
+  it("迁移清单：P0 三类表 → P1a policy/preference → P1b 学习域五表并加宽策略/槽词汇", () => {
+    expect(PERSONA_MIGRATIONS).toHaveLength(3);
     expect([...PERSONA_MIGRATIONS[0]!.touchedTables]).toEqual([
       "persona_authority",
       "persona_core",
@@ -674,6 +688,16 @@ describe("persona 存储默认值与迁移清单", () => {
       "persona_policy",
       "persona_preference",
       "persona_mutation_receipt",
+    ]);
+    expect(PERSONA_MIGRATIONS[2]!.id).toBe("0003_persona_p1b_learning");
+    expect([...PERSONA_MIGRATIONS[2]!.touchedTables]).toEqual([
+      "persona_policy",
+      "persona_preference",
+      "persona_learning_evidence",
+      "persona_learning_work",
+      "persona_learning_candidate",
+      "persona_learning_source",
+      "persona_learning_budget_day",
     ]);
   });
 

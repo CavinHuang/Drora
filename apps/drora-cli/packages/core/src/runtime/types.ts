@@ -115,7 +115,7 @@ import type { RuntimeTaskRegistry } from "../runtime-task/registry.js";
 import type { BashTimeoutPolicy } from "../tool/bash-timeout-policy.js";
 import type { PresentationSurface } from "../context/types.js";
 import type { WorkspaceHookRuntimeAdmissionPort } from "../hooks/workspace-hook-runtime-admission.js";
-import type { PersonaCapturePort } from "../persona/index.js";
+import type { PersonaCapturePort, PersonaLearningNotificationPort } from "../persona/index.js";
 
 // -----------------------------------------------
 // Agent Runtime
@@ -374,6 +374,13 @@ export interface AgentRuntimeDeps {
    * 生产服务与执行许可门属于后续切片；测试经此注入受控捕获适配。
    */
   personaCapturePort?: PersonaCapturePort;
+  /**
+   * P1b 学习机会通知端口（spec §8「只在普通成功轮获得有界机会通知」）：普通成功轮完成后
+   * 非阻塞通知一次，不等待、不写任务活动时间、不进 TurnComplete 关键路径。资格与 capture
+   * 同表（admission 冻结）；端口缺席/自动化/闲时/model-only/合成来源一律无通知。执行许可
+   * E 由装配层在端口绑定时冻结（E off 不装配）；消费者侧自有 64 待接收上界与全部学习门。
+   */
+  personaLearningNotificationPort?: PersonaLearningNotificationPort;
   /** 工作流 actor 提交终态结果的端口；存在即作为 submit_result 工具的注册门。 */
   workflowSubmitPort?: WorkflowSubmitPort;
   /**

@@ -36,8 +36,10 @@ import type {
   DroraPersonaInitializeResult,
   DroraPersonaOverviewResult,
   DroraPersonaPreviewResult,
+  DroraPersonaAllowLearningResult,
   DroraPersonaCoreMutationResult,
   DroraPersonaForgetPreferenceResult,
+  DroraPersonaGetLearningOverviewResult,
   DroraPersonaListPreferencesResult,
   DroraPersonaPrepareExportResult,
   DroraPersonaSavePreferenceResult,
@@ -799,10 +801,13 @@ export interface IDroraAgentService {
     params: DroraAgentSessionTarget & { turnId: string },
   ): Promise<DroraPersonaGetApplicationResult>;
   // P1a 使用策略/交流默认/导出（合同 §1.2/§3/§4.2/§7）：同一本机 CLI 控制连接代理；
-  // 错误码语义由 CLI 服务层给出，本层只透传。
+  // 错误码语义由 CLI 服务层给出，本层只透传。P1b（合同 §3）：autoLearn 是 L patch
+  //（缺省＝保持当前值；关 U 的级联由 CLI 存储侧执行），allowLearningForKey 解除该键
+  // 抑制，getPersonaLearningOverview 读侧概览。
   setPersonalPolicy(params: {
     expectedPolicyRevision: number;
     usePreferences: boolean;
+    autoLearn?: boolean;
     mutationId: string;
   }): Promise<DroraPersonaSetPolicyResult>;
   savePreference(params: {
@@ -818,6 +823,14 @@ export interface IDroraAgentService {
   }): Promise<DroraPersonaForgetPreferenceResult>;
   listPreferences(): Promise<DroraPersonaListPreferencesResult>;
   preparePersonaExport(): Promise<DroraPersonaPrepareExportResult>;
+  /** P1b（合同 §3 allowLearningForKey）：解除该键自动学习抑制（generation++ 屏障）。 */
+  allowLearningForKey(params: {
+    key: string;
+    expectedGeneration: number;
+    mutationId: string;
+  }): Promise<DroraPersonaAllowLearningResult>;
+  /** P1b 读侧概览（persona/getPersonaLearningOverview）：策略事实/预算台账/来源定位/进程计数。 */
+  getPersonaLearningOverview(): Promise<DroraPersonaGetLearningOverviewResult>;
   /**
    * 资源管理器：枚举本 Host 内全部本地 Agent 进程（含 plugin / mcp-status 泳道），
    * 并向每个存活 runtime 请求 `process/childProcesses`；单个 runtime 失败只让它的 children 为空。

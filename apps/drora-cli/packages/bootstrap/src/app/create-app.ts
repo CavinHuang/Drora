@@ -40,7 +40,7 @@ import {
   type ExecutionShellSelection,
   type MessageId,
 } from "@drora/contracts";
-import { isRemoteWorkspaceIdentity, resolveDroraRuntimeEnv } from "@drora/shared";
+import { isRemoteWorkspaceIdentity, resolveDroraRuntimeEnv, resolveWorkspaceKey } from "@drora/shared";
 import {
   DRORA_ATTACHMENT_FAULT_CODES,
   DroraAttachmentFaultError,
@@ -78,7 +78,10 @@ import { resolveAppRuntimeConfig, runtimeConfigLogContext } from "./runtime-conf
 import { resolveBundledSkillRoots } from "./bundled-skills.js";
 import { collectDynamicWorkflowDisabledSkillPaths } from "./dynamic-workflow-gate.js";
 import { gateAgentsTeamSkillPort } from "./agents-team-skill-gate/index.js";
-import { getOrCreateDroraPersonaSystem } from "./drora-persona/index.js";
+import {
+  createSessionStoreLearningSourceOwner,
+  getOrCreateDroraPersonaSystem,
+} from "./drora-persona/index.js";
 import { createWorkspaceHookRuntimeSecurity } from "./workspace-hook-trust.js";
 import { createScriptWorkflowBridge } from "./script-workflow-methods.js";
 import {
@@ -225,13 +228,6 @@ export async function createDroraApp(options: DroraAppOptions): Promise<DroraApp
   try {
     const storageRoot = resolvePath(configResult.config.storage.dir);
     const cliStorageRoot = getCliStorageRoot(storageRoot);
-    // P0 人格资料域的进程级绑定（spec §4 bootstrap/app/drora-persona）：纯内存绑定，不读库、
-    // 不起 worker、不阻塞 ready；库路径只来自可信 CLI 存储根（不用 project config 的
-    // storage.dir 派生域或 cwd）。切片 C 起 capture 端口按 Runtime 冻结的执行许可 E 绑定。
-    const personaSystem = getOrCreateDroraPersonaSystem({
-      trustedCliStorageRoot: cliStorageRoot,
-      logger,
-    });
     const modelIoDir = getModelIoDir(
       cliStorageRoot,
       resolveDroraRuntimeEnv(options.env ?? process.env) === "development",
@@ -286,6 +282,18 @@ export async function createDroraApp(options: DroraAppOptions): Promise<DroraApp
     const sessionStore =
       options.sessionStore ?? (await openStartupSessionStore(configResult, startupTimer));
     const localSettingStore = asLocalSettingStore(sessionStore);
+    // P0 人格资料域的进程级绑定（spec §4 bootstrap/app/drora-persona）：纯内存绑定，不读库、
+    // 不起 worker、不阻塞 ready；库路径只来自可信 CLI 存储根（不用 project config 的
+    // storage.dir 派生域或 cwd）。切片 C 起 capture 端口按 Runtime 冻结的执行许可 E 绑定；
+    // P1b 起学习通知端口工厂在绑定层接入（进程级单例；同进程重复调用沿用首个绑定的
+    // sessionStore——CLI 进程的 session store 进程稳定，学习来源 owner 是其只读适配）。
+    const personaSystem = getOrCreateDroraPersonaSystem({
+      trustedCliStorageRoot: cliStorageRoot,
+      learning: {
+        sourceOwner: createSessionStoreLearningSourceOwner({ sessionStore }),
+      },
+      logger,
+    });
     const projectID = projectIdFromDirectory(workingDirectory);
     const persistedMode = options.runtimeConfig?.mode
       ? undefined
@@ -928,6 +936,18 @@ export async function createDroraApp(options: DroraAppOptions): Promise<DroraApp
       personaCapturePort: personaSystem.capturePortForPermission(
         runtimeConfig.persona?.enabled === true,
       ),
+      // P1b 学习机会通知端口（spec §8）：普通成功轮完成后非阻塞通知一次。E off 或
+      // workspaceKey 缺席（含 SSH/WSL/独立 Web 等远端执行域，spec §6 用途矩阵）→ 端口
+      // 缺席，零开销；on → 进程级学习协调器（64 待接收上界、全部学习门在消费者侧）。
+      personaLearningNotificationPort: personaSystem.learningNotificationPort({
+        personaEnabled: runtimeConfig.persona?.enabled === true,
+        workspaceKey: isRemoteWorkspaceIdentity(runtimeConfig.memory?.workspaceIdentity ?? "")
+          ? undefined
+          : resolveWorkspaceKey({
+              workspaceIdentity: runtimeConfig.memory?.workspaceIdentity,
+              workspacePath: workingDirectory,
+            }),
+      }),
     };
     runtime = new AgentRuntime(sessionId, runtimeConfig, runtimeAgentDeps);
     // 接缝 α/3：构造后装配 Agents Team（hub/私有端口/派发通道；registry 缺席即灰度关，零开销）。

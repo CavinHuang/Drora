@@ -143,6 +143,9 @@ export default defineConfig({
             // P1a 交流默认与导出（§9/§10：偏好 CAS/忘记确认/outcome_unknown/U 两态/
             // 导出 saveFile/i18n 完整性）；不进 include 则默认单测通道永不执行。
             "packages/ui/src/drora-persona/usePersonaPreferences.test.tsx",
+            // P1b 有限学习管理（§5/§8/§10：L 开关/关闭 U 级联确认/来源状态列表/
+            // 解除抑制 CAS/概览读取失败降级）；同理必须进默认单测通道。
+            "packages/ui/src/drora-persona/usePersonaLearning.test.tsx",
             "packages/ui/src/voice/AnnouncementIndicator.test.tsx",
             "packages/ui/src/store/voiceSessionStore.test.ts",
             "packages/ui/src/v4/composer/composerTextAppend.test.ts",

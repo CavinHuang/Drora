@@ -101,7 +101,7 @@ const globbed = norm([
   ...globSync("packages/ui/src/voice/**/*.test.{ts,tsx}", { cwd: root }),
 ]);
 
-const droraFiles = [...globbed, ...explicit]
+const droraFiles = [...new Set([...globbed, ...explicit])]
   .filter((f) => !f.startsWith("packages/desktop/test/e2e/"))
   .filter((f) => !f.startsWith("packages/zcode-cua/"))
   .filter((f) => !forkIsolated.includes(f))

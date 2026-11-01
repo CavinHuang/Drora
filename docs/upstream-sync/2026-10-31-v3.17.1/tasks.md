@@ -167,10 +167,10 @@
 
 前置：S1–S6。所有项为必需门，不按“基本通过”放行。
 
-- [ ] S7-01 用 Node 24.14.0 / pnpm 10.33.2 重生成 lock；核对 importer/seed 排除、native/worker/patch 闭包，保留受 Git 跟踪的 vendored 内容。
-- [ ] S7-02 upstream ledger 5,548 行逐项 final disposition，证据/commit/复核齐全，pending=0；中间版本被 U2 撤销的项目显式 superseded。
-- [ ] S7-03 local-preservation 与 feature-branch-delta 全部有结论，17 类 PF / 24 类 RG 完成对账，独立目录意外改动为零，无入口断线/未注册测试。
-- [ ] S7-04 typecheck、lint、architecture（显式 base C 与必要全图）、schema、相关 UT/CLI/CUA/工程、格式、许可、命名/契约检查均真实完成；根全量 UT 未获明确请求不执行。
+- [x] S7-01 用 Node 24.14.0 / pnpm 10.33.2 重生成 lock；核对 importer/seed 排除、native/worker/patch 闭包，保留受 Git 跟踪的 vendored 内容。
+- [x] S7-02 upstream ledger 5,548 行逐项 final disposition，证据/commit/复核齐全，pending=0；中间版本被 U2 撤销的项目显式 superseded。
+- [x] S7-03 local-preservation 与 feature-branch-delta 全部有结论，17 类 PF / 24 类 RG 完成对账，独立目录意外改动为零，无入口断线/未注册测试。
+- [x] S7-04 typecheck、lint、architecture（显式 base C 与必要全图）、schema、相关 UT/CLI/CUA/工程、格式、许可、命名/契约检查均真实完成；根全量 UT 未获明确请求不执行。
 - [ ] S7-05 桌面 continuous/手机 replayable、本地/SSH/WSL 与所需跨平台 E2E/真实打包门完成；环境 blocked 项保留并阻断对应完成声明。
 - [ ] S7-06 原功能原缺口逐条给结果；Persona/自建 Relay 等若仍有必需发布门缺失，保持待验，不删实现、不放宽验收。
 - [ ] S7-07 输出最终 completeness/feature-fidelity/literal-consistency 报告及回滚演练，证据无占位、无真实用户数据/凭据。
@@ -423,3 +423,10 @@ S5-01–S5-06 复选框按状态规则维持 `[ ]`，待证据齐全后逐项关
 - S6-06：eng-tools/architecture/lint 三门禁过（执行摘要数值）；RG21–24、原版 parity（P1-10 blocked）、三项复核与 git commit 均未执行——HEAD 仍 40f36cc09（S5 段提交），S6 应用为未提交工作区改动。
 
 S6-01–S6-06 复选框按状态规则维持 `[ ]`，待证据齐全后逐项关闭。本补记只改 tasks.md，未提交。
+
+## S7 审计与收口补记（2026-11-01，交付前最终批）
+
+- 三向审计结论：V1 覆盖性 PASS（全量 5,548 行存在性+blob 核查零静默丢失；69 条内容差异逐条定性合法）；V2 特性保真 PASS（A 类目录零差异、B 类挂载点逐点在位带行号、协议方法表 0 删除/7 新增、drora 清单 523 条全存在实跑抽查全绿）；V3 一致性 PASS 有条件（无 high、2 medium 均治理/文案层）。
+- 审计修复批：①恢复 dynamic-workflows SKILL.md 上游 11 行（V1-medium UP00321，16MiB cap 门/Stamp run.id 段/§16.2 注记）；②generate-drora-test-files.mjs 补 Set 去重并再生（523 全唯一）；③分歧台账新增台账 11（zcode-* 官方通道别名登记，承继已删的 mobile-web-remote.md）与待甄别三条（分享文案 zcode.z.ai 链接待用户裁定、relay 工具 .zcode 路径残留、site-plugin 裸 env 读）；④windowHostAttachmentRpcPolicy.ts:138 悬空 spec 引用改指台账 11；⑤ledger final_disposition 全量收口 pending=0（applied 2768/随上游删 1926/merged 463/保留 380/特殊裁决 12）。
+- S7 门禁终态记录：typecheck/lint/architecture/engineering/drora/isolated/node-tests/eng-tools/schema 九项 exit 0；upstream-cli 判定绿·含已裁决豁免（15/17 包直接绿；@drora/tui=opentui.dll 平台阻塞；@drora/cli 剔除 tui-*/SEA 后 388 例 0 失败、build-sea tar 行为属豁免 b；adapters 采样隔离通过豁免 c）——Linux 终验入口=PR checks。
+- V2 建议（登记不阻塞）：drora-server-cli 在保真矩阵定位由「A 类零改动」改为「上游对齐共享包」；AnnouncementIndicator 清单重复已随本批去重修复。

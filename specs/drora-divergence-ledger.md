@@ -98,6 +98,15 @@
 - **依据**：`scripts/engineering-tests/scope.mjs:33-43`（`firstPushBase` 实现与注释，自引「divergence 台账 8 / v3.17.1 N2」）；`docs/upstream-sync/2026-10-31-v3.17.1/tasks.md` S1 执行补记 N2 段（旧 `affected-unit-tests/scope.mjs` 随 UP05497 删除，本仓改动=台账 8 staging 回退，由本条在新链承继并修正回退目标）；`docs/ci/affected-unit-test-baseline.md`、`docs/testing/pre-push-hook.md`（N2 口径已同步）。
 - **下次同步注意**：上游再动 `engineering-tests/scope.mjs` 的基线解析时，`drora/main` 回退必须保留（或在本仓引入 staging 类集成分支后按台账 8 的注意项整体重审）；不得把回退目标改回 `origin/main`，也不得引入对 `origin/*`（=zai-org）引用的静默依赖。
 
+## 台账 11：zcode-* 官方通道别名保留（V3 审计补登记，2026-11-01）
+
+- **能力**：`packages/shared/src/channels.ts` 的 `OFFICIAL_RPC_CHANNEL_ALIAS_PREFIX = "zcode-"`（单一出处，消费链 channels.ts → services/collection.ts → desktop/src/host/index.ts）：窗口 Host 除 `drora-*` 通道外同时注册 `zcode-*` 别名，供**官方托管手机页**按官方通道名调用（冻结快照实证：`packages/mobile-web/src/recovered/remote/v4/3.14.3/assets/index-*.js` 调用 `zcode-task/zcode-agent/zcode-session`）。
+- **登记原因**：原登记文件 `specs/mobile-web-remote.md` 已于 2026-10-22（d1a46eafe，移除自研 Relay 复刻）删除；别名是**官方互操作 wire 契约**而非品牌残留，必须留在台账防止后续同步误改名；`windowHostAttachmentRpcPolicy.ts:138` 等注释的 spec 引用自本条承接。
+- **下次同步注意**：上游若重构通道注册/别名机制，保持官方托管页按 `zcode-*` 可达；官方页若改用新通道名族，以最新冻结快照证据更新本条。
+
 ## 待甄别（非既定分歧，下轮同步前需核实）
 
 - **clientType 与 api-key 名漂移嫌疑**（随工单 F1 观察到，未改）：同一上游文档 `apps/zcode-cli/docs/design/v2/auth-login.md` 中 `clientType: "zcode"`（本仓 `apps/drora-cli/docs/design/v2/auth-login.md:176` 为 drora）与 `zcode-api-key`（本仓 :174/:190 为 drora-api-key；同文档 ：186 `appId=zcode` 已守豁免）。appId 是服务端注册值有 spec 实锤（规则 0）；clientType 与 api-key 名是否服务端注册值**未验证**（api-key 名偏客户端自建名，风险较低）。下轮同步 bigmodel OAuth 面时先甄别这两个字面量的服务端契约地位，再决定纳入规则 0 豁免或维持改名，不得静默跟随任一侧。
+- **分享文案下载链接指向官方站（V3 审计 B，2026-11-01，待用户/产品裁定）**：`packages/ui/src/i18n/locales/zh-CN.ts:696,8295` 与 `en-US.ts:752,8775` 的 `manualClaimPlan.claim.share.twitterText`、`globalNotice.highspeed.copySummary` 文案品牌词为 Drora，但链接为 `https://zcode.z.ai`（官方产品站）。疑为 v3.15.1 集成时占位保护机械保留的产物；是否有产品理由（领取/高速卡活动仅官方端可完成）未确认。裁定前维持现状不改行为；裁定后改链接或登记豁免。
+- **relay 校验工具的 `.zcode/toolchain-env.sh` 路径（V3 审计 C，low）**：`packages/relay-v2-server/tools/verify-same-origin.mjs:266,315-322` 寻找 `repoRoot/.zcode/toolchain-env.sh`——本仓 `.zcode/` 为 gitignore 运行时目录，钉版工具链入口实为 `scripts/mise-toolchain-env.mjs`。官方仓/worktree 布局残留，仅影响工具失败提示文案（找不到时回退手动指引，不致误判）；下次同步 relay 工具时顺带对齐。
+- **drora-site-plugin 裸读 env 键（V3 审计 D，low）**：`apps/drora-cli/packages/drora-site-plugin/scripts/drora-site.mjs:145-146` 以裸字面量读 `DRORA_OFFICIAL_ENDPOINT`/`_TOKEN` 而非引用 `shared/src/runtimeEnv.ts` 常量——该脚本为零依赖 .mjs，引入 `@drora/shared` 会破坏其独立运行性；登记为接受的偏差（生产方 bootstrap 侧仍走常量单一出处）。

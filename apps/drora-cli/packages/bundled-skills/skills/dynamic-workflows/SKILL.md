@@ -230,7 +230,9 @@ if (check.exitCode !== 0) feedback = check.stderr;
 
 A nonzero exit code is a **value**, not an exception: read `exitCode` and carry `stderr`
 forward as the next round's feedback, with no `catch`; rejections are for the world failing
-to answer (spawn failure, timeout, output over the cap). The command name must be a
+to answer (spawn failure, timeout, output over the cap). A test suite can print more than the
+16 MiB cap: a gate that reads only `exitCode` passes `{ output: "discard" }`, and a gate that
+hands the failure on passes `{ output: { tail: 16_384 } }`. The command name must be a
 compile-time string literal, because the user approves the script's command set at
 confirmation: interpolate paths, flags and round numbers into the **args array**, never into
 the command. Open-ended editing belongs to a subagent; `world.run` is for checks your
@@ -549,6 +551,12 @@ completion notification **even when the run fails**, which is how a run that die
 twelfth task keeps eleven tasks' worth of work. Report each finding the moment it lands —
 after its confirmation, with its status — rather than accumulating an array to return at the
 end: the array is what you lose. Items are recorded, so a resumed run never shows one twice.
+
+**Stamp what outlives the run with `run.id`.** A ledger line, a file the script writes for a
+later run, a report item someone will trace back: put `run.id` in it, so the record names the
+run that produced it (`run.resumedFrom` names the run an amendment revised). Keep both out of
+ask text, personas and `files`/`world` arguments. Those are cache keys, and an amendment mints
+a new id, so an ask that quotes it misses the cache and runs again.
 
 **Deliver a report.** The script's final `return` is the handoff the main agent presents,
 in the order below; what the user themselves keep is the artifact of the next section.
@@ -1579,8 +1587,8 @@ fixed logic of a script or of a hole's body; it is not for orchestration.
   metadata handling.
 - `timeoutMs`: the wall clock for the whole snippet in milliseconds; default 60000, at most
   600000.
-- The snippet facade is the `args`, `log`, `files`/`git`, `world.run`, `channel` and `future`
-  parts of the block in §16.2; `agent()`, `report()`, `artifact.*`, `hole()` and the `phase`
+- The snippet facade is the `args`, `run`, `log`, `files`/`git`, `world.run`, `channel` and
+  `future` parts of the block in §16.2 (a snippet's `run.id` is a throwaway `dwfeval-…` id); `agent()`, `report()`, `artifact.*`, `hole()` and the `phase`
   marker are the only absentees — they do not exist here and
   fail typechecking. The language rules are a script's: plain interfaces, top-level `await`, a
   final `return <value>`. The returned value is serialized into the result, so return a

@@ -135,7 +135,7 @@ export function exposeWindowHostAttachmentServices(params: {
   /**
    * 并集契约（对齐 services/collection.ts exposeOnChannelServer 第三参）：
    * Drora 的官方别名开关与上游暴露白名单互不冲突；web-remote-replayable 附着
-   * 需要同时注册 zcode-* 别名供托管手机页按官方名调用（spec: mobile-web-remote.md）。
+   * 需要同时注册 zcode-* 别名供托管手机页按官方名调用（登记：specs/drora-divergence-ledger.md 台账 11）。
    */
   officialChannelAliases?: boolean;
   /** 手机窗口目录与 project 频道同样叠加实时交互，避免远端 scope 下列表缺「待处理」。 */

@@ -182,8 +182,8 @@
 - [x] S8-01 重取 Drora main，若前进先合入集成分支并重开相关任务；更新 merge candidate 与输入 manifest，重新复验。
 - [x] S8-02 记录上游双 parent 祖先，tree 前后严格一致；验证 C/F/U2 为祖先及逐路径内容已吸收，不以 ours merge 替代实际迁移。
 - [x] S8-03 创建以 Drora main 为 base 的完整 PR，附本计划/ledger/验证；保留上游祖先关系，禁止 squash/rebase 丢失记账；不向官方仓库发功能 PR。
-- [ ] S8-04 PR 最终候选 SHA 上跑 required checks 和 pre-push；main 再前进则回到 S8-01，不复用旧 SHA 绿灯。
-- [ ] S8-05 合入 main 后重新取远端，验证祖先、关键文件/tree、PF/RG 结果与版本/发行入口；回填最终 commit、PR、日志和 remaining issues。
+- [x] S8-04 PR 最终候选 SHA 上跑 required checks 和 pre-push；main 再前进则回到 S8-01，不复用旧 SHA 绿灯。
+- [x] S8-05 合入 main 后重新取远端，验证祖先、关键文件/tree、PF/RG 结果与版本/发行入口；回填最终 commit、PR、日志和 remaining issues。
 - [ ] S8-06 盘点未并入的 feature 分支并做升级后兼容预演；保留所有 WIP/ref，不替其实施未授权功能合并；不遗忘待跟进分支。
 
 ## 每段提交检查卡（复制填写）

@@ -602,4 +602,3 @@ async function stageCuaHelperRuntime() {
     `[prepare:agent-bundle] staged cua helper runtime bundled-tools/${platformKey}/cua-helper`,
   );
 }
-

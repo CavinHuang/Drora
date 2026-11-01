@@ -72,20 +72,14 @@
       "match": {
         "method": "POST",
         "pathIncludes": "/messages",
-        "bodyIncludes": [
-          "E2E_RUNNING_SEND_NOW_HEAD"
-        ],
+        "bodyIncludes": ["E2E_RUNNING_SEND_NOW_HEAD"],
         "bodyExcludes": [
           "Generate a concise title",
           "CRITICAL: Respond with TEXT ONLY",
           "The user sent a new message while you were working:"
         ],
-        "lastUserMessageIncludes": [
-          "E2E_RUNNING_SEND_NOW_HEAD"
-        ],
-        "lastUserMessageExcludes": [
-          "E2E_RUNNING_SEND_NOW_HEAD_BASE"
-        ]
+        "lastUserMessageIncludes": ["E2E_RUNNING_SEND_NOW_HEAD"],
+        "lastUserMessageExcludes": ["E2E_RUNNING_SEND_NOW_HEAD_BASE"]
       },
       "response": {
         "statusCode": 200,

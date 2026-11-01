@@ -8,9 +8,14 @@ const execFileAsync = promisify(execFile);
 /**
  * PR-0.3：subagent_child 行为门零改动回归的冻结清单（specs/agents-team.md §9）。
  *
- * 口径：非测试源码中 `(=== | !==) "subagent_child"` 严格相等判定，共 24 处（2026-10-21 再清点）
+ * 口径：非测试源码中 `(=== | !==) "subagent_child"` 严格相等判定，共 17 处（2026-11-01 S3 再清点）
  * （2026-10-16 实测 22 处：core/bootstrap 19 + services sessionKind 3；
- * 2026-10-20 S2 v3.16.1 上游合并 +1：server-operations.ts 会话归属守卫，依据见 §9 注）。
+ * 2026-10-20 S2 v3.16.1 上游合并 +1：server-operations.ts 会话归属守卫；
+ * 2026-10-31 S2 v3.17.1：server-operations/v4-bridge 字面量门收敛进 shared
+ * isReadonlyAgentSessionKind，24→21；2026-11-01 S3 v3.17.1（821b68f5）：services 侧
+ * 4 处（droraTaskIndexSyncer/droraTaskServiceAdapter/droraAgentService/
+ * repairSubagentTaskIndex）收敛进 shared isAuxiliarySessionKind（subagent_child 在其
+ * 集合内，任务索引排除/归属守卫的继承语义不变），21→17（13→10 文件），依据见 §9 注）。
  *
  * 继承原则（spec §9）：teammate 复用 taskType="subagent_child"，本清单全部门按现状
  * 命中——上游新增任何 subagent_child 门时本测试会失败，强制人工复核该门对 teammate
@@ -42,13 +47,11 @@ const FROZEN_GATES: Readonly<Record<string, number>> = {
   "apps/drora-cli/packages/bootstrap/src/drora-protocol/server-operations.ts": 1,
   "apps/drora-cli/packages/bootstrap/src/drora-protocol/subagent-session-query.ts": 1,
   "apps/drora-cli/packages/bootstrap/src/app/subagent-observation.ts": 2,
-  "packages/services/src/drora-agent/droraTaskIndexSyncer.ts": 1,
-  "packages/services/src/drora-agent/droraTaskServiceAdapter.ts": 1,
-  // v3.16.1 合并后分布（2026-10-21 再清点）：repairSubagentTaskIndex 随 task-facts
-  // 重构迁移（S3 rename 落地），droraAgentService 新增 1 处会话归属守卫——按 §9
-  // 继承原则 teammate 自动继承，文件集 14→15、总数 23→24。
-  "packages/services/src/drora-agent/droraAgentService.ts": 1,
-  "packages/services/src/task-facts/repairSubagentTaskIndex.ts": 1,
+  // 2026-11-01 S3 v3.17.1（821b68f5）再冻结：services 侧 4 处字面量门（droraTaskIndexSyncer
+  // 任务索引排除、droraTaskServiceAdapter meta 直返、droraAgentService 会话归属守卫、
+  // repairSubagentTaskIndex 索引修复）收敛进 shared isAuxiliarySessionKind——subagent_child
+  // 在其集合内（isReadonlyAgentSessionKind ∪ selection_side_chat），teammate 继承语义
+  // 不变；shared 不在 GREP_ROOTS 内，属形状迁移而非门移除。census 21→17（13→10 文件）。
 };
 
 const TOTAL_FROZEN_GATES = Object.values(FROZEN_GATES).reduce(
@@ -110,7 +113,7 @@ function groupByPath(gates: readonly GateLine[]): Map<string, number> {
 }
 
 describe("subagent_child behavior gates frozen census", () => {
-  it("keeps the 21-gate census exactly as frozen in specs/agents-team.md §9", async () => {
+  it("keeps the 17-gate census exactly as frozen in specs/agents-team.md §9", async () => {
     const current = groupByPath(await collectCurrentGates());
 
     const missing = Object.keys(FROZEN_GATES).filter((path) => !current.has(path));
@@ -125,7 +128,7 @@ describe("subagent_child behavior gates frozen census", () => {
 缺失文件（门被移除？）: ${JSON.stringify(missing)}
 新增文件（新门——按 spec §9 继承原则确认 teammate 自动继承后，把文件与计数加入 FROZEN_GATES）: ${JSON.stringify(added)}
 计数漂移: ${JSON.stringify(drifted)}`,
-    ).toEqual({ missing: [], added: [], drifted: [], total: 21 });
+    ).toEqual({ missing: [], added: [], drifted: [], total: 17 });
   });
 
   it("notes cover the load-bearing gates referenced by the design", () => {

@@ -172,10 +172,7 @@
       "match": {
         "method": "POST",
         "pathIncludes": "/messages",
-        "bodyIncludes": [
-          "Generate a concise title",
-          "E2E_GUIDE_BATCH_BASE"
-        ]
+        "bodyIncludes": ["Generate a concise title", "E2E_GUIDE_BATCH_BASE"]
       },
       "response": {
         "statusCode": 200,
@@ -199,18 +196,14 @@
       "match": {
         "method": "POST",
         "pathIncludes": "/messages",
-        "bodyIncludes": [
-          "E2E_GUIDE_BATCH_BASE"
-        ],
+        "bodyIncludes": ["E2E_GUIDE_BATCH_BASE"],
         "bodyExcludes": [
           "E2E_GUIDE_BATCH_GUIDE_ONE",
           "Generate a concise title",
           "CRITICAL: Respond with TEXT ONLY",
           "Verify whether the active session goal"
         ],
-        "lastUserMessageIncludes": [
-          "E2E_GUIDE_BATCH_BASE"
-        ]
+        "lastUserMessageIncludes": ["E2E_GUIDE_BATCH_BASE"]
       },
       "response": {
         "statusCode": 200,

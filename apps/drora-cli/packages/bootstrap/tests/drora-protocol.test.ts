@@ -5192,9 +5192,16 @@ describe("DroraProtocolAgentServer", () => {
       },
     });
 
-    await vi.waitFor(() => {
-      expect(secondSendDuringCompleted).toBeDefined();
-    });
+    // 修复原因：vi.waitFor 缺省超时 1s，而 prompt_completed 通知链（fake app completion
+    // → 锁释放 → state.updated 派发）在门禁满载机上可超 1s（一轮门禁复现 expected
+    // undefined to be defined）；本包 testTimeout 已按满载放宽到 20s，这里给 waitFor
+    // 显式 10s 预算，只放宽等待窗口，不改任何断言。
+    await vi.waitFor(
+      () => {
+        expect(secondSendDuringCompleted).toBeDefined();
+      },
+      { timeout: 10_000 },
+    );
     const secondResponse = await secondSendDuringCompleted;
 
     expect(secondResponse).toMatchObject({
@@ -5205,12 +5212,16 @@ describe("DroraProtocolAgentServer", () => {
     });
     expect(activeLockDuringCompleted).toBeUndefined();
     expect(finalizationCountDuringCompleted).toBe(1);
-    await vi.waitFor(() => {
-      const record = (
-        server as unknown as { context: DroraProtocolAgentServerContext }
-      ).context.sessions.get(sessionId);
-      expect(record?.residencyFinalizationCount).toBe(0);
-    });
+    // 同上：该等待同属 prompt_completed 通知链的后续状态收敛，满载下与上一处同险。
+    await vi.waitFor(
+      () => {
+        const record = (
+          server as unknown as { context: DroraProtocolAgentServerContext }
+        ).context.sessions.get(sessionId);
+        expect(record?.residencyFinalizationCount).toBe(0);
+      },
+      { timeout: 10_000 },
+    );
   });
 
   it("maps protocol localPath attachments before sending input to core", async () => {

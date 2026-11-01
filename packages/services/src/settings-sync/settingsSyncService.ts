@@ -21,17 +21,7 @@ import type {
   SettingsSyncSourceRootSummary,
   SettingsSyncTaskImportResult,
 } from "@drora/shared";
-import {
-  copyFile,
-  cp,
-  link,
-  lstat,
-  mkdir,
-  readFile,
-  readdir,
-  rm,
-  symlink,
-} from "node:fs/promises";
+import { copyFile, cp, link, lstat, mkdir, readFile, readdir, rm, symlink } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, dirname, join, relative, resolve } from "node:path";
 import { parse as parseYaml } from "yaml";

@@ -2970,84 +2970,86 @@ const WorkspaceShellLayoutContent = memo(function WorkspaceShellLayoutComponent(
                                 isDroraWorkspaceMainView(workspaceMainView) && "hidden",
                               )}
                             >
-                            {renderChatFindDialog()}
-                            <ScopedErrorBoundary
-                              scope="workspace-chat"
-                              resetKeys={workspaceDraftResetKeys}
-                              variant="panel"
-                              className="h-full"
-                            >
-                              {/* Bugfix(2026-07-05, M3 验收)：pane 绑定必须用原始选择态 activeTaskId，
+                              {renderChatFindDialog()}
+                              <ScopedErrorBoundary
+                                scope="workspace-chat"
+                                resetKeys={workspaceDraftResetKeys}
+                                variant="panel"
+                                className="h-full"
+                              >
+                                {/* Bugfix(2026-07-05, M3 验收)：pane 绑定必须用原始选择态 activeTaskId，
                                   不能用 meta 派生的 activeSessionId——v4 createSession 刚建的会话
                                   不在 taskListCache/optimistic 缓存里，meta 解析为 null 会让 pane
                                   永远停在 draft。v4 语义下 sessionId ≡ taskId，meta 只服务 Header 显示。
                                   M5⑤：桌面主区升级为分屏宿主（Layout/Focus 两层）；primary pane
                                   绑定语义与 testid 契约（paneId=workspace-main）不变。 */}
-                              <V4WorkspaceChatArea
-                                allowEscapeStopOutsidePane={
-                                  isWorkspaceVisible && !isSidePaneOpen && !isSidePaneVisible
-                                }
-                                readOnly={Boolean(workspaceReadOnlyReason)}
-                                readOnlyReason={workspaceReadOnlyReason}
-                                foregroundEnabled={isWorkspaceVisible}
-                                workspacePath={workspaceAbsPath}
-                                workspaceIdentity={workspaceIdentity}
-                                isDesktop={isDesktop === true}
-                                remoteSessionId={workspaceRemoteSessionId}
-                                compactForRemoteControl={isWebRemoteControlShell}
-                                sessionId={activeTaskId}
-                                activeSelectionSideChatSessionId={activeSelectionSideChatSessionId}
-                                provider={activeTaskProvider ?? undefined}
-                                onSessionCreated={handleV4SessionCreated}
-                                onSessionDeleted={handleV4SessionDeleted}
-                                draftComposerHeader={draftComposerHeader}
-                                onPrimaryDraftDropTargetControllerChange={
-                                  setDraftHeaderDropTargetController
-                                }
-                                gitSummary={gitState.summary}
-                                gitDirtyFileCount={gitDirtyFileCount}
-                                activeTaskChangeSummary={activeTaskChangeSummary}
-                                gitWorktreeReviewSourceId={gitWorktreeReviewSourceId}
-                                gitWorktreeChangeSummary={gitWorktreeChangeSummary}
-                                summaryPanelVariantOverride={summaryPanelVariantOverride}
-                                onSummaryPanelVariantOverrideChange={
-                                  onSummaryPanelVariantOverrideChange
-                                }
-                                onRefreshGit={handleRefreshGit}
-                                onOpenGitReview={handleOpenGitReview}
-                                onPaneActiveSessionChange={handlePaneActiveSessionChange}
-                                onOpenBrowserUrl={handleOpenBrowserUrl}
-                                onOpenAutomationsMain={handleOpenAutomations}
-                                onOpenCodeViewer={handleOpenCodeViewer}
-                                onAutoOpenAssistantPptx={
-                                  isDesktop && !isWebRemoteControlShell
-                                    ? handleAutoOpenAssistantPptx
-                                    : undefined
-                                }
-                                onOpenBackgroundBash={handleOpenBackgroundBash}
-                                onOpenSubagentSession={handleOpenSubagentSession}
-                                onOpenSubagentDirectory={handleOpenSubagentDirectory}
-                                onSyncSubagentSessionTabs={handleSyncSubagentSessionTabs}
-                                onOpenSelectionSideChat={handleOpenSelectionSideChat}
-                                onOpenPlanDetail={handleOpenPlanDetail}
-                                onOpenWorkflowRun={handleOpenWorkflowRun}
-                                onOpenWorkflowArtifact={handleOpenWorkflowArtifact}
-                                onOpenWorkflowRunDirectory={handleOpenWorkflowRunDirectory}
-                                onOpenWorkflowActorSession={handleOpenWorkflowActorSession}
-                                onOpenWorkflowWorkspace={handleOpenWorkflowWorkspace}
-                                onOpenFileLink={handleOpenMarkdownFileLink}
-                                conversationFindQuery={conversationFindQuery}
-                                conversationFindActiveIndex={conversationFindActiveIndex}
-                                conversationFindNavigationRequestId={
-                                  conversationFindNavigationRequestId
-                                }
-                                onConversationFindMatchStateChange={
-                                  onConversationFindMatchStateChange
-                                }
-                                searchResultHighlightRequest={activeSearchResultHighlightRequest}
-                                onSearchResultHighlightDone={onSearchResultHighlightDone}
-                              />
-                            </ScopedErrorBoundary>
+                                <V4WorkspaceChatArea
+                                  allowEscapeStopOutsidePane={
+                                    isWorkspaceVisible && !isSidePaneOpen && !isSidePaneVisible
+                                  }
+                                  readOnly={Boolean(workspaceReadOnlyReason)}
+                                  readOnlyReason={workspaceReadOnlyReason}
+                                  foregroundEnabled={isWorkspaceVisible}
+                                  workspacePath={workspaceAbsPath}
+                                  workspaceIdentity={workspaceIdentity}
+                                  isDesktop={isDesktop === true}
+                                  remoteSessionId={workspaceRemoteSessionId}
+                                  compactForRemoteControl={isWebRemoteControlShell}
+                                  sessionId={activeTaskId}
+                                  activeSelectionSideChatSessionId={
+                                    activeSelectionSideChatSessionId
+                                  }
+                                  provider={activeTaskProvider ?? undefined}
+                                  onSessionCreated={handleV4SessionCreated}
+                                  onSessionDeleted={handleV4SessionDeleted}
+                                  draftComposerHeader={draftComposerHeader}
+                                  onPrimaryDraftDropTargetControllerChange={
+                                    setDraftHeaderDropTargetController
+                                  }
+                                  gitSummary={gitState.summary}
+                                  gitDirtyFileCount={gitDirtyFileCount}
+                                  activeTaskChangeSummary={activeTaskChangeSummary}
+                                  gitWorktreeReviewSourceId={gitWorktreeReviewSourceId}
+                                  gitWorktreeChangeSummary={gitWorktreeChangeSummary}
+                                  summaryPanelVariantOverride={summaryPanelVariantOverride}
+                                  onSummaryPanelVariantOverrideChange={
+                                    onSummaryPanelVariantOverrideChange
+                                  }
+                                  onRefreshGit={handleRefreshGit}
+                                  onOpenGitReview={handleOpenGitReview}
+                                  onPaneActiveSessionChange={handlePaneActiveSessionChange}
+                                  onOpenBrowserUrl={handleOpenBrowserUrl}
+                                  onOpenAutomationsMain={handleOpenAutomations}
+                                  onOpenCodeViewer={handleOpenCodeViewer}
+                                  onAutoOpenAssistantPptx={
+                                    isDesktop && !isWebRemoteControlShell
+                                      ? handleAutoOpenAssistantPptx
+                                      : undefined
+                                  }
+                                  onOpenBackgroundBash={handleOpenBackgroundBash}
+                                  onOpenSubagentSession={handleOpenSubagentSession}
+                                  onOpenSubagentDirectory={handleOpenSubagentDirectory}
+                                  onSyncSubagentSessionTabs={handleSyncSubagentSessionTabs}
+                                  onOpenSelectionSideChat={handleOpenSelectionSideChat}
+                                  onOpenPlanDetail={handleOpenPlanDetail}
+                                  onOpenWorkflowRun={handleOpenWorkflowRun}
+                                  onOpenWorkflowArtifact={handleOpenWorkflowArtifact}
+                                  onOpenWorkflowRunDirectory={handleOpenWorkflowRunDirectory}
+                                  onOpenWorkflowActorSession={handleOpenWorkflowActorSession}
+                                  onOpenWorkflowWorkspace={handleOpenWorkflowWorkspace}
+                                  onOpenFileLink={handleOpenMarkdownFileLink}
+                                  conversationFindQuery={conversationFindQuery}
+                                  conversationFindActiveIndex={conversationFindActiveIndex}
+                                  conversationFindNavigationRequestId={
+                                    conversationFindNavigationRequestId
+                                  }
+                                  onConversationFindMatchStateChange={
+                                    onConversationFindMatchStateChange
+                                  }
+                                  searchResultHighlightRequest={activeSearchResultHighlightRequest}
+                                  onSearchResultHighlightDone={onSearchResultHighlightDone}
+                                />
+                              </ScopedErrorBoundary>
                             </main>
                             {(vaultHasOpened || isDroraWorkspaceMainView(workspaceMainView)) && (
                               <div

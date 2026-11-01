@@ -79,7 +79,7 @@ flowchart TD
 | 国内供应商 | DeepSeek                          | API                                                                     |
 | 国内供应商 | 百炼                              | API 中国 → API 国际 → Coding Plan 中国 → Token Plan 团队版中国          |
 | 国内供应商 | 小米 MiMo                         | API → Token Plan                                                        |
-| 国内供应商 | 腾讯 TokenHub                     | 广州 API（中国站）→ 新加坡 API（中国站）                                                     |
+| 国内供应商 | 腾讯 TokenHub                     | 广州 API（中国站）→ 新加坡 API（中国站）                                |
 | 国内供应商 | 火山方舟                          | API → Coding Plan → Agent Plan                                          |
 | 国内供应商 | 阶跃星辰                          | API → Step Plan                                                         |
 | 海外原厂   | OpenAI、Anthropic、xAI            | 按此品牌顺序，各保留已有 API 入口                                       |

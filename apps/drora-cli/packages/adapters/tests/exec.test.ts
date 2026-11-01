@@ -4326,8 +4326,16 @@ describe("NodeExecutionAdapter", () => {
         });
 
         expect(result.task.outputPath).toBeTypeOf("string");
-        await sleep(600);
-        await expect(readFile(result.task.outputPath!, "utf8")).resolves.toBe("earlylate");
+        // 修复原因：上游固定 sleep(600) 只比后台 `sleep 0.5` 多 100ms 余量，Windows 高负载
+        // 全量运行时 descendant 输出落盘常超窗（adapters 全量两轮复现，standalone 可过）。
+        // 改为本文件既有 vi.waitFor 轮询先例（见 bash-background-output 用例），断言语义
+        // 不变：结算后 late 输出必须最终持久化到 outputPath。
+        await vi.waitFor(
+          async () => {
+            await expect(readFile(result.task.outputPath!, "utf8")).resolves.toBe("earlylate");
+          },
+          { timeout: 4_000 },
+        );
       } finally {
         await adapter.close();
         await rm(outputRootDir, { force: true, recursive: true });

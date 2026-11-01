@@ -43,7 +43,9 @@ const DRY = process.argv.includes("--dry");
 const REPORT = getArg("report");
 
 if (!LEDGER || !SEGMENT) {
-  console.error("用法: apply-ledger.mjs --ledger <tsv> --segment S1 [--decisions <json>] [--dry] [--report <out>]");
+  console.error(
+    "用法: apply-ledger.mjs --ledger <tsv> --segment S1 [--decisions <json>] [--dry] [--report <out>]",
+  );
   process.exit(1);
 }
 
@@ -108,7 +110,8 @@ async function transformedBlob(oid, zone) {
   if (raw === null) return null;
   if (!isTransformableText(raw)) return raw; // 二进制/非 UTF-8：逐字保留
   if (zone === "normal") return Buffer.from(transformContent(raw.toString("utf8")), "utf8");
-  if (zone === "cua-limited") return Buffer.from(raw.toString("utf8").replaceAll("@zcode/", "@drora/"), "utf8");
+  if (zone === "cua-limited")
+    return Buffer.from(raw.toString("utf8").replaceAll("@zcode/", "@drora/"), "utf8");
   return raw; // verbatim：官方字节资产逐字保留
 }
 
@@ -123,7 +126,20 @@ async function mergeFile(base, ours, theirs) {
   try {
     const { stdout } = await execFileAsync(
       "git",
-      ["merge-file", "-p", "--diff3", "-L", "ours", "-L", "base(v3.16.1→drora)", "-L", "theirs(v3.17.1→drora)", o, b, t],
+      [
+        "merge-file",
+        "-p",
+        "--diff3",
+        "-L",
+        "ours",
+        "-L",
+        "base(v3.16.1→drora)",
+        "-L",
+        "theirs(v3.17.1→drora)",
+        o,
+        b,
+        t,
+      ],
       { maxBuffer: 64 * 1024 * 1024, encoding: "buffer" },
     );
     return { content: stdout, conflicts: 0 };
@@ -141,12 +157,14 @@ const parseLedger = (text) => {
   const [headerLine, ...lines] = text.split("\n");
   const header = headerLine.split("\t");
   const idx = Object.fromEntries(header.map((h, i) => [h, i]));
-  return lines.filter((l) => l.trim()).map((l) => {
-    const cols = l.split("\t");
-    const row = {};
-    for (const [k, i] of Object.entries(idx)) row[k] = cols[i] ?? "";
-    return row;
-  });
+  return lines
+    .filter((l) => l.trim())
+    .map((l) => {
+      const cols = l.split("\t");
+      const row = {};
+      for (const [k, i] of Object.entries(idx)) row[k] = cols[i] ?? "";
+      return row;
+    });
 };
 
 const main = async () => {
@@ -191,7 +209,10 @@ const main = async () => {
     }
 
     // —— fail-closed 输入校验：工作区内容必须等于 ledger 记录的 ours blob ——
-    const expectOurs = row.current_main_blob && row.current_main_blob !== "-" ? await gitCat(row.current_main_blob) : null;
+    const expectOurs =
+      row.current_main_blob && row.current_main_blob !== "-"
+        ? await gitCat(row.current_main_blob)
+        : null;
     if (!contentMatches(workBuf, expectOurs)) {
       if (dec !== "skip") {
         report.driftBlocked.push({ path: droraPath, outcome });
@@ -202,7 +223,10 @@ const main = async () => {
     // —— 路径映射与 zone 一致性：改名规则漂移即停 ——
     const zone = row.zone;
     if (zone !== zoneOf(row.upstream_path)) {
-      report.errors.push({ path: droraPath, reason: `zone 漂移：ledger=${zone} 计算=${zoneOf(row.upstream_path)}` });
+      report.errors.push({
+        path: droraPath,
+        reason: `zone 漂移：ledger=${zone} 计算=${zoneOf(row.upstream_path)}`,
+      });
       continue;
     }
     const expectPath = zone === "cua-limited" ? row.upstream_path : mapRelPath(row.upstream_path);
@@ -231,10 +255,19 @@ const main = async () => {
       } else if (outcome === "text-clean-needs-semantic-review" || outcome === "text-conflict") {
         const base = await transformedBlob(row.base_blob, zone);
         const theirs = await transformedBlob(row.target_blob, zone);
-        if (base === null || theirs === null || expectOurs === null) throw new Error("三方内容缺失");
-        if (!isTransformableText(base) || !isTransformableText(theirs) || !isTransformableText(expectOurs)) {
+        if (base === null || theirs === null || expectOurs === null)
+          throw new Error("三方内容缺失");
+        if (
+          !isTransformableText(base) ||
+          !isTransformableText(theirs) ||
+          !isTransformableText(expectOurs)
+        ) {
           // 二进制不可文本合并：升决策，禁止产出带标记的损坏二进制。
-          report.decisionRequired.push({ path: droraPath, outcome, note: "二进制三方合并需人工裁决" });
+          report.decisionRequired.push({
+            path: droraPath,
+            outcome,
+            note: "二进制三方合并需人工裁决",
+          });
           continue;
         }
         // ours 侧用 git blob 内容而非磁盘内容：Windows CRLF 检出会让 merge-file
@@ -244,7 +277,8 @@ const main = async () => {
           await fs.mkdir(path.dirname(abs), { recursive: true });
           await fs.writeFile(abs, merged.content);
         }
-        if (merged.conflicts > 0) report.conflicts.push({ path: droraPath, hunks: merged.conflicts });
+        if (merged.conflicts > 0)
+          report.conflicts.push({ path: droraPath, hunks: merged.conflicts });
         else report.semanticReview.push(droraPath);
         report.applied.push({ path: droraPath, action: outcome, conflicts: merged.conflicts });
       } else if (outcome === "delete-review") {
@@ -255,9 +289,17 @@ const main = async () => {
           if (!DRY) await fs.rm(abs, { force: true });
           report.applied.push({ path: droraPath, action: "delete" });
         } else {
-          report.decisionRequired.push({ path: droraPath, outcome, note: "上游删除但本地有独有改动" });
+          report.decisionRequired.push({
+            path: droraPath,
+            outcome,
+            note: "上游删除但本地有独有改动",
+          });
         }
-      } else if (outcome === "delete-local-change-review" || outcome === "zone-decision" || outcome === "already-present") {
+      } else if (
+        outcome === "delete-local-change-review" ||
+        outcome === "zone-decision" ||
+        outcome === "already-present"
+      ) {
         if (dec) {
           report.applied.push({ path: droraPath, action: `decision:${dec}` });
         } else {
@@ -273,7 +315,8 @@ const main = async () => {
     }
   }
 
-  const outPath = REPORT ?? path.join("docs/upstream-sync/2026-10-31-v3.17.1/apply", `${SEGMENT}-report.json`);
+  const outPath =
+    REPORT ?? path.join("docs/upstream-sync/2026-10-31-v3.17.1/apply", `${SEGMENT}-report.json`);
   if (!DRY || REPORT) {
     await fs.mkdir(path.dirname(outPath), { recursive: true });
     await fs.writeFile(outPath, JSON.stringify(report, null, 1));

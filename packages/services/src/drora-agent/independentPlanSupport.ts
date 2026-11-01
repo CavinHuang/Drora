@@ -64,12 +64,10 @@ export function supportsPersonaControlV1(
   const existing = personaControlChecks.get(client);
   if (existing) return existing;
   const check = client
-    .request(
-      droraProtocolMethods.runtimeCapabilities,
-      {},
-      droraRuntimeCapabilitiesSchema,
-      { timeoutMs: PERSONA_CAPABILITY_PROBE_TIMEOUT_MS, lifecycle: "observation" },
-    )
+    .request(droraProtocolMethods.runtimeCapabilities, {}, droraRuntimeCapabilitiesSchema, {
+      timeoutMs: PERSONA_CAPABILITY_PROBE_TIMEOUT_MS,
+      lifecycle: "observation",
+    })
     .then((result) => result.personaControlV1 === true)
     .catch(() => {
       personaControlChecks.delete(client);

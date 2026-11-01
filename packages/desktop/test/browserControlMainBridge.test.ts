@@ -125,7 +125,9 @@ describe("browserControlMainBridge", () => {
     const bridge = createBrowserControlMainBridge({
       // 上游 v3.17.1：桥的 list/execute 以 main 侧 browser backend 身份（id+generation）为门控，
       // 测试统一提供固定身份，保持各用例语义不变。
-      getBackendIdentity: () => ({ id: "browser-backend", generation: 1 }), postToMain: (m) => posted.push(m) });
+      getBackendIdentity: () => ({ id: "browser-backend", generation: 1 }),
+      postToMain: (m) => posted.push(m),
+    });
     const pA = bridge.execute({ sessionId: "s1", command: { method: "getState" } });
     const pB = bridge.execute({ sessionId: "s1", command: { method: "snapshot" } });
     const [idA, idB] = posted.map((m) => m.requestId);
@@ -234,9 +236,9 @@ describe("browserControlMainBridge", () => {
     try {
       const posted: BrowserExecuteRequestMessage[] = [];
       const bridge = createBrowserControlMainBridge({
-      // 上游 v3.17.1：桥的 list/execute 以 main 侧 browser backend 身份（id+generation）为门控，
-      // 测试统一提供固定身份，保持各用例语义不变。
-      getBackendIdentity: () => ({ id: "browser-backend", generation: 1 }),
+        // 上游 v3.17.1：桥的 list/execute 以 main 侧 browser backend 身份（id+generation）为门控，
+        // 测试统一提供固定身份，保持各用例语义不变。
+        getBackendIdentity: () => ({ id: "browser-backend", generation: 1 }),
         postToMain: (message) => posted.push(message),
         timeoutMs: 1000,
       });
@@ -261,9 +263,12 @@ describe("browserControlMainBridge", () => {
     vi.useFakeTimers();
     try {
       const bridge = createBrowserControlMainBridge({
-      // 上游 v3.17.1：桥的 list/execute 以 main 侧 browser backend 身份（id+generation）为门控，
-      // 测试统一提供固定身份，保持各用例语义不变。
-      getBackendIdentity: () => ({ id: "browser-backend", generation: 1 }), postToMain: () => {}, timeoutMs: 1000 });
+        // 上游 v3.17.1：桥的 list/execute 以 main 侧 browser backend 身份（id+generation）为门控，
+        // 测试统一提供固定身份，保持各用例语义不变。
+        getBackendIdentity: () => ({ id: "browser-backend", generation: 1 }),
+        postToMain: () => {},
+        timeoutMs: 1000,
+      });
       let settled = false;
       const promise = bridge
         .execute({
@@ -310,7 +315,9 @@ describe("browserControlMainBridge", () => {
     const bridge = createBrowserControlMainBridge({
       // 上游 v3.17.1：桥的 list/execute 以 main 侧 browser backend 身份（id+generation）为门控，
       // 测试统一提供固定身份，保持各用例语义不变。
-      getBackendIdentity: () => ({ id: "browser-backend", generation: 1 }), postToMain: (m) => posted.push(m) });
+      getBackendIdentity: () => ({ id: "browser-backend", generation: 1 }),
+      postToMain: (m) => posted.push(m),
+    });
     const pending = bridge.execute({
       browserId: "iab:stale",
       sessionId: "s1",
@@ -336,7 +343,9 @@ describe("browserControlMainBridge", () => {
     const bridge = createBrowserControlMainBridge({
       // 上游 v3.17.1：桥的 list/execute 以 main 侧 browser backend 身份（id+generation）为门控，
       // 测试统一提供固定身份，保持各用例语义不变。
-      getBackendIdentity: () => ({ id: "browser-backend", generation: 1 }), postToMain: (m) => posted.push(m) });
+      getBackendIdentity: () => ({ id: "browser-backend", generation: 1 }),
+      postToMain: (m) => posted.push(m),
+    });
     const [descriptor] = await bridge.list();
     const pending = bridge.execute({
       browserId: descriptor.id,
@@ -362,7 +371,9 @@ describe("browserControlMainBridge", () => {
     const bridge = createBrowserControlMainBridge({
       // 上游 v3.17.1：桥的 list/execute 以 main 侧 browser backend 身份（id+generation）为门控，
       // 测试统一提供固定身份，保持各用例语义不变。
-      getBackendIdentity: () => ({ id: "browser-backend", generation: 1 }), postToMain: () => {} });
+      getBackendIdentity: () => ({ id: "browser-backend", generation: 1 }),
+      postToMain: () => {},
+    });
     // 未知 requestId 的迟到结果应被安全忽略。
     expect(() =>
       bridge.handleResult({ requestId: "unknown", result: { ok: true, elapsedMs: 1 } }),
@@ -374,7 +385,9 @@ describe("browserControlMainBridge", () => {
     const bridge = createBrowserControlMainBridge({
       // 上游 v3.17.1：桥的 list/execute 以 main 侧 browser backend 身份（id+generation）为门控，
       // 测试统一提供固定身份，保持各用例语义不变。
-      getBackendIdentity: () => ({ id: "browser-backend", generation: 1 }), postToMain: () => {} });
+      getBackendIdentity: () => ({ id: "browser-backend", generation: 1 }),
+      postToMain: () => {},
+    });
     const pending = bridge.execute({ sessionId: "s1", command: NAV });
     bridge.dispose();
     await expect(pending).resolves.toMatchObject({

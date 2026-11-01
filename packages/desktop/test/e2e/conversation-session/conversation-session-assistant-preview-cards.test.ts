@@ -439,9 +439,7 @@ async function clickPreviewCard(title: string) {
 // 卡片主体整卡可点：点击标题区域（铺满卡片的透明按钮）与主按钮执行同一预览动作。
 async function clickPreviewCardBody(title: string) {
   const result = await browser.execute((expectedTitle) => {
-    const row = document.querySelector<HTMLElement>(
-      `[data-preview-card-title="${expectedTitle}"]`,
-    );
+    const row = document.querySelector<HTMLElement>(`[data-preview-card-title="${expectedTitle}"]`);
     const overlay = Array.from(row?.querySelectorAll<HTMLButtonElement>("button") ?? []).find(
       (button) => (button.getAttribute("aria-label") ?? "").endsWith(expectedTitle),
     );

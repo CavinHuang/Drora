@@ -167,6 +167,12 @@ sequenceDiagram
 
 CUA 当前 package 元数据中的 placeholder 与实际保留的还原源码/资源并存，不能根据描述、版本号或上游占位目录直接判定可删。按当前 specs、实际打包引用和生产者流程逐项验证。
 
+#### 5.3.1 还原错误修复记录：visualize seed `assets/runtime-manifest.json` 两处幽灵 pin（2026-11-01 S7）
+
+- 原版证据：U2（a60ba6a7）`apps/zcode-cli/packages/visualize-plugin/skills/visualize/assets/runtime-manifest.json`（sha256 `2a4a205d…aac9026`），`visualize.html` pin 在字节偏移 169（`"sha256": "42d9c7d9…85bf"`）、`tweak.js` pin 在偏移 277（`"sha256": "669e78ea…a3e3"`）。两 pin 均等于**原版未改名文件**的 sha256（html `42d9c7d9…`、`packages/desktop/src/renderer/src/plugin-sandbox/genUiTweakRuntime.js` `669e78ea…`，已实测）。
+- 还原错误：转换器按 `specs/drora-rename.md` 改写了两个被钉文件的品牌字面量（html 行 12/308/375/400/503/514：`zcode-visualization-*` id 与注释 URL；tweak 行 15/462/482/488：`__zcode_visualization_annotations__`、`zcode:set_globals`、`globalThis.zcode`），但 manifest 的 sha256 pin 未随 shipped 字节重算。`gen-ui-runtime-assets` 工程测试（本轮 D01 显式清单首次纳入门禁）按 CONTRACT.md「记录当前文件 SHA-256、核对实际复制字节」语义失败。
+- 修复：两 pin 重算为本仓 shipped 字节——`visualize.html` `e3e6fb0d…34c4b5`（assets/\*_ 为 `-text`，EOL 稳定）；`tweak.js` `f4b14636…92119c6`（LF）。另在 `.gitattributes` 为该 tweak 源文件加 `text eol=lf`（先例：`_.baseline.sql`、dynamic-workflows seed），否则 autocrlf 检出的 CRLF 字节使同一 pin 在 Windows 与 POSIX 不可同时成立。未改动任何资产本体与测试断言。
+
 ## 6. 本轮高风险决策及建议终态
 
 下表是可供评审的具体建议。只有落实到相应 spec、逐文件裁决和验收后才能关闭，规划不是已实施的决定。

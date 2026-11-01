@@ -8,22 +8,22 @@
 
 ## 已迁出的文件清单
 
-| 文件 | 内容 |
-| --- | --- |
-| `2026-10-24-windows-surface-independent-probes.json` | 独立探针轮（P 编号） |
-| `2026-10-24-windows-surface-followup-probes.json` | 补测轮（R 编号） |
-| `2026-10-24-wgc-secondary-window-probes.json` | WGC 对照轮 |
-| `2026-10-25-windows-frame-harness.json` | 第 2 步捕获管线真机证据 |
-| `2026-10-25-windows-panel-harness.json` | 第 3 步面板真机证据 |
-| `2026-10-25-windows-menu-harness.json` | 第 4 步菜单真机证据 |
-| `2026-10-25-windows-operation-harness.json` | 第 5 步操作关联真机证据 |
-| `2026-10-25-windows-receipt-boundary-harness.json` | 第 6 步回执边界真机证据 |
-| `2026-10-25-windows-real-notepad.json` | 真实应用：记事本 |
-| `2026-10-25-windows-real-explorer.json` | 真实应用：资源管理器 |
-| `2026-10-25-windows-real-shotcut.json` | 真实应用：Shotcut |
-| `2026-10-25-windows-real-zotero.json` | 真实应用：Zotero |
-| `2026-10-25-windows-real-notion.json` | 真实应用：Notion |
-| `2026-10-25-windows-real-wps.json` | 真实应用：WPS（含停止点） |
-| `2026-10-25-windows-real-followup-regression.json` | 真实链路修复回归 |
-| `2026-10-25-windows-real-chain-regression.json` | 真实链路修复回归（48 组） |
+| 文件                                                       | 内容                      |
+| ---------------------------------------------------------- | ------------------------- |
+| `2026-10-24-windows-surface-independent-probes.json`       | 独立探针轮（P 编号）      |
+| `2026-10-24-windows-surface-followup-probes.json`          | 补测轮（R 编号）          |
+| `2026-10-24-wgc-secondary-window-probes.json`              | WGC 对照轮                |
+| `2026-10-25-windows-frame-harness.json`                    | 第 2 步捕获管线真机证据   |
+| `2026-10-25-windows-panel-harness.json`                    | 第 3 步面板真机证据       |
+| `2026-10-25-windows-menu-harness.json`                     | 第 4 步菜单真机证据       |
+| `2026-10-25-windows-operation-harness.json`                | 第 5 步操作关联真机证据   |
+| `2026-10-25-windows-receipt-boundary-harness.json`         | 第 6 步回执边界真机证据   |
+| `2026-10-25-windows-real-notepad.json`                     | 真实应用：记事本          |
+| `2026-10-25-windows-real-explorer.json`                    | 真实应用：资源管理器      |
+| `2026-10-25-windows-real-shotcut.json`                     | 真实应用：Shotcut         |
+| `2026-10-25-windows-real-zotero.json`                      | 真实应用：Zotero          |
+| `2026-10-25-windows-real-notion.json`                      | 真实应用：Notion          |
+| `2026-10-25-windows-real-wps.json`                         | 真实应用：WPS（含停止点） |
+| `2026-10-25-windows-real-followup-regression.json`         | 真实链路修复回归          |
+| `2026-10-25-windows-real-chain-regression.json`            | 真实链路修复回归（48 组） |
 | `2026-10-25-windows-native-classification-regression.json` | 原生分类修复回归（49 组） |

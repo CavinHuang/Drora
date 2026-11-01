@@ -29,7 +29,8 @@ if (existsSync(LEDGER)) {
   }
 }
 
-const norm = (files) => [...new Set(files.map((f) => f.replaceAll("\\", "/")))].filter(Boolean).sort();
+const norm = (files) =>
+  [...new Set(files.map((f) => f.replaceAll("\\", "/")))].filter(Boolean).sort();
 
 const forkIsolated = norm([
   "packages/services/test/processTreeTerminator.test.ts",
@@ -109,7 +110,15 @@ const droraFiles = [...globbed, ...explicit]
   .sort();
 
 writeFileSync("scripts/drora-test-files.json", JSON.stringify(droraFiles, null, 2) + "\n", "utf8");
-writeFileSync("scripts/drora-isolated-test-files.json", JSON.stringify(forkIsolated, null, 2) + "\n", "utf8");
+writeFileSync(
+  "scripts/drora-isolated-test-files.json",
+  JSON.stringify(forkIsolated, null, 2) + "\n",
+  "utf8",
+);
 console.log(
-  JSON.stringify({ drora: droraFiles.length, isolated: forkIsolated.length, retiringTotal: retiring.size }, null, 1),
+  JSON.stringify(
+    { drora: droraFiles.length, isolated: forkIsolated.length, retiringTotal: retiring.size },
+    null,
+    1,
+  ),
 );

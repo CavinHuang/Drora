@@ -42,7 +42,7 @@
 | 普通元素左键单击       | Invoke → Toggle → Select → Expand → Legacy；仅 absent 推进                                                            | pointer.ts、axReadOnly.ts、ax_win.cc           |
 | WinUI3 元素左键双击    | 两次 Invoke、40ms 间隔、同一真实作业；无 Invoke 明确拒绝                                                              | pointer.ts、PatternCallJob                     |
 | 坐标普通点击           | 适用 UIA hit-test；按宿主分类尝试 PostMessage，允许时再前台升级                                                       | windowsInputDispatch.ts                        |
-| Chromium 普通左键单击  | 直接与嵌套宿主均先尝试已验证 PostMessage（2026-10-25 对齐：直接宿主不再按矩阵升级前台）                                        | windowsInputDispatch.ts、win_input_dispatch.cc |
+| Chromium 普通左键单击  | 直接与嵌套宿主均先尝试已验证 PostMessage（2026-10-25 对齐：直接宿主不再按矩阵升级前台）                               | windowsInputDispatch.ts、win_input_dispatch.cc |
 | 已确认不支持的后台手势 | WinUI3 坐标双击/右键/中键及 WPF 内嵌 WebView2 右键明确未发送拒绝                                                      | windowsInputDispatch.ts                        |
 | 前台点击               | 精确 HWND/PID/几何校验，同步定位光标，每击单批 move/down/up；部分发送只补释放                                         | ax_win.cc / SendClickAt、SendClickBatch        |
 | 所有权与生命周期       | broker 派发租约；实际 UIA 作业持有强引用、single-flight 与 shield；超时不提前释放门闩，但护盾由等待方按 §3.5 接管收口 | electronNativeBackend.ts、ax_win.cc            |
@@ -134,15 +134,15 @@ strategy=event 显式选择前台。auto 仅在确定未发送且允许升级时
 矩阵按窗口类别与事件种类分类；后续增删以本项目 fixture 证据为准。
 `✕` = 判定 PostMessage 必然静默丢弃；`·` = 不标记（按可投递尝试）：
 
-| 窗口类别                                                                        | 判定                    | 点击      | 移动 | 滚轮      | 单键      | 组合键    | 文本      |
-| ------------------------------------------------------------------------------- | ----------------------- | --------- | ---- | --------- | --------- | --------- | --------- |
-| Chromium 顶层（`Chrome_WidgetWin_` / `CefBrowser` 前缀，覆盖 Electron / NW.js） | `GetClassNameW` 前缀    | ✕         | ✕    | ✕         | ✕         | ✕         | ✕         |
-| 内嵌 Chromium（WebView2 / Tauri 宿主）                                          | `EnumChildWindows` 扫描 | ·         | ✕    | ✕         | ·         | ✕         | ·         |
-| WPF（`HwndWrapper…`）                                                           | 类名前缀                | ✕         | ✕    | ·（注 1） | ✕（注 2） | ✕（注 2） | ✕（注 6） |
-| Tk（`TkTopLevel`）                                                              | 类名前缀                | ·         | ·    | ·         | ✕         | ✕         | ✕         |
-| GTK（`gdkWindow` / `gdkSurfaceToplevel`）                                       | 类名前缀                | ✕（注 3） | ·    | ·         | ·         | ·         | ·         |
+| 窗口类别                                                                        | 判定                    | 点击      | 移动      | 滚轮      | 单键      | 组合键    | 文本      |
+| ------------------------------------------------------------------------------- | ----------------------- | --------- | --------- | --------- | --------- | --------- | --------- |
+| Chromium 顶层（`Chrome_WidgetWin_` / `CefBrowser` 前缀，覆盖 Electron / NW.js） | `GetClassNameW` 前缀    | ✕         | ✕         | ✕         | ✕         | ✕         | ✕         |
+| 内嵌 Chromium（WebView2 / Tauri 宿主）                                          | `EnumChildWindows` 扫描 | ·         | ✕         | ✕         | ·         | ✕         | ·         |
+| WPF（`HwndWrapper…`）                                                           | 类名前缀                | ✕         | ✕         | ·（注 1） | ✕（注 2） | ✕（注 2） | ✕（注 6） |
+| Tk（`TkTopLevel`）                                                              | 类名前缀                | ·         | ·         | ·         | ✕         | ✕         | ✕         |
+| GTK（`gdkWindow` / `gdkSurfaceToplevel`）                                       | 类名前缀                | ✕（注 3） | ·         | ·         | ·         | ·         | ·         |
 | VCL（`SAL*`，LibreOffice 族）                                                   | 类名前缀                | ·         | ✕（注 8） | ·         | ✕         | ✕         | ·（注 4） |
-| WinUI3                                                                          | 刻意豁免（注 5）        | ·         | ·    | ·         | ·         | ·         | ·         |
+| WinUI3                                                                          | 刻意豁免（注 5）        | ·         | ·         | ·         | ·         | ·         | ·         |
 
 分类说明与本项目验证边界：
 
@@ -165,7 +165,7 @@ strategy=event 显式选择前台。auto 仅在确定未发送且允许升级时
    §4.1-3/4 绕过 UIA 直投 PostMessage，由本项目探针验证其可达性。对 Chromium 的 UIA「成功」结构性不采信
    （遮挡时 S_OK 但 DOM 无事件）属路由设计；type 的 AX-echo 读回降级是 §4.2 的职责，
    与本矩阵（PostMessage 丢弃分类）是两件事。
-8. **VCL 移动列改标必丢（bench 实测，2026-10-27）**：VCL（SAL*，含 Delphi VCL 系）宿主
+8. **VCL 移动列改标必丢（bench 实测，2026-10-27）**：VCL（SAL\*，含 Delphi VCL 系）宿主
    静默丢弃整段 PostMessage 拖拽序列（MOVE 预热 → DOWN → 插值 MOVE → UP）——消息入队
    成功、投递原语回执 ok、实为 no-op。此前移动列的"·"缺少拖拽证据，不能视为可投证明。本仓 native 矩阵不可改（预编译二进制），drag 派发
    层（`dispatchWindowsBackgroundDrag`）按 host=vcl 拦截升级前台，与 winui3_exempt
@@ -400,11 +400,11 @@ UWP 是本批输入派发里**身份拓扑最特殊**的目标类别（`ax_win.c
 
 **三重 pid 分裂**（一个 UWP 目标同时涉及三个不同 pid）：
 
-| 角色                             | 归属                                                                                                                      | 证据                                                                       |
-| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
-| 身份 pid（list_apps 报出的 pid） | `ApplicationFrameHost.exe`，**多个 UWP 应用共享一个 pid**                                                                 | `ax_win.cc:1324`；面积启发式两次会话分别报出"计算器"与"设置"（pid 14556）  |
-| 真实渲染进程 pid                 | AUMID 激活返回的进程（如 348），但其窗口 cloaked / 无可视帧                                                               | 身份文档 §1.5 表：UWP 行「激活返回的 pid=真实进程，该 pid 无可见窗口」     |
-| UIA 元素 ProcessId               | 真实进程 pid；且 CoreWindow 的 UIA 树**不挂窗口节点下**——`ElementFromHandle` 返回空壳，真树注册在 desktop root 的兄弟节点 | 输入层按宿主 HWND 验证归属，不依赖元素 ProcessId |
+| 角色                             | 归属                                                                                                                      | 证据                                                                      |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| 身份 pid（list_apps 报出的 pid） | `ApplicationFrameHost.exe`，**多个 UWP 应用共享一个 pid**                                                                 | `ax_win.cc:1324`；面积启发式两次会话分别报出"计算器"与"设置"（pid 14556） |
+| 真实渲染进程 pid                 | AUMID 激活返回的进程（如 348），但其窗口 cloaked / 无可视帧                                                               | 身份文档 §1.5 表：UWP 行「激活返回的 pid=真实进程，该 pid 无可见窗口」    |
+| UIA 元素 ProcessId               | 真实进程 pid；且 CoreWindow 的 UIA 树**不挂窗口节点下**——`ElementFromHandle` 返回空壳，真树注册在 desktop root 的兄弟节点 | 输入层按宿主 HWND 验证归属，不依赖元素 ProcessId                          |
 
 对 §3.1 升级链各环节的硬约束（**保持最小**：UWP 身份/启动/观察层已有专门支持——
 AUMID 通道、cloaked 唤醒、共享 pid 修法均见身份文档；输入层的 UIA 元素路径天然
@@ -524,7 +524,7 @@ unpackaged harness 不经过 ApplicationFrameHost，不能证明 AFH/UWP 拓扑�
    Chromium 鼠标行标记是键盘结论（CoreInput 只消费系统输入队列）的外推，鼠标
    从无直接负样本，被该探针证伪。旧教训「electron 计数器 PostMessage noop」
    属元素分流落地前的回归记录，与探针结论冲突时以探针为准；若后续真机复现
-   直接宿主左键 noop，回滚点即本条。嵌套宿主（embedded_chromium*）维持 UIA/
+   直接宿主左键 noop，回滚点即本条。嵌套宿主（embedded_chromium\*）维持 UIA/
    特例路由不动；双击/右击/修饰仍走前台升级。
    投前校验（宿主根窗/live bounds 解析）fail-closed 拒绝的文案用中性表述
    （"could not be verified/resolved before dispatch"），不得含 "background
@@ -538,11 +538,11 @@ unpackaged harness 不经过 ApplicationFrameHost，不能证明 AFH/UWP 拓扑�
    `kInputPacing`，与 §4.3 drag pacing 同处），初值按下表定义，
    矩阵 fixture 调优后固化：
 
-   | 执行级                    | 节拍（初值）                                                                                                                                                                                                                                                                        |
-   | ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-   | PostMessage（第 3 级）    | `WM_MOUSEMOVE` 预热（hover 状态先就位）→ DOWN → **驻留 35ms**（`CLICK_DELAY_MS`）→ UP；多击间隔 80ms；结束 settle 50ms；双击第二击投 `WM_*BUTTONDBLCLK`（按 `CS_DBLCLKS` 判定，系统不替投递消息推断双击）                                                                           |
+   | 执行级                    | 节拍（初值）                                                                                                                                                                                                                                         |
+   | ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+   | PostMessage（第 3 级）    | `WM_MOUSEMOVE` 预热（hover 状态先就位）→ DOWN → **驻留 35ms**（`CLICK_DELAY_MS`）→ UP；多击间隔 80ms；结束 settle 50ms；双击第二击投 `WM_*BUTTONDBLCLK`（按 `CS_DBLCLKS` 判定，系统不替投递消息推断双击）                                            |
    | 前台 SendInput（第 4 级） | SetCursorPos 先定位光标，不增加独立固定 hover sleep；[move,down,up] 单批保持，down→up 零驻留；多击间隔 80ms；修饰键按下后停 5ms 再点击；事后 settle 40ms（前台激活态 120ms）——retained-mode 框架在 mouse-down 建 capture/focus，过早收走光标会丢点击 |
-   | UIA 元素模式（第 2 级）   | 无指针时序概念，不适用（COM 调用语义即动作）                                                                                                                                                                                                                                        |
+   | UIA 元素模式（第 2 级）   | 无指针时序概念，不适用（COM 调用语义即动作）                                                                                                                                                                                                         |
 
    节拍设计只作用于合成/投递路径，不改变回执语义；驻留与间隔计入单次调用时长
    （§5.2 已评估，可接受）。矩阵按压时长敏感控件用例（配套矩阵规范 §4.1/§4.2）
@@ -682,7 +682,7 @@ foreground_send_input` 的 delivery（attempts 带 reason=
   LPARAM 结构性论证支撑），矩阵 chord oracle 格补齐后回归。
 - **无焦点短路（2026-10-25 用户裁决恢复 §3.1 升级契约）**：键盘/文本
   中间级的目标 HWND 解析按目标树 GUI 线程焦点记录（`GUITHREADINFO.
-  hwndFocus`）三态分流：①焦点=真后代 → 照投该后代；②焦点=根窗自身
+hwndFocus`）三态分流：①焦点=真后代 → 照投该后代；②焦点=根窗自身
   （单 HWND 应用：Qt/GTK 整窗一个 HWND）→ 照投根窗，有焦点记录为证
   非瞎猜；③焦点=0 或指向其他窗口树（E07：后台线程焦点记录被清）→
   无合法投递目标，原生返回 `focus_missing`，attempts 记
@@ -951,7 +951,7 @@ EnableWindow shield 按 §3.5 由实际调用线程析构恢复；等待超时�
 | S1：harness 与证据链                    | 已具备八宿主 runner、独立 oracle 与焦点 watcher                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | 当前结果采用同一固定集合，原始报告不覆盖                                      |
 | S2：key 别名、provided paste、list_apps | 已实施                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | 保留对应工具契约与测试                                                        |
 | S3：派发地基与点击                      | **v3 极简重构进行中**：租约→物理 lane、删全屏主级、6 格拒绝→自动升级                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | 原 53/53 点击专项口径随 D1 决策变化（6 拒绝格并入升级格），需重跑矩阵重建基线 |
-| S4：文本、键盘、滚动、拖拽、后台并发    | 计划见 [S4 实施计划](./2026-10-19-windows-input-s4-plan.md)（2026-10-19）：WM_CHAR 插入中间级、type/set_value 读回裁决、键盘 PostMessage 中间级（focused_descendant）、scroll/drag 后台路径与节拍、Chromium 元素路径分流、PostMessage 锁重设计（per-root 队列）+ E2E 并行实验                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | 插入锚点 8 格保持红直到 PostMessage WM_CHAR 中间级落地                        |
+| S4：文本、键盘、滚动、拖拽、后台并发    | 计划见 [S4 实施计划](./2026-10-19-windows-input-s4-plan.md)（2026-10-19）：WM_CHAR 插入中间级、type/set_value 读回裁决、键盘 PostMessage 中间级（focused_descendant）、scroll/drag 后台路径与节拍、Chromium 元素路径分流、PostMessage 锁重设计（per-root 队列）+ E2E 并行实验                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | 插入锚点 8 格保持红直到 PostMessage WM_CHAR 中间级落地                        |
 | S5：完整矩阵验收                        | **首轮全量完成（2026-10-20，baseline-04-53/04-57 两轮）**：133 动作（含本轮补格 xaml_popup + electron type 五格），100 delivered、21 noop（15 诊断 + 5 S4 锚点[qt6×2 登记边界 + electron×2 同族] + 1-2 轮次抖动）、3 refused、9 unresolved（gtk3 结构性）；点击验收 63 格 61-62 绿，blocker 经隔离轮定性为轮次抖动（gtk3 首击竞态、wpf selection 轮次性，均有复绿证据）；cleanBackground=61、后台占比 75/121、路径取证覆盖率 1.0；electron press/hover gated 两格登记红灯保持；electron 插入两格全量轮 oracle 值正确（abXcd/aXd），noop 由路径断言改判 + 升级固有抢台构成。三个轮次抖动格（gtk3 首击竞态 / wpf selection / wpf accel）均有复绿证据（隔离轮或次轮）。遗留：winforms paste readTimeout 环境存量（干净 HEAD 复现，环境剪贴板观察者干扰），paste suite 需串行执行 | 不能以点击专项通过替代原始全动作的全矩阵验收                                  |
 
 点击专项 47 格生效、6 格按已确认支持边界明确拒绝，点击无焦点违规。2026-10-18

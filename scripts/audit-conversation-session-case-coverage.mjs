@@ -1922,10 +1922,8 @@ async function main() {
   );
 
   const errors = await inspectCoverageMatrices(REPO_ROOT);
-  const formalAdmission =
-    await inspectConversationSessionFormalAdmission(formalAdmissionRoot);
-  const formalAdmissionAudit =
-    buildFormalAdmissionAuditIntegration(formalAdmission);
+  const formalAdmission = await inspectConversationSessionFormalAdmission(formalAdmissionRoot);
+  const formalAdmissionAudit = buildFormalAdmissionAuditIntegration(formalAdmission);
   errors.push(...formalAdmissionAudit.errors);
   const automationSpecs = parseAutomationSpecs(coverageMatrix);
   const faultAutomationSpecs = parseAutomationSpecs(faultCoverageMatrix);

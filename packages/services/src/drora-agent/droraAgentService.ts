@@ -5635,9 +5635,11 @@ export function createDroraAgentService(
       );
     },
 
-    async updatePersonaCore(
-      params: { expectedRevision: number; patch: Record<string, unknown>; mutationId: string },
-    ) {
+    async updatePersonaCore(params: {
+      expectedRevision: number;
+      patch: Record<string, unknown>;
+      mutationId: string;
+    }) {
       const client = await getPersonaControlClient();
       return client.request(
         droraProtocolMethods.personaUpdateCore,
@@ -5657,9 +5659,7 @@ export function createDroraAgentService(
       );
     },
 
-    async previewPersona(
-      params: { draft: Record<string, unknown>; situationId?: string },
-    ) {
+    async previewPersona(params: { draft: Record<string, unknown>; situationId?: string }) {
       const client = await getPersonaControlClient();
       return client.request(
         droraProtocolMethods.personaPreview,
@@ -5673,14 +5673,12 @@ export function createDroraAgentService(
     // P1b：setPersonalPolicy 透传 autoLearn patch（缺省不发明键）；allowLearningForKey 与
     // getPersonaLearningOverview 是合同 §3 的学习管理方法，同一无会话控制端口。
 
-    async setPersonalPolicy(
-      params: {
-        expectedPolicyRevision: number;
-        usePreferences: boolean;
-        autoLearn?: boolean;
-        mutationId: string;
-      },
-    ) {
+    async setPersonalPolicy(params: {
+      expectedPolicyRevision: number;
+      usePreferences: boolean;
+      autoLearn?: boolean;
+      mutationId: string;
+    }) {
       const client = await getPersonaControlClient();
       return client.request(
         droraProtocolMethods.personaSetPolicy,
@@ -5696,9 +5694,12 @@ export function createDroraAgentService(
       );
     },
 
-    async savePreference(
-      params: { key: string; value: string; expectedRevision: number; mutationId: string },
-    ) {
+    async savePreference(params: {
+      key: string;
+      value: string;
+      expectedRevision: number;
+      mutationId: string;
+    }) {
       const client = await getPersonaControlClient();
       return client.request(
         droraProtocolMethods.personaSavePreference,
@@ -5708,9 +5709,7 @@ export function createDroraAgentService(
       );
     },
 
-    async forgetPreference(
-      params: { key: string; expectedRevision: number; mutationId: string },
-    ) {
+    async forgetPreference(params: { key: string; expectedRevision: number; mutationId: string }) {
       const client = await getPersonaControlClient();
       return client.request(
         droraProtocolMethods.personaForgetPreference,

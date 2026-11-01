@@ -40,21 +40,21 @@ MCP 光标工具面。
 
 ## 3. 本仓现状与差距
 
-| 能力 | 现状 | 差距 |
-| --- | --- | --- |
-| 多 session 事件 | 已有且**平台无关**：宿主 `cuaOperationTurnTracker`（`packages/services/src/drora-agent/`）→ `pip_session_event`（协议 v2，`turn-started/turn-ended/session-closed/focus-changed`，带 `sessionId/turnId`，幂等去重、sequence 仲裁）→ Helper `pip-session/coordinator.ts` 多 session 状态机。Windows 端到端可用（coordinator 不门控平台，只有 native PiP 消费端是 mac-only） | 事件通道可直接复用；但 turn lifecycle 对光标只有 `anyTurnRunning()` 一个布尔（`broker/server/ghostCursorTurnLifecycle.ts`，Windows 上因 native 方法不存在而是 no-op） |
-| macOS 光标 | `src/native/ghost_cursor.mm`（1347 行）：进程级全局单例 `g_window/g_dot/g_bloom`，NAPI 面 `ghostInit/Show/Move/ClickRipple/Hide/State/...` 全部无 session 参数 | 需多实例化 + session 路由 |
-| Windows 光标 | **无**。native 侧无任何可见窗口能力（`ax_win.cc` 唯一 `CreateWindowExW` 是剪贴板隐藏消息窗口）；ghost\* 13 个 NAPI 导出与 pip\* 系列全缺；用户反馈只有 desktop Electron 指示条（`packages/desktop/src/main/windowsCuaOperationIndicator.ts`，多 turn 聚合计数但无 per-session 光标） | 需新建 `ghost_cursor_win.cc` 全套 |
-| 视觉 | 箭头 + 热点环 + 点击涟漪 + keyPulse + focus-rect + 180ms idle 淡出 + 20s 活动租约；`MoveGhostTo` 瞬移；`GhostBlueColor` 硬编码 | 加曲线/朝向/多色 |
-| 遮挡抑制（macOS） | 已有：overlay 在 `NSScreenSaverWindowLevel` 且可见时 `orderFrontRegardless`（恒在用户窗口之上）+ **光标点位 owner-walk 探测**兜底（租约活跃且有 target 时每 100ms 一次）：确定性遮挡（owner ≠ target）→ 立即 alpha=0 + 丢弃 pending 涟漪；不确定态（探测无结果/竞态）→ 连续 3 次（300ms 宽限）才降 alpha 且不吞涟漪；确认可见 → 恢复 + 补播涟漪（`ghost_cursor.mm` 统一可见性模型：`alpha = idle_alpha × occlusion_alpha`） | per-group 化 + 整窗 opacity 下沉为组 opacity（§4.4） |
-| 会话结束隐藏 | 已有（`docs/cua/producer/ghost-cursor-turn-end-hide.md`）：`turn-ended/session-closed` → `withGhostCursorTurnEndHide`（仅当无其他 running session 才 `ghostHide`）→ **立即**隐藏（清 target、停探测、orderOut），非淡出；`turn-started` 刻意不主动显示（无动作显示光标无意义）；20s 租约 + 180ms 淡出仅是轮内兜底，不缩短 | per-session 化后 `anyTurnRunning` 守卫自然消解（§4.7） |
-| 工具调用标题（badge 数据源） | **生产链路是 SDK 而非 MCP 工具**（`docs/cua/2026-08-24-cua-node-repl-sdk-migration-spec.md`）：模型只调 `node_repl` 的 `js`，cell 内 bootstrap CUA SDK 经 bridge `{method, input, context}` 进 `ComputerUseRuntime.execute`。`js` 契约**必填 `title`**（用户语言简短标题，`apps/drora-cli/packages/contracts/src/tools/node-repl.ts:24`），host 已把它放进 `callMeta`（`node-repl-host/src/server.ts:217`）→ `executeJs({requestMeta})` → bridge context 由 requestMeta 构造（`cua-bridge.ts:66`）——**title 已在进程内链路上流转，一个代码块一个 title** | context 透传到 `ComputerUseRuntimeContext` → broker 消息（§4.8），零协议新增 |
-| 多显示器（macOS） | 已修过两个根因（`docs/cua/producer/ghost-cursor-multi-display-spaces.md`）：①并集窗口在默认 Spaces 下只上「面积最大的屏」→ 改为**单窗跟随反馈点所在屏**；②CG→NS 坐标翻转基准误用 `mainScreen`（key window 的屏）→ 一律 `PrimaryScreenFrame()`。已知代价：跨屏 glide 边界跳变 | **单窗跟随在多光标下失效**（两 session 分居两屏时窗口只能跟一个）→ macOS 改每屏一窗（§4.10） |
-| Gate/开关 | ghost overlay 走 argv `--ghost-cursor-overlay`（产品链两处硬编码 true，无设置项）；kill-switch 先例 `--disable-cps-activation`（默认开，argv=关）+ env 翻译函数 `cpsActivationDisableRequested`；argv 唯一构造点 `buildHelperOpenArgs` + `HelperLaunchSpec`（五次漏传教训注释）；旧 Helper 白名单式解析、未知 argv 安全忽略 | 新 gate 照 kill-switch 范式（§4.9），默认开 |
-| session 身份到 fire 点 | **比早期认知好得多（已核实）**：SDK 主链路的产品 sessionId（裸 `sess_*`）每请求流入 Helper——`trace.sessionId → request-context.session_id → context.sessionId`（cua-bridge 必填校验），`capture_app` 已带 `pip_session_context.session_id`；普通动作带复合 `session_key`（input-hold 域）。缺的只是：ghost fire 点（`ax_macos.mm:71-76`）与 Windows fire 点（`ax_win.cc` 经 `windowsInputDispatch.ts`）无 session 参数、native API 单例 | fire 点/seam 消费既有 `context.sessionId`（P0 最后一公里），光标 key 统一用裸 sessionId（§4.1） |
-| Windows 输入并行 | S4 并行实验 P6「同 Helper 双 MCP session 并行元素点击」已 pass（`2026-10-19-windows-input-s4-parallel-baseline.md`） | 多 agent 输入并行有实证，光标可视化跟得上语义 |
-| 单写者约束 | `ControllerLease` 全局唯一 controller（文件锁，Windows 分支就绪：`controllerLease.ts:122`） | 保持不变：多光标仅展示层，输入仍单写者 |
-| 测试基建 | `test/matrix/` 三层门控（平台不匹配 skip → `DRORA_CUA_HARNESS_E2E=1` opt-in → fixture 缺失 fail-fast）；`scripts/windows-harness-parallel-experiments.mjs` 双 MCP session runner | 直接复用为 Windows 多光标真机验收 |
+| 能力                         | 现状                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | 差距                                                                                                                                                                  |
+| ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 多 session 事件              | 已有且**平台无关**：宿主 `cuaOperationTurnTracker`（`packages/services/src/drora-agent/`）→ `pip_session_event`（协议 v2，`turn-started/turn-ended/session-closed/focus-changed`，带 `sessionId/turnId`，幂等去重、sequence 仲裁）→ Helper `pip-session/coordinator.ts` 多 session 状态机。Windows 端到端可用（coordinator 不门控平台，只有 native PiP 消费端是 mac-only）                                                                                                                                                                               | 事件通道可直接复用；但 turn lifecycle 对光标只有 `anyTurnRunning()` 一个布尔（`broker/server/ghostCursorTurnLifecycle.ts`，Windows 上因 native 方法不存在而是 no-op） |
+| macOS 光标                   | `src/native/ghost_cursor.mm`（1347 行）：进程级全局单例 `g_window/g_dot/g_bloom`，NAPI 面 `ghostInit/Show/Move/ClickRipple/Hide/State/...` 全部无 session 参数                                                                                                                                                                                                                                                                                                                                                                                           | 需多实例化 + session 路由                                                                                                                                             |
+| Windows 光标                 | **无**。native 侧无任何可见窗口能力（`ax_win.cc` 唯一 `CreateWindowExW` 是剪贴板隐藏消息窗口）；ghost\* 13 个 NAPI 导出与 pip\* 系列全缺；用户反馈只有 desktop Electron 指示条（`packages/desktop/src/main/windowsCuaOperationIndicator.ts`，多 turn 聚合计数但无 per-session 光标）                                                                                                                                                                                                                                                                     | 需新建 `ghost_cursor_win.cc` 全套                                                                                                                                     |
+| 视觉                         | 箭头 + 热点环 + 点击涟漪 + keyPulse + focus-rect + 180ms idle 淡出 + 20s 活动租约；`MoveGhostTo` 瞬移；`GhostBlueColor` 硬编码                                                                                                                                                                                                                                                                                                                                                                                                                           | 加曲线/朝向/多色                                                                                                                                                      |
+| 遮挡抑制（macOS）            | 已有：overlay 在 `NSScreenSaverWindowLevel` 且可见时 `orderFrontRegardless`（恒在用户窗口之上）+ **光标点位 owner-walk 探测**兜底（租约活跃且有 target 时每 100ms 一次）：确定性遮挡（owner ≠ target）→ 立即 alpha=0 + 丢弃 pending 涟漪；不确定态（探测无结果/竞态）→ 连续 3 次（300ms 宽限）才降 alpha 且不吞涟漪；确认可见 → 恢复 + 补播涟漪（`ghost_cursor.mm` 统一可见性模型：`alpha = idle_alpha × occlusion_alpha`）                                                                                                                              | per-group 化 + 整窗 opacity 下沉为组 opacity（§4.4）                                                                                                                  |
+| 会话结束隐藏                 | 已有（`docs/cua/producer/ghost-cursor-turn-end-hide.md`）：`turn-ended/session-closed` → `withGhostCursorTurnEndHide`（仅当无其他 running session 才 `ghostHide`）→ **立即**隐藏（清 target、停探测、orderOut），非淡出；`turn-started` 刻意不主动显示（无动作显示光标无意义）；20s 租约 + 180ms 淡出仅是轮内兜底，不缩短                                                                                                                                                                                                                                | per-session 化后 `anyTurnRunning` 守卫自然消解（§4.7）                                                                                                                |
+| 工具调用标题（badge 数据源） | **生产链路是 SDK 而非 MCP 工具**（`docs/cua/2026-08-24-cua-node-repl-sdk-migration-spec.md`）：模型只调 `node_repl` 的 `js`，cell 内 bootstrap CUA SDK 经 bridge `{method, input, context}` 进 `ComputerUseRuntime.execute`。`js` 契约**必填 `title`**（用户语言简短标题，`apps/drora-cli/packages/contracts/src/tools/node-repl.ts:24`），host 已把它放进 `callMeta`（`node-repl-host/src/server.ts:217`）→ `executeJs({requestMeta})` → bridge context 由 requestMeta 构造（`cua-bridge.ts:66`）——**title 已在进程内链路上流转，一个代码块一个 title** | context 透传到 `ComputerUseRuntimeContext` → broker 消息（§4.8），零协议新增                                                                                          |
+| 多显示器（macOS）            | 已修过两个根因（`docs/cua/producer/ghost-cursor-multi-display-spaces.md`）：①并集窗口在默认 Spaces 下只上「面积最大的屏」→ 改为**单窗跟随反馈点所在屏**；②CG→NS 坐标翻转基准误用 `mainScreen`（key window 的屏）→ 一律 `PrimaryScreenFrame()`。已知代价：跨屏 glide 边界跳变                                                                                                                                                                                                                                                                             | **单窗跟随在多光标下失效**（两 session 分居两屏时窗口只能跟一个）→ macOS 改每屏一窗（§4.10）                                                                          |
+| Gate/开关                    | ghost overlay 走 argv `--ghost-cursor-overlay`（产品链两处硬编码 true，无设置项）；kill-switch 先例 `--disable-cps-activation`（默认开，argv=关）+ env 翻译函数 `cpsActivationDisableRequested`；argv 唯一构造点 `buildHelperOpenArgs` + `HelperLaunchSpec`（五次漏传教训注释）；旧 Helper 白名单式解析、未知 argv 安全忽略                                                                                                                                                                                                                              | 新 gate 照 kill-switch 范式（§4.9），默认开                                                                                                                           |
+| session 身份到 fire 点       | **比早期认知好得多（已核实）**：SDK 主链路的产品 sessionId（裸 `sess_*`）每请求流入 Helper——`trace.sessionId → request-context.session_id → context.sessionId`（cua-bridge 必填校验），`capture_app` 已带 `pip_session_context.session_id`；普通动作带复合 `session_key`（input-hold 域）。缺的只是：ghost fire 点（`ax_macos.mm:71-76`）与 Windows fire 点（`ax_win.cc` 经 `windowsInputDispatch.ts`）无 session 参数、native API 单例                                                                                                                  | fire 点/seam 消费既有 `context.sessionId`（P0 最后一公里），光标 key 统一用裸 sessionId（§4.1）                                                                       |
+| Windows 输入并行             | S4 并行实验 P6「同 Helper 双 MCP session 并行元素点击」已 pass（`2026-10-19-windows-input-s4-parallel-baseline.md`）                                                                                                                                                                                                                                                                                                                                                                                                                                     | 多 agent 输入并行有实证，光标可视化跟得上语义                                                                                                                         |
+| 单写者约束                   | `ControllerLease` 全局唯一 controller（文件锁，Windows 分支就绪：`controllerLease.ts:122`）                                                                                                                                                                                                                                                                                                                                                                                                                                                              | 保持不变：多光标仅展示层，输入仍单写者                                                                                                                                |
+| 测试基建                     | `test/matrix/` 三层门控（平台不匹配 skip → `DRORA_CUA_HARNESS_E2E=1` opt-in → fixture 缺失 fail-fast）；`scripts/windows-harness-parallel-experiments.mjs` 双 MCP session runner                                                                                                                                                                                                                                                                                                                                                                         | 直接复用为 Windows 多光标真机验收                                                                                                                                     |
 
 其他 Windows 事实（实施时注意）：
 
@@ -119,8 +119,8 @@ key 取值规则（P0 固化）：
   跨进程单例），**身份只能 per-request 传**（现状 `pip_session_context` /
   `session_key` 均如此）——不做构造期注入。
 - 独立 stdio/HTTP 入口（standalone，非本期必须）：`BuildServerOptions.
-  sessionKey` 的消费者——stdio 一进程一会话构造期注入安全（`index.ts
-  main()`）；streamable-http 建 session 时从 initialize `_meta` 取
+sessionKey` 的消费者——stdio 一进程一会话构造期注入安全（`index.ts
+main()`）；streamable-http 建 session 时从 initialize `_meta` 取
   `session_id`，缺失回落 `randomUUID()`（`http-server.ts:295` 现状）。
 - 未注入（standalone / demo / 旧宿主）：退化为现状（macOS 单光标默认蓝；
   Windows 无 overlay），行为完全向后兼容。
@@ -194,8 +194,8 @@ macOS overlay 从「单窗跟随反馈点所在屏」改为**每屏一窗**（�
   topmost 丢失」坑由周期重钉天然覆盖。
 - **capture 排除**：对齐 macOS ghost 的 capture 开关语义；截图窗口期
   `SetWindowDisplayAffinity(hwnd, WDA_EXCLUDEFROMCAPTURE)` + 两次 `DwmFlush()`
-  + RAII 恢复（Win10 2004+；老系统上报 `not_excluded` 继续跑）。本仓 Windows
-  截屏走 WGC（`screen_capture_win.cc`），WGC 遵守 display affinity。
+  - RAII 恢复（Win10 2004+；老系统上报 `not_excluded` 继续跑）。本仓 Windows
+    截屏走 WGC（`screen_capture_win.cc`），WGC 遵守 display affinity。
 - **DPI**：进程为 Per-Monitor-V2、坐标全物理像素（与
   `ReadWindowFrameBounds`/WGC 位图 1:1 对齐的现有约定）；光标/badge 绘制按
   **光标热点所在屏的 scale**（display_geometry 提供）——union 单窗即可一次
@@ -226,7 +226,7 @@ macOS overlay 从「单窗跟随反馈点所在屏」改为**每屏一窗**（�
    「用户窗口夹在两个被驱动窗口之间」的场景下每个光标仍能正确隐藏。
 2. 现有单光标行为已按此语义打磨（立即隐藏/300ms 去抖/涟漪丢弃都是修过的
    bug），沿用即免重趟；z 序策略也因此保持简单（macOS 维持 ScreenSaver 层
-   + orderFrontRegardless；Windows 普通带最前周期重钉，§4.3）。
+   - orderFrontRegardless；Windows 普通带最前周期重钉，§4.3）。
 
 per-session 拆分要点：
 
@@ -294,16 +294,16 @@ index(sessionId):
 （`motion_math.h/.cc`，无 ObjC/Win32 依赖，mac/win 各自的渲染层只消费其输出
 的每帧 `(x, y, heading)`），参数如下：
 
-| 参数 | 默认 | clamp | 说明 |
-| --- | --- | --- | --- |
-| `start_handle / end_handle` | 0.3 / 0.3 | [0,1] | 贝塞尔控制点沿连线分布比例 |
-| `arc_size` | 0.25 | [0,1] | 弧偏移幅度（连线长度比例） |
-| `arc_flow` | 0.0 | [-1,1] | 弧顶偏向（正→靠近终点） |
-| `spring` | 0.72 | [0.3,1.0] | 到达回弹阻尼（1=临界） |
-| `peak/min_start/min_end_speed` | 900/300/200 pt/s | — | 速度包络 `16u²(1-u)²` |
-| `max_glide_s` | 0.8s | — | 单段滑行时长上限（不含 spring 回弹）；超出时整条路径按比例提速 |
-| `dwell_after_click` | 80ms | — | 点击后驻留（沿用现有涟漪节奏） |
-| `SEED_OFFSET` | 140pt | — | 新光标入场偏移 |
+| 参数                           | 默认             | clamp     | 说明                                                           |
+| ------------------------------ | ---------------- | --------- | -------------------------------------------------------------- |
+| `start_handle / end_handle`    | 0.3 / 0.3        | [0,1]     | 贝塞尔控制点沿连线分布比例                                     |
+| `arc_size`                     | 0.25             | [0,1]     | 弧偏移幅度（连线长度比例）                                     |
+| `arc_flow`                     | 0.0              | [-1,1]    | 弧顶偏向（正→靠近终点）                                        |
+| `spring`                       | 0.72             | [0.3,1.0] | 到达回弹阻尼（1=临界）                                         |
+| `peak/min_start/min_end_speed` | 900/300/200 pt/s | —         | 速度包络 `16u²(1-u)²`                                          |
+| `max_glide_s`                  | 0.8s             | —         | 单段滑行时长上限（不含 spring 回弹）；超出时整条路径按比例提速 |
+| `dwell_after_click`            | 80ms             | —         | 点击后驻留（沿用现有涟漪节奏）                                 |
+| `SEED_OFFSET`                  | 140pt            | —         | 新光标入场偏移                                                 |
 
 行为规则：
 
@@ -524,15 +524,15 @@ live 用例沿用本仓多屏 spec 先例（每块活动显示器中心点移动
 
 ## 5. 契约变更清单
 
-| 层 | 变更 | 兼容性 |
-| --- | --- | --- |
-| broker 请求消息 | **（已落地，形态优于原案）**不新增顶层字段：`callBroker` 对全部工具动作消息注入既有 `pip_session_context`（此前仅 `capture_app`），内含 `session_id`（裸产品 sessionId）与新增可选 `action_title`（cell title，§4.8） | 老 Helper 忽略未知子对象 = 现状单光标；新 Helper 收不到字段 = `"default"` 组 / 无 badge |
-| `ComputerUseRuntimeContext`（`src/tools/computer-use-runtime.ts`）+ `cua-bridge.ts` | **（已落地）**context 增可选 `actionTitle?: string`；`requestContext()` 从 requestMeta 保留 title；`requestMetaFor` 回传 snake `title` | 纯 TS 内部字段，无协议/契约变更 |
-| `HelperNativeAddon` seam（`nativeAxSource.ts`） | **（已落地，优于原案）**不逐方法加参：seam 增可选 `ghostSetRequestSession / ghostSetMultiCursorEnabled / ghostSessionTurnEnd / ghostRemoveSession / ghostBeginActionWithTitle`；addon Proxy（`withGhostRequestSessionScope`）在指针类调用窗口内同步设 request scope | 可选方法，TS 侧向后兼容；旧 addon 缺方法时 Proxy 直通 |
-| macOS `ghost_cursor.mm` NAPI/C ABI | 现有 13 个导出增可选 sessionId 变体（NAPI 可选属性；C 接口新增 `ghost_cursor_move_to_session(...)` 系列，旧签名保留为 default 转发） | 二进制面只增不改 |
-| Windows `ghost_cursor_win.cc`（新） | 导出与 macOS 对齐的 ghost\* NAPI 面（带 sessionId；无 mac-only 的 focusRect/RenderPng 可后置）；`ax_win.cc` fire 点（SendClickAt / postMessage\* / hitTest 确定投递处）带 session 触发 | 新增导出，无兼容负担 |
-| 根目录 `binding.gyp` | Windows 分支 sources 加 `ghost_cursor_win.cc`、`motion_math.cc`，补 `gdi32/user32/dwmapi` 链接；macOS 分支加 `motion_math.cc` | 只加源与库；**不改 `src/native/binding.gyp`（旧拷贝）** |
-| argv（`helperConstants.ts` / `helperLauncher.ts` / Windows launcher 路径） | 现有 `--ghost-cursor-overlay/--ghost-cursor-capture` 不动；新增 kill-switch `--disable-multi-cursor-overlay`（默认开）+ env 翻译 `DRORA_CUA_DISABLE_MULTI_CURSOR_OVERLAY`；`HelperLaunchSpec` 加 `disableMultiCursorOverlay?: boolean`，**产品链与懒启动链都传**（§4.9） | 旧 Helper 未知 argv 安全忽略 = 现状单光标；不 bump IPC 版本 |
+| 层                                                                                  | 变更                                                                                                                                                                                                                                                                     | 兼容性                                                                                  |
+| ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------- |
+| broker 请求消息                                                                     | **（已落地，形态优于原案）**不新增顶层字段：`callBroker` 对全部工具动作消息注入既有 `pip_session_context`（此前仅 `capture_app`），内含 `session_id`（裸产品 sessionId）与新增可选 `action_title`（cell title，§4.8）                                                    | 老 Helper 忽略未知子对象 = 现状单光标；新 Helper 收不到字段 = `"default"` 组 / 无 badge |
+| `ComputerUseRuntimeContext`（`src/tools/computer-use-runtime.ts`）+ `cua-bridge.ts` | **（已落地）**context 增可选 `actionTitle?: string`；`requestContext()` 从 requestMeta 保留 title；`requestMetaFor` 回传 snake `title`                                                                                                                                   | 纯 TS 内部字段，无协议/契约变更                                                         |
+| `HelperNativeAddon` seam（`nativeAxSource.ts`）                                     | **（已落地，优于原案）**不逐方法加参：seam 增可选 `ghostSetRequestSession / ghostSetMultiCursorEnabled / ghostSessionTurnEnd / ghostRemoveSession / ghostBeginActionWithTitle`；addon Proxy（`withGhostRequestSessionScope`）在指针类调用窗口内同步设 request scope      | 可选方法，TS 侧向后兼容；旧 addon 缺方法时 Proxy 直通                                   |
+| macOS `ghost_cursor.mm` NAPI/C ABI                                                  | 现有 13 个导出增可选 sessionId 变体（NAPI 可选属性；C 接口新增 `ghost_cursor_move_to_session(...)` 系列，旧签名保留为 default 转发）                                                                                                                                     | 二进制面只增不改                                                                        |
+| Windows `ghost_cursor_win.cc`（新）                                                 | 导出与 macOS 对齐的 ghost\* NAPI 面（带 sessionId；无 mac-only 的 focusRect/RenderPng 可后置）；`ax_win.cc` fire 点（SendClickAt / postMessage\* / hitTest 确定投递处）带 session 触发                                                                                   | 新增导出，无兼容负担                                                                    |
+| 根目录 `binding.gyp`                                                                | Windows 分支 sources 加 `ghost_cursor_win.cc`、`motion_math.cc`，补 `gdi32/user32/dwmapi` 链接；macOS 分支加 `motion_math.cc`                                                                                                                                            | 只加源与库；**不改 `src/native/binding.gyp`（旧拷贝）**                                 |
+| argv（`helperConstants.ts` / `helperLauncher.ts` / Windows launcher 路径）          | 现有 `--ghost-cursor-overlay/--ghost-cursor-capture` 不动；新增 kill-switch `--disable-multi-cursor-overlay`（默认开）+ env 翻译 `DRORA_CUA_DISABLE_MULTI_CURSOR_OVERLAY`；`HelperLaunchSpec` 加 `disableMultiCursorOverlay?: boolean`，**产品链与懒启动链都传**（§4.9） | 旧 Helper 未知 argv 安全忽略 = 现状单光标；不 bump IPC 版本                             |
 
 ## 6. 时序与状态图
 
@@ -613,7 +613,7 @@ env-kill/旧 Helper 忽略）通过；全平台行为与现状无差异（光标
    capture 全窗生效、ghostState 按组报告、空闲全组隐藏才全窗 orderOut）；
    `PrimaryScreenFrame` 翻转基准与回退链保留。
 2. `ghost_cursor.mm`：全局单例重构为 per-window `NSMutableDictionary<key,
-   group>` + tombstone；default 路径行为不变；新增状态用显式 `placed`
+group>` + tombstone；default 路径行为不变；新增状态用显式 `placed`
    标志（禁负数哨兵）。
 3. 颜色派生纯 C++（§4.5，含美术顶点共享头）+ macOS tint 接入。
 4. 遮挡探测 per-group 化 + 整窗 opacity 下沉为组 opacity（§4.4 重构点）。
@@ -655,8 +655,8 @@ env-kill/旧 Helper 忽略）通过；全平台行为与现状无差异（光标
 
 1. badge（§4.8 全套）：bridge context 增 `actionTitle`（cell title 进
    `ComputerUseRuntimeContext`）+ broker 同路 `actionTitle` + native badge 层
-   + 系统字体文字渲染（macOS Core Text / Windows DirectWrite，CJK 必须有
-   字形）；badge 可见性直接绑定组 alpha（无独立状态机，先写纯函数测试）。
+   - 系统字体文字渲染（macOS Core Text / Windows DirectWrite，CJK 必须有
+     字形）；badge 可见性直接绑定组 alpha（无独立状态机，先写纯函数测试）。
 2. reduced motion 跟随系统（mac/win 各自 API）。
 3. 验证入场/退场动画细节（淡入、角落翻转）。
 4. （Windows per-monitor DPI 已并入 P3——union 单窗 + per-cursor paint
@@ -670,19 +670,19 @@ MCP 工具面直调（无 title）全程无 badge，光标/动画/遮挡/生命�
 
 ## 8. 测试计划（先测后码）
 
-| 层 | 用例 | 位置 |
-| --- | --- | --- |
-| TS 单测 | 颜色派生稳定：同 id 恒同色；`agent-3`→板 3；单字母；FNV 分支 | `test/`（vitest，纯函数镜像实现 + 与 native 自测对照） |
-| TS 单测 | turn lifecycle per-session：turn-ended **立即**隐藏该组（不再等 anyTurnRunning）；turn-started 不显示；closed 后墓碑丢弃迟到事件 | 重写扩展 `ghost-cursor-turn-lifecycle.test.ts` |
-| native/live | 遮挡 per-session：确定性遮挡立即隐藏**仅该组** + 丢涟漪；不确定态 300ms 去抖不吞涟漪；一组淡出不带动他组（组 opacity 重构） | 扩展 native 契约 + macOS live 用例 |
-| TS/native | badge：**与组生命周期同进退**（组隐藏文字即消失，无独立残留）、悬停回看、像素截断；中文标题有字形（CJK 渲染回归）；bridge context 透传 cell title；MCP 直调无 badge | P4，vitest 纯函数 + live 视觉验证 |
-| TS 单测 | broker 消息带 sessionId 透传 / 缺省回退 default | `test/` broker 协议 |
-| TS/native | gate：默认开；env-kill 三值语义（只认显式真值）；两条启动链都拼 argv（防第六次漏传）；关闭时 sessionId 旁路到 default；未知 argv 旧 Helper 忽略 | `test/` + helperLauncher 契约 |
-| 纯几何单测 | 多屏：负坐标（主屏左侧/上方副屏）合法、点→屏路由半开接缝、seed clamp 进目标屏、混合 scale（2.0/1.0/1.5）、镜像屏跳过、热插拔 generation 失配丢弃 | 表驱动，无 OS 依赖 |
-| native 契约 | NAPI 面扩展（mac per-session 变体、win ghost\* 全套存在、默认参数兼容） | 扩展 `test/native/ghost-cursor.test.ts` + 新增 win 契约 |
-| 运动学数值 | `ghostMotionSelftest`：端点连续、切向朝向、spring 收敛、顶替重规划 | P2，vitest 数值断言（双平台跑同一断言） |
-| macOS 真机 live | 双 session 并发移动互不干扰、颜色区分、关闭清理；**双 session 分居双屏各见其光标**（每屏中心点断言，沿用多屏 live 模式） | 仿 `test/native/ghost-cursor-feedback-live` 模式 |
-| Windows 真机 | 双 session 并发（复用 `windows-harness-parallel-experiments.mjs` 双 MCP session 形态，P6 已验证）；真实指针不动；z 序/截图排除 | `test/matrix/` 新用例，`platforms:['win32']` + 三层门控，`*.cua.test.ts` 命名 |
+| 层              | 用例                                                                                                                                                                | 位置                                                                          |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| TS 单测         | 颜色派生稳定：同 id 恒同色；`agent-3`→板 3；单字母；FNV 分支                                                                                                        | `test/`（vitest，纯函数镜像实现 + 与 native 自测对照）                        |
+| TS 单测         | turn lifecycle per-session：turn-ended **立即**隐藏该组（不再等 anyTurnRunning）；turn-started 不显示；closed 后墓碑丢弃迟到事件                                    | 重写扩展 `ghost-cursor-turn-lifecycle.test.ts`                                |
+| native/live     | 遮挡 per-session：确定性遮挡立即隐藏**仅该组** + 丢涟漪；不确定态 300ms 去抖不吞涟漪；一组淡出不带动他组（组 opacity 重构）                                         | 扩展 native 契约 + macOS live 用例                                            |
+| TS/native       | badge：**与组生命周期同进退**（组隐藏文字即消失，无独立残留）、悬停回看、像素截断；中文标题有字形（CJK 渲染回归）；bridge context 透传 cell title；MCP 直调无 badge | P4，vitest 纯函数 + live 视觉验证                                             |
+| TS 单测         | broker 消息带 sessionId 透传 / 缺省回退 default                                                                                                                     | `test/` broker 协议                                                           |
+| TS/native       | gate：默认开；env-kill 三值语义（只认显式真值）；两条启动链都拼 argv（防第六次漏传）；关闭时 sessionId 旁路到 default；未知 argv 旧 Helper 忽略                     | `test/` + helperLauncher 契约                                                 |
+| 纯几何单测      | 多屏：负坐标（主屏左侧/上方副屏）合法、点→屏路由半开接缝、seed clamp 进目标屏、混合 scale（2.0/1.0/1.5）、镜像屏跳过、热插拔 generation 失配丢弃                    | 表驱动，无 OS 依赖                                                            |
+| native 契约     | NAPI 面扩展（mac per-session 变体、win ghost\* 全套存在、默认参数兼容）                                                                                             | 扩展 `test/native/ghost-cursor.test.ts` + 新增 win 契约                       |
+| 运动学数值      | `ghostMotionSelftest`：端点连续、切向朝向、spring 收敛、顶替重规划                                                                                                  | P2，vitest 数值断言（双平台跑同一断言）                                       |
+| macOS 真机 live | 双 session 并发移动互不干扰、颜色区分、关闭清理；**双 session 分居双屏各见其光标**（每屏中心点断言，沿用多屏 live 模式）                                            | 仿 `test/native/ghost-cursor-feedback-live` 模式                              |
+| Windows 真机    | 双 session 并发（复用 `windows-harness-parallel-experiments.mjs` 双 MCP session 形态，P6 已验证）；真实指针不动；z 序/截图排除                                      | `test/matrix/` 新用例，`platforms:['win32']` + 三层门控，`*.cua.test.ts` 命名 |
 
 ## 9. 明确不做什么
 
@@ -738,7 +738,7 @@ MCP 工具面直调（无 title）全程无 badge，光标/动画/遮挡/生命�
 1. **sessionKey 注入点（已确认，subagent 调研）**：SDK 主链路无需任何注入
    ——`trace.sessionId → request-context.session_id → context.sessionId`
    已 per-request 流入 Helper（cua-bridge 必填校验），`pip_session_context.
-   session_id` 同为裸产品 sessionId，与 turn 事件同 key。光标 key 固定为
+session_id` 同为裸产品 sessionId，与 turn 事件同 key。光标 key 固定为
    裸 sessionId（§4.1）；`sessionKeyFor` 复合键与 `ToolDeps.sessionKey`
    均不混用。独立 stdio/HTTP 入口如需对齐（standalone 场景），注入点在
    `index.ts main()` 与 `http-server.ts` 建 session 处，非本期。
@@ -826,16 +826,16 @@ MCP 工具面直调（无 title）全程无 badge，光标/动画/遮挡/生命�
   分离路径是用户显式控制也不弹）。
   **2026-10-26 三轮真机修复（表面像素齐全但屏幕不可见）**：自建 helper
   复现链（真实 argv 起 `dist/windows-helper.js` → broker pipe 发 `click`）
-  + 表面内存 BMP dump 证明渲染管线全对（组/脏区/ULW present 正常、DIB
-  内指针+涟漪像素完整），断点在 DWM 合成。两个根因：
-  (a) **z 序沉底**——`RepinZOrder` 只发一次 `HWND_NOTOPMOST`，不保证带内
-  位置，窗口被后续窗口压到 z 序底部完全不可见；修复无目标落位：`HWND_TOPMOST → HWND_NOTOPMOST` 瞬时双跳落到非 topmost 带最前
-  （用户前台窗口仍在其上）。
-  (b) **alpha 预乘**——`BlendPixel` 此前写直通（non-premultiplied）BGRA，
-  ULW 的 `AC_SRC_ALPHA` 要求预乘；alpha<255 的像素（glow/描边/涟漪边缘）
-  过曝或不可见；修复为混合在直通空间、落盘前乘 `out_a` 转预乘。另：CreateWindowExW 失败补 stderr
-  日志（此前静默丢弃命令，排查代价极高）。验证：截屏 + 视觉模型确认
-  蓝色指针（#1F8CFF 白描边）+ 涟漪在点击点精确呈现。
+  - 表面内存 BMP dump 证明渲染管线全对（组/脏区/ULW present 正常、DIB
+    内指针+涟漪像素完整），断点在 DWM 合成。两个根因：
+    (a) **z 序沉底**——`RepinZOrder` 只发一次 `HWND_NOTOPMOST`，不保证带内
+    位置，窗口被后续窗口压到 z 序底部完全不可见；修复无目标落位：`HWND_TOPMOST → HWND_NOTOPMOST` 瞬时双跳落到非 topmost 带最前
+    （用户前台窗口仍在其上）。
+    (b) **alpha 预乘**——`BlendPixel` 此前写直通（non-premultiplied）BGRA，
+    ULW 的 `AC_SRC_ALPHA` 要求预乘；alpha<255 的像素（glow/描边/涟漪边缘）
+    过曝或不可见；修复为混合在直通空间、落盘前乘 `out_a` 转预乘。另：CreateWindowExW 失败补 stderr
+    日志（此前静默丢弃命令，排查代价极高）。验证：截屏 + 视觉模型确认
+    蓝色指针（#1F8CFF 白描边）+ 涟漪在点击点精确呈现。
 
 ### 12.2 与原案的实现偏差
 
@@ -936,6 +936,7 @@ alpha/位置/颜色/动画/badge 明细）；顶层字段映射 default 组（�
 架构含义：**每个新的视觉 fire 承载路径都要同时接三层**——scope 名单
 （TS）+ 入队拷贝（若有异步边界）+ 显式 session 变体（native fire 点）。
 键盘 InputWorker、元素动作、后台投递三处现在同构。
+
 - badge 时序契约不变（组生命周期，无自治淡出——用户决策维持 §4.8 原案）。
 - 验证：`ghostMotionSelftest` 落点断言改为精确目标点（400/300）；
   `ghost-cursor.test.ts` sanitize 断言补 `…` 结尾；macOS `ghostRenderPng`

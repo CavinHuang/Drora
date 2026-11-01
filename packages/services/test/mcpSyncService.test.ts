@@ -3,8 +3,18 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import type { McpDataSyncPayload } from "@drora/shared";
+import { createMcpDataSyncMethods } from "../src/data-sync/mcpDataSync.js";
 import { createMcpSyncService } from "../src/mcp-sync/mcpSyncService.js";
 
+// 2026-11-01 S7 适配说明：上游 v3.17.1（S3 段）删除了 createMcpSyncService 的四个显式
+// 远端接口（listLocalUserMcpCandidates、listRemoteUserMcpStatuses、exportMcpServers/
+// importMcpServers 与 checkRemoteUserMcpWriteAccess），本地列举语义收敛进
+// loadMcpFromUserDirectory（同一读取/迁移机制：readServerMapWithLegacyMigration +
+// .agents 回退），远端同步语义迁至 data-sync 分类实现 createMcpDataSyncMethods
+// （listSyncItems/exportSyncItems/importSyncItems/checkSyncWriteAccess）。本文件按新
+// 契约重写原 12 例，断言的 产品语义（enable 迁移、停用优先、幂等、密钥保真、0600、
+// 损坏文件保护、路径改写、同名不覆盖）逐条保留。
 function makeHome() {
   return mkdtempSync(join(tmpdir(), "drora-mcp-sync-home-"));
 }
@@ -31,6 +41,21 @@ async function readRemoteDroraServers(home: string) {
   return parsed.mcp?.servers ?? {};
 }
 
+async function exportAllItems(
+  methods: ReturnType<typeof createMcpDataSyncMethods>,
+  workspace?: Parameters<typeof methods.exportSyncItems>[0]["workspace"],
+): Promise<McpDataSyncPayload> {
+  const list = await methods.listSyncItems();
+  return methods.exportSyncItems({
+    keys: list.items.map((item) => item.key),
+    ...(workspace ? { workspace } : {}),
+  });
+}
+
+function createOnlyItems(payload: McpDataSyncPayload) {
+  return payload.items.map((item) => ({ key: item.key, mode: "createOnly" as const }));
+}
+
 describe("mcp sync service", () => {
   let originalHome: string | undefined;
 
@@ -42,7 +67,7 @@ describe("mcp sync service", () => {
     process.env.HOME = originalHome;
   });
 
-  it("lists user drora MCP servers as local candidates", async () => {
+  it("lists user drora MCP servers through the user directory load path", async () => {
     const home = makeHome();
     process.env.HOME = home;
     await writeDroraUserMcp(home, {
@@ -54,24 +79,24 @@ describe("mcp sync service", () => {
     });
     const service = createMcpSyncService();
 
-    const result = await service.listLocalUserMcpCandidates();
+    const result = await service.loadMcpFromUserDirectory();
 
-    expect(result.localHomeDir).toBe(home);
-    expect(result.candidates).toMatchObject([
+    expect(result.servers).toMatchObject([
       {
+        source: "droraagentmcp",
+        scope: "user",
         name: "context7",
         enabled: true,
-        source: "drora",
-        path: join(home, ".drora", "cli", "config.json"),
         config: {
           command: "npx",
           args: ["-y", "@upstash/context7-mcp"],
         },
+        file: { filePath: join(home, ".drora", "cli", "config.json") },
       },
     ]);
   });
 
-  it("marks a candidate disabled when only enabled:false is present", async () => {
+  it("marks a server disabled when only enabled:false is present", async () => {
     const home = makeHome();
     process.env.HOME = home;
     // 外部工具/手工编辑写的是 enabled:false；同步侧不能把它当成启用状态。
@@ -85,9 +110,9 @@ describe("mcp sync service", () => {
     });
     const service = createMcpSyncService();
 
-    const result = await service.listLocalUserMcpCandidates();
+    const result = await service.loadMcpFromUserDirectory();
 
-    expect(result.candidates[0]).toMatchObject({ name: "context7", enabled: false });
+    expect(result.servers[0]).toMatchObject({ name: "context7", enabled: false });
   });
 
   it("clears a stale enabled flag when toggling a server", async () => {
@@ -129,10 +154,10 @@ describe("mcp sync service", () => {
     });
   });
 
-  it("migrates a legacy enable flag to enabled when listing candidates", async () => {
+  it("migrates a legacy enable flag to enabled when loading user MCP", async () => {
     const home = makeHome();
     process.env.HOME = home;
-    // 存量配置只有桌面端历史写入的 enable；同步侧读取时应就地迁移成契约字段 enabled。
+    // 存量配置只有桌面端历史写入的 enable；读取时应就地迁移成契约字段 enabled。
     await writeDroraUserMcp(home, {
       context7: {
         command: "npx",
@@ -142,9 +167,9 @@ describe("mcp sync service", () => {
     });
     const service = createMcpSyncService();
 
-    const result = await service.listLocalUserMcpCandidates();
+    const result = await service.loadMcpFromUserDirectory();
 
-    expect(result.candidates[0]).toMatchObject({ name: "context7", enabled: false });
+    expect(result.servers[0]).toMatchObject({ name: "context7", enabled: false });
     expect((await readRemoteDroraServers(home)).context7).toEqual({
       command: "npx",
       args: ["-y", "@upstash/context7-mcp"],
@@ -152,7 +177,7 @@ describe("mcp sync service", () => {
     });
   });
 
-  it("keeps a candidate disabled when legacy enable:false collides with enabled:true", async () => {
+  it("keeps a server disabled when legacy enable:false collides with enabled:true", async () => {
     const home = makeHome();
     process.env.HOME = home;
     // 线上事故配置：停用写了 enable:false，但外部导入残留 enabled:true。迁移必须保住停用语义。
@@ -166,9 +191,9 @@ describe("mcp sync service", () => {
     });
     const service = createMcpSyncService();
 
-    const result = await service.listLocalUserMcpCandidates();
+    const result = await service.loadMcpFromUserDirectory();
 
-    expect(result.candidates[0]).toMatchObject({ name: "context7", enabled: false });
+    expect(result.servers[0]).toMatchObject({ name: "context7", enabled: false });
     expect((await readRemoteDroraServers(home)).context7).toEqual({
       command: "npx",
       args: ["-y", "@upstash/context7-mcp"],
@@ -179,7 +204,7 @@ describe("mcp sync service", () => {
   it("leaves the config file untouched when no legacy enable flag exists", async () => {
     const home = makeHome();
     process.env.HOME = home;
-    // 迁移必须幂等：没有残留字段时不能重写文件，否则每次列举候选都会动用户的配置。
+    // 迁移必须幂等：没有残留字段时不能重写文件，否则每次加载都会动用户的配置。
     // 故意用非规范化的紧凑 JSON 落盘，任何重写都会改变字节内容。
     const configPath = join(home, ".drora", "cli", "config.json");
     await mkdir(join(home, ".drora", "cli"), { recursive: true });
@@ -197,7 +222,7 @@ describe("mcp sync service", () => {
     await writeFile(configPath, raw);
     const service = createMcpSyncService();
 
-    await service.listLocalUserMcpCandidates();
+    await service.loadMcpFromUserDirectory();
 
     await expect(readFile(configPath, "utf-8")).resolves.toBe(raw);
   });
@@ -205,9 +230,9 @@ describe("mcp sync service", () => {
   it("checks remote MCP config directory write access before sync", async () => {
     const remoteHome = makeHome();
     process.env.HOME = remoteHome;
-    const service = createMcpSyncService();
+    const methods = createMcpDataSyncMethods();
 
-    const result = await service.checkRemoteUserMcpWriteAccess();
+    const result = await methods.checkSyncWriteAccess();
 
     expect(result).toMatchObject({
       ok: true,
@@ -220,9 +245,9 @@ describe("mcp sync service", () => {
     process.env.HOME = remoteHome;
     await mkdir(join(remoteHome, ".drora"), { recursive: true });
     await writeFile(join(remoteHome, ".drora", "cli"), "not a directory");
-    const service = createMcpSyncService();
+    const methods = createMcpDataSyncMethods();
 
-    const result = await service.checkRemoteUserMcpWriteAccess();
+    const result = await methods.checkSyncWriteAccess();
 
     expect(result.ok).toBe(false);
     expect(result.path).toBe(join(remoteHome, ".drora", "cli"));
@@ -240,13 +265,12 @@ describe("mcp sync service", () => {
     });
     const service = createMcpSyncService();
 
-    const result = await service.listLocalUserMcpCandidates();
+    const result = await service.loadMcpFromUserDirectory();
 
-    expect(result.candidates).toMatchObject([
+    expect(result.servers).toMatchObject([
       {
         name: "docs",
-        source: "agents",
-        path: join(home, ".agents", "mcp.json"),
+        file: { filePath: join(home, ".agents", "mcp.json") },
       },
     ]);
   });
@@ -267,25 +291,18 @@ describe("mcp sync service", () => {
         headers: { Authorization: "Bearer secret-token" },
       },
     });
-    const localService = createMcpSyncService();
-    const candidates = await localService.listLocalUserMcpCandidates();
-    const exported = await localService.exportMcpServers({
-      serverIds: candidates.candidates.map((candidate) => candidate.id),
-    });
+    const exported = await exportAllItems(createMcpDataSyncMethods());
 
     const remoteHome = makeHome();
     process.env.HOME = remoteHome;
-    const remoteService = createMcpSyncService();
-    const result = await remoteService.importMcpServers({
-      servers: exported.servers,
-      localHomeDir: exported.localHomeDir,
-      remoteWorkspacePath: "/home/dev/project",
-      overwrite: false,
+    const result = await createMcpDataSyncMethods().importSyncItems({
+      payload: exported,
+      items: createOnlyItems(exported),
     });
 
     expect(result.results).toMatchObject([
-      { name: "context7", status: "synced" },
-      { name: "docsApi", status: "synced" },
+      { key: "context7", status: "created" },
+      { key: "docsapi", status: "created" },
     ]);
     const remoteServers = await readRemoteDroraServers(remoteHome);
     expect(remoteServers.context7).toMatchObject({
@@ -308,15 +325,12 @@ describe("mcp sync service", () => {
     try {
       const remoteHome = makeHome();
       process.env.HOME = remoteHome;
-      const remoteService = createMcpSyncService();
-
-      await remoteService.importMcpServers({
-        servers: [
+      const payload: McpDataSyncPayload = {
+        sourceHomeDir: "/Users/local",
+        items: [
           {
-            id: "docs-api",
+            key: "docs-api",
             name: "docsApi",
-            source: "drora",
-            path: "/Users/local/.drora/cli/config.json",
             enabled: true,
             config: {
               type: "http",
@@ -325,8 +339,11 @@ describe("mcp sync service", () => {
             },
           },
         ],
-        localHomeDir: "/Users/local",
-        overwrite: false,
+      };
+
+      await createMcpDataSyncMethods().importSyncItems({
+        payload,
+        items: [{ key: "docs-api", mode: "createOnly" }],
       });
 
       const configMode = (await stat(join(remoteHome, ".drora", "cli", "config.json"))).mode;
@@ -346,27 +363,21 @@ describe("mcp sync service", () => {
         args: ["-y", "@upstash/context7-mcp"],
       },
     });
-    const localService = createMcpSyncService();
-    const candidates = await localService.listLocalUserMcpCandidates();
-    const exported = await localService.exportMcpServers({
-      serverIds: candidates.candidates.map((candidate) => candidate.id),
-    });
+    const exported = await exportAllItems(createMcpDataSyncMethods());
 
     const remoteHome = makeHome();
     process.env.HOME = remoteHome;
     const invalidConfigPath = join(remoteHome, ".drora", "cli", "config.json");
     await mkdir(join(remoteHome, ".drora", "cli"), { recursive: true });
     await writeFile(invalidConfigPath, '{"mcp":');
-    const remoteService = createMcpSyncService();
 
-    await expect(
-      remoteService.importMcpServers({
-        servers: exported.servers,
-        localHomeDir: exported.localHomeDir,
-        remoteWorkspacePath: "/home/dev/project",
-        overwrite: false,
-      }),
-    ).rejects.toThrow(/config\.json/);
+    const result = await createMcpDataSyncMethods().importSyncItems({
+      payload: exported,
+      items: createOnlyItems(exported),
+    });
+
+    expect(result.results).toMatchObject([{ key: "context7", status: "failed" }]);
+    expect(result.results[0]?.error).toContain("config.json");
     await expect(readFile(invalidConfigPath, "utf-8")).resolves.toBe('{"mcp":');
   });
 
@@ -452,21 +463,16 @@ describe("mcp sync service", () => {
         ],
       },
     });
-    const localService = createMcpSyncService();
-    const candidates = await localService.listLocalUserMcpCandidates();
-    const exported = await localService.exportMcpServers({
-      serverIds: candidates.candidates.map((candidate) => candidate.id),
+    const exported = await exportAllItems(createMcpDataSyncMethods(), {
+      sourceWorkspacePath: localWorkspacePath,
+      targetWorkspacePath: "/srv/drora",
     });
 
     const remoteHome = makeHome();
     process.env.HOME = remoteHome;
-    const remoteService = createMcpSyncService();
-    await remoteService.importMcpServers({
-      servers: exported.servers,
-      localHomeDir: exported.localHomeDir,
-      localWorkspacePath,
-      remoteWorkspacePath: "/srv/drora",
-      overwrite: false,
+    await createMcpDataSyncMethods().importSyncItems({
+      payload: exported,
+      items: createOnlyItems(exported),
     });
 
     const remoteServers = await readRemoteDroraServers(remoteHome);
@@ -488,11 +494,7 @@ describe("mcp sync service", () => {
         args: ["-y", "@upstash/context7-mcp"],
       },
     });
-    const localService = createMcpSyncService();
-    const candidates = await localService.listLocalUserMcpCandidates();
-    const exported = await localService.exportMcpServers({
-      serverIds: candidates.candidates.map((candidate) => candidate.id),
-    });
+    const exported = await exportAllItems(createMcpDataSyncMethods());
 
     const remoteHome = makeHome();
     process.env.HOME = remoteHome;
@@ -502,20 +504,17 @@ describe("mcp sync service", () => {
         command: "existing-command",
       },
     });
-    const remoteService = createMcpSyncService();
 
-    const result = await remoteService.importMcpServers({
-      servers: exported.servers,
-      localHomeDir: exported.localHomeDir,
-      remoteWorkspacePath: "/home/dev/project",
-      overwrite: false,
+    const result = await createMcpDataSyncMethods().importSyncItems({
+      payload: exported,
+      items: createOnlyItems(exported),
     });
 
     expect(result.results).toEqual([
       {
-        name: "context7",
-        status: "skipped",
-        path: join(remoteHome, ".drora", "cli", "config.json"),
+        key: "context7",
+        status: "conflict",
+        error: undefined,
       },
     ]);
     const remoteServers = await readRemoteDroraServers(remoteHome);

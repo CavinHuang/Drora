@@ -481,7 +481,7 @@ presentation 区分 teammate 消息，加值的偏斜面已澄清（该枚举不
    重放同一过滤。反 laundering 价值：工具面收窄的裁决权在部署方不在模型。v1 可先
    不做（profile tools 治理已覆盖基本需求）。
 
-## 9. subagent_child 行为门验证清单（24 处，零改动验证）
+## 9. subagent_child 行为门验证清单（17 处，零改动验证）
 
 2026-10-16 实测：`grep -rn 'subagent_child' core/bootstrap/services src（非测试）| grep '===|!=='`
 共 **22 处**（core/bootstrap 19 + services sessionKind 3）。
@@ -499,7 +499,18 @@ ID 查询可凭持久化父链证明归属，目录/身份不符即拒绝，不�
 `subagent_child` 在其 readonly 集合内，listSessions 父归属/sendPrompt/v4 只读闸的
 继承语义不变；shared 不在 census grep roots 内，属形状迁移而非门移除）。
 server-operations.ts 3→1、v4-bridge.ts 1→0，census 24 → **21 处（13 文件）**；
-FROZEN_GATES 与总数已按当前树再冻结（behavior-gates.snapshot.test.ts 同批更新）。分布：
+FROZEN_GATES 与总数已按当前树再冻结（behavior-gates.snapshot.test.ts 同批更新）。
+
+**2026-11-01 再清点（v3.17.1 合并 S3 服务段 821b68f5 后）**：services 侧 4 处字面量门
+（droraTaskIndexSyncer.ts 任务索引排除、droraTaskServiceAdapter.ts meta 直返、
+droraAgentService.ts 会话归属守卫、task-facts/repairSubagentTaskIndex.ts 索引修复）全部
+收敛进 shared 的 `isAuxiliarySessionKind`（packages/shared/src/drora-protocol-legacy-types.ts，
+= isReadonlyAgentSessionKind ∪ selection_side_chat，`subagent_child` 在集合内；同文件注明
+修复原因：只识别 subagent_child 会漏掉工作流与辅助对话的父归属、隐藏索引规则）。逐处核对：
+四个调用点（syncer:1691 / adapter:1438 / service:3879 / repair:27）分支结构与原 `===/!==`
+字面量门逐字对应（service 与 repair 为取反形态），teammate（taskType=subagent_child）
+仍命中、任务索引排除与父链归属的继承语义不变；shared 不在 census grep roots 内，
+属形状迁移而非门移除。census 21 → **17 处（10 文件）**，FROZEN_GATES 已再冻结。分布：
 
 | 文件                                                                                                                         | 处数 | 继承效果（taskType=subagent_child ⇒ 自动获得）                                                                                                 |
 | ---------------------------------------------------------------------------------------------------------------------------- | ---- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -511,8 +522,7 @@ FROZEN_GATES 与总数已按当前树再冻结（behavior-gates.snapshot.test.ts
 | core/src/runtime/helpers/tool-allowlist.ts:114                                                                               | 1    | RespondToCoordinator 经 allowlist 补回                                                                                                         |
 | core/src/runtime/methods/model-request-session-type.ts、turn-model-step-usage.ts、background.ts                              | 3    | 模型请求归类/用量/后台语义按子会话                                                                                                             |
 | core/src/telemetry/runtime-telemetry.ts                                                                                      | 1    | telemetry 归类                                                                                                                                 |
-| services：droraTaskIndexSyncer.ts:1680、droraTaskServiceAdapter.ts、task-facts/repairSubagentTaskIndex.ts（2026-10-21 迁移） | 3    | 任务索引排除 teammate（不出现在任务列表）                                                                                                      |
-| services：drora-agent/droraAgentService.ts（2026-10-21 新增）                                                                | 1    | 会话事件归属守卫：teammate 会话事件同样按父链归属，不串主会话                                                                                  |
+| services（历史分布，v3.17.1 S3 起收敛进 shared isAuxiliarySessionKind，见上注）                                              | —    | 任务索引排除 teammate（不出现在任务列表）、会话事件按父链归属不串主会话                                                                       |
 
 **继承原则（入 spec 的机制约定）**：上游后续新增任何 subagent_child 门，teammate 自动
 继承其行为——默认正确，因为 teammate 本质就是子代理；若某新门语义确需区分，按 spec

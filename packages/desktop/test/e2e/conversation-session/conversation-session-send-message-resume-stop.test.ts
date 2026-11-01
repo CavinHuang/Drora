@@ -99,9 +99,7 @@ describe("SendMessage resume Stop", () => {
     expect(sendMessageBlock.text).toContain(
       'You MUST invoke the Bash tool with command "sleep 120".',
     );
-    expect(await waitForSingleSubagentSummaryChildSessionId(30000)).toBe(
-      foregroundChildSessionId,
-    );
+    expect(await waitForSingleSubagentSummaryChildSessionId(30000)).toBe(foregroundChildSessionId);
 
     await openV4RunningBackgroundWorks(90000);
     const runningWork = await waitForSingleRunningBackgroundWork(30000);

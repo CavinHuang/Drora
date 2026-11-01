@@ -55,3 +55,9 @@ apps/drora-cli/packages/bundled-skills/skills/dynamic-workflows/** text eol=lf
 # 期望边集为空，测试在 Windows 上永远失败（上游 CI 是 LF checkout 不受影响）。
 # 与 *.baseline.sql / tests/fixtures 同一先例，强制 LF。
 apps/drora-cli/packages/dynamic-workflow/tests/graphs/** text eol=lf
+
+# Gen UI Tweak 运行时被 Visualize 插件 seed 的 assets/runtime-manifest.json 按
+# sha256 逐字节钉住（gen-ui-runtime-assets 测试直接读磁盘字节比对；见
+# packages/desktop/src/main/pluginSandbox/CONTRACT.md 资源完整性一节）。autocrlf 检出成
+# CRLF 会让该等式在 Windows 上恒失败，与 *.baseline.sql / dynamic-workflows 同一先例，强制 LF。
+packages/desktop/src/renderer/src/plugin-sandbox/genUiTweakRuntime.js text eol=lf

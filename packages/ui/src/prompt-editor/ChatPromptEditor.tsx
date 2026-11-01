@@ -250,7 +250,8 @@ export function ChatPromptEditor({
       const plan = resolveComposerEscapePlan({
         key: event.key,
         defaultPrevented: event.defaultPrevented,
-        insideDialog: event.target instanceof Element && event.target.closest('[role="dialog"]') !== null,
+        insideDialog:
+          event.target instanceof Element && event.target.closest('[role="dialog"]') !== null,
         submitting,
         hasCancel: Boolean(onCancel),
       });

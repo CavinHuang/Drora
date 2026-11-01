@@ -3762,9 +3762,10 @@ const enUS: Record<string, string> = {
   "settings.drora.preferences.provenance.extraction": "Source: automatic extraction",
   "settings.drora.preferences.epistemic.explicit": "Explicit",
   "settings.drora.preferences.epistemic.inferred": "Inferred",
-  "settings.drora.preferences.disputedBadge": "Conflicting inferred values; injection paused for this key",
+  "settings.drora.preferences.disputedBadge":
+    "Conflicting inferred values; injection paused for this key",
   "settings.drora.preferences.disputedHint":
-    "Resolve the conflict via \"Save\" or \"Forget\": both clear the dispute and advance the revision; the automatic value itself is not kept.",
+    'Resolve the conflict via "Save" or "Forget": both clear the dispute and advance the revision; the automatic value itself is not kept.',
   "settings.drora.preferences.suppressedBadge": "Automatic learning suppressed for this key",
   "settings.drora.preferences.allowLearning": "Allow learning",
   "settings.drora.preferences.allowing": "Allowing…",

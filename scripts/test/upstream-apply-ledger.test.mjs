@@ -70,7 +70,15 @@ const row = (fields) =>
 async function runTool(root, ledgerText, decisions) {
   const tsv = path.join(root, "ledger.tsv");
   await fs.writeFile(tsv, ledgerText, "utf8");
-  const args = [TOOL, "--ledger", tsv, "--segment", "T1", "--report", path.join(root, "report.json")];
+  const args = [
+    TOOL,
+    "--ledger",
+    tsv,
+    "--segment",
+    "T1",
+    "--report",
+    path.join(root, "report.json"),
+  ];
   if (decisions) {
     const dj = path.join(root, "decisions.json");
     await fs.writeFile(dj, JSON.stringify(decisions), "utf8");
@@ -84,13 +92,26 @@ async function runTool(root, ledgerText, decisions) {
     if (!error.stdout) throw error;
     stdout = error.stdout;
   }
-  return { summary: JSON.parse(stdout), report: JSON.parse(await fs.readFile(path.join(root, "report.json"), "utf8")) };
+  return {
+    summary: JSON.parse(stdout),
+    report: JSON.parse(await fs.readFile(path.join(root, "report.json"), "utf8")),
+  };
 }
 
 test("新增：上游新文件按转换规则落盘", async () => {
   const { root, blob } = await makeFixture();
   const target = await blob("export const zcodeValue = 'zcode-apple';\n");
-  const ledger = [HEADER, row({ id: "U1", change: "A", up: "packages/shared/src/new.ts", drora: "packages/shared/src/new.ts", target, outcome: "add" })].join("\n");
+  const ledger = [
+    HEADER,
+    row({
+      id: "U1",
+      change: "A",
+      up: "packages/shared/src/new.ts",
+      drora: "packages/shared/src/new.ts",
+      target,
+      outcome: "add",
+    }),
+  ].join("\n");
   const { report } = await runTool(root, ledger);
   const written = await fs.readFile(path.join(root, "packages/shared/src/new.ts"), "utf8");
   assert.equal(written, transformContent("export const zcodeValue = 'zcode-apple';\n"));
@@ -105,7 +126,19 @@ test("take-upstream：本地未改，整文件取转换后的上游", async () =
   const oursOid = await blob(transformContent(baseText));
   await fs.mkdir(path.join(root, "packages/shared/src"), { recursive: true });
   await fs.writeFile(path.join(root, "packages/shared/src/mod.ts"), transformContent(baseText));
-  const ledger = [HEADER, row({ id: "U2", change: "M", up: "packages/shared/src/mod.ts", drora: "packages/shared/src/mod.ts", base, target, ours: oursOid, outcome: "take-upstream" })].join("\n");
+  const ledger = [
+    HEADER,
+    row({
+      id: "U2",
+      change: "M",
+      up: "packages/shared/src/mod.ts",
+      drora: "packages/shared/src/mod.ts",
+      base,
+      target,
+      ours: oursOid,
+      outcome: "take-upstream",
+    }),
+  ].join("\n");
   await runTool(root, ledger);
   const written = await fs.readFile(path.join(root, "packages/shared/src/mod.ts"), "utf8");
   assert.equal(written, transformContent("export const zcodeValue = 2;\n"));
@@ -114,14 +147,27 @@ test("take-upstream：本地未改，整文件取转换后的上游", async () =
 test("文本干净合并：双方不同区域改动并存且无冲突标记", async () => {
   const { root, blob } = await makeFixture();
   // 变更行之间保留足够未改行，避免 git merge-file 因零上下文把两处改动折叠成一块冲突。
-  const baseText = "export const a = 1;\nexport const mid1 = 0;\nexport const mid2 = 0;\nexport const mid3 = 0;\nexport const b = 2;\n";
+  const baseText =
+    "export const a = 1;\nexport const mid1 = 0;\nexport const mid2 = 0;\nexport const mid3 = 0;\nexport const b = 2;\n";
   const base = await blob(baseText);
   const target = await blob(baseText.replace("b = 2", "b = 3"));
   const oursText = transformContent(baseText.replace("a = 1", "a = 9"));
   const oursBlob = await blob(oursText);
   await fs.mkdir(path.join(root, "packages/shared/src"), { recursive: true });
   await fs.writeFile(path.join(root, "packages/shared/src/both.ts"), oursText);
-  const ledger = [HEADER, row({ id: "U3", change: "M", up: "packages/shared/src/both.ts", drora: "packages/shared/src/both.ts", base, target, ours: oursBlob, outcome: "text-clean-needs-semantic-review" })].join("\n");
+  const ledger = [
+    HEADER,
+    row({
+      id: "U3",
+      change: "M",
+      up: "packages/shared/src/both.ts",
+      drora: "packages/shared/src/both.ts",
+      base,
+      target,
+      ours: oursBlob,
+      outcome: "text-clean-needs-semantic-review",
+    }),
+  ].join("\n");
   const { report } = await runTool(root, ledger);
   const written = await fs.readFile(path.join(root, "packages/shared/src/both.ts"), "utf8");
   assert.ok(written.includes("a = 9"), "保留本地改动");
@@ -136,8 +182,23 @@ test("文本冲突：写出带标记合并结果并登记冲突", async () => {
   const target = await blob("export const a = 3;\n");
   const oursBlob = await blob(transformContent("export const a = 2;\n"));
   await fs.mkdir(path.join(root, "packages/shared/src"), { recursive: true });
-  await fs.writeFile(path.join(root, "packages/shared/src/conf.ts"), transformContent("export const a = 2;\n"));
-  const ledger = [HEADER, row({ id: "U4", change: "M", up: "packages/shared/src/conf.ts", drora: "packages/shared/src/conf.ts", base, target, ours: oursBlob, outcome: "text-conflict" })].join("\n");
+  await fs.writeFile(
+    path.join(root, "packages/shared/src/conf.ts"),
+    transformContent("export const a = 2;\n"),
+  );
+  const ledger = [
+    HEADER,
+    row({
+      id: "U4",
+      change: "M",
+      up: "packages/shared/src/conf.ts",
+      drora: "packages/shared/src/conf.ts",
+      base,
+      target,
+      ours: oursBlob,
+      outcome: "text-conflict",
+    }),
+  ].join("\n");
   const { report } = await runTool(root, ledger);
   const written = await fs.readFile(path.join(root, "packages/shared/src/conf.ts"), "utf8");
   assert.ok(written.includes("<<<<<<< ours"), "冲突标记存在");
@@ -153,11 +214,30 @@ test("删除：本地未改随上游删除；本地有改动则须决策且保�
   const modifiedOurs = await blob(transformContent(baseText) + "// drora local note\n");
   await fs.mkdir(path.join(root, "packages/shared/src"), { recursive: true });
   await fs.writeFile(path.join(root, "packages/shared/src/gone.ts"), transformContent(baseText));
-  await fs.writeFile(path.join(root, "packages/shared/src/kept.ts"), transformContent(baseText) + "// drora local note\n");
+  await fs.writeFile(
+    path.join(root, "packages/shared/src/kept.ts"),
+    transformContent(baseText) + "// drora local note\n",
+  );
   const ledger = [
     HEADER,
-    row({ id: "U5", change: "D", up: "packages/shared/src/gone.ts", drora: "packages/shared/src/gone.ts", base, ours: unmodifiedOurs, outcome: "delete-review" }),
-    row({ id: "U6", change: "D", up: "packages/shared/src/kept.ts", drora: "packages/shared/src/kept.ts", base, ours: modifiedOurs, outcome: "delete-local-change-review" }),
+    row({
+      id: "U5",
+      change: "D",
+      up: "packages/shared/src/gone.ts",
+      drora: "packages/shared/src/gone.ts",
+      base,
+      ours: unmodifiedOurs,
+      outcome: "delete-review",
+    }),
+    row({
+      id: "U6",
+      change: "D",
+      up: "packages/shared/src/kept.ts",
+      drora: "packages/shared/src/kept.ts",
+      base,
+      ours: modifiedOurs,
+      outcome: "delete-local-change-review",
+    }),
   ].join("\n");
   const { report } = await runTool(root, ledger);
   await assert.rejects(fs.stat(path.join(root, "packages/shared/src/gone.ts")));
@@ -172,8 +252,23 @@ test("漂移阻断：工作区与 ledger 记录不一致时拒绝应用", async 
   const target = await blob("v2 zcode\n");
   const ledgerOurs = await blob(transformContent("v1 zcode\n"));
   await fs.mkdir(path.join(root, "packages/shared/src"), { recursive: true });
-  await fs.writeFile(path.join(root, "packages/shared/src/drift.ts"), transformContent("v1 zcode\n// unexpected external edit\n"));
-  const ledger = [HEADER, row({ id: "U7", change: "M", up: "packages/shared/src/drift.ts", drora: "packages/shared/src/drift.ts", base, target, ours: ledgerOurs, outcome: "take-upstream" })].join("\n");
+  await fs.writeFile(
+    path.join(root, "packages/shared/src/drift.ts"),
+    transformContent("v1 zcode\n// unexpected external edit\n"),
+  );
+  const ledger = [
+    HEADER,
+    row({
+      id: "U7",
+      change: "M",
+      up: "packages/shared/src/drift.ts",
+      drora: "packages/shared/src/drift.ts",
+      base,
+      target,
+      ours: ledgerOurs,
+      outcome: "take-upstream",
+    }),
+  ].join("\n");
   const { report } = await runTool(root, ledger);
   assert.equal(report.driftBlocked.length, 1);
   const still = await fs.readFile(path.join(root, "packages/shared/src/drift.ts"), "utf8");
@@ -184,7 +279,17 @@ test("二进制：NUL 内容逐字落盘不走文本替换", async () => {
   const { root, blob } = await makeFixture();
   const bin = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x00, 0x0d, 0x0a]);
   const target = await blob(bin);
-  const ledger = [HEADER, row({ id: "U8", change: "A", up: "packages/shared/src/icon.png", drora: "packages/shared/src/icon.png", target, outcome: "add" })].join("\n");
+  const ledger = [
+    HEADER,
+    row({
+      id: "U8",
+      change: "A",
+      up: "packages/shared/src/icon.png",
+      drora: "packages/shared/src/icon.png",
+      target,
+      outcome: "add",
+    }),
+  ].join("\n");
   await runTool(root, ledger);
   const written = await fs.readFile(path.join(root, "packages/shared/src/icon.png"));
   assert.ok(written.equals(bin), "二进制逐字节一致");
@@ -195,8 +300,22 @@ test("路径映射漂移与非法路径：fail-closed 记 error", async () => {
   const target = await blob("x zcode\n");
   const ledger = [
     HEADER,
-    row({ id: "U9", change: "M", up: "packages/shared/src/a.ts", drora: "packages/shared/src/wrong-name.ts", target, outcome: "take-upstream" }),
-    row({ id: "U10", change: "A", up: "packages/shared/src/esc.ts", drora: "../outside.ts", target, outcome: "add" }),
+    row({
+      id: "U9",
+      change: "M",
+      up: "packages/shared/src/a.ts",
+      drora: "packages/shared/src/wrong-name.ts",
+      target,
+      outcome: "take-upstream",
+    }),
+    row({
+      id: "U10",
+      change: "A",
+      up: "packages/shared/src/esc.ts",
+      drora: "../outside.ts",
+      target,
+      outcome: "add",
+    }),
   ].join("\n");
   const { report } = await runTool(root, ledger);
   assert.equal(report.errors.length, 2);
@@ -208,8 +327,22 @@ test("决策覆写：delete 决策直接删除本地修改文件", async () => {
   const base = await blob("v1 zcode\n");
   const modifiedOurs = await blob(transformContent("v1 zcode\n// local\n"));
   await fs.mkdir(path.join(root, "packages/shared/src"), { recursive: true });
-  await fs.writeFile(path.join(root, "packages/shared/src/decided.ts"), transformContent("v1 zcode\n// local\n"));
-  const ledger = [HEADER, row({ id: "U11", change: "D", up: "packages/shared/src/decided.ts", drora: "packages/shared/src/decided.ts", base, ours: modifiedOurs, outcome: "delete-local-change-review" })].join("\n");
+  await fs.writeFile(
+    path.join(root, "packages/shared/src/decided.ts"),
+    transformContent("v1 zcode\n// local\n"),
+  );
+  const ledger = [
+    HEADER,
+    row({
+      id: "U11",
+      change: "D",
+      up: "packages/shared/src/decided.ts",
+      drora: "packages/shared/src/decided.ts",
+      base,
+      ours: modifiedOurs,
+      outcome: "delete-local-change-review",
+    }),
+  ].join("\n");
   await runTool(root, ledger, { "packages/shared/src/decided.ts": "delete" });
   await assert.rejects(fs.stat(path.join(root, "packages/shared/src/decided.ts")));
 });
@@ -217,7 +350,18 @@ test("决策覆写：delete 决策直接删除本地修改文件", async () => {
 test("cua-limited zone：仅 @zcode/ scope 替换且路径不变", async () => {
   const { root, blob } = await makeFixture();
   const target = await blob('import x from "@zcode/pkg";\n');
-  const ledger = [HEADER, row({ id: "U12", change: "A", up: "packages/zcode-cua/new.ts", drora: "packages/zcode-cua/new.ts", target, zone: "cua-limited", outcome: "add" })].join("\n");
+  const ledger = [
+    HEADER,
+    row({
+      id: "U12",
+      change: "A",
+      up: "packages/zcode-cua/new.ts",
+      drora: "packages/zcode-cua/new.ts",
+      target,
+      zone: "cua-limited",
+      outcome: "add",
+    }),
+  ].join("\n");
   await runTool(root, ledger);
   const written = await fs.readFile(path.join(root, "packages/zcode-cua/new.ts"), "utf8");
   assert.equal(written, 'import x from "@drora/pkg";\n');

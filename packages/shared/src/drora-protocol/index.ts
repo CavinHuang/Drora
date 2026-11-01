@@ -4388,9 +4388,7 @@ const personaCoreSnapshotSchema = z.union([
 ]);
 
 const personaCoreMutationResultSchema = z.union([
-  z
-    .object({ status: z.literal("saved"), coreRevision: z.number().int().nonnegative() })
-    .strict(),
+  z.object({ status: z.literal("saved"), coreRevision: z.number().int().nonnegative() }).strict(),
   z.object({ status: z.literal("unchanged") }).strict(),
 ]);
 
@@ -4408,14 +4406,11 @@ const personaPreviewResultSchema = z
   .strict();
 
 export const droraPersonaGetOverviewParamsSchema = z.object({}).strict();
-export const droraPersonaGetOverviewResultSchema = personaManagementResultSchema(
-  personaOverviewSchema,
-);
+export const droraPersonaGetOverviewResultSchema =
+  personaManagementResultSchema(personaOverviewSchema);
 export type DroraPersonaOverviewResult = z.infer<typeof droraPersonaGetOverviewResultSchema>;
 
-export const droraPersonaInitializeParamsSchema = z
-  .object({ mutationId: nonEmptyString })
-  .strict();
+export const droraPersonaInitializeParamsSchema = z.object({ mutationId: nonEmptyString }).strict();
 export const droraPersonaInitializeResultSchema = personaManagementResultSchema(
   personaInitializeResultSchema,
 );
@@ -4433,8 +4428,9 @@ export const droraPersonaUpdateCoreParamsSchema = z
     mutationId: nonEmptyString,
   })
   .strict();
-export const droraPersonaUpdateCoreResultSchema =
-  personaManagementResultSchema(personaCoreMutationResultSchema);
+export const droraPersonaUpdateCoreResultSchema = personaManagementResultSchema(
+  personaCoreMutationResultSchema,
+);
 export type DroraPersonaCoreMutationResult = z.infer<typeof droraPersonaUpdateCoreResultSchema>;
 
 export const droraPersonaResetCoreParamsSchema = z
@@ -4451,8 +4447,9 @@ export const droraPersonaPreviewParamsSchema = z
     situationId: nonEmptyString.optional(),
   })
   .strict();
-export const droraPersonaPreviewResultSchema =
-  personaManagementResultSchema(personaPreviewResultSchema);
+export const droraPersonaPreviewResultSchema = personaManagementResultSchema(
+  personaPreviewResultSchema,
+);
 export type DroraPersonaPreviewResult = z.infer<typeof droraPersonaPreviewResultSchema>;
 
 // 独立应用状态查询（合同 §3 getPersonaApplication）：sessionId+turnId 寻址当前 Runtime；
@@ -4632,9 +4629,7 @@ export const droraPersonaPrepareExportResultSchema = personaManagementResultSche
     })
     .strict(),
 );
-export type DroraPersonaPrepareExportResult = z.infer<
-  typeof droraPersonaPrepareExportResultSchema
->;
+export type DroraPersonaPrepareExportResult = z.infer<typeof droraPersonaPrepareExportResultSchema>;
 
 // ── P1b 有限学习管理（合同 §3 allowLearningForKey 与 P1b 读侧概览；spec §5/§8）──
 // allowLearningForKey：解除该键抑制并 generation++（合同 §4.2「只接受之后的新机会」）；
@@ -4663,9 +4658,7 @@ export const droraPersonaAllowLearningResultSchema = personaManagementResultSche
     z.object({ status: z.literal("unchanged") }).strict(),
   ]),
 );
-export type DroraPersonaAllowLearningResult = z.infer<
-  typeof droraPersonaAllowLearningResultSchema
->;
+export type DroraPersonaAllowLearningResult = z.infer<typeof droraPersonaAllowLearningResultSchema>;
 
 export const droraPersonaGetLearningOverviewParamsSchema = z.object({}).strict();
 export const droraPersonaGetLearningOverviewResultSchema = personaManagementResultSchema(
@@ -4744,7 +4737,6 @@ export const droraPersonaGetLearningOverviewResultSchema = personaManagementResu
 export type DroraPersonaGetLearningOverviewResult = z.infer<
   typeof droraPersonaGetLearningOverviewResultSchema
 >;
-
 
 // Session 运行实例生命周期；不同于 session/stop（停止生成）。
 export const sessionLifecycleParamsSchema = z.object({ sessionId: z.string().min(1) }).strict();

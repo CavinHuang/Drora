@@ -16,13 +16,18 @@ afterEach(async () => {
 async function fixture() {
   const root = await mkdtemp(join(tmpdir(), "telemetry-fields-"));
   roots.push(root);
+  // 修复原因：os.devNull 在 win32 返回 '\\.\nul'（NT 设备命名空间路径），Git for Windows
+  // 以文件方式打开该路径会报 fatal: unable to access '\\.\nul': Invalid argument，
+  // 使 git init/add/commit 全部失败（9 例在 Windows 上恒挂）。Win32 侧须用 DOS 设备名 NUL；
+  // POSIX 平台仍用 /dev/null。
+  const gitConfigNullDevice = process.platform === "win32" ? "NUL" : devNull;
   const git = (...args: string[]) =>
     exec("git", args, {
       cwd: root,
       env: {
         ...process.env,
         GIT_CONFIG_NOSYSTEM: "1",
-        GIT_CONFIG_GLOBAL: devNull,
+        GIT_CONFIG_GLOBAL: gitConfigNullDevice,
         GIT_AUTHOR_NAME: "Test",
         GIT_AUTHOR_EMAIL: "test@example.com",
         GIT_COMMITTER_NAME: "Test",

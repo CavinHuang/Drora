@@ -50,7 +50,20 @@ const { join } = require('node:path');
   });
 
   it("保留 npm 显式镜像配置及其他安装环境变量", async () => {
-    vi.stubEnv("npm_config_electron_mirror", "https://electron.example.com/");
+    // 修复原因（Windows）：`pnpm run` 会把用户 ~/.npmrc 的 electron_mirror 以
+    // npm_config_electron_mirror 注入脚本进程，volta/pnpm 链路还会再补一条仅大小写
+    // 不同的 NPM_CONFIG_ELECTRON_MIRROR；threads 池 worker 的 process.env 是区分
+    // 大小写的普通对象，两条目并存。只 stub 其一会让子进程（Windows env 块大小写
+    // 不敏感解析）仍取到注入值。这里把所有大小写形态一起 stub 成目标值，Linux/macOS
+    // 只有一条小写形态，行为不变。
+    const mirrorKeyVariants = Object.keys(process.env).filter(
+      (key) => key.toLowerCase() === "npm_config_electron_mirror",
+    );
+    const mirrorKeys =
+      mirrorKeyVariants.length > 0 ? mirrorKeyVariants : ["npm_config_electron_mirror"];
+    for (const key of mirrorKeys) {
+      vi.stubEnv(key, "https://electron.example.com/");
+    }
     const { packageRoot, binary } = await fixture();
     await writeFile(
       join(packageRoot, "install.js"),

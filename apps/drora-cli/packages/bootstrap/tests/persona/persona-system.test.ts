@@ -75,15 +75,16 @@ describe("进程级 Persona 组合与 capture 生产装配", () => {
   });
 
   it("E off：capture 之后库文件与目录都不存在（零 IO：未启用不读库、不迁移、不起 worker）", async () => {
-    const system = getOrCreateDroraPersonaSystem({ trustedCliStorageRoot: root, logger: nullLogger() });
+    const system = getOrCreateDroraPersonaSystem({
+      trustedCliStorageRoot: root,
+      logger: nullLogger(),
+    });
     const controller = new AbortController();
-    const outcome = await system
-      .capturePortForPermission(false)
-      .captureContribution({
-        sessionId: "session-1",
-        turnId: "turn-1",
-        signal: controller.signal,
-      });
+    const outcome = await system.capturePortForPermission(false).captureContribution({
+      sessionId: "session-1",
+      turnId: "turn-1",
+      signal: controller.signal,
+    });
     expect(outcome).toEqual({
       status: "omitted",
       reason: PERSONA_CAPTURE_OMITTED_PERMISSION_NOT_GRANTED,
@@ -94,7 +95,10 @@ describe("进程级 Persona 组合与 capture 生产装配", () => {
   });
 
   it("E off：已取消的轮返回 cancelled，不伪装成 omitted", async () => {
-    const system = getOrCreateDroraPersonaSystem({ trustedCliStorageRoot: root, logger: nullLogger() });
+    const system = getOrCreateDroraPersonaSystem({
+      trustedCliStorageRoot: root,
+      logger: nullLogger(),
+    });
     const controller = new AbortController();
     controller.abort();
     await expect(
@@ -107,7 +111,20 @@ describe("进程级 Persona 组合与 capture 生产装配", () => {
   });
 
   it("E on 且资料未初始化：omitted(uninitialized) 且不自动建资料（显式 initialize 才建）", async () => {
-    const system = getOrCreateDroraPersonaSystem({ trustedCliStorageRoot: root, logger: nullLogger() });
+    const system = getOrCreateDroraPersonaSystem({
+      trustedCliStorageRoot: root,
+      logger: nullLogger(),
+    });
+    // 修复原因：capture 总预算是生产常量 250ms（PERSONA_STORE_DEFAULTS.captureBudgetMs，合同
+    // §2/PM16——超预算按 budget_exhausted 省略扩展、原任务继续）。capture 冷路径=spawn worker+
+    // 开库+读快照，门禁满载机上冷开可超 250ms，本用例就会把「按合同的预算省略」误读成失败
+    // （三轮门禁两轮复现 reason:'budget_exhausted'）。本用例断言的是「资料未初始化→
+    // omitted(uninitialized)」而非「冷开必在 250ms 内」，先经管理口 getPersonaOverview 惰性
+    // 开库（管理请求无 capture 预算竞速）再走 capture 暖路径；断言不变。
+    await expect(system.appService().getPersonaOverview()).resolves.toEqual({
+      ok: true,
+      value: { state: "uninitialized" },
+    });
     const controller = new AbortController();
     const outcome = await system.capturePortForPermission(true).captureContribution({
       sessionId: "session-1",
@@ -123,7 +140,10 @@ describe("进程级 Persona 组合与 capture 生产装配", () => {
   });
 
   it("E on 且已初始化：走真实存储捕获，贡献为默认核心的确定性编译结果", async () => {
-    const system = getOrCreateDroraPersonaSystem({ trustedCliStorageRoot: root, logger: nullLogger() });
+    const system = getOrCreateDroraPersonaSystem({
+      trustedCliStorageRoot: root,
+      logger: nullLogger(),
+    });
     const initialized = await system.appService().initializePersona({ mutationId: "mut-1" });
     expect(initialized.ok).toBe(true);
     if (!initialized.ok) throw new Error("initialize failed");
@@ -151,9 +171,15 @@ describe("进程级 Persona 组合与 capture 生产装配", () => {
         warn(message, context);
       },
     };
-    const first = getOrCreateDroraPersonaSystem({ trustedCliStorageRoot: root, logger: bindingLogger });
+    const first = getOrCreateDroraPersonaSystem({
+      trustedCliStorageRoot: root,
+      logger: bindingLogger,
+    });
     const otherRoot = join(root, "other");
-    const second = getOrCreateDroraPersonaSystem({ trustedCliStorageRoot: otherRoot, logger: bindingLogger });
+    const second = getOrCreateDroraPersonaSystem({
+      trustedCliStorageRoot: otherRoot,
+      logger: bindingLogger,
+    });
     expect(second).toBe(first);
     expect(warn).toHaveBeenCalledTimes(1);
   });

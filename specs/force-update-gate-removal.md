@@ -34,7 +34,6 @@ forceUpdate.ts 后，为避免 UI 侧复制第二份实现，把该函数及其�
 `packages/shared/src/semver.ts` 并从 shared index 导出；`resolveForceUpdateRequirement`、
 `ForceUpdateRequirement`、`ForceUpdateConfig` 与 client/configs 强更链路维持删除，不随迁。
 
-
 ## 验收
 
 1. 全仓无 forceUpdate 残留引用（typecheck 证明）。

@@ -453,3 +453,10 @@ S6-01–S6-06 复选框按状态规则维持 `[ ]`，待证据齐全后逐项关
 根因：S5 合并把 composer 正文 state 优化为 textPresence 布尔对（仅空↔非空翻转才 setState），适配时守卫 knowledgeSourceMismatch 改为渲染期读 textRef——非空→非空的草稿编辑不再触发重渲染，守卫值冻结，mismatch 告警与发送禁用永不出现（G26 失败，G27 为级联）。
 修复（ConversationComposer.tsx +39/-5）：守卫状态化，updateText（全仓唯一文本汇聚点）内同步复验 + 渲染期 reconcile 双路径维护，ref 去重仅翻转 setState——保持上游「按键不重渲染」性能意图；提交边界 Lexical 快照强校验未动。
 验证：带修复 R6 3 用例全过；暂存修复后逐字复现 CI 两失败（因果坐实）；ui/desktop typecheck 过、lint 0 error。
+
+## 终局（2026-11-01 09:31，S8-04/05 关闭）
+
+- PR #33 于 2026-11-01T09:31:08Z 以 **merge commit** 方式合入 main（f9ec72c9c，双亲=66c9193fd+26248f078，祖先链完整保留）。合入前 checks 终态：16/16 全绿（含 Windows 打包 attempt-2 成功——attempt-1 为 bundle-require 嵌套 esbuild 物化竞态一次性失败，重跑即过；macOS 同 lockfile 同轮已绿佐证）。
+- 合后核验：a60ba6a7e（官方 v3.17.1）/66c9193fd（C）/1a0081c23（F）均为 drora/main 祖先；drora/main 树 == 集成分支树（793b7c9f）逐字节一致。
+- CI 修复链全记录：knowledgeReviewView 孤儿 .tsx 通道（ci.yml 适配三工程）、chromedriver 预取接线（Electron 44）、pnpm dedupe+安装重试、存量大文件 max-lines 豁免登记、R6 源清单守卫状态化（PF13 语义恢复，A/B 验证）、provenance 工作流重试补齐。
+- 状态：**v3.17.1 已合入 main，自研特性零丢失（三向审计+CI 全绿双证）**。遗留按 baseline-gap 与分歧台账待甄别执行（bundle parity 待官方 3.17.x 资产、跨平台真机、分享链接裁定、四分支处置见 S8-06 预演）。

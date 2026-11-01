@@ -418,7 +418,8 @@ describe("FillWorkflowHole — handler", () => {
     });
     expect(output.ok).toBe(false);
     expect(output.diagnostics).toHaveLength(2);
-    const fillFile = join(WORKFLOW_DRAFTS_DIR, "review.决定分组.dwf.ts");
+    // 修复：模型面脚本路径已归一为正斜杠，期望值与之一致。
+    const fillFile = `${WORKFLOW_DRAFTS_DIR}/review.决定分组.dwf.ts`;
     expect(
       output.response.startsWith(
         `The fill is saved at ${fillFile}. Edit that file in place and resubmit with \`path\`; do not paste it inline again.`,
@@ -428,7 +429,7 @@ describe("FillWorkflowHole — handler", () => {
       `${fillFile}:L2:C8 Type 'number' is not assignable to type 'string'.`,
     );
     expect(output.response).toContain(
-      `${join(WORKFLOW_DRAFTS_DIR, "review.dwf.ts")}:L30:C1 Subagent name 'judge' is declared twice.`,
+      `${WORKFLOW_DRAFTS_DIR}/review.dwf.ts:L30:C1 Subagent name 'judge' is declared twice.`,
     );
     // 函数体之外有诊断：指明那是 run 记录在案的脚本、改草稿没用、出路是 AmendWorkflow。
     expect(output.response).toContain("run's recorded script");
@@ -552,7 +553,8 @@ describe("FillWorkflowHole — handler", () => {
     expect(output.response).toContain("joined run dwfrun-1");
     expect(output.response).toContain("决定分组");
     expect(output.response).toContain("判定, 复核");
-    expect(output.response).toContain(`${join(WORKFLOW_DRAFTS_DIR, "ok.dwf.ts")}`);
+    // 修复：模型面脚本路径已归一为正斜杠，期望值与之一致。
+    expect(output.response).toContain(`${WORKFLOW_DRAFTS_DIR}/ok.dwf.ts`);
     expect(output.response).toContain("AmendWorkflow");
     expect(output.causalityGraph?.steps).toHaveLength(1);
     expect(output.causalityGraph?.phases?.map((phase) => phase.name)).toEqual(["判定"]);

@@ -22,9 +22,11 @@ describe("MCP stdio environment", () => {
 
   it("preserves an existing PATH when another executable node is already available", async () => {
     const root = await mkdtemp(join(tmpdir(), "drora-mcp-node-path-"));
-    const nodePath = join(root, "node");
+    // win32 的可执行探测只认 node.exe（network.ts 在 Windows 下 probe 名固定
+    // node.exe）；无扩展名的 shebang 文件在 Windows 上不可执行，按平台写对应形态。
+    const nodePath = join(root, process.platform === "win32" ? "node.exe" : "node");
     try {
-      await writeFile(nodePath, "#!/bin/sh\nexit 0\n");
+      await writeFile(nodePath, process.platform === "win32" ? "" : "#!/bin/sh\nexit 0\n");
       await chmod(nodePath, 0o755);
 
       const env = buildMcpStdioEnv({ env: { PATH: root } });

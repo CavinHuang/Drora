@@ -147,6 +147,7 @@ const appWorkspaceSessionEntrySchema = z.discriminatedUnion("kind", [
     lastOpenedAt: z.number().int().nonnegative(),
     lastConnectionStatus: z.enum(["connected", "failed"]),
     lastConnectionError: z.string().optional(),
+    lastConnectionErrorCode: z.string().optional(),
   }),
 ]);
 
@@ -556,7 +557,7 @@ const appSettingsObjectSchema = z.object({
   voicePrivacyDisclosureAcknowledged: z.boolean().default(false),
   taskAutoArchiveEnabled: z.boolean().default(false),
   taskAutoArchiveResetVersion: z.literal(1).default(1),
-  taskAutoArchiveOlderThanDays: z.number().int().positive().max(365).default(7),
+  taskAutoArchiveOlderThanDays: z.number().int().positive().max(365).default(30),
   closeToTrayOnWindows: z.boolean().default(true),
   desktopPetEnabled: z.boolean().default(false),
   desktopPetPosition: z.object({ x: z.number().int(), y: z.number().int() }).optional(),

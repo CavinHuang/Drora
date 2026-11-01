@@ -1,3 +1,4 @@
+import { genUiModelContextSchema } from "../gen-ui/contract.js";
 import { conversationQuotesSchema } from "../conversationSelection.js";
 import { botGroupInputSourceSchema } from "../bots.js";
 // CLI admission 后的自包含输入事实。
@@ -110,6 +111,7 @@ export const conversationInputIntentSchema = z
     modelSelection: modelSelectionSchema.optional(),
     mode: submissionModeSchema.optional(),
     planEnabled: z.boolean().optional(),
+    genUiContext: genUiModelContextSchema.optional(),
     sharedContextRefs: z.array(sharedContextRefSchema).max(1).optional(),
     // VaultView Evidence 引用（W03）：admission 时从 sendText payload 固定进 intent，
     // 随 queue item 持久事实存活，sendQueuedNow 提升时由 CLI gate 执行时复验。

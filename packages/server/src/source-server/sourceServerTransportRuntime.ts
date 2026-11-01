@@ -1,5 +1,6 @@
 import { Duplex } from "node:stream";
 import { StringDecoder } from "node:string_decoder";
+import { isPublicDroraErrorCode, type PublicDroraErrorCode } from "@drora/shared";
 import type { StdioStream } from "@drora/server/remote/backend.js";
 
 export interface RemoteExecResult {
@@ -43,6 +44,16 @@ export function readStructuredCommandError(value: string): string | null {
     return typeof response.error === "string" && response.error.trim()
       ? response.error.trim()
       : null;
+  } catch {
+    return null;
+  }
+}
+
+/** 读取 Server CLI --json 失败结果里的公开错误码；没有或不是公开码时返回 null。 */
+export function readStructuredCommandCode(value: string): PublicDroraErrorCode | null {
+  try {
+    const code = readLastJsonLine(value).code;
+    return isPublicDroraErrorCode(code) ? code : null;
   } catch {
     return null;
   }

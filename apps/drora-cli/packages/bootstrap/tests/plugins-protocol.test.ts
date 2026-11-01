@@ -40,6 +40,7 @@ import { getCliStorageRoot, getPluginStorageRoot } from "../src/app/paths.js";
 import { installDroraMarketplacePlugin } from "../src/plugins.js";
 import {
   addPluginMarketplace,
+  describePlugin,
   getPluginsOverview,
   installPlugin,
   listPlugins,
@@ -100,6 +101,87 @@ describe("plugins protocol contracts", () => {
       expect(await mutation).toBe("rejected");
     } finally {
       releaseLock();
+      await blocker;
+      if (previousStorageDir === undefined) delete process.env.DRORA_STORAGE_DIR;
+      else process.env.DRORA_STORAGE_DIR = previousStorageDir;
+      await rm(root, { force: true, recursive: true });
+    }
+  });
+
+  it("describes a cached marketplace candidate while a long install holds the storage lock", async () => {
+    const root = await mkdtemp(join(tmpdir(), "drora-protocol-describe-lock-"));
+    const previousStorageDir = process.env.DRORA_STORAGE_DIR;
+    process.env.DRORA_STORAGE_DIR = join(root, "storage");
+    const pluginStorageRoot = getPluginStorageRoot(
+      getCliStorageRoot(process.env.DRORA_STORAGE_DIR),
+    );
+    const marketplaceDir = join(pluginStorageRoot, "marketplaces", "e2e-describe");
+    await writeTestFile(
+      join(marketplaceDir, "marketplace.json"),
+      JSON.stringify({ name: "e2e-describe", plugins: [{ name: "local", source: "./local" }] }),
+    );
+    await writeTestFile(
+      join(marketplaceDir, "local", "skills", "describe-marker", "SKILL.md"),
+      "---\nname: describe-marker\ndescription: Describe marker\n---\n",
+    );
+    const lock = Promise.withResolvers<void>();
+    const entered = Promise.withResolvers<void>();
+    // 模拟长时间安装占住存储锁：详情读取已缓存 manifest 时不能排在它后面。
+    const blocker = withPluginStorageLock(pluginStorageRoot, async () => {
+      entered.resolve();
+      await lock.promise;
+    });
+    try {
+      await entered.promise;
+      const result = await Promise.race([
+        describePlugin({} as DroraProtocolAgentServerContext, {
+          workspace: { workspacePath: root, workspaceKey: root },
+          marketplace: "e2e-describe",
+          pluginName: "local",
+        }),
+        new Promise<"blocked">((resolve) => setTimeout(() => resolve("blocked"), 1000)),
+      ]);
+      expect(result).not.toBe("blocked");
+      expect(JSON.stringify(result)).toContain("describe-marker");
+    } finally {
+      lock.resolve();
+      await blocker;
+      if (previousStorageDir === undefined) delete process.env.DRORA_STORAGE_DIR;
+      else process.env.DRORA_STORAGE_DIR = previousStorageDir;
+      await rm(root, { force: true, recursive: true });
+    }
+  });
+
+  it("keeps describe behind the storage lock when the marketplace manifest must be written", async () => {
+    const root = await mkdtemp(join(tmpdir(), "drora-protocol-describe-fetch-lock-"));
+    const previousStorageDir = process.env.DRORA_STORAGE_DIR;
+    process.env.DRORA_STORAGE_DIR = join(root, "storage");
+    const pluginStorageRoot = getPluginStorageRoot(
+      getCliStorageRoot(process.env.DRORA_STORAGE_DIR),
+    );
+    const lock = Promise.withResolvers<void>();
+    const entered = Promise.withResolvers<void>();
+    const blocker = withPluginStorageLock(pluginStorageRoot, async () => {
+      entered.resolve();
+      await lock.promise;
+    });
+    try {
+      await entered.promise;
+      const describe = describePlugin({} as DroraProtocolAgentServerContext, {
+        workspace: { workspacePath: root, workspaceKey: root },
+        marketplace: "missing-marketplace",
+        pluginName: "missing",
+      }).then(() => "resolved");
+      expect(
+        await Promise.race([
+          describe,
+          new Promise<"blocked">((resolve) => setTimeout(() => resolve("blocked"), 50)),
+        ]),
+      ).toBe("blocked");
+      lock.resolve();
+      expect(await describe).toBe("resolved");
+    } finally {
+      lock.resolve();
       await blocker;
       if (previousStorageDir === undefined) delete process.env.DRORA_STORAGE_DIR;
       else process.env.DRORA_STORAGE_DIR = previousStorageDir;
@@ -185,7 +267,7 @@ describe("plugins protocol contracts", () => {
     ).toBe(normalizePluginRootForComparison("c:/repo/plugin", "win32"));
   });
 
-  it("projects an inline plugin declared by the current Workspace into Workspace scope", async () => {
+  it("does not discover an inline plugin from Workspace plugin directories", async () => {
     const root = await mkdtemp(join(tmpdir(), "drora-workspace-plugin-root-source-"));
     const pluginRoot = join(root, "plugins", "workspace-demo");
     try {
@@ -206,11 +288,12 @@ describe("plugins protocol contracts", () => {
       });
 
       expect(result.plugins.find((plugin) => plugin.id === "workspace-demo@inline")).toMatchObject({
-        rootPath: pluginRoot,
-        rootSource: "workspace",
+        rootPath: "",
+        packageStatus: "missing",
         enabled: false,
-        uiSurfaces: [{ pluginId: "workspace-demo@inline", pluginName: "workspace-demo", id: "panel", title: "Panel", server: "plugin:workspace-demo:panel", resourceUri: "ui://demo/panel", availability: "session" }],
+        mcpServerNames: [],
       });
+      expect(result.plugins.find((plugin) => plugin.id === "workspace-demo@inline")?.uiSurfaces).toBeUndefined();
       expect(() => droraPluginsListResultSchema.parse(result)).not.toThrow();
     } finally {
       await rm(root, { force: true, recursive: true });

@@ -44,7 +44,9 @@ describe("plan file continuity", () => {
     expect(result.path.replace(/\\/g, "/")).toBe(
       "/workspace/project/.drora/plans/plan-sess_plan-file-write.md",
     );
-    expect(fileSystemPort.files[result.path]).toBe(approvedPlan);
+    // MemoryFileSystem 统一按正斜杠键存取（见 memory-test-utils 注释）；Windows 上
+    // result.path 是反斜杠形态，必须用同一归一键查找，不能拿原始路径直接索引。
+    expect(fileSystemPort.files[result.path.replaceAll("\\", "/")]).toBe(approvedPlan);
   });
 
   it("formats the plan_file_reference reminder body", () => {

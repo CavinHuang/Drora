@@ -46,7 +46,12 @@ const roots: string[] = [];
 
 afterEach(async () => {
   spawnCalls.length = 0;
-  await Promise.all(roots.splice(0).map((root) => rm(root, { force: true, recursive: true })));
+  // Windows 修复：harness 结算即 resolve、随后才 kill 子进程（finalize 语义，不等待退出），
+  // 子进程短暂存续期间其 cwd 句柄会让 rmdir 报 EBUSY。fs.rm 的 maxRetries/retryDelay
+  // 专为 win32 的 EBUSY/EPERM/ENOTEMPTY 竞态设计，重试期间不影响 POSIX 行为。
+  await Promise.all(
+    roots.splice(0).map((root) => rm(root, { force: true, recursive: true, maxRetries: 10, retryDelay: 100 })),
+  );
 });
 
 async function tempRoot(prefix: string): Promise<string> {

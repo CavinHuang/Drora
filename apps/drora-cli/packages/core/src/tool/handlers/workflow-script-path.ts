@@ -28,5 +28,7 @@ export function describeWorkflowScriptPath(absolutePath: string, cwd: string | u
   if (relative === "" || relative.startsWith("..") || path.isAbsolute(relative)) {
     return absolutePath;
   }
-  return relative;
+  // 修复：模型面路径统一正斜杠。Windows 的 path.relative 产出反斜杠，而模型在别处
+  // 读写工作区文件用的一直是正斜杠写法；这里只做展示形态归一，不动绝对路径回退分支。
+  return relative.split(path.sep).join("/");
 }

@@ -1,0 +1,2566 @@
+{
+ "segment": "S3",
+ "ledger": {
+  "path": "docs/upstream-sync/2026-10-31-v3.17.1/upstream-ledger.tsv",
+  "sha256": "8e1c507199cb4d50d876c6c23d2ff2a3f335496eec29bf4f433b62a341a3e2cc"
+ },
+ "dry": true,
+ "counts": {
+  "add": 43,
+  "take-upstream": 85,
+  "text-clean-needs-semantic-review": 28,
+  "text-conflict": 9,
+  "delete-review": 375,
+  "delete-local-change-review": 68,
+  "zone-decision": 0,
+  "already-present": 0,
+  "lockfile-regenerate": 0,
+  "already-deleted": 1
+ },
+ "applied": [
+  {
+   "path": "packages/client/src/globals.d.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "packages/client/src/messageport.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/client/src/remoteServiceAccess.sampling.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/client/src/remoteServiceAccess.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "packages/client/src/webRemoteControlAcknowledgedRelayProtocol.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "packages/client/src/webRemoteControlAcknowledgedRelayProtocolTypes.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "packages/client/src/websocket.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/client/test/remoteServiceAccess.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/client/test/webRemoteControlRelayPayloadSerializer.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/client/test/webRemoteControlRelayProtocol.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/client/test/webRemoteControlWindowDirectoryReadiness.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/model-option-map/package.json",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/model-option-map/test/json-merge-patch.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/model-option-map/test/restricted-cel.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/provider-node/package.json",
+   "action": "text-conflict",
+   "conflicts": 1
+  },
+  {
+   "path": "packages/provider-node/src/drora-builtin-download.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/provider-node/src/drora-builtin-provider-config-source.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/provider-node/test/account-model-membership.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/provider-node/test/config-file-codec.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/provider-node/test/final-config-envelopes.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/provider-node/test/fixtures/builtin-registry-observer.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/provider-node/test/fixtures/personal-config-reader.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/provider-node/test/fixtures/personal-config-writer.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/provider-node/test/fixtures/reasoning-map-before-todo95.json",
+   "action": "delete"
+  },
+  {
+   "path": "packages/provider-node/test/glm-flash-pdf-turbo-defaults.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/provider-node/test/mcs-capability-rules.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/provider-node/test/mimo-templates.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/provider-node/test/model-selection-config-repository.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/provider-node/test/new-model-catalog-round2.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/provider-node/test/new-model-catalog.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/provider-node/test/opencode-go.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/provider-node/test/openrouter-reasoning-contract.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/provider-node/test/personal-config-read-lock.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/provider-node/test/personal-rule-persistence.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/provider-node/test/provider-node-runtime.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/provider-node/test/reasoning-level-migration.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/provider-node/test/start-plan-selection.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/provider-node/test/drora-builtin-consumption.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/provider-node/test/drora-builtin-download.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/provider-node/test/drora-builtin-http.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/provider-node/test/drora-builtin-integrity.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/provider-node/test/drora-builtin-lifecycle.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/provider-node/test/drora-builtin-model-aliases.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/provider-node/test/drora-builtin-process.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/provider-node/test/drora-builtin-reasoning-map.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/provider-node/test/drora-builtin-release.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/provider-node/test/zhipu-api-templates.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/provider-node/vitest.config.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/provider/package.json",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/provider/src/resolver.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/provider/test/account-provider-resolution.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/provider/test/account-provider-service.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/provider/test/config-overlay.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/provider/test/config-service.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/provider/test/facades.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/provider/test/m2-completion-boundary.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/provider/test/manual-coding-plan-access.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/provider/test/manual-editor-boundary.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/provider/test/mfjs-system-boundary.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/provider/test/model-config-rules.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/provider/test/model-data-schema.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/provider/test/model-rule-collections.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/provider/test/model-selection-config.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/provider/test/provider-config-kinds.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/provider/test/provider-data-schema.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/provider/test/provider-rule-collections.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/provider/test/provider-template.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/provider/test/registry-service.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/provider/test/registry.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/provider/test/resolver.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/provider/test/rule-data-schema.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/provider/test/todo21-resolution.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/provider/test/todo21-source-contracts.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/provider/vitest.config.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/server/src/http.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "packages/server/src/remote/backend.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/server/src/remote/closeEvent.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/server/src/remote/docker-backend.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/server/src/remote/docker-detect.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/server/src/remote/remotePlatformSupport.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/server/src/remote/serverBundleDeployCheck.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/server/src/remote/ssh-backend.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/server/src/remote/sshAuth.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/server/src/remote/wsl-backend.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/server/src/remote/wsl-detect.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/server/src/remote/droraAgentDevDeploy.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "packages/server/src/remote/droraAgentOfficialPluginAssets.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "packages/server/src/source-server/sourceServerProbe.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/server/src/source-server/sourceServerTransportRuntime.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "packages/server/src/source-server/transportAdapter.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "packages/server/test/bundledDroraBuiltinProviderConfig.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/server/test/closeEvent.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/server/test/dockerBackendDockerCommand.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/server/test/hostCapability.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/server/test/remoteAssetInstaller.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/server/test/remoteAssetPreflight.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/server/test/remoteBundleValidation.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/server/test/remoteConnect.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/server/test/remoteDetectEnv.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/server/test/serverInfoHttp.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/server/test/sshBackend.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/server/test/staticRoutePathContainment.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/server/test/stdioDesktopPresentationSurface.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/server/test/stdioDeviceMid.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/server/test/stdioLifecycle.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/server/test/wslProxy.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/src/accessor.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "packages/services/src/bot-project-runtime/contract.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/src/coding-plan-subscription/bigmodelCodingPlanSubscriptionProvider.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "packages/services/src/commands/commandsService.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/services/src/conversation-share/conversationSharePublicProjection.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/services/src/conversation-share/conversationShareService.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/services/src/conversation-telemetry/CONTRACT.md",
+   "action": "add"
+  },
+  {
+   "path": "packages/services/src/conversation-telemetry/contract.example.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/services/src/conversation-telemetry/contract.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/services/src/conversation-telemetry/module.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/services/src/conversation-telemetry/remoteConversationTelemetry.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/services/src/cua-permission-broker/windowsCuaDevHelperHost.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "packages/services/src/cua-permission-broker/windowsCuaHelperHostSupport.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "packages/services/src/data-sync/CONTRACT.md",
+   "action": "add"
+  },
+  {
+   "path": "packages/services/src/data-sync/commandDataSync.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/services/src/data-sync/contract.example.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/services/src/data-sync/contract.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/services/src/data-sync/deviceSyncStateService.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/services/src/data-sync/directoryContent.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/services/src/data-sync/hookDataSync.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/services/src/data-sync/index.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/services/src/data-sync/inlinePluginDataSync.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/services/src/data-sync/mcpDataSync.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/services/src/data-sync/module.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/services/src/data-sync/node.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/services/src/data-sync/skillDataSync.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/services/src/data-sync/subagentDataSync.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/services/src/data-sync/syncUtils.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/services/src/data-sync/userConfigSyncService.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/services/src/file/fileService.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/services/src/fileWatcher/fileWatcherService.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "packages/services/src/fs/atomicFileUtils.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/services/src/gen-ui/CONTRACT.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/services/src/gen-ui/adapters/files.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/src/gen-ui/adapters/stateStorage.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/src/gen-ui/adapters/stateStorageNotifications.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/src/git/repo/gitCheckpointStore.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/services/src/hooks/hooksService.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/services/src/index.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "packages/services/src/mcp-sync/mcpSync.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/services/src/mcp-sync/mcpSyncService.ts",
+   "action": "text-conflict",
+   "conflicts": 7
+  },
+  {
+   "path": "packages/services/src/model-provider/accountProjectTokenClient.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/services/src/node.ts",
+   "action": "text-conflict",
+   "conflicts": 2
+  },
+  {
+   "path": "packages/services/src/official-mcp/officialMcpCredentials.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/services/src/paths.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/services/src/plugin-sync/pluginSync.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/services/src/plugin-sync/pluginSyncService.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/services/src/plugin-ui-bridge/contract.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/src/plugin-ui-bridge/instanceAccounts.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/src/plugin-ui-bridge/pluginUiBridgeService.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/services/src/plugin-ui-bridge/prepareRaces.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/src/plugin-ui-bridge/sampling.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/src/project-catalog/contract.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/src/project-storage/CONTRACT.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/services/src/project-storage/contract.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/src/project-storage/contract.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/services/src/project-storage/default-workspace/contract.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/src/project-storage/downgrade/contract.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/src/project-storage/index.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/services/src/project-storage/legacy-provider/contract.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/src/project-storage/legacy-tasks.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/services/src/project-storage/migration-order/contract.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/src/project-storage/migration-order/migration.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/services/src/project-storage/project-order/contract.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/src/project-storage/project-repository.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/services/src/project-storage/purge/contract.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/services/src/project-storage/remote-single-root/contract.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/src/project-storage/repository-contract.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/services/src/project-storage/repository/contract.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/src/project-storage/schema.baseline.sql",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/services/src/project-storage/schema.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/services/src/project-storage/test-fixture.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/src/project-workspace-navigation/contract.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/src/project/CONTRACT.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/services/src/project/contract.example.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/services/src/project/contract.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/src/project/contract.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/services/src/project/data/contract.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/services/src/project/data/project-data-port.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/services/src/project/data/project-data.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/services/src/project/index.ts",
+   "action": "text-conflict",
+   "conflicts": 1
+  },
+  {
+   "path": "packages/services/src/project/legacy-single-root.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/services/src/project/legacy/contract.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/src/project/preparation-race/contract.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/src/provider-provisioning-status/CONTRACT.md",
+   "action": "add"
+  },
+  {
+   "path": "packages/services/src/provider-provisioning-status/contract.example.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/services/src/provider-provisioning-status/contract.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/services/src/provider-provisioning-status/hostProviderProvisioningStatus.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/services/src/provider-provisioning-status/index.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/services/src/provider-provisioning-status/module.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/services/src/provider-provisioning-status/node.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/services/src/remote-projects/CONTRACT.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/services/src/remote-projects/contract.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/src/remote-projects/contract.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "packages/services/src/remote-projects/index.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "packages/services/src/remote-projects/legacy/contract.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/src/remote-projects/url/contract.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/src/remote-projects/validation.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/services/src/remote-projects/workspace-settings.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/services/src/remote-projects/workspace-settings/contract.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/src/runtime-tools/providerRuntimeResolver.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/services/src/session/automationRepo.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/services/src/session/automationService.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/services/src/session/controllerRemoteIdentityMigration.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/services/src/session/offPeakMockGateway.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/services/src/session/offPeakTaskRepo.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/services/src/session/offPeakTaskService.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/services/src/session/taskIndexRepo.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/services/src/session/droraTaskListTypes.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/services/src/setting/setting.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/services/src/setting/settingService.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/services/src/settings-sync/settingsSyncService.ts",
+   "action": "text-conflict",
+   "conflicts": 1
+  },
+  {
+   "path": "packages/services/src/skill-sync/skillSync.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/services/src/skill-sync/skillSyncService.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/services/src/skills/skillsService.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "packages/services/src/source-server-management/sourceServerManagement.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/services/src/startup-storage/contract.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/src/storage/contract.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/src/subagents/subagentsService.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/services/src/task-facts/CONTRACT.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/services/src/task-facts/contract.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/src/task-facts/repairSubagentTaskIndex.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/services/src/task-groups/contract.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/src/telemetry/telemetryCore.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/services/src/window-project-directory/contract.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/src/window-project-directory/index.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/services/src/window-project-directory/webRemoteProjectTreeActivity.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/services/src/drora-agent/genUiOutputEnv.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/src/drora-agent/independentPlanSupport.ts",
+   "action": "text-conflict",
+   "conflicts": 1
+  },
+  {
+   "path": "packages/services/src/drora-agent/inputPredictionSwitch.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/services/src/drora-agent/resident-rows-range/CONTRACT.md",
+   "action": "add"
+  },
+  {
+   "path": "packages/services/src/drora-agent/resident-rows-range/contract.example.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/services/src/drora-agent/resident-rows-range/contract.test.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/services/src/drora-agent/resident-rows-range/contract.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/services/src/drora-agent/resident-rows-range/module.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/services/src/drora-agent/droraAgent.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "packages/services/src/drora-agent/droraAgentBrowserAmbientContext.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/services/src/drora-agent/droraAgentConnectionScope.ts",
+   "action": "text-conflict",
+   "conflicts": 1
+  },
+  {
+   "path": "packages/services/src/drora-agent/droraAgentProcessManager.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/services/src/drora-agent/droraAgentService.ts",
+   "action": "text-conflict",
+   "conflicts": 2
+  },
+  {
+   "path": "packages/services/src/drora-agent/droraProtocolClient.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/services/src/drora-agent/droraTaskIndexSyncer.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "packages/services/src/drora-agent/droraTaskServiceAdapter.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "packages/services/src/drora-agent/droraV4HostCommand.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "packages/services/test/accountProjectTokenRefresh.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/accountProviderApiKeyResolver.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/accountProviderConfigSource.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/accountProviderConnectionResolver.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/accountProviderCredentialKey.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/accountProviderCredentialService.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/accountProviderCredentialStore.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/accountProviderInvalidation.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/accountProviderKeyUsageScene.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/accountProviderRequestAuthService.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/accountProviderTeamPlanRequestKey.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/accountRequestAuthScope.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/accountRequestAuthService.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/agentTelemetryEnv.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/apiJson.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/appCaCert.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/autoArchiveScheduler.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/automationRepo.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/bigmodelUsageQuotaProvider.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/botAdminAttention.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/botGroupAttachmentUpload.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/botGroupDelivery.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/botGroupDeliveryThrottle.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/botGroupInputSource.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/botGroupRuntimeSnapshot.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/botTaskStreamHub.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/botTopicAdmission.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/botTopicBatchSource.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/botTopicContinuation.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/botTopicHistory.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/botTopicPreparationState.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/botTopicResource.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/botsChannelRuntime.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/botsCommandParser.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/botsFeishuProvider.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/botsFeishuWebSocketLifecycle.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/botsGroupMemberDirectory.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/botsGroupSessions.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/botsProjectBinding.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/botsReplyFormatter.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/botsRepo.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/botsService.config.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/botsService.deletedTask.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/botsService.fixtures.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/botsService.groups.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/botsService.help.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/botsService.messageFlow.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/botsService.permissionsWorkspace.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/botsService.privateSync.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/botsService.status.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/botsService.telegramPolling.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/botsStorageMigration.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/botsStorageV3.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/botsTelegramProvider.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/broadcastService.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/channelMention.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/channelMentionResolver.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/channelReply.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/claudeNativeSessionImportFlow.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/cloudContentService.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/cloudContentServiceDisposal.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/codexConfigToml.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/codingPlanEntitlement.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/codingPlanEntitlementUsage.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/codingPlanProviderAvailability.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/codingPlanResetProvider.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/compactLogArchive.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/contentBundleCache.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/controllerRemoteIdentityMigration.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/conversationShareArtifactSource.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/conversationShareComposition.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/conversationShareConnectionScope.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/conversationShareHttpClient.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/conversationShareImportService.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/conversationShareMockApiClient.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/conversationSharePublicProjection.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/conversationShareService.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/conversationShareToolSnapshot.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/conversationShareWorkflowSnapshot.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/credentialCacheRecovery.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/credentialService.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/dynamicWorkflowClientConfig.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/feedbackHttpClient.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/feedbackLocalTicketStore.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/feedbackPrivacyBoundary.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/feishuGroupMentions.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/fileChangeTracker.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/fileWatcherService.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/fixtures/offPeakSelection.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/fixtures/provisioning-v1/schema.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/fixtures/provisioning-v1/target.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/fixtures/staging-backup-task-readers.mjs",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/fsFaultInjection.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/gitCliRepo.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/gitCommitMessageGenerator.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/gitService.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/gitUntrackedStats.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/groupInputReaction.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/groupQueueCard.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/helpers/serverHostServicesFixture.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/helpers/taskIndexFixture.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/highspeedCardService.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/hooksService.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/hostApiNetworkTransportDispose.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/hostFileSearchCandidates.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/independentPlanSupport.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/inputPredictionSwitch.test.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/services/test/legacyAccountConnectionCompletion.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/legacyPersonalProviderConfigImporter.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/legacyProviderUpgrade.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/legacyTeamOrganizationResolver.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/legacyDroraConfigProviderReader.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/localRuntimeNetworkCapture.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/localServicesRemoteAuthority.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/localUsageEvidence.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/marketingAssetRegistry.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/mediaPreviewService.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/modelTrajectory.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/networkCaptureProxy.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/nodeApiClient.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/oauthCompletionRace.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/oauthProviderLogout.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/oauthSessionEvents.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/oauthUnauthorizedLogout.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/oauthUnauthorizedRequest.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/observableSettingService.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/offPeakAgentToolBridge.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/offPeakClientConfig.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/offPeakE2eIntegration.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/offPeakModelSelectionView.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/offPeakResidentExecutions.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/offPeakRuntimeModel.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/offPeakServerClient.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/offPeakTaskRepo.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/offPeakTaskService.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/offPeakTicketHandoff.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/officialMcpAuthRemoteRouting.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/officialMcpCredentials.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/officialMcpIssuanceAudit.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/paths.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/pluginManagementService.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/pluginReferenceCatalogRequest.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/processResourceSampler.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/processTreeTerminator.windows.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/projectWorkspaceNavigation.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/providerBuiltinRecovery.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/providerBuiltinRefreshFailure.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/providerConfigFixtures.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/providerConfigRuntime.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/providerFacadeServices.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/providerProvisioningFileIntegration.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/providerProvisioningRealStores.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/providerProvisioningSource.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/providerProvisioningTarget.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/providerRuleFileIntegration.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/providerRuntime.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/providerRuntimeHeadersResponse.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/providerRuntimeResolver.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/providerSettingsConnectivity.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/remoteProjectConnectionMembership.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/remoteProjectConnectionState.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/remoteProjectIdentityPreparation.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/remoteSchemaMigrations.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/runtimeToolResolver.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/serverHostServices.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/serviceCollectionExposure.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/serviceLogger.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/servicesEntryBoundary.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/settingsSyncService.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/sharedContextFormatter.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/sourceServerWorkspaceAliasRepo.concurrent.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/sourceServerWorkspaceAliasRepo.projections.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/sourceServerWorkspaceAliasRepo.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/sourceServerWorkspaceIdentityChannelServer.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/sourceServerWorkspaceService.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/sshConfigAlias.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/storageAdapters.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/storageCatalog.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/storageCleanPlan.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/storageRootsResolver.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/storageService.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/storageUsageAggregate.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/subagentRuntimeConfig.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/subagentRuntimeConfigWatcher.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/subagentSelectionAuthority.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/subagentsService.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/taskChangeSummary.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/taskIndexRepoOffPeakMarker.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/taskIndexRepoUnreadCompareAndClear.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/taskIndexRepoWorkspaceIdentity.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/tasksDatabaseMigration.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/tasksDatabaseRollback.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/tasksStartupPreparation.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/telemetryDeliveryReliability.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/telemetryDeviceMid.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/telemetryPrivacy.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/telemetryRegistration.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/telemetryService.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/telemetryUserIdLoader.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/terminalProfile.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/terminalService.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/topicHistoryAttachment.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/topicResourceBridge.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/topicResourcePeers.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/topicResourceRelay.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/topicResourceRelayChannel.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/topicResourceRelayClient.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/usageStatsAccountAccess.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/usageStatsService.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/webRemoteProjectTreeActivity.test.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/services/test/workspaceFileMentionFilter.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/workspaceFileSearch.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/workspaceHookDigestParity.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/workspaceHookDiscoveryAlignment.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/workspaceHookTrustCorrupt.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/workspaceIdentityOffPeakMigration.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/zaiStartPlanBalanceSharing.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/zaiStartPlanModelIds.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/droraAgentBrowserAmbientContext.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/droraAgentErrors.rpc.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/droraAgentPresentationSurface.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/droraAgentProcessManager.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/droraAgentResourceTelemetry.rpc.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/droraAgentService.accountRequestAuth.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/droraAgentService.dynamicWorkflowPolicy.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/droraAgentService.mcpTelemetry.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/droraAgentService.offPeakRpcErrorSanitize.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/droraAgentService.offPeakToolPolicy.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/droraAgentService.pluginOperationProgress.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/droraAgentService.providerRegistry.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/droraAgentService.resourceTelemetry.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/droraAgentService.savedWorkflows.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/droraAgentService.subagentRuntimeConfig.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/droraAgentService.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/droraAgentService.toolExecResourceTelemetry.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/droraAgentService.v4.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/droraAgentSpawnCwd.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/droraBuiltinRemoteConfig.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/droraConfigOptions.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/droraMcpQuota.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/droraProtocolClient.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/droraSessionService.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/droraStdioTransport.processTree.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/droraStdioTransport.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/droraStorageStartupGate.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/services/test/droraTaskIndexSyncer.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/drora-server-cli/package.json",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "packages/drora-server-cli/src/cli.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/drora-server-cli/src/contracts.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/drora-server-cli/src/ipc/controlClient.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "packages/drora-server-cli/src/packaging/stage.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/drora-server-cli/src/packaging/stageCli.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/drora-server-cli/src/packaging/stageDependencies.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/drora-server-cli/src/packaging/stageRemoteAssetsCli.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/drora-server-cli/src/platform/serviceManager.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/drora-server-cli/src/runtime/immutableRelease.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "packages/drora-server-cli/src/runtime/lock.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/drora-server-cli/src/runtime/paths.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/drora-server-cli/src/runtime/releaseManager.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/drora-server-cli/src/runtime/shutdownWait.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/drora-server-cli/src/runtime/stableLauncher.ts",
+   "action": "text-conflict",
+   "conflicts": 1
+  },
+  {
+   "path": "packages/drora-server-cli/src/runtime/statusSnapshot.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "packages/drora-server-cli/src/runtime/updateCommand.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/drora-server-cli/src/runtime/updateHandoff.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/drora-server-cli/src/server-core/core.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "packages/drora-server-cli/src/server-core/http.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/drora-server-cli/src/supervisor/supervisor.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/drora-server-cli/test/contracts.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/drora-server-cli/test/coreHttp.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/drora-server-cli/test/crashBudget.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/drora-server-cli/test/daemonRegistration.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/drora-server-cli/test/fixtures/coreWiringFixture.mjs",
+   "action": "delete"
+  },
+  {
+   "path": "packages/drora-server-cli/test/hostCapability.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/drora-server-cli/test/ingressToken.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/drora-server-cli/test/ipc.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/drora-server-cli/test/packaging.test.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "packages/drora-server-cli/test/parentDisconnect.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/drora-server-cli/test/platform.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/drora-server-cli/test/proxyStdio.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/drora-server-cli/test/releaseDownload.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/drora-server-cli/test/runtimeUpdateIntegration.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/drora-server-cli/test/serverCore.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/drora-server-cli/test/serverIdentity.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/drora-server-cli/test/serviceInstallation.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/drora-server-cli/test/serviceManager.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/drora-server-cli/test/stageRemoteAssetsCli.test.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/drora-server-cli/test/supervisor.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/drora-server-cli/test/tarCommand.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/drora-server-cli/test/updateHandoff.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/drora-server-cli/vitest.config.ts",
+   "action": "delete"
+  }
+ ],
+ "skipped": [
+  "packages/services/src/gen-ui/adapters/service.test.ts"
+ ],
+ "conflicts": [
+  {
+   "path": "packages/provider-node/package.json",
+   "hunks": 1
+  },
+  {
+   "path": "packages/services/src/mcp-sync/mcpSyncService.ts",
+   "hunks": 7
+  },
+  {
+   "path": "packages/services/src/node.ts",
+   "hunks": 2
+  },
+  {
+   "path": "packages/services/src/project/index.ts",
+   "hunks": 1
+  },
+  {
+   "path": "packages/services/src/settings-sync/settingsSyncService.ts",
+   "hunks": 1
+  },
+  {
+   "path": "packages/services/src/drora-agent/independentPlanSupport.ts",
+   "hunks": 1
+  },
+  {
+   "path": "packages/services/src/drora-agent/droraAgentConnectionScope.ts",
+   "hunks": 1
+  },
+  {
+   "path": "packages/services/src/drora-agent/droraAgentService.ts",
+   "hunks": 2
+  },
+  {
+   "path": "packages/drora-server-cli/src/runtime/stableLauncher.ts",
+   "hunks": 1
+  }
+ ],
+ "semanticReview": [
+  "packages/client/src/globals.d.ts",
+  "packages/client/src/remoteServiceAccess.ts",
+  "packages/client/src/webRemoteControlAcknowledgedRelayProtocol.ts",
+  "packages/client/src/webRemoteControlAcknowledgedRelayProtocolTypes.ts",
+  "packages/server/src/http.ts",
+  "packages/server/src/remote/droraAgentDevDeploy.ts",
+  "packages/server/src/remote/droraAgentOfficialPluginAssets.ts",
+  "packages/server/src/source-server/sourceServerTransportRuntime.ts",
+  "packages/server/src/source-server/transportAdapter.ts",
+  "packages/services/src/accessor.ts",
+  "packages/services/src/coding-plan-subscription/bigmodelCodingPlanSubscriptionProvider.ts",
+  "packages/services/src/cua-permission-broker/windowsCuaDevHelperHost.ts",
+  "packages/services/src/cua-permission-broker/windowsCuaHelperHostSupport.ts",
+  "packages/services/src/fileWatcher/fileWatcherService.ts",
+  "packages/services/src/index.ts",
+  "packages/services/src/remote-projects/contract.ts",
+  "packages/services/src/remote-projects/index.ts",
+  "packages/services/src/skills/skillsService.ts",
+  "packages/services/src/drora-agent/droraAgent.ts",
+  "packages/services/src/drora-agent/droraTaskIndexSyncer.ts",
+  "packages/services/src/drora-agent/droraTaskServiceAdapter.ts",
+  "packages/services/src/drora-agent/droraV4HostCommand.ts",
+  "packages/drora-server-cli/package.json",
+  "packages/drora-server-cli/src/ipc/controlClient.ts",
+  "packages/drora-server-cli/src/runtime/immutableRelease.ts",
+  "packages/drora-server-cli/src/runtime/statusSnapshot.ts",
+  "packages/drora-server-cli/src/server-core/core.ts",
+  "packages/drora-server-cli/test/packaging.test.ts"
+ ],
+ "driftBlocked": [],
+ "decisionRequired": [
+  {
+   "path": "packages/client/test/rendererLogging.test.ts",
+   "outcome": "delete-local-change-review"
+  },
+  {
+   "path": "packages/client/test/droraProtocolV4TopicEnvelope.test.ts",
+   "outcome": "delete-local-change-review"
+  },
+  {
+   "path": "packages/provider-node/test/bundled-config-replacement.test.ts",
+   "outcome": "delete-local-change-review"
+  },
+  {
+   "path": "packages/server/test/botsHttp.test.ts",
+   "outcome": "delete-local-change-review"
+  },
+  {
+   "path": "packages/server/test/dockerDetect.test.ts",
+   "outcome": "delete-local-change-review"
+  },
+  {
+   "path": "packages/server/test/localTarGz.test.ts",
+   "outcome": "delete-local-change-review"
+  },
+  {
+   "path": "packages/server/test/remoteAssetCacheWindowsRename.test.ts",
+   "outcome": "delete-local-change-review"
+  },
+  {
+   "path": "packages/server/test/remoteAssetCdn.test.ts",
+   "outcome": "delete-local-change-review"
+  },
+  {
+   "path": "packages/server/test/remoteAssetLiveIdentity.test.ts",
+   "outcome": "delete-local-change-review"
+  },
+  {
+   "path": "packages/server/test/remoteDeploy.test.ts",
+   "outcome": "delete-local-change-review"
+  },
+  {
+   "path": "packages/server/test/remoteDeployLock.test.ts",
+   "outcome": "delete-local-change-review"
+  },
+  {
+   "path": "packages/server/test/sourceServerTransportAdapter.test.ts",
+   "outcome": "delete-local-change-review"
+  },
+  {
+   "path": "packages/server/test/sshAuth.test.ts",
+   "outcome": "delete-local-change-review"
+  },
+  {
+   "path": "packages/server/test/wslBackend.test.ts",
+   "outcome": "delete-local-change-review"
+  },
+  {
+   "path": "packages/server/test/wslDetect.test.ts",
+   "outcome": "delete-local-change-review"
+  },
+  {
+   "path": "packages/services/test/agentProxyEnv.test.ts",
+   "outcome": "delete-local-change-review"
+  },
+  {
+   "path": "packages/services/test/apiEndpoints.test.ts",
+   "outcome": "delete-local-change-review"
+  },
+  {
+   "path": "packages/services/test/atomicFileUtils.test.ts",
+   "outcome": "delete-local-change-review"
+  },
+  {
+   "path": "packages/services/test/automationCron.test.ts",
+   "outcome": "delete-local-change-review"
+  },
+  {
+   "path": "packages/services/test/botsProviderRequest.test.ts",
+   "outcome": "delete-local-change-review"
+  },
+  {
+   "path": "packages/services/test/botsService.feishuRuntimeLock.test.ts",
+   "outcome": "delete-local-change-review"
+  },
+  {
+   "path": "packages/services/test/botsService.registration.test.ts",
+   "outcome": "delete-local-change-review"
+  },
+  {
+   "path": "packages/services/test/botsWebhookProvider.test.ts",
+   "outcome": "delete-local-change-review"
+  },
+  {
+   "path": "packages/services/test/botsWeixinProvider.test.ts",
+   "outcome": "delete-local-change-review"
+  },
+  {
+   "path": "packages/services/test/claudeNativeSessionImportRepo.test.ts",
+   "outcome": "delete-local-change-review"
+  },
+  {
+   "path": "packages/services/test/codingPlanSubscriptionService.test.ts",
+   "outcome": "delete-local-change-review"
+  },
+  {
+   "path": "packages/services/test/commandsService.test.ts",
+   "outcome": "delete-local-change-review"
+  },
+  {
+   "path": "packages/services/test/continuousStreamCoalescer.test.ts",
+   "outcome": "delete-local-change-review"
+  },
+  {
+   "path": "packages/services/test/conversationShareIntegrity.test.ts",
+   "outcome": "delete-local-change-review"
+  },
+  {
+   "path": "packages/services/test/conversationShareSanitize.test.ts",
+   "outcome": "delete-local-change-review"
+  },
+  {
+   "path": "packages/services/test/fileService.test.ts",
+   "outcome": "delete-local-change-review"
+  },
+  {
+   "path": "packages/services/test/fixtures/share-workflow-parity-rows.json",
+   "outcome": "delete-local-change-review"
+  },
+  {
+   "path": "packages/services/test/gitCheckpointService.test.ts",
+   "outcome": "delete-local-change-review"
+  },
+  {
+   "path": "packages/services/test/gitCommandProvider.test.ts",
+   "outcome": "delete-local-change-review"
+  },
+  {
+   "path": "packages/services/test/marketingTouchService.test.ts",
+   "outcome": "delete-local-change-review"
+  },
+  {
+   "path": "packages/services/test/mcpSyncService.test.ts",
+   "outcome": "delete-local-change-review"
+  },
+  {
+   "path": "packages/services/test/mcpWorkspaceScope.test.ts",
+   "outcome": "delete-local-change-review"
+  },
+  {
+   "path": "packages/services/test/memoryService.test.ts",
+   "outcome": "delete-local-change-review"
+  },
+  {
+   "path": "packages/services/test/nodeApiClientEndpoint.test.ts",
+   "outcome": "delete-local-change-review"
+  },
+  {
+   "path": "packages/services/test/nodeApiNetwork.test.ts",
+   "outcome": "delete-local-change-review"
+  },
+  {
+   "path": "packages/services/test/oauthService.test.ts",
+   "outcome": "delete-local-change-review"
+  },
+  {
+   "path": "packages/services/test/onboardingRecordService.test.ts",
+   "outcome": "delete-local-change-review"
+  },
+  {
+   "path": "packages/services/test/pluginStoreOrderConfig.test.ts",
+   "outcome": "delete-local-change-review"
+  },
+  {
+   "path": "packages/services/test/pluginSyncService.test.ts",
+   "outcome": "delete-local-change-review"
+  },
+  {
+   "path": "packages/services/test/processTreeTerminator.test.ts",
+   "outcome": "delete-local-change-review"
+  },
+  {
+   "path": "packages/services/test/providerProvisioningAccountRefresh.test.ts",
+   "outcome": "delete-local-change-review"
+  },
+  {
+   "path": "packages/services/test/runtimeCommandEnv.test.ts",
+   "outcome": "delete-local-change-review"
+  },
+  {
+   "path": "packages/services/test/serviceCollectionConnectionOverride.test.ts",
+   "outcome": "delete-local-change-review"
+  },
+  {
+   "path": "packages/services/test/settingService.test.ts",
+   "outcome": "delete-local-change-review"
+  },
+  {
+   "path": "packages/services/test/skillSyncArchive.test.ts",
+   "outcome": "delete-local-change-review"
+  },
+  {
+   "path": "packages/services/test/skillSyncService.test.ts",
+   "outcome": "delete-local-change-review"
+  },
+  {
+   "path": "packages/services/test/skillsService.test.ts",
+   "outcome": "delete-local-change-review"
+  },
+  {
+   "path": "packages/services/test/systemService.test.ts",
+   "outcome": "delete-local-change-review"
+  },
+  {
+   "path": "packages/services/test/telemetryRequestHeaders.test.ts",
+   "outcome": "delete-local-change-review"
+  },
+  {
+   "path": "packages/services/test/workspaceHookTrustStoreSchemaParity.test.ts",
+   "outcome": "delete-local-change-review"
+  },
+  {
+   "path": "packages/services/test/droraAgentConnectionScope.test.ts",
+   "outcome": "delete-local-change-review"
+  },
+  {
+   "path": "packages/services/test/droraAgentService.workspaceHookTrust.test.ts",
+   "outcome": "delete-local-change-review"
+  },
+  {
+   "path": "packages/services/test/droraLegacyTaskCompatTaskIndex.test.ts",
+   "outcome": "delete-local-change-review"
+  },
+  {
+   "path": "packages/services/test/droraSessionEventCoalescer.test.ts",
+   "outcome": "delete-local-change-review"
+  },
+  {
+   "path": "packages/drora-server-cli/test/agentWiring.test.ts",
+   "outcome": "delete-local-change-review"
+  },
+  {
+   "path": "packages/drora-server-cli/test/cli.test.ts",
+   "outcome": "delete-local-change-review"
+  },
+  {
+   "path": "packages/drora-server-cli/test/componentCache.test.ts",
+   "outcome": "delete-local-change-review"
+  },
+  {
+   "path": "packages/drora-server-cli/test/lock.test.ts",
+   "outcome": "delete-local-change-review"
+  },
+  {
+   "path": "packages/drora-server-cli/test/pathsAndRelease.test.ts",
+   "outcome": "delete-local-change-review"
+  },
+  {
+   "path": "packages/drora-server-cli/test/releaseInstaller.test.ts",
+   "outcome": "delete-local-change-review"
+  },
+  {
+   "path": "packages/drora-server-cli/test/remoteAssetRelease.test.ts",
+   "outcome": "delete-local-change-review"
+  },
+  {
+   "path": "packages/drora-server-cli/test/taskActivityTracker.test.ts",
+   "outcome": "delete-local-change-review"
+  },
+  {
+   "path": "packages/drora-server-cli/test/updateCommand.test.ts",
+   "outcome": "delete-local-change-review"
+  }
+ ],
+ "errors": []
+}

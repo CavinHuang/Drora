@@ -1,0 +1,1267 @@
+{
+ "segment": "S1",
+ "ledger": {
+  "path": "docs/upstream-sync/2026-10-31-v3.17.1/upstream-ledger.tsv",
+  "sha256": "8e1c507199cb4d50d876c6c23d2ff2a3f335496eec29bf4f433b62a341a3e2cc"
+ },
+ "dry": true,
+ "counts": {
+  "add": 38,
+  "take-upstream": 42,
+  "text-clean-needs-semantic-review": 24,
+  "text-conflict": 12,
+  "delete-review": 141,
+  "delete-local-change-review": 23,
+  "zone-decision": 1,
+  "already-present": 0,
+  "lockfile-regenerate": 2,
+  "already-deleted": 1
+ },
+ "applied": [
+  {
+   "path": ".husky/pre-push",
+   "action": "take-theirs"
+  },
+  {
+   "path": ".oxlintrc.json",
+   "action": "text-conflict",
+   "conflicts": 1
+  },
+  {
+   "path": ".vscode/settings.json",
+   "action": "text-conflict",
+   "conflicts": 1
+  },
+  {
+   "path": "AGENTS.md",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "DESIGN.md",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "NOTICE.md",
+   "action": "text-conflict",
+   "conflicts": 1
+  },
+  {
+   "path": "README.en.md",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "README.md",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "architecture-policy.yaml",
+   "action": "text-conflict",
+   "conflicts": 4
+  },
+  {
+   "path": "config/provider/regression/providers.example.json",
+   "action": "add"
+  },
+  {
+   "path": "config/provider/regression/test-list.json",
+   "action": "add"
+  },
+  {
+   "path": "config/provider/drora-builtin.json",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "config/provider/drora-builtin.test.json",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "lint-staged.config.mjs",
+   "action": "delete"
+  },
+  {
+   "path": "package.json",
+   "action": "text-conflict",
+   "conflicts": 3
+  },
+  {
+   "path": "packages/rpc/package.json",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/rpc/src/channelClient.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/rpc/src/channelServer.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/rpc/src/channels.shared.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/rpc/src/serialization.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/rpc/test/buffer.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/rpc/test/channels.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/rpc/test/foundation.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/rpc/test/ipc.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/rpc/test/logging-middleware.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/rpc/test/protocol.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/rpc/test/serialization.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/rpc/vitest.config.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/package.json",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "packages/shared/src/background-task-notifications.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/shared/src/browser-use/command-metadata.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/shared/src/browser-use/commands.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/shared/src/browser-use/result.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/shared/src/channels.ts",
+   "action": "text-conflict",
+   "conflicts": 1
+  },
+  {
+   "path": "packages/shared/src/conversation-share-content.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/shared/src/conversation-telemetry/CONTRACT.md",
+   "action": "add"
+  },
+  {
+   "path": "packages/shared/src/conversation-telemetry/contract.example.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/shared/src/conversation-telemetry/contract.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/shared/src/conversation-telemetry/conversationTelemetryEngine.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/shared/src/conversation-telemetry/index.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/shared/src/conversation-telemetry/messageTelemetry.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/shared/src/conversation-telemetry/module.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/shared/src/conversation-telemetry/providerTelemetryIdentity.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/shared/src/conversation-telemetry/remoteTelemetryEvent.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/shared/src/conversation-telemetry/runtimeModelTelemetry.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/shared/src/dynamic-workflow-feature.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/shared/src/gen-ui/CONTRACT.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/shared/src/gen-ui/contract.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/src/gen-ui/contract.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/shared/src/index.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "packages/shared/src/local-ttft/CONTRACT.md",
+   "action": "add"
+  },
+  {
+   "path": "packages/shared/src/local-ttft/contract.example.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/shared/src/local-ttft/contract.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/shared/src/local-ttft/module.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/shared/src/localTtft.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/src/mcp-apps/CONTRACT.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/shared/src/mcp-apps/contract.example.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/shared/src/mcp-apps/contract.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/src/mcp-apps/contract.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/shared/src/mcp-apps/sampling.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/src/mcp-apps/toolMeta.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/shared/src/mcp-sync.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/shared/src/mcp.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "packages/shared/src/node.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/shared/src/node/genUiPaths.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/src/off-peak-types.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/shared/src/official-mcp-auth.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/shared/src/platform.ts",
+   "action": "text-conflict",
+   "conflicts": 1
+  },
+  {
+   "path": "packages/shared/src/plugin-marketplaces.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "packages/shared/src/plugin-sync.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/shared/src/project-access-token-client.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/shared/src/project-access-token.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/shared/src/protocol.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "packages/shared/src/provider-provisioning.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/shared/src/remote-sync.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/shared/src/remote-workspace-identity.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "packages/shared/src/request-security-edition/CONTRACT.md",
+   "action": "add"
+  },
+  {
+   "path": "packages/shared/src/request-security-edition/contract.example.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/shared/src/request-security-edition/contract.test.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/shared/src/request-security-edition/contract.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/shared/src/request-security-edition/module.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/shared/src/request-security-edition/verification-policy.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/shared/src/runtimeEnv.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "packages/shared/src/server-remote.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "packages/shared/src/shortcutCommands.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/shared/src/skill-sync.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/shared/src/source-server/compatibility.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/shared/src/source-server/connectionLog.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/shared/src/source-server/contracts.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/shared/src/source-server/errorCodes.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "packages/shared/src/sqlite-migrations/contract.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/src/telemetry.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/shared/src/test-ids.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "packages/shared/src/userInstructions.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/shared/src/validation.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "packages/shared/src/validationAppSettings.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "packages/shared/src/web-remote-control.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "packages/shared/src/web-remote-relay/CONTRACT.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/shared/src/web-remote-relay/contract.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/src/web-remote-relay/contract.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/shared/src/web-remote-relay/domain/notification.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/shared/src/web-remote-relay/domain/webRemoteControlActions.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/shared/src/web-remote-relay/index.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/shared/src/web-remote-relay/mobileLog.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/shared/src/workspace-hook-config.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/shared/src/workspace-hook-digest.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/shared/src/drora-protocol-legacy-types.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/shared/src/drora-protocol-v4/apply.ts",
+   "action": "text-conflict",
+   "conflicts": 2
+  },
+  {
+   "path": "packages/shared/src/drora-protocol-v4/command.ts",
+   "action": "text-conflict",
+   "conflicts": 1
+  },
+  {
+   "path": "packages/shared/src/drora-protocol-v4/delta.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "packages/shared/src/drora-protocol-v4/index.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "packages/shared/src/drora-protocol-v4/input-intent.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "packages/shared/src/drora-protocol-v4/input-prediction/CONTRACT.md",
+   "action": "add"
+  },
+  {
+   "path": "packages/shared/src/drora-protocol-v4/input-prediction/contract.example.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/shared/src/drora-protocol-v4/input-prediction/contract.test.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/shared/src/drora-protocol-v4/input-prediction/contract.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/shared/src/drora-protocol-v4/input-prediction/module.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/shared/src/drora-protocol-v4/rows.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "packages/shared/src/drora-protocol-v4/session-data/CONTRACT.md",
+   "action": "add"
+  },
+  {
+   "path": "packages/shared/src/drora-protocol-v4/session-data/contract.example.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/shared/src/drora-protocol-v4/session-data/contract.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/shared/src/drora-protocol-v4/session-data/index.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/shared/src/drora-protocol-v4/session-data/module.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/shared/src/drora-protocol-v4/snapshot.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "packages/shared/src/drora-protocol-v4/telemetry.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/shared/src/drora-protocol-v4/transport.ts",
+   "action": "text-conflict",
+   "conflicts": 1
+  },
+  {
+   "path": "packages/shared/src/drora-protocol-v4/workflow-row-meta.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/shared/src/drora-protocol/index.ts",
+   "action": "text-conflict",
+   "conflicts": 2
+  },
+  {
+   "path": "packages/shared/test/accountProviderSnapshotProtocol.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/agentListingProjection.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/attachmentSelectionProtocol.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/automationRunId.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/backgroundBashJobs.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/backgroundBashOutput.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/backgroundTaskNotifications.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/bashOutputDisplay.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/botsLegacyAgentProvider.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/browserControlProtocol.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/cloudContent.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/conversationPreviewArtifacts.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/conversationQuotes.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/conversationShareContent.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/conversationShareContract.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/conversationShareToolPresentation.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/dynamicWorkflowFeature.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/env.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/executionState.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/fakeRelayV2.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/feedbackPrivacy.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/guardedMode.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/helpAppConfig.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/launchMarks.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/legacyModelProviderIdentity.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/localTtft.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/markdownArtifactImages.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/marketingTouch.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/marketingTouchActions.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/mcp-always-load.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/mcpResourceTelemetry.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/mcpStatusDiagnostics.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/mediaPreview.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/modelConfigContract.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/modelSelection.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/nodeNetworkCapture.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/nodeSelfResourceTelemetry.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/oauth.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/offPeakExecution.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/official-glm-model-id.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/officialMcpTrust.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/openInEditorOptions.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/openrouterAttribution.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/planIdentitySnapshot.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/pluginStoreOrder.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/process-diagnostic.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/processResourceTelemetry.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/projectAccessTokenCache.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/projectAccessTokenClient.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/projectAccessTokenKeyContract.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/providerProvisioning.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/remoteEnvironmentKey.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/remoteResourcePackages.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/remoteSshHostKey.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/remoteUsageTelemetry.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/remoteWorkspaceIdentity.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/rendererActionTrace.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/runtimeEnv.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/scopedServicePortPayload.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/serverRemoteInfo.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/serverRemoteTarget.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/sessionCreateTelemetry.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/sessionOpenTimingProtocol.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/sharedContextImportState.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/shortcutCommands.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/sourceServerConnectionLog.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/sourceServerContracts.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/streamingToolInputPreview.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/subagentMarkdownMigration.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/subagentMarkdownSelection.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/subagentStateMigration.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/taskRealtime.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/telemetry.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/telemetryPrivacy.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/telemetryRedaction.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/toolExecResourceTelemetry.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/toolPlanAdapter.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/unboundModelSelection.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/underlyingErrorContract.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/webRemoteControl.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/webRemoteControlActions.test.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/shared/test/webRemoteControlAuthState.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/webRemoteControlHeartbeat.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/webRemoteControlMobileLog.test.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/shared/test/webRemoteControlRelayV2.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/webRemoteControlRelayV2Http.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/webRemoteControlRpcTransport.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/webRemoteControlV2Qr.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/windowHostControllerProtocol.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/workflowNotificationArtifacts.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/workspaceHookDiscoveryDedup.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/workspaceHookMutation.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/workspaceHookReviewMonotonicity.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/droraNetworkDebugStatus.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/droraProtocol.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/droraProtocolSavedWorkflows.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/droraProtocolV4AttachmentSource.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/droraProtocolV4AttachmentUpload.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/droraProtocolV4Coalesce.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/droraProtocolV4Command.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/droraProtocolV4CommandQuery.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/droraProtocolV4ConnectionScope.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/droraProtocolV4DisplayTolerance.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/droraProtocolV4HookSummary.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/droraProtocolV4InputPrediction.test.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/shared/test/droraProtocolV4Permission.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/droraProtocolV4SessionWorkflowActivity.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/droraProtocolV4StableFork.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/droraProtocolV4Telemetry.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/droraProtocolV4UserInputEpilogue.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/droraProtocolV4Wire.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/droraProtocolV4WireFault.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/droraProtocolV4WorkflowObservationDisplay.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/droraProtocolV4WorkflowRuns.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/droraProtocolV4WorkflowRunsCachedSettle.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/droraProtocolV4WorkflowRunsCaps.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/droraProtocolV4WorkflowRunsDelta.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/droraProtocolV4WorkflowRunsEviction.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/droraProtocolV4WorkflowRunsHoles.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/droraProtocolV4WorkflowRunsReducer.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/droraProtocolV4WorkflowWorkspace.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/droraProtocolV4WorkspaceConfig.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/droraProtocolV4WorkspaceHookReview.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/droraProtocolWorkspaceHookTrust.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/droraSessionContentProfile.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/droraSessionTaskStatus.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/droraSessionVisibleContent.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/shared/test/droraTaskMetaSchema.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "vitest.config.ts",
+   "action": "text-conflict",
+   "conflicts": 2
+  }
+ ],
+ "skipped": [
+  "package-lock.json",
+  "packages/shared/test/forceUpdate.test.ts",
+  "pnpm-lock.yaml"
+ ],
+ "conflicts": [
+  {
+   "path": ".oxlintrc.json",
+   "hunks": 1
+  },
+  {
+   "path": ".vscode/settings.json",
+   "hunks": 1
+  },
+  {
+   "path": "NOTICE.md",
+   "hunks": 1
+  },
+  {
+   "path": "architecture-policy.yaml",
+   "hunks": 4
+  },
+  {
+   "path": "package.json",
+   "hunks": 3
+  },
+  {
+   "path": "packages/shared/src/channels.ts",
+   "hunks": 1
+  },
+  {
+   "path": "packages/shared/src/platform.ts",
+   "hunks": 1
+  },
+  {
+   "path": "packages/shared/src/drora-protocol-v4/apply.ts",
+   "hunks": 2
+  },
+  {
+   "path": "packages/shared/src/drora-protocol-v4/command.ts",
+   "hunks": 1
+  },
+  {
+   "path": "packages/shared/src/drora-protocol-v4/transport.ts",
+   "hunks": 1
+  },
+  {
+   "path": "packages/shared/src/drora-protocol/index.ts",
+   "hunks": 2
+  },
+  {
+   "path": "vitest.config.ts",
+   "hunks": 2
+  }
+ ],
+ "semanticReview": [
+  "AGENTS.md",
+  "DESIGN.md",
+  "README.en.md",
+  "README.md",
+  "config/provider/drora-builtin.json",
+  "config/provider/drora-builtin.test.json",
+  "packages/shared/package.json",
+  "packages/shared/src/index.ts",
+  "packages/shared/src/mcp.ts",
+  "packages/shared/src/plugin-marketplaces.ts",
+  "packages/shared/src/protocol.ts",
+  "packages/shared/src/remote-workspace-identity.ts",
+  "packages/shared/src/runtimeEnv.ts",
+  "packages/shared/src/server-remote.ts",
+  "packages/shared/src/source-server/errorCodes.ts",
+  "packages/shared/src/test-ids.ts",
+  "packages/shared/src/validation.ts",
+  "packages/shared/src/validationAppSettings.ts",
+  "packages/shared/src/web-remote-control.ts",
+  "packages/shared/src/drora-protocol-v4/delta.ts",
+  "packages/shared/src/drora-protocol-v4/index.ts",
+  "packages/shared/src/drora-protocol-v4/input-intent.ts",
+  "packages/shared/src/drora-protocol-v4/rows.ts",
+  "packages/shared/src/drora-protocol-v4/snapshot.ts"
+ ],
+ "driftBlocked": [],
+ "decisionRequired": [
+  {
+   "path": "THIRD-PARTY-NOTICES.md",
+   "outcome": "zone-decision"
+  },
+  {
+   "path": "packages/rpc/test/proxy-channel.test.ts",
+   "outcome": "delete-local-change-review"
+  },
+  {
+   "path": "packages/shared/test/appSettings.test.ts",
+   "outcome": "delete-local-change-review"
+  },
+  {
+   "path": "packages/shared/test/assistantPresentation.test.ts",
+   "outcome": "delete-local-change-review"
+  },
+  {
+   "path": "packages/shared/test/clientConfig.test.ts",
+   "outcome": "delete-local-change-review"
+  },
+  {
+   "path": "packages/shared/test/errors.test.ts",
+   "outcome": "delete-local-change-review"
+  },
+  {
+   "path": "packages/shared/test/highspeed.test.ts",
+   "outcome": "delete-local-change-review"
+  },
+  {
+   "path": "packages/shared/test/mcp.test.ts",
+   "outcome": "delete-local-change-review"
+  },
+  {
+   "path": "packages/shared/test/memoryDiagnostics.test.ts",
+   "outcome": "delete-local-change-review"
+  },
+  {
+   "path": "packages/shared/test/officialMcpAuthProtocol.test.ts",
+   "outcome": "delete-local-change-review"
+  },
+  {
+   "path": "packages/shared/test/officialMcpToolError.test.ts",
+   "outcome": "delete-local-change-review"
+  },
+  {
+   "path": "packages/shared/test/remoteAppConfig.test.ts",
+   "outcome": "delete-local-change-review"
+  },
+  {
+   "path": "packages/shared/test/remoteAssetInstallMode.test.ts",
+   "outcome": "delete-local-change-review"
+  },
+  {
+   "path": "packages/shared/test/serviceAuthority.test.ts",
+   "outcome": "delete-local-change-review"
+  },
+  {
+   "path": "packages/shared/test/validation.test.ts",
+   "outcome": "delete-local-change-review"
+  },
+  {
+   "path": "packages/shared/test/windowHostControlProtocol.test.ts",
+   "outcome": "delete-local-change-review"
+  },
+  {
+   "path": "packages/shared/test/workspaceHookTrustStoreFile.test.ts",
+   "outcome": "delete-local-change-review"
+  },
+  {
+   "path": "packages/shared/test/droraEndpoint.test.ts",
+   "outcome": "delete-local-change-review"
+  },
+  {
+   "path": "packages/shared/test/droraPersistedMessageMerge.test.ts",
+   "outcome": "delete-local-change-review"
+  },
+  {
+   "path": "packages/shared/test/droraProtocolV4FileRewind.test.ts",
+   "outcome": "delete-local-change-review"
+  },
+  {
+   "path": "packages/shared/test/droraProtocolV4PhysicalTopic.test.ts",
+   "outcome": "delete-local-change-review"
+  },
+  {
+   "path": "packages/shared/test/droraProtocolV4Plans.test.ts",
+   "outcome": "delete-local-change-review"
+  },
+  {
+   "path": "packages/shared/test/droraProtocolV4Usage.test.ts",
+   "outcome": "delete-local-change-review"
+  },
+  {
+   "path": "packages/shared/test/droraSourceHeaders.test.ts",
+   "outcome": "delete-local-change-review"
+  }
+ ],
+ "errors": []
+}

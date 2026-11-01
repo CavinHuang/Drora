@@ -22,7 +22,7 @@ jobs:
           node-version: "24.14.0"
       - run: corepack enable
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile || (rm -rf node_modules && pnpm install --frozen-lockfile)
       - name: Freshness baseline
         run: node scripts/check-workspace-freshness.mjs
         continue-on-error: true
@@ -45,13 +45,15 @@ jobs:
       - name: Obsidian knowledge UI and evidence transport regression
         # EC-2（e2e-a-2，2026-10-18 终审）修复：rootJwtInvalidBroadcastGate
         # （ui-auth JWT 广播门控回归）此前不在任何 CI 通道，追加进本清单；
-        # knowledgeReviewView.test.tsx 是 .tsx——根 vitest 配置的 unit 工程
-        # include 只收 packages/*/test/**/*.test.ts，直接把文件名追加到下方
-        # 清单会被静默跳过（假接线，本地实证 17 文件不含它），必须走
-        # packages/ui 自带 vitest 配置（@ 别名 + 默认 .tsx 收集）单独执行。
+        # knowledgeReviewView.test.tsx 是 .tsx——v3.17.1 合并（S5，UP05372）
+        # 随上游删除 packages/ui/vitest.config.ts 后，--dir packages/ui 的本地
+        # 执行通道不复存在（根配置的相对 include 会以错误 root 解析）。
+        # 现按 D01 三工程结构把它显式登记进 scripts/drora-test-files.json
+        # （drora 工程，--project 选择），并改根级调用（完成度审查 2026-11-01
+        # 发现该测试曾全通道失执行——CI 与本地同现 No test files found）。
         run: |
           pnpm exec vitest run packages/ui/test/conversationSelectionReference.test.ts packages/ui/test/knowledgeAskModel.test.ts packages/ui/test/knowledgeEvidenceVerification.test.ts packages/ui/test/knowledgeAgentHandoff.test.ts packages/ui/test/conversationKnowledgeSources.test.ts packages/ui/test/knowledgeCitationNavigation.test.ts packages/ui/test/knowledgeCitationTransaction.test.ts packages/ui/test/knowledgeTurnCitations.test.ts packages/ui/test/knowledgeCitationMarkdown.test.ts packages/ui/test/messageResponseKnowledgeCitation.test.ts packages/ui/test/messageCitationOpenIntegration.test.ts packages/ui/test/knowledgeCitationOpenFeedback.test.ts packages/ui/test/knowledgeEvidenceSendFailure.test.ts packages/ui/test/vaultQuoteRevealCodeMirror.test.ts packages/ui/test/knowledgeReviewProposalInput.test.ts packages/ui/test/oauthCachedSessionRestore.test.ts packages/ui/test/rootJwtInvalidBroadcastGate.test.ts
-          pnpm --dir packages/ui exec vitest run test/knowledgeReviewView.test.tsx
+          pnpm exec vitest run --project drora packages/ui/test/knowledgeReviewView.test.tsx
       - name: Obsidian source-to-receipt integration and CLI admission gate
         # The bootstrap handler imports @drora/contracts/dist at runtime. Run that
         # wiring suite in cli-build after its dependency closure has been built.
@@ -77,7 +79,7 @@ jobs:
           node-version: "24.14.0"
       - run: corepack enable
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile || (rm -rf node_modules && pnpm install --frozen-lockfile)
       - name: drora-cua smoke (mock broker)
         run: node packages/zcode-cua/test/restored-smoke.mjs
       - name: Helper typecheck + Windows bundle build
@@ -101,7 +103,7 @@ jobs:
           node-version: "24.14.0"
       - run: corepack enable
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile || (rm -rf node_modules && pnpm install --frozen-lockfile)
       - name: Build plugin MCP runtimes
         # node-repl-host 依赖 @drora/core、@drora/contracts 的 dist,
         # 必须先走依赖闭包。turbo 2.9 在「子目录 turbo.json + 仓库根 workspace」
@@ -167,7 +169,7 @@ jobs:
           node-version: "24.14.0"
       - run: corepack enable
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile || (rm -rf node_modules && pnpm install --frozen-lockfile)
       # 同 Typecheck job：本分支 typecheck 尾段的 bootstrap tsc 需要依赖闭包 dist 先在。
       - name: Build bootstrap dependency closure
         run: pnpm --filter @drora/bootstrap^... run build
@@ -214,7 +216,7 @@ jobs:
           node-version: "24.14.0"
       - run: corepack enable
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile || (rm -rf node_modules && pnpm install --frozen-lockfile)
       # 构建链守卫：addon 文件名、node 版本错配（modules 137 守卫）、SEA 熔丝、
       # ax_native 基线 SHA-256 钉扎——任一回归即红灯。
       - name: Build macOS helper .app
@@ -251,7 +253,7 @@ jobs:
           node-version: "24.14.0"
       - run: corepack enable
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile || (rm -rf node_modules && pnpm install --frozen-lockfile)
         shell: cmd
       - name: Rebuild addon from restored source (MSVC + Windows SDK autodetect)
         run: node packages/zcode-cua-helper/native/reverse/build-rebuilt.mjs

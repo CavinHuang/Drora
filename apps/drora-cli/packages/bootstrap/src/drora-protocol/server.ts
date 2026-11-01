@@ -1,3 +1,4 @@
+import { sessionLifecycleParamsSchema, sessionLifecycleSnapshotSchema } from "@drora/shared";
 import { querySessionDebug } from "./session-debug.js";
 import { offPeakControlParamsSchema, offPeakControlResultSchema } from "@drora/shared";
 import { createNodeNetworkCapture } from "@drora/shared/node";
@@ -9,6 +10,7 @@ import {
 import {
   droraPluginsCancelOperationParamsSchema,
   droraProtocolMethods,
+  droraRuntimeCapabilitiesParamsSchema,
   droraWorkspaceCancelGenerateTextParamsSchema,
   droraWorkspaceHookTrustGrantParamsSchema,
 } from "@drora/shared";
@@ -76,6 +78,10 @@ import {
 import { listChildProcesses } from "./process-child-processes.js";
 import { ProtocolRuntimeResources } from "./runtime-resources.js";
 import {
+  ConversationInputPredictionHandler,
+  createInputPredictionSessionLoader,
+} from "./input-prediction-handler.js";
+import {
   readWorkspacePresentation,
   testProviderModelConnectivity,
 } from "./workspace-model-runtime.js";
@@ -109,7 +115,7 @@ import {
   updateSavedWorkflowMetaOp,
 } from "./saved-workflows.js";
 import { findSavedWorkflowForRunOp, saveSavedWorkflowFromRunOp } from "./saved-workflows-run.js";
-import { listMcpServers } from "./mcp.js";
+import { listMcpServers, setWorkspaceMcpTrust } from "./mcp.js";
 import {
   callMcpUiTool,
   sampleMcpUi,
@@ -139,7 +145,12 @@ import {
   resolveV4InteractionRegistryOptionsFromEnv,
 } from "../drora-protocol-v4/interaction-registry.js";
 import { createConversationV4Gateway } from "./v4-bridge.js";
-import { createSessionResidentPoolHost } from "./session-residency.js";
+import {
+  createSessionResidentPoolHost,
+  getSessionLifecycle,
+  shutdownSessionRuntime,
+} from "./session-residency.js";
+import { measureSessionData, purgeSessionData } from "./session-data/index.js";
 import {
   DEFAULT_SESSION_RESIDENT_HIGH_WATER_COUNT,
   SessionResidentPool,
@@ -287,6 +298,7 @@ export class DroraProtocolAgentServer {
   private readonly pendingClientRequests = new Map<string, PendingClientRequest<unknown>>();
   private readonly pluginOperationControllers = new Map<string, AbortController>();
   private readonly workspaceGenerateTextControllers = new Map<string, AbortController>();
+  private readonly inputPrediction: ConversationInputPredictionHandler;
   /**
    * subscribe initial frame 按 JSON-RPC request id 隔离。connection 必须先 take，
    * 再写 response line，最后按数组顺序写 notification，不能靠 microtask 猜时序。
@@ -338,6 +350,13 @@ export class DroraProtocolAgentServer {
     };
     // v4 通道：gateway 闭包持有 context 做帧出口与命令副作用，构造完立即挂回。
     this.context.v4Gateway = createConversationV4Gateway(this.context);
+    this.inputPrediction = new ConversationInputPredictionHandler({
+      loadSession: createInputPredictionSessionLoader({
+        sessions: this.context.sessions,
+        sessionStore: resolvedDeps.sessionStore,
+      }),
+      logger: this.logger,
+    });
     this.browserControlPort = createProtocolBrowserControlBroker(this.context);
     const sessionResidentTargetCount =
       deps.sessionResidentPoolOptions?.targetCount ?? deps.sessionResidentTargetCount;
@@ -447,6 +466,7 @@ export class DroraProtocolAgentServer {
       controller.abort(error);
     }
     this.workspaceGenerateTextControllers.clear();
+    this.inputPrediction.dispose(error);
     for (const controller of this.pluginOperationControllers.values()) {
       controller.abort(error);
     }
@@ -456,7 +476,11 @@ export class DroraProtocolAgentServer {
   /** 进程资源关闭，不使用会删除产品会话/发布 session.removed 的 session/close。 */
   shutdown(): Promise<void> {
     if (this.shutdownPromise) return this.shutdownPromise;
-    this.shutdownPromise = this.runtimeResources.close();
+    // abort listener 可以同步重入；在通知任何 owner 前先占有同一个关闭结果。
+    const shutdown = Promise.withResolvers<void>();
+    this.shutdownPromise = shutdown.promise;
+    const closingResources = this.runtimeResources.close();
+    const closingSessions: Promise<void>[] = [];
     const error = new Error("Drora Protocol runtime stopping");
     this.disconnectClient(error);
     this.messageSink = undefined;
@@ -466,6 +490,10 @@ export class DroraProtocolAgentServer {
       controller.abort(error);
     for (const record of this.context.sessions.values()) {
       record.activeAbortController?.abort(error);
+      if (getSessionLifecycle(this.context).isReady(record.app.sessionId)) {
+        closingSessions.push(shutdownSessionRuntime(this.context, record.app.sessionId));
+        continue;
+      }
       try {
         record.unsubscribe?.();
       } catch {
@@ -474,6 +502,14 @@ export class DroraProtocolAgentServer {
         });
       }
     }
+    void Promise.allSettled([closingResources, ...closingSessions]).then((results) => {
+      const errors = results.flatMap((result) =>
+        result.status === "rejected" ? [result.reason] : [],
+      );
+      if (errors.length)
+        shutdown.reject(new AggregateError(errors, "Protocol runtime shutdown failed"));
+      else shutdown.resolve();
+    });
     return this.shutdownPromise;
   }
 
@@ -545,9 +581,16 @@ export class DroraProtocolAgentServer {
       // subscribe hydration、workspace 配置与 resume 都可能跨 await。若只看
       // session 当前状态，sampler 会在 handler 持有旧 record 时把它关闭。进程级 lease
       // 覆盖整个 request；能识别的 sessionIds 额外用于冷恢复闸门与 LRU touch。
-      releaseResidencyOperation = await this.context.sessionResidentPool?.acquireOperation(
-        collectResidencySessionIds(request.params),
-      );
+      const lifecycleQuery = request.method === droraProtocolMethods.sessionLifecycleGetState;
+      const lifecycleMutation =
+        request.method === droraProtocolMethods.sessionLifecycleEnsureReady ||
+        request.method === droraProtocolMethods.sessionLifecycleStop ||
+        request.method === droraProtocolMethods.sessionLifecycleRestart;
+      // 查询不能续期或触发回收。生命周期变更使用进程 lease，按 session 的互斥由 owner 管理。
+      if (!lifecycleQuery)
+        releaseResidencyOperation = await this.context.sessionResidentPool?.acquireOperation(
+          lifecycleMutation ? undefined : collectResidencySessionIds(request.params),
+        );
       const result = await this.dispatchRequest(request);
       return this.ok(request.id, result);
     } catch (error) {
@@ -614,6 +657,9 @@ export class DroraProtocolAgentServer {
       // ── 行分页 query（独立分支，便于与帧分派改动合并）──
       case V4_METHODS.conversationRowsRange:
         return await this.requireV4Gateway().rowsRange(request.params);
+      // 手机输入预测：只读、无状态；同会话新请求替代旧请求。
+      case V4_METHODS.conversationInputPrediction:
+        return await this.inputPrediction.handle(request.params);
       case V4_METHODS.conversationPlans:
         return await this.requireV4Gateway().plans(request.params);
       case V4_METHODS.backgroundBashOutput:
@@ -674,6 +720,11 @@ export class DroraProtocolAgentServer {
         return await getUsageStats(this.context, request.params);
       case V4_METHODS.conversationUsage:
         return await getTaskTokenUsage(this.context, request.params);
+      // 项目数据彻底删除：不经 v4Gateway 会话投影，直接操作本进程的 store 与会话注册表。
+      case V4_METHODS.sessionDataMeasure:
+        return await measureSessionData(this.context, request.params);
+      case V4_METHODS.sessionDataPurge:
+        return await purgeSessionData(this.context, request.params);
       case V4_METHODS.command:
         return this.requireV4Gateway().handleCommand(request.params);
       case V4_METHODS.commandsQuery:
@@ -682,6 +733,24 @@ export class DroraProtocolAgentServer {
         return this.requireV4Gateway().reconcileSessions(request.params);
       case droraProtocolMethods.sessionCreate:
         return await createSession(this.context, request.params, request.trace);
+      case droraProtocolMethods.sessionLifecycleGetState: {
+        const { sessionId } = parseParams(sessionLifecycleParamsSchema, request.params);
+        return sessionLifecycleSnapshotSchema.parse(
+          await getSessionLifecycle(this.context).getState(sessionId),
+        );
+      }
+      case droraProtocolMethods.sessionLifecycleEnsureReady:
+      case droraProtocolMethods.sessionLifecycleStop:
+      case droraProtocolMethods.sessionLifecycleRestart: {
+        const { sessionId } = parseParams(sessionLifecycleParamsSchema, request.params);
+        const lifecycle = getSessionLifecycle(this.context);
+        if (request.method === droraProtocolMethods.sessionLifecycleEnsureReady)
+          await lifecycle.ensureReady(sessionId);
+        else if (request.method === droraProtocolMethods.sessionLifecycleStop)
+          await lifecycle.stop(sessionId);
+        else await lifecycle.restart(sessionId);
+        return { completed: true as const };
+      }
       case droraProtocolMethods.sessionResume:
         return await resumeSession(this.context, request.params);
       case droraProtocolMethods.sessionList:
@@ -757,6 +826,8 @@ export class DroraProtocolAgentServer {
         return this.cancelWorkspaceGenerateText(request.params);
       case droraProtocolMethods.providerTestModelConnectivity:
         return await testProviderModelConnectivity(this.context, request.params);
+      case droraProtocolMethods.workspaceMcpTrust:
+        return await setWorkspaceMcpTrust(this.context, request.params);
       case droraProtocolMethods.mcpList:
         return await listMcpServers(this.context, request.params);
       case droraProtocolMethods.mcpReadResource:
@@ -831,19 +902,30 @@ export class DroraProtocolAgentServer {
         return await getPluginsOverview(this.context, request.params);
       case droraProtocolMethods.processChildProcesses:
         return listChildProcesses(this.context.deps.mcpTelemetry?.listProcesses() ?? []);
-      case droraProtocolMethods.runtimeCapabilities:
-        // Persona 控制位（合同 §4.1）：仅在本 server 已注册 persona 控制路由
-        // （deps.personaControl 端口在装配层注入）时为 true；缺席即整个键缺席，
-        // 旧 Host 视角等价于「无该能力」。键引用 shared contracts 常量（契约键单一
-        // 出处，AGENTS.md）：schema 侧（droraRuntimeCapabilitiesSchema 计算键）与本
-        // 生产点引用同一字面量，手写第二份会在拼错时被非 strict schema 静默剥键。
+      case droraProtocolMethods.runtimeCapabilities: {
+        const params = droraRuntimeCapabilitiesParamsSchema.parse(request.params ?? {});
+        // 旧 Host 的严格 schema 不接收新增字段；先协商，再发布目录来源。
+        this.context.sessionDirectorySourceEnabled ||=
+          params.hostCapabilities?.sessionDirectorySource === true;
+        this.context.sessionWorkspaceRoutingEnabled ||=
+          params.hostCapabilities?.sessionWorkspaceRouting === true;
         return {
+          sessionWorkspaceRouting: true,
           independentPlanState: true,
           historyFirst: true,
+          sessionDirectorySource: true,
+          residentRowsRange: true,
+          genUiContext: true,
+          // Persona 控制位（合同 §4.1）：仅在本 server 已注册 persona 控制路由
+          // （deps.personaControl 端口在装配层注入）时为 true；缺席即整个键缺席，
+          // 旧 Host 视角等价于「无该能力」。键引用 shared contracts 常量（契约键单一
+          // 出处，AGENTS.md）：schema 侧（droraRuntimeCapabilitiesSchema 计算键）与本
+          // 生产点引用同一字面量，手写第二份会在拼错时被非 strict schema 静默剥键。
           ...(this.context.deps.personaControl
             ? { [PERSONA_PROTOCOL_CAPABILITY_CONTROL_V1]: true }
             : {}),
         };
+      }
       // ── Persona P0 无会话管理（spec §4/§10）：不触碰会话表，控制域由服务绑定 ──
       case droraProtocolMethods.personaGetOverview:
         return await getPersonaOverviewOp(this.context);
@@ -1051,7 +1133,7 @@ export class DroraProtocolAgentServer {
               PROTOCOL_CLIENT_REQUEST_ERROR_CODES.timedOut,
               `Client request timed out: ${method}`,
               {
-              timeoutMs: options.timeoutMs,
+                timeoutMs: options.timeoutMs,
               },
             ),
           );

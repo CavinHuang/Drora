@@ -48,15 +48,31 @@ describe("settingsPageConfig", () => {
         ],
       },
       {
+        // v3.17.1：个性化（用户自定义指令）成为 Agent 能力组第一项。
         id: "agentCapabilities",
-        sections: ["memory", "subagents", "plugin", "mcp", "skill", "commands", "hooks"],
+        sections: [
+          "personalization",
+          "memory",
+          "subagents",
+          "plugin",
+          "mcp",
+          "skill",
+          "commands",
+          "hooks",
+        ],
       },
-      { id: "dataAndStats", sections: ["usage", "archives"] },
+      {
+        // v3.17.1：数据同步居首（desktop-only 门控由 isSettingsSectionAvailable 负责）、
+        // 项目管理排在归档之前。
+        id: "dataAndStats",
+        sections: ["dataSync", "usage", "projects", "archives"],
+      },
     ]);
     expect(settingsSections.map((section) => section.id)).toEqual([
       "general",
       "appearance",
       "modelProvider",
+      "personalization",
       "memory",
       "subagents",
       "plugin",
@@ -68,7 +84,9 @@ describe("settingsPageConfig", () => {
       "remoteDevices",
       "voice",
       "shortcuts",
+      "dataSync",
       "usage",
+      "projects",
       "archives",
     ]);
   });

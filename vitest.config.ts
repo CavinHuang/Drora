@@ -1,71 +1,18 @@
 import { resolve } from "node:path";
-import { discoverNodeUnitTestFiles } from "./scripts/node-unit-test-files.mjs";
 import { configDefaults, defineConfig } from "vitest/config";
 
-const nodeUnitTests = discoverNodeUnitTestFiles();
-
-const processLifecycleTests = [
-  "packages/services/test/processTreeTerminator.test.ts",
-  "packages/services/test/droraAgentService.test.ts",
-  "packages/services/test/droraAgentService.v4.test.ts",
-  "packages/services/test/droraAgentProcessManager.test.ts",
-  "packages/services/test/droraStdioTransport.test.ts",
-];
-const forkIsolatedTests = [
-  ...processLifecycleTests,
-  // 真实显示进程树和独立配置读者都在 5 秒内等待启动；并发调度延迟曾触发截止。
-  // 放入串行组保留真实进程和原时限，避免把启动排队误判为资源隔离或读锁失败。
-  "packages/desktop/test/r3RemoteProcess.test.ts",
-  "packages/provider-node/test/personal-config-read-lock.test.ts",
-  // 原生 fs.watch 集成在批量并发时曾等不到通知；串行验证真实接线，去重逻辑由受控事件单测覆盖。
-  "packages/services/src/gen-ui/adapters/stateStorage.test.ts",
-  // electron-builder 下载 NSIS 时把进程 stdio 传给子进程，不能使用 threads 的虚拟 stdio。
-  "packages/desktop/test/windowsInstallerCompile.test.ts",
-  "packages/desktop/test/cdnPreloadScript.test.ts",
-  "packages/desktop/test/desktopRuntimeEnv.test.ts",
-  "packages/desktop/test/e2eDesktopBuildCache.test.ts",
-  "packages/desktop/test/e2eSummarySpecCoverage.test.ts",
-  "packages/desktop/test/migrateStableFeedScript.test.ts",
-  "packages/desktop/test/pluginE2EAdmissionScripts.test.ts",
-  "packages/desktop/test/uploadOssScript.test.ts",
-  // 发布脚本会启动真实 Node/工具子进程，批量 threads 下曾打穿 30s；沿用发布类串行隔离。
-  "packages/desktop/test/notarizeMacosScript.test.ts",
-  "packages/desktop/test/publishReleaseScript.test.ts",
-  // 选源集成测试连续启动 Git、Bash 和 Node；并发启动排队会打穿 30s，沿用发布类串行隔离。
-  "packages/web/test/remoteFrontendBuildSource.test.ts",
-  // Sharp 闭包装配后要启动真实 Node 加载原生库；并行热启动曾触发其 15s 子进程限时。
-  "packages/desktop/test/dev-cua-plugin-runtime.test.ts",
-  // 全量并发时真实心跳与嵌套构建会被调度延迟打穿；单独运行均通过，沿用串行组保留原时限。
-  "packages/desktop/test/webRemoteControlTransport.test.ts",
-  "packages/web/test/webRemoteControlTransport.test.ts",
-  "packages/provider-node/test/builtin-provider-build.test.ts",
-  "packages/provider-node/test/builtin-provider-test-config-sync.test.ts",
-  "packages/server/test/remoteDeploy.test.ts",
-  // Bugfix: 该集成测试会启动数百个真实 Git 子进程；放在普通 threads 并发组会让
-  // macOS 进程启动队列饥饿，表现为 git init 长时间停在 dyld_start。
-  "packages/services/test/gitService.test.ts",
-  // Bugfix: checkpoint 集成测试同样会连续创建真实 Git 仓库；related 全量并发时会因
-  // 子进程与磁盘调度饥饿超过 30 秒，隔离串行后保持聚焦运行时的真实耗时口径。
-  "packages/services/test/gitCheckpointService.test.ts",
-  "packages/services/test/mcpSyncService.test.ts",
-  "packages/services/test/providerRuntimeResolver.test.ts",
-  "packages/services/test/runtimeToolResolver.test.ts",
-  // 该集成测试会真实启动 tsx、Supervisor 与多代 Core；放在普通 threads 中时，
-  // 并行 worker 的进程启动压力会让 15 秒 ready barrier 偶发超时。
-  "packages/drora-server-cli/test/runtimeUpdateIntegration.test.ts",
-  // Bugfix: pdfjs-dist legacy build 在 threads worker 内偶发原生崩溃（0xC0000005，
-  // 测试自身通过、worker 收尾时崩，会把整场全量跑拦腰截断）。隔离到 fork 池后崩溃
-  // 波及面收敛到本文件，其余测试结果可完整收集；崩溃根因见
-  // docs/windows-test-compatibility.md。
-  "packages/ui/test/pdfJsCMapSupport.test.ts",
-];
+// D01（specs/upstream-v3.17.1-migration.md §6.1）：上游退役 App 业务 UT，根测试
+// 转为显式清单工程。Drora 侧保留集 = 自研/本地修改过的回归，双清单由
+// scripts/upstream/generate-drora-test-files.mjs 生成（各段删除测试后重跑收敛，
+// S6 冻结）；node:test 用例仍由 test:unit:node（node --test）执行，不在此收录。
+import engineeringTestFiles from "./scripts/engineering-test-files.json";
+import droraTestFiles from "./scripts/drora-test-files.json";
+import droraIsolatedTestFiles from "./scripts/drora-isolated-test-files.json";
 
 export default defineConfig({
   // 测试固定注入事件上报端点，使遥测上报链路在单测中可验证；真实构建由 scripts/build-time-config.mjs 决定。
   define: {
-    __DRORA_TELEMETRY_REPORT_ENDPOINT__: JSON.stringify(
-      "https://zcode.z.ai/api/v1/event/report",
-    ),
+    __DRORA_TELEMETRY_REPORT_ENDPOINT__: JSON.stringify("https://zcode.z.ai/api/v1/event/report"),
   },
   resolve: {
     alias: {
@@ -86,12 +33,20 @@ export default defineConfig({
   },
   test: {
     setupFiles: ["./vitest.setup.ts"],
-    // 官方 affected 图不额外追踪 setupFiles；公共 setup 必须触发全量选择，再由入口跳过 UT 并成功退出。
+    // 官方依赖图不追踪 setupFiles；公共配置变化必须明确选中整个工程套件并报告跳过。
     forceRerunTriggers: [
       ...configDefaults.forceRerunTriggers,
-      // 默认配置 glob 的尾部 /** 在当前版本不能匹配部分配置文件，补充文件模式。
       "**/{vitest,vite}.config.*",
       "**/vitest.setup.ts",
+      // managed worktree 路径含 .codex，globstar 默认不匹配隐藏目录；关键入口用精确绝对路径。
+      ...[
+        "package.json",
+        "vitest.config.ts",
+        "vitest.setup.ts",
+        "scripts/engineering-test-files.json",
+        "scripts/drora-test-files.json",
+        "scripts/drora-isolated-test-files.json",
+      ].map((file) => resolve(__dirname, file)),
     ],
     // 修复原因：全量 run 的 stdout 会把**通过**测试里的 console 输出一并转发——services 层
     // 用 createServiceLogger 的用例在绿态下也要刷几千行多行日志，全量输出因此膨胀到
@@ -106,92 +61,43 @@ export default defineConfig({
     hookTimeout: 30_000,
     maxWorkers: 4,
     testTimeout: 30_000,
-    // 修复原因：900+ 文件全部使用隔离 fork 时，macOS 会在尾部因连续创建进程而随机
-    // 启动 worker 超时。普通用例使用 threads；会修改 cwd/umask、回收 POSIX 进程树或
-    // 密集 spawn shell 的用例最后串行 fork，避免跨用例误杀、进程级状态竞争和系统
-    // spawn 队列饥饿。
+    // 工程测试使用明确清单；不再发现 App 业务单测。真实子进程测试串行运行。
     projects: [
       {
         extends: true,
         test: {
-          name: "unit",
-          include: [
-            "packages/*/test/**/*.test.ts",
-            // 架构治理要求 managed 模块自带 contract.test.ts（见 architecture-policy.yaml），放在模块目录内。
-            "packages/*/src/**/contract.test.ts",
-            // Persona 契约钉住（specs/drora-persona-system.md）：P1a 起从 contract.test.ts
-            // 拆出（max-contract-lines），不进 include 则默认单测通道永不执行。
-            "packages/shared/src/contracts/persona-contract.test.ts",
-            // Gen UI 目录回归位于源码旁，默认入口也必须执行，避免只在手动定向运行时生效。
-            "packages/shared/src/node/genUiPaths.test.ts",
-            "packages/services/src/gen-ui/**/*.test.ts",
-            // 语音模块（specs/voice-agent-integration.md）：源码旁测试同理必须进默认
-            // 单测通道，否则 pnpm test / pre-push affected 永远不会执行它们（评审 #5）。
-            // .ts 单测（useVoiceDictation/useVoiceAnnouncement/toolBriefPlanner/
-            // turnSpeechPlanner 等 18 个文件；终审 #3 回归修复：该 glob 不得被
-            // .tsx 新增项替换，两类都要在通道内）。
-            "packages/ui/src/voice/**/*.test.ts",
-            // .tsx 组件级渲染测试（修复轮评审 #3：V4ComposerVoiceEntry 的 F1/F2 回归面
-            // + VoiceSection 开关读写往返/S1 baseUrl 校验交互 + AnnouncementIndicator）。
-            "packages/ui/src/voice/**/*.test.tsx",
-            "packages/ui/src/settings/VoiceSection.test.tsx",
-            // Drora 人格设置分区（specs/drora-persona-system.md §10）：组件交互守护
-            // （五字段草稿/CAS/预览/应用情况/E 文案）与 hello 能力门 hook，同理登记
-            // 进默认单测通道，否则 pnpm test / pre-push affected 永不执行。
-            "packages/ui/src/drora-persona/PersonaSettingsSection.test.tsx",
-            "packages/ui/src/drora-persona/usePersonaControlAvailability.test.tsx",
-            // P1a 交流默认与导出（§9/§10：偏好 CAS/忘记确认/outcome_unknown/U 两态/
-            // 导出 saveFile/i18n 完整性）；不进 include 则默认单测通道永不执行。
-            "packages/ui/src/drora-persona/usePersonaPreferences.test.tsx",
-            // P1b 有限学习管理（§5/§8/§10：L 开关/关闭 U 级联确认/来源状态列表/
-            // 解除抑制 CAS/概览读取失败降级）；同理必须进默认单测通道。
-            "packages/ui/src/drora-persona/usePersonaLearning.test.tsx",
-            // 远控「官方/自建 Relay」切换（specs/relay-v2-server.md §8.7）：弹窗配置区
-            // 交互守护（官方缺省/非法 origin 拒写/保存→停止→重启顺序/空串哨兵切回官方）。
-            "packages/ui/src/web-remote-control/WebRemoteControlRelaySourceSection.test.tsx",
-            "packages/ui/src/voice/AnnouncementIndicator.test.tsx",
-            "packages/ui/src/store/voiceSessionStore.test.ts",
-            "packages/ui/src/v4/composer/composerTextAppend.test.ts",
-            // 终审修复：§9.9.2-H4（composerTextInsertRequest 多槽插入/applied 判定）与
-            // §9.9.4-L3（SessionPane 窗口级 Esc 监听 hook）的源码旁测试漏登记——
-            // 不进 include 则 pnpm test / pre-push affected 永不执行，回退即红回归网
-            // 在 CI/pre-push 门禁上失效（上方「评审 #5」注释所指同类缺口）。
-            "packages/ui/src/v4/useComposerTextInsertApplied.test.ts",
-            "packages/ui/src/v4/paneEscapeStopGeneration.test.ts",
-            // §4.4 Esc 仲裁顺序的纯函数层（mention/录音/取消优先级单测）。
-            "packages/ui/src/prompt-editor/composerEscapePlan.test.ts",
-            "scripts/assert-safe-cua-helper-zip.test.mjs",
-            "scripts/ci/ci-telemetry-keyword-guard.test.mjs",
-          ],
-          exclude: [
-            "packages/desktop/test/e2e/**",
-            "packages/zcode-cua/**",
-            ...forkIsolatedTests,
-            ...nodeUnitTests,
-          ],
+          name: "engineering",
+          include: engineeringTestFiles,
+          pool: "forks",
+          fileParallelism: false,
+          maxWorkers: 1,
+        },
+      },
+      // Drora 保留回归（自研/本地修改）：并发语义沿用 v3.16.1 unit 工程。
+      {
+        extends: true,
+        test: {
+          name: "drora",
+          include: droraTestFiles,
           // Node 24/macOS 的 threads 全量运行可触发 V8 SIGSEGV；诊断时切换进程隔离，测试范围不变。
           pool: process.env.DRORA_TEST_POOL === "forks" ? "forks" : "threads",
           maxWorkers: process.env.DRORA_TEST_POOL === "forks" ? 2 : 4,
           sequence: { groupOrder: 0 },
         },
       },
+      // Drora 保留回归中的真实进程/发布类串行隔离（v3.16.1 fork-isolated 工程语义）。
       {
         extends: true,
         test: {
-          name: "fork-isolated",
-          include: forkIsolatedTests,
+          name: "drora-fork-isolated",
+          include: droraIsolatedTestFiles,
           pool: "forks",
           fileParallelism: false,
           maxWorkers: 1,
-          sequence: { groupOrder: 1 },
         },
       },
       // 上游 3.16.1 的 "packages/zcode-cua/vitest.config.ts"（占位包 cua-placeholder
       // 串行项目）不适用：本仓 packages/zcode-cua 是冻结还原 0.6.3（R3），无该配置文件。
     ],
-    coverage: {
-      provider: "v8",
-      include: ["packages/*/src/**/*.ts"],
-    },
   },
 });

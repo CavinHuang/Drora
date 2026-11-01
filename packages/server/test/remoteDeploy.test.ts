@@ -652,6 +652,22 @@ async function writeTestOfficialPluginPackages(repoDir: string): Promise<void> {
       );
     }),
   );
+  // 修复原因：S3 合并把 bundled-skills/skills/dynamic-workflows 三份 Agent 必需资产加入
+  // 开发态远端必需资产合同（REMOTE_AGENT_OFFICIAL_PLUGIN_REQUIRED_RELATIVE_PATHS），但上述
+  // staging 只按插件包名前缀落盘；bundled-skills 前缀的必需路径从不落盘，开发态部署测试在
+  // assertDevelopmentOfficialPluginRequiredAssets 处对着缺失资产恒挂。这里把不属于任何插件
+  // 包的必需路径统一落到 apps/drora-cli/packages/ 下，与真实仓库布局一致。
+  const pluginPrefixes = OFFICIAL_PLUGIN_PACKAGE_NAMES.map((pluginName) => `${pluginName}/`);
+  const nonPluginRequiredPaths = OFFICIAL_PLUGIN_REQUIRED_RELATIVE_PATHS.filter(
+    (relativePath) => !pluginPrefixes.some((prefix) => relativePath.startsWith(prefix)),
+  );
+  await Promise.all(
+    nonPluginRequiredPaths.map(async (relativePath) => {
+      const assetPath = join(repoDir, "apps", "drora-cli", "packages", ...relativePath.split("/"));
+      await mkdir(dirname(assetPath), { recursive: true });
+      await writeFile(assetPath, `bundled asset ${relativePath}\n`, "utf8");
+    }),
+  );
 }
 
 async function stageRemoteAssetArchive(
@@ -888,6 +904,11 @@ async function computeDevelopmentAgentAssetsSha256ForTest(
       }
     }
   }
+  // 修复原因：S3 合并给生产 computeDevelopmentAgentAssetsSha256 增加了 bundled-skills
+  // 目录哈希（droraAgentDevDeploy.ts hashLocalPath(bundledSkillsRoot, "bundled-skills")），
+  // 本镜像 helper 未同步，导致 .dev-version 恒不匹配、bundleMatches=true 用例误判为需要上传。
+  const bundledSkillsRoot = join(repoDir, "apps/drora-cli/packages/bundled-skills");
+  await hashLocalPathForTest(hash, bundledSkillsRoot, "bundled-skills");
   return hash.digest("hex");
 }
 

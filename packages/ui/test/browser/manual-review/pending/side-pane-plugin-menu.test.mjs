@@ -540,6 +540,10 @@ for (const [width, locale, theme] of [
         });
         const selector = existing ? newTabItems : launcherItems;
         const items = page.locator(selector);
+        // 安装态会改变展示位置，操作进度按插件身份定位，不依赖列表索引。
+        const itemSelector = (index) =>
+          `${selector}[data-side-pane-open-tab-item="plugin-ui:${surfaces[index].pluginId}/${surfaces[index].id}"]`;
+        const item = (index) => page.locator(itemSelector(index));
         const waitIdle = () =>
           page.waitForFunction(
             (selector) =>
@@ -547,9 +551,9 @@ for (const [width, locale, theme] of [
             selector,
           );
         const assertProgress = async (index) => {
-          await items.nth(index).getByText(loading, { exact: true }).waitFor();
+          await item(index).getByText(loading, { exact: true }).waitFor();
           assert.equal(await items.getByText(loading, { exact: true }).count(), 1);
-          const spinner = items.nth(index).getByTestId("side-pane-plugin-progress");
+          const spinner = item(index).getByTestId("side-pane-plugin-progress");
           assert.equal(await spinner.count(), 1, "操作中的插件应有加载图标");
           assert.equal(await spinner.isVisible(), true);
           assert.notEqual(
@@ -557,37 +561,36 @@ for (const [width, locale, theme] of [
             "none",
           );
           assert.equal(await items.getByTestId("side-pane-plugin-progress").count(), 1);
-          assert.equal(await items.nth(index).getAttribute("aria-busy"), "true");
+          assert.equal(await item(index).getAttribute("aria-busy"), "true");
           assert.equal(await page.locator(`${selector}[aria-busy="true"]`).count(), 1);
           assert.equal(
-            await items
-              .nth(1 - index)
+            await item(1 - index)
               .getByText(action, { exact: true })
               .count(),
             1,
           );
-          assert.equal(await items.nth(2).getByText(open, { exact: true }).count(), 1);
+          assert.equal(await item(2).getByText(open, { exact: true }).count(), 1);
           assert.deepEqual(
-            await items.evaluateAll((elements) => elements.map((element) => element.disabled)),
-            [true, true, true],
+            await Promise.all([0, 1, 2].map((index) => item(index).isDisabled())),
+            [0, 1, 2].map((candidate) => candidate === index),
           );
         };
         try {
           const query = `locale=${locale}&theme=${theme}${width < 500 ? "&mobile=1" : ""}${existing ? "&existing=1" : ""}`;
           await page.goto(`${origin}fixture?${query}`, { waitUntil: "domcontentloaded" });
           if (existing) await page.locator(add).click();
-          await items.first().getByText(action, { exact: true }).waitFor();
-          await items.first().click();
+          await item(0).getByText(action, { exact: true }).waitFor();
+          await item(0).click();
           await assertProgress(0);
           assert.equal(attempts.length, 1);
           gates[0].resolve();
           await waitIdle();
-          await items.first().getByText(action, { exact: true }).waitFor();
+          await item(0).getByText(action, { exact: true }).waitFor();
           assert.equal(await items.getByTestId("side-pane-plugin-progress").count(), 0);
           assert.equal(await page.locator(`${selector}[aria-busy="true"]`).count(), 0);
 
           // 失败后换另一个插件重试，防止进度归属残留在第一次点击的插件上。
-          await items.nth(1).click();
+          await item(1).click();
           await assertProgress(1);
           assert.equal(attempts.length, 2);
           const artifacts = join(tmpdir(), "drora-side-pane-plugin-menu");
@@ -599,11 +602,11 @@ for (const [width, locale, theme] of [
           await waitIdle();
           const completed =
             operation === "install" ? (locale === "zh-CN" ? "启用" : "Enable") : open;
-          await items.nth(1).getByText(completed, { exact: true }).waitFor();
+          await item(1).getByText(completed, { exact: true }).waitFor();
           assert.equal(await items.getByText(loading, { exact: true }).count(), 0);
           assert.equal(await items.getByTestId("side-pane-plugin-progress").count(), 0);
           assert.equal(await page.locator(`${selector}[aria-busy="true"]`).count(), 0);
-          assert.equal(await items.first().getByText(action, { exact: true }).count(), 1);
+          assert.equal(await item(0).getByText(action, { exact: true }).count(), 1);
           assert.equal(await page.getByTestId("request").textContent(), "null");
           assert.deepEqual(errors, []);
         } finally {
@@ -613,4 +616,192 @@ for (const [width, locale, theme] of [
       });
     }
   }
+}
+
+for (const [width, locale, theme] of [
+  [1200, "en-US", "light"],
+  [390, "zh-CN", "dark"],
+]) {
+  for (const existing of [false, true]) {
+    test(`SPT-E2E-007 concurrent installs ${existing ? "new-tab" : "empty"}/${width}`, async () => {
+      const page = await browser.newPage({ viewport: { width, height: 800 } });
+      page.setDefaultTimeout(15000);
+      const gates = [Promise.withResolvers(), Promise.withResolvers()];
+      const entered = [Promise.withResolvers(), Promise.withResolvers()];
+      const calls = [];
+      const errors = [];
+      page.on("pageerror", (error) => errors.push(error.message));
+      let firstInstalled = false;
+      const selector = existing ? newTabItems : launcherItems;
+      const items = page.locator(selector);
+      // 安装态会改变展示位置，操作进度按插件身份定位，不依赖列表索引。
+      const itemSelector = (index) =>
+        `${selector}[data-side-pane-open-tab-item="plugin-ui:${surfaces[index].pluginId}/${surfaces[index].id}"]`;
+      const item = (index) => page.locator(itemSelector(index));
+      try {
+        await page.route("**/client-config", (route) =>
+          route.fulfill({
+            json: {
+              code: 0,
+              data: {
+                configs: {
+                  uiPluginRecommendations: surfaces.map((surface) => ({
+                    pluginId: surface.pluginId,
+                    surfaceId: surface.id,
+                  })),
+                },
+              },
+            },
+          }),
+        );
+        await page.route("**/catalog", (route) =>
+          route.fulfill({
+            json: {
+              ...catalog(surfaces, false),
+              plugins: catalog([surfaces[2], ...(firstInstalled ? [surfaces[0]] : [])]).plugins,
+              availablePlugins: surfaces.map((surface, index) => ({
+                ...catalog([surface], index === 2 || (index === 0 && firstInstalled))
+                  .availablePlugins[0],
+              })),
+            },
+          }),
+        );
+        await page.route("**/surfaces", (route) => route.fulfill({ json: surfaces }));
+        await page.route("**/install", async (route) => {
+          const input = route.request().postDataJSON();
+          const index = surfaces.findIndex((surface) => surface.pluginName === input.pluginName);
+          calls.push(input.pluginName);
+          entered[index].resolve();
+          await gates[index].promise;
+          if (index === 1) return route.fulfill({ status: 503 });
+          firstInstalled = true;
+          return route.fulfill({ json: { diagnostics: [] } });
+        });
+        const query = `locale=${locale}&theme=${theme}${width < 500 ? "&mobile=1" : ""}${existing ? "&existing=1" : ""}`;
+        await page.goto(`${origin}fixture?${query}`, { waitUntil: "domcontentloaded" });
+        if (existing) await page.locator(add).click();
+        await item(0).waitFor();
+        await item(0).click();
+        await entered[0].promise;
+        assert.equal(await item(1).isEnabled(), true);
+        assert.equal(await item(2).isEnabled(), true);
+        await item(1).click();
+        await entered[1].promise;
+        assert.deepEqual(calls, ["hello", "canvas"]);
+        assert.deepEqual(await Promise.all([0, 1, 2].map((index) => item(index).isDisabled())), [
+          true,
+          true,
+          false,
+        ]);
+        assert.equal(await items.getByTestId("side-pane-plugin-progress").count(), 2);
+        // 安装中仍可打开其他已启用插件，真实 surface 查询到 tab owner 的链路继续工作。
+        await item(2).click();
+        await page.waitForFunction(
+          () =>
+            JSON.parse(document.querySelector('[data-testid="request"]').textContent)?.pluginId ===
+            "development@example",
+        );
+        gates[1].resolve();
+        await page.waitForFunction(
+          (selector) => !document.querySelector(selector).disabled,
+          itemSelector(1),
+        );
+        assert.equal(await item(0).isDisabled(), true);
+        assert.equal(await item(0).getByTestId("side-pane-plugin-progress").count(), 1);
+        const artifacts = join(tmpdir(), "drora-side-pane-plugin-menu");
+        await mkdir(artifacts, { recursive: true });
+        await page.screenshot({
+          path: join(artifacts, `concurrent-${existing}-${width}-${theme}.png`),
+        });
+        gates[0].resolve();
+        await page.waitForFunction(
+          (selector) => !document.querySelector(selector).disabled,
+          itemSelector(0),
+        );
+        assert.equal(await items.getByTestId("side-pane-plugin-progress").count(), 0);
+        assert.deepEqual(calls, ["hello", "canvas"]);
+      } catch (error) {
+        throw new Error(
+          `${String(error)}; pageErrors=${JSON.stringify(errors)}; body=${(await page.locator("body").innerText()).slice(0, 1500)}`,
+          { cause: error },
+        );
+      } finally {
+        gates.forEach((gate) => gate.resolve());
+        await page.close();
+      }
+    });
+  }
+}
+
+for (const [width, locale, theme] of [
+  [1200, "en-US", "light"],
+  [390, "zh-CN", "dark"],
+]) {
+  test(`SPT-E2E-007 installed priority and community tag ${width}/${locale}/${theme}`, async () => {
+    const page = await browser.newPage({ viewport: { width, height: 800 } });
+    page.setDefaultTimeout(15000);
+    page.setDefaultNavigationTimeout(120000);
+    const entries = ["new", "community", "official", "personal"].map((name) => ({
+      ...surfaces[0],
+      id: name,
+      pluginName: name,
+      pluginId: `${name}@${name === "personal" ? "example" : "drora-plugins-official"}`,
+      title: { en: name, "zh-CN": name },
+    }));
+    const snapshot = catalog(entries);
+    snapshot.plugins = snapshot.plugins.filter((item) => item.name !== "new");
+    snapshot.plugins[0].enabled = false;
+    snapshot.availablePlugins = snapshot.availablePlugins.map((item) => ({
+      ...item,
+      installed: item.name !== "new",
+      listing: {
+        publisherType: ["community", "personal"].includes(item.name) ? "community" : "official",
+        displayName: `${item.name} description`,
+      },
+    }));
+    await page.route("**/catalog", (route) => route.fulfill({ json: snapshot }));
+    await page.route("**/client-config", (route) =>
+      route.fulfill({
+        json: {
+          code: 0,
+          data: {
+            configs: {
+              uiPluginRecommendations: entries.map((entry) => ({
+                pluginId: entry.pluginId,
+                surfaceId: entry.id,
+              })),
+            },
+          },
+        },
+      }),
+    );
+    try {
+      await page.goto(
+        `${origin}fixture?locale=${locale}&theme=${theme}${width < 500 ? "&mobile=1" : ""}`,
+      );
+      const rows = page.locator(launcherItems);
+      await rows.first().waitFor();
+      assert.deepEqual(
+        await rows.evaluateAll((nodes) =>
+          nodes.map((node) => node.getAttribute("data-side-pane-open-tab-item")),
+        ),
+        [entries[1], entries[2], entries[3], entries[0]].map(
+          (entry) => `plugin-ui:${entry.pluginId}/${entry.id}`,
+        ),
+      );
+      const tag = locale === "zh-CN" ? "社区" : "Community";
+      assert.equal(await rows.getByText(tag, { exact: true }).count(), 1);
+      const badge = rows.first().getByText(tag, { exact: true });
+      assert.equal(await badge.isVisible(), true);
+      const description = rows.first().getByText("community description", { exact: true });
+      const badgeBox = await badge.boundingBox();
+      const descriptionBox = await description.boundingBox();
+      assert.ok(badgeBox.x + badgeBox.width <= descriptionBox.x);
+      const artifacts = join(tmpdir(), "drora-side-pane-plugin-menu");
+      await mkdir(artifacts, { recursive: true });
+      await page.screenshot({ path: join(artifacts, `community-${width}-${locale}-${theme}.png`) });
+    } finally {
+      await page.close();
+    }
+  });
 }

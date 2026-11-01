@@ -34,7 +34,8 @@ export function ProjectSidebarNavigation({
       {/* Relay V2 远控：当前电脑是项目与任务的上一级，放在导航首行；手机端占用原顶部留白。 */}
       {deviceNavigation ? <WebRemoteControlDeviceHeader navigation={deviceNavigation} /> : null}
       <NewTaskButtonGroup onCreateTask={onCreate} />
-      {props.onOpenAutomations ? (
+      {/* 远控主视图会把自动化和插件市场重置为聊天；入口必须一同隐藏，避免点击无效。 */}
+      {!props.isWebRemoteControl && props.onOpenAutomations ? (
         <Button
           variant="ghost"
           size="lg"
@@ -48,17 +49,19 @@ export function ProjectSidebarNavigation({
           {intl.formatMessage({ id: "workspace.openScheduledSettings" })}
         </Button>
       ) : null}
-      <Button
-        variant="ghost"
-        size="lg"
-        className={`w-full justify-start gap-2 ${props.pluginStoreActive ? "bg-selected text-foreground" : ""}`}
-        aria-pressed={props.pluginStoreActive ?? false}
-        data-testid="plugin-store-sidebar-open"
-        onClick={() => props.onOpenPluginStore?.()}
-      >
-        <Blocks className="size-4" />
-        {intl.formatMessage({ id: "workspace.openPluginsSettings" })}
-      </Button>
+      {!props.isWebRemoteControl ? (
+        <Button
+          variant="ghost"
+          size="lg"
+          className={`w-full justify-start gap-2 ${props.pluginStoreActive ? "bg-selected text-foreground" : ""}`}
+          aria-pressed={props.pluginStoreActive ?? false}
+          data-testid="plugin-store-sidebar-open"
+          onClick={() => props.onOpenPluginStore?.()}
+        >
+          <Blocks className="size-4" />
+          {intl.formatMessage({ id: "workspace.openPluginsSettings" })}
+        </Button>
+      ) : null}
       {/* Drora 扩展槽位：vault 侧栏入口（上游 ProjectSidebarProps 无该槽位，审计
           docs/upstream-sync/2026-10-21-v3.16.1-merge-audit.md F7 回植）。可选接线，
           未接线时不渲染；点击只上报 Shell，vault 路由由 Shell 唯一持有。 */}

@@ -486,7 +486,9 @@ describe("settingService", () => {
       locale: "zh-CN",
       localePreference: "system",
       taskAutoArchiveEnabled: false,
-      taskAutoArchiveOlderThanDays: 7,
+      // 上游 v3.17.1 把 taskAutoArchiveOlderThanDays 默认值 7 天放宽为 30 天
+      // （shared validationAppSettings.ts .default(30)），断言随契约更新。
+      taskAutoArchiveOlderThanDays: 30,
       messageStreamShowReasoning: true,
       messageStreamShowReasoningMigrationInitialized: true,
       messageStreamShowTodos: false,

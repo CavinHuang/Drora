@@ -8,16 +8,17 @@
 
 编号对照：审计报告的 F 编号与修复工单的 F 编号是两套体系（如工单 F2=审计 F7、工单 F12=审计 F1），代码注释引用的「分派单 Fx」均指工单侧编号。本台账各条同时标注两套：
 
-| 工单侧 | 审计侧 | 条目                           |
-| ------ | ------ | ------------------------------ |
-| F12    | F1     | 台账 1 CLI 版本策略            |
-| F13    | F5     | 台账 2 任务模式投影            |
-| F14    | F6     | 台账 3 pnpm-lock 插件 importer |
-| F15    | F14    | 台账 4 oxlint 覆盖面           |
-| F2     | F7     | 台账 5 vault 侧栏入口回植      |
-| F1     | F3     | 台账 6 appId 豁免转换形态      |
-| —      | F16    | 台账 7 oxfmt markdown 篡改缺陷 |
-| —      | —      | 台账 8 affected 首推基线回退   |
+| 工单侧 | 审计侧 | 条目                               |
+| ------ | ------ | ---------------------------------- |
+| F12    | F1     | 台账 1 CLI 版本策略                |
+| F13    | F5     | 台账 2 任务模式投影                |
+| F14    | F6     | 台账 3 pnpm-lock 插件 importer     |
+| F15    | F14    | 台账 4 oxlint 覆盖面               |
+| F2     | F7     | 台账 5 vault 侧栏入口回植          |
+| F1     | F3     | 台账 6 appId 豁免转换形态          |
+| —      | F16    | 台账 7 oxfmt markdown 篡改缺陷     |
+| —      | —      | 台账 8 affected 首推基线回退       |
+| —      | —      | 台账 10 工程测试首推基线回退（N2） |
 
 ## 台账 1：CLI 版本策略——drora-cli 恒保 0.0.1 独立发版（工单 F12 / 审计 F1）
 
@@ -76,6 +77,8 @@
 
 ## 台账 8：affected 首推基线 staging→origin/main 回退（提交 337b00b5）
 
+> 2026-11-01 注：本条登记的旧链 `scripts/affected-unit-tests/scope.mjs` 已随上游 v3.17.1 改名退役（ledger UP05497）；回退目标字面 `origin/main` 在新链中修正为 `drora/main`，见台账 10（N2）。本条保留作历史依据，不再单独维护。
+
 - **上游行为**：官方 ZCode 仓库存在 staging 集成分支，affected 单测的首次推送基线取 `origin/staging` 与 HEAD 的 merge-base；基线缺失即严格报错。
 - **本仓行为**：本仓无 staging 集成分支（PR 直合 main），`firstPushBase` 在 `origin/staging` 为祖先时用之、否则回退 `origin/main`（`scripts/affected-unit-tests/scope.mjs:31-40`），不猜测其他分支、保持「无基线严格报错」语义。
 - **依据**：提交 `337b00b5`（「fix(upstream): affected 首推基线回退 origin/main——本仓无 staging 集成分支」）；`scripts/affected-unit-tests/scope.mjs:33-35` 注释；`docs/testing/pre-push-hook.md`（受影响单测范围与输出合同）。
@@ -88,6 +91,22 @@
 - **依据**：`specs/relay-v2-server.md` §8.7（2026-10-31 新增，解冻同文 §8.4 边界决策 3「产品化入口明确不做」）；`specs/drora-divergence-ledger.md` 台账 9（本条）。
 - **下次同步注意**：上游若在 `webRemoteControlManager`/`desktop/src/main/index.ts` 的 `getEndpointUrls` 装配、`droraEndpoint.ts`、`validationAppSettings.ts`、`WebRemoteControlDialog` 相关区域改动，需甄别是否冲掉本特性的接线点（getEndpointUrls 的设置键读取、schema 两处登记、弹窗配置区嵌入）；上游若官方实现了自有 relay 切换面，评估迁移到官方契约后回退本条。手机页 `remoteEndpoint.ts` 的 ws2 推导为本仓 drora-extensions 独有文件，上游同步天然无冲突。
 
+## 台账 10：工程测试首推基线 staging→drora/main 回退（v3.17.1 N2，2026-11-01 登记）
+
+- **上游行为**：上游 v3.17.1 把 affected 单测链改造为 `run-affected-engineering-tests.mjs` + `scripts/engineering-tests/scope.mjs`，首次推送基线硬性要求 `origin/staging`（上游 CI 约定的集成分支）；基线缺失即严格报错。
+- **本仓行为**：本仓无 staging 集成分支（PR 直合 main），且 `origin` 指向上游官方仓 zai-org——`origin/main` 是**上游 main**，不是本仓产品 main。`firstPushBase` 在 `origin/staging` 存在且为 HEAD 祖先时用之，否则回退 `drora/main`（产品远端；`scripts/engineering-tests/scope.mjs:33-43`），不猜测其他分支、保持「无基线严格报错」语义。若照抄台账 8 的 `origin/main` 字面回退，merge-base 会退回上一上游锚点导致全量误选（即 pre-push 历史崩溃模式）。
+- **依据**：`scripts/engineering-tests/scope.mjs:33-43`（`firstPushBase` 实现与注释，自引「divergence 台账 8 / v3.17.1 N2」）；`docs/upstream-sync/2026-10-31-v3.17.1/tasks.md` S1 执行补记 N2 段（旧 `affected-unit-tests/scope.mjs` 随 UP05497 删除，本仓改动=台账 8 staging 回退，由本条在新链承继并修正回退目标）；`docs/ci/affected-unit-test-baseline.md`、`docs/testing/pre-push-hook.md`（N2 口径已同步）。
+- **下次同步注意**：上游再动 `engineering-tests/scope.mjs` 的基线解析时，`drora/main` 回退必须保留（或在本仓引入 staging 类集成分支后按台账 8 的注意项整体重审）；不得把回退目标改回 `origin/main`，也不得引入对 `origin/*`（=zai-org）引用的静默依赖。
+
+## 台账 11：zcode-* 官方通道别名保留（V3 审计补登记，2026-11-01）
+
+- **能力**：`packages/shared/src/channels.ts` 的 `OFFICIAL_RPC_CHANNEL_ALIAS_PREFIX = "zcode-"`（单一出处，消费链 channels.ts → services/collection.ts → desktop/src/host/index.ts）：窗口 Host 除 `drora-*` 通道外同时注册 `zcode-*` 别名，供**官方托管手机页**按官方通道名调用（冻结快照实证：`packages/mobile-web/src/recovered/remote/v4/3.14.3/assets/index-*.js` 调用 `zcode-task/zcode-agent/zcode-session`）。
+- **登记原因**：原登记文件 `specs/mobile-web-remote.md` 已于 2026-10-22（d1a46eafe，移除自研 Relay 复刻）删除；别名是**官方互操作 wire 契约**而非品牌残留，必须留在台账防止后续同步误改名；`windowHostAttachmentRpcPolicy.ts:138` 等注释的 spec 引用自本条承接。
+- **下次同步注意**：上游若重构通道注册/别名机制，保持官方托管页按 `zcode-*` 可达；官方页若改用新通道名族，以最新冻结快照证据更新本条。
+
 ## 待甄别（非既定分歧，下轮同步前需核实）
 
 - **clientType 与 api-key 名漂移嫌疑**（随工单 F1 观察到，未改）：同一上游文档 `apps/zcode-cli/docs/design/v2/auth-login.md` 中 `clientType: "zcode"`（本仓 `apps/drora-cli/docs/design/v2/auth-login.md:176` 为 drora）与 `zcode-api-key`（本仓 :174/:190 为 drora-api-key；同文档 ：186 `appId=zcode` 已守豁免）。appId 是服务端注册值有 spec 实锤（规则 0）；clientType 与 api-key 名是否服务端注册值**未验证**（api-key 名偏客户端自建名，风险较低）。下轮同步 bigmodel OAuth 面时先甄别这两个字面量的服务端契约地位，再决定纳入规则 0 豁免或维持改名，不得静默跟随任一侧。
+- **分享文案下载链接指向官方站（V3 审计 B，2026-11-01，待用户/产品裁定）**：`packages/ui/src/i18n/locales/zh-CN.ts:696,8295` 与 `en-US.ts:752,8775` 的 `manualClaimPlan.claim.share.twitterText`、`globalNotice.highspeed.copySummary` 文案品牌词为 Drora，但链接为 `https://zcode.z.ai`（官方产品站）。疑为 v3.15.1 集成时占位保护机械保留的产物；是否有产品理由（领取/高速卡活动仅官方端可完成）未确认。裁定前维持现状不改行为；裁定后改链接或登记豁免。
+- **relay 校验工具的 `.zcode/toolchain-env.sh` 路径（V3 审计 C，low）**：`packages/relay-v2-server/tools/verify-same-origin.mjs:266,315-322` 寻找 `repoRoot/.zcode/toolchain-env.sh`——本仓 `.zcode/` 为 gitignore 运行时目录，钉版工具链入口实为 `scripts/mise-toolchain-env.mjs`。官方仓/worktree 布局残留，仅影响工具失败提示文案（找不到时回退手动指引，不致误判）；下次同步 relay 工具时顺带对齐。
+- **drora-site-plugin 裸读 env 键（V3 审计 D，low）**：`apps/drora-cli/packages/drora-site-plugin/scripts/drora-site.mjs:145-146` 以裸字面量读 `DRORA_OFFICIAL_ENDPOINT`/`_TOKEN` 而非引用 `shared/src/runtimeEnv.ts` 常量——该脚本为零依赖 .mjs，引入 `@drora/shared` 会破坏其独立运行性；登记为接受的偏差（生产方 bootstrap 侧仍走常量单一出处）。

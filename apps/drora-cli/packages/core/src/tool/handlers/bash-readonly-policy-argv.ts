@@ -40,7 +40,9 @@ export function evaluateBashReadonlyPolicy(
   if (prefixPolicyResult !== undefined) return prefixPolicyResult;
 
   if (READONLY_ALLOW_ANY_ARG_COMMANDS.has(argv[0] ?? "")) return true;
-  if (process.platform === "win32" && argv[0] === "xargs") return undefined;
+  // 修复：移除 win32 下对 xargs 的整族跳过——该跳过无注释依据，且 xargs 的安全判定
+  // 已由 xargsCommandIsDangerous 危险子命令回调承担（`xargs rm` 等仍被拒），
+  // 整族跳过让 `xargs grep` 这类只读组合在 Windows 上错误升级为 ask。
 
   const policy = READONLY_COMMAND_POLICIES.get(argv[0] ?? "");
   if (!policy) return undefined;

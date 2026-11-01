@@ -64,12 +64,10 @@ export function supportsPersonaControlV1(
   const existing = personaControlChecks.get(client);
   if (existing) return existing;
   const check = client
-    .request(
-      droraProtocolMethods.runtimeCapabilities,
-      {},
-      droraRuntimeCapabilitiesSchema,
-      { timeoutMs: PERSONA_CAPABILITY_PROBE_TIMEOUT_MS, lifecycle: "observation" },
-    )
+    .request(droraProtocolMethods.runtimeCapabilities, {}, droraRuntimeCapabilitiesSchema, {
+      timeoutMs: PERSONA_CAPABILITY_PROBE_TIMEOUT_MS,
+      lifecycle: "observation",
+    })
     .then((result) => result.personaControlV1 === true)
     .catch(() => {
       personaControlChecks.delete(client);
@@ -93,4 +91,24 @@ export async function attachPersonaEnabledForCapability<Preferences extends obje
     delete (preferences as Record<string, unknown>)[PERSONA_RUNTIME_PREFERENCE_ENABLED];
   }
   return preferences;
+}
+
+const genUiChecks = new WeakMap<object, Promise<void>>();
+/** 状态不能回退到拼接用户正文；不支持时保留草稿并拒绝发送。 */
+export function ensureGenUiContextSupport(
+  client: Pick<DroraProtocolClient, "request">,
+): Promise<void> {
+  const cached = genUiChecks.get(client);
+  if (cached) return cached;
+  const check = client
+    .request(droraProtocolMethods.runtimeCapabilities, {}, droraRuntimeCapabilitiesSchema)
+    .then((result) => {
+      if (result.genUiContext !== true) throw new Error("proto.genUiContextUnsupported");
+    })
+    .catch((cause: unknown) => {
+      genUiChecks.delete(client);
+      throw new Error("proto.genUiContextUnsupported", { cause });
+    });
+  genUiChecks.set(client, check);
+  return check;
 }

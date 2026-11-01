@@ -1,7 +1,15 @@
-# Push 前 affected 单测比较基线
+# 架构检查比较基线
 
-首次推送新分支时，远端 ref 没有可比较的 commit，affected 单测 runner 会回退到默认基线。默认基线取 HEAD 与 `origin/staging` 的 merge-base；`origin/staging` 不存在或不是当前 HEAD 祖先时回退 `origin/main`（Drora 适配：本仓无 staging 集成分支，见 `scripts/affected-unit-tests/scope.mjs` 的 `firstPushBase`），不猜测其他分支。
+App affected 单测入口已退役，原先与架构检查共用的默认分支选择函数保留在
+`scripts/architecture/default-branch.mjs`。首次推送优先使用 `origin/staging`，随后是
+`origin/HEAD`、`origin/main`、`origin/master`、`main`、`master`。
 
-不再按锁文件、package、Vitest、TypeScript 或门禁脚本等文件名强制执行全量测试。只要存在可用比较基线，就统一根据实际变更运行 affected/related 单测。
+Drora 适配（divergence 台账 8 / v3.17.1 N2）：受影响工程测试入口为
+`scripts/engineering-tests/scope.mjs`（engineering+drora 双清单选择，见
+[pre-push 说明](../testing/pre-push-hook.md)）。首次推送基线在 `origin/staging` 是 HEAD
+祖先时用之，否则回退 `drora/main`——本仓无 staging 集成分支，且 `origin` 指向上游官方仓
+zai-org，用 `origin/main` 会让 merge-base 退回上一上游锚点导致全量误选（pre-push 历史崩溃
+同模式），不猜测其他分支。
 
-只有找不到任何可用基线，或删除了无法交给 Vitest related 分析的源码文件时，才执行全量 `pnpm test:unit`。
+架构检查的实际基线选择和 push 门禁见 [pre-push 说明](../testing/pre-push-hook.md)。
+不再提供 App 单测选择或全量回退。

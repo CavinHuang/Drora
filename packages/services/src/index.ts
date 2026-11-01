@@ -218,7 +218,11 @@ export {
   IWindowProjectChangesService,
   type WindowProjectDirectoryServices,
 } from "#src/window-project-directory/contract.js";
-export { createWindowProjectChangesService } from "#src/window-project-directory/index.js";
+export {
+  createWebRemoteProjectTreeActivityBridge,
+  createWindowProjectChangesService,
+  type WebRemoteProjectTask,
+} from "#src/window-project-directory/index.js";
 export type {
   WindowHostControllerFrame,
   WindowHostControllerMutation,
@@ -259,6 +263,7 @@ export type {
   DroraAgentRuntimePolicy,
   DroraAgentReadSessionParams,
   DroraAgentRespondProviderRuntimeHeadersParams,
+  DroraAgentProviderRuntimeHeadersRequest,
   DroraAgentResumeSessionParams,
   DroraAgentRunAutomationNowResult,
   DroraAgentSavedWorkflowTarget,
@@ -352,6 +357,9 @@ export type { OffPeakUpdateTaskParams } from "./session/offPeakTask.js";
 // Skills service — ISkillsService is both a type (interface) and value (descriptor)
 export { ISkillsService } from "./skills/skills.js";
 export { ISkillSyncService } from "./skill-sync/skillSync.js";
+export { IDeviceSyncStateService, IUserConfigSyncService } from "./data-sync/index.js";
+export type { IDataSyncCategoryService } from "./data-sync/index.js";
+export { IProviderProvisioningStatusService } from "./provider-provisioning-status/index.js";
 export { IMcpSyncService } from "./mcp-sync/mcpSync.js";
 export { IPluginSyncService } from "./plugin-sync/pluginSync.js";
 export {

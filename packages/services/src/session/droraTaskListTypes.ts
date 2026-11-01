@@ -10,8 +10,9 @@ export interface DroraTaskListWorkspaceScope {
 }
 
 export interface DroraTaskListQuery {
-  kind: DroraTaskListKind;
-  workspaceScopes: DroraTaskListWorkspaceScope[];
+  kind: DroraTaskListKind | "all";
+  /** host 由存储 owner 确定全部范围，不接受 UI 已打开工作区作为历史目录。 */
+  workspaceScopes: DroraTaskListWorkspaceScope[] | "host";
   sortBy: DroraTaskListSortBy;
   search?: string;
   limit?: number;

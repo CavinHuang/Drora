@@ -26,6 +26,7 @@ import {
   prepareWindowsCuaHelperAssets,
   resolveWindowsCuaHelperSourceRoot,
 } from "./windows-cua-helper-assets.mjs";
+import { BUNDLED_NPM_VERSION, stageBundledNpm } from "./bundled-npm-assets.mjs";
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const desktopRoot = resolve(scriptDir, "..");
@@ -311,6 +312,16 @@ const officialPluginPackages = [
     stagedPath: "packages/drora-guide-plugin",
   },
   {
+    // Drora Sites（默认开启）。漏 stage 会让生产桌面包里找不到它；Sites 面板的 MCP server 与页面由插件自己的
+    // build 脚本构建进 dist/。
+    packageName: "@drora/drora-site-plugin",
+    relativePath: "apps/drora-cli/packages/drora-site-plugin",
+    requiresRuntime: true,
+    requiredRuntimePaths: ["dist/server.mjs", "dist/ui/panel.html"],
+    runtimeBuildScript: "scripts/build.mjs",
+    stagedPath: "packages/drora-site-plugin",
+  },
+  {
     packageName: "@drora/drora-cua-plugin",
     relativePath: "apps/drora-cli/packages/zcode-cua-plugin",
     requiresRuntime: false,
@@ -522,6 +533,7 @@ buildOfficialPluginRuntimes();
 stageBundle();
 stageOfficialPlugins();
 await stageBundledSkillPack();
+await stageBundledNpmRuntime();
 await stageCuaHelperRuntime();
 
 async function stageBundledSkillPack() {
@@ -540,6 +552,16 @@ async function stageBundledSkillPack() {
     await access(stagedAssetPath);
   }
   console.log(`[prepare:agent-bundle] staged bundled skill pack ${bundledSkillPack.stagedPath}`);
+}
+
+// stdio MCP 的 npm/npx 回退（用户没装 Node 时由 Electron Node 运行随包 npm）。
+// tarball 按 sha512 缓存在 node_modules/.cache，重复打包不再下载。
+async function stageBundledNpmRuntime() {
+  const stagedRoot = await stageBundledNpm({
+    cacheDir: resolve(repoRoot, "node_modules", ".cache", "drora-bundled-npm"),
+    glmDir,
+  });
+  console.log(`[prepare:agent-bundle] staged npm@${BUNDLED_NPM_VERSION} into ${stagedRoot}`);
 }
 
 async function stageCuaHelperRuntime() {

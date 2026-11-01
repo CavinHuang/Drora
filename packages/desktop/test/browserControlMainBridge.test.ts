@@ -11,6 +11,9 @@ describe("browserControlMainBridge", () => {
   it("posts a request to main and resolves on matching result", async () => {
     const posted: BrowserExecuteRequestMessage[] = [];
     const bridge = createBrowserControlMainBridge({
+      // 上游 v3.17.1：桥的 list/execute 以 main 侧 browser backend 身份（id+generation）为门控，
+      // 测试统一提供固定身份，保持各用例语义不变。
+      getBackendIdentity: () => ({ id: "browser-backend", generation: 1 }),
       postToMain: (m) => posted.push(m),
     });
     const [descriptor] = await bridge.list();
@@ -61,6 +64,9 @@ describe("browserControlMainBridge", () => {
       path: "/workspace/recordings/demo.webm",
     }));
     const bridge = createBrowserControlMainBridge({
+      // 上游 v3.17.1：桥的 list/execute 以 main 侧 browser backend 身份（id+generation）为门控，
+      // 测试统一提供固定身份，保持各用例语义不变。
+      getBackendIdentity: () => ({ id: "browser-backend", generation: 1 }),
       postToMain: (message) => posted.push(message),
       materializeRecording,
     });
@@ -116,7 +122,12 @@ describe("browserControlMainBridge", () => {
 
   it("correlates concurrent requests by requestId (no cross-talk)", async () => {
     const posted: BrowserExecuteRequestMessage[] = [];
-    const bridge = createBrowserControlMainBridge({ postToMain: (m) => posted.push(m) });
+    const bridge = createBrowserControlMainBridge({
+      // 上游 v3.17.1：桥的 list/execute 以 main 侧 browser backend 身份（id+generation）为门控，
+      // 测试统一提供固定身份，保持各用例语义不变。
+      getBackendIdentity: () => ({ id: "browser-backend", generation: 1 }),
+      postToMain: (m) => posted.push(m),
+    });
     const pA = bridge.execute({ sessionId: "s1", command: { method: "getState" } });
     const pB = bridge.execute({ sessionId: "s1", command: { method: "snapshot" } });
     const [idA, idB] = posted.map((m) => m.requestId);
@@ -147,6 +158,9 @@ describe("browserControlMainBridge", () => {
   it("rejects a concurrent duplicate requestId in the same scope without replacing the original", async () => {
     const posted: BrowserExecuteRequestMessage[] = [];
     const bridge = createBrowserControlMainBridge({
+      // 上游 v3.17.1：桥的 list/execute 以 main 侧 browser backend 身份（id+generation）为门控，
+      // 测试统一提供固定身份，保持各用例语义不变。
+      getBackendIdentity: () => ({ id: "browser-backend", generation: 1 }),
       postToMain: (message) => posted.push(message),
     });
     const original = bridge.execute({
@@ -182,6 +196,9 @@ describe("browserControlMainBridge", () => {
   it("rejects a concurrent duplicate requestId across scopes because result routing is global", async () => {
     const posted: BrowserExecuteRequestMessage[] = [];
     const bridge = createBrowserControlMainBridge({
+      // 上游 v3.17.1：桥的 list/execute 以 main 侧 browser backend 身份（id+generation）为门控，
+      // 测试统一提供固定身份，保持各用例语义不变。
+      getBackendIdentity: () => ({ id: "browser-backend", generation: 1 }),
       postToMain: (message) => posted.push(message),
     });
     const original = bridge.execute({
@@ -219,6 +236,9 @@ describe("browserControlMainBridge", () => {
     try {
       const posted: BrowserExecuteRequestMessage[] = [];
       const bridge = createBrowserControlMainBridge({
+        // 上游 v3.17.1：桥的 list/execute 以 main 侧 browser backend 身份（id+generation）为门控，
+        // 测试统一提供固定身份，保持各用例语义不变。
+        getBackendIdentity: () => ({ id: "browser-backend", generation: 1 }),
         postToMain: (message) => posted.push(message),
         timeoutMs: 1000,
       });
@@ -242,7 +262,13 @@ describe("browserControlMainBridge", () => {
   it("uses the requested wait duration plus 2s as waitForTimeout transport budget", async () => {
     vi.useFakeTimers();
     try {
-      const bridge = createBrowserControlMainBridge({ postToMain: () => {}, timeoutMs: 1000 });
+      const bridge = createBrowserControlMainBridge({
+        // 上游 v3.17.1：桥的 list/execute 以 main 侧 browser backend 身份（id+generation）为门控，
+        // 测试统一提供固定身份，保持各用例语义不变。
+        getBackendIdentity: () => ({ id: "browser-backend", generation: 1 }),
+        postToMain: () => {},
+        timeoutMs: 1000,
+      });
       let settled = false;
       const promise = bridge
         .execute({
@@ -269,6 +295,9 @@ describe("browserControlMainBridge", () => {
 
   it("resolves backend_unavailable when postToMain throws", async () => {
     const bridge = createBrowserControlMainBridge({
+      // 上游 v3.17.1：桥的 list/execute 以 main 侧 browser backend 身份（id+generation）为门控，
+      // 测试统一提供固定身份，保持各用例语义不变。
+      getBackendIdentity: () => ({ id: "browser-backend", generation: 1 }),
       postToMain: () => {
         throw new Error("no channel");
       },
@@ -279,36 +308,72 @@ describe("browserControlMainBridge", () => {
     bridge.dispose();
   });
 
-  it("rejects a stale browser id before posting to main", async () => {
-    const postToMain = vi.fn();
-    const bridge = createBrowserControlMainBridge({ postToMain });
-    const result = await bridge.execute({
+  it("forwards a stale browser id to main verbatim instead of filtering it locally", async () => {
+    // 上游 v3.17.1 契约：身份是否过期由 Main 判断，桥只携带原身份转发。
+    // 这里验证桥不吞掉 stale id（仍转发），并把 Main 的拒绝结果原样交回调用方。
+    const posted: BrowserExecuteRequestMessage[] = [];
+    const bridge = createBrowserControlMainBridge({
+      // 上游 v3.17.1：桥的 list/execute 以 main 侧 browser backend 身份（id+generation）为门控，
+      // 测试统一提供固定身份，保持各用例语义不变。
+      getBackendIdentity: () => ({ id: "browser-backend", generation: 1 }),
+      postToMain: (m) => posted.push(m),
+    });
+    const pending = bridge.execute({
       browserId: "iab:stale",
       sessionId: "s1",
       command: NAV,
     });
-    expect(result).toMatchObject({ ok: false, error: { code: "backend_unavailable" } });
-    expect(postToMain).not.toHaveBeenCalled();
+    await Promise.resolve();
+    expect(posted).toHaveLength(1);
+    expect(posted[0].browserId).toBe("iab:stale");
+    await bridge.handleResult({
+      requestId: posted[0].requestId,
+      result: { ok: false, elapsedMs: 0, error: { code: "backend_unavailable", message: "stale" } },
+    });
+    await expect(pending).resolves.toMatchObject({
+      ok: false,
+      error: { code: "backend_unavailable" },
+    });
     bridge.dispose();
   });
 
-  it("rejects a stale browser generation before posting to main", async () => {
-    const postToMain = vi.fn();
-    const bridge = createBrowserControlMainBridge({ postToMain });
+  it("forwards a stale browser generation to main verbatim instead of filtering it locally", async () => {
+    // 同上：generation 的新旧由 Main 裁决，桥必须携带调用方给定的 generation 转发。
+    const posted: BrowserExecuteRequestMessage[] = [];
+    const bridge = createBrowserControlMainBridge({
+      // 上游 v3.17.1：桥的 list/execute 以 main 侧 browser backend 身份（id+generation）为门控，
+      // 测试统一提供固定身份，保持各用例语义不变。
+      getBackendIdentity: () => ({ id: "browser-backend", generation: 1 }),
+      postToMain: (m) => posted.push(m),
+    });
     const [descriptor] = await bridge.list();
-    const result = await bridge.execute({
+    const pending = bridge.execute({
       browserId: descriptor.id,
       browserGeneration: descriptor.generation + 1,
       sessionId: "s1",
       command: NAV,
     });
-    expect(result).toMatchObject({ ok: false, error: { code: "backend_unavailable" } });
-    expect(postToMain).not.toHaveBeenCalled();
+    await Promise.resolve();
+    expect(posted).toHaveLength(1);
+    expect(posted[0].browserGeneration).toBe(descriptor.generation + 1);
+    await bridge.handleResult({
+      requestId: posted[0].requestId,
+      result: { ok: false, elapsedMs: 0, error: { code: "backend_unavailable", message: "stale" } },
+    });
+    await expect(pending).resolves.toMatchObject({
+      ok: false,
+      error: { code: "backend_unavailable" },
+    });
     bridge.dispose();
   });
 
   it("ignores late results after timeout without throwing", async () => {
-    const bridge = createBrowserControlMainBridge({ postToMain: () => {} });
+    const bridge = createBrowserControlMainBridge({
+      // 上游 v3.17.1：桥的 list/execute 以 main 侧 browser backend 身份（id+generation）为门控，
+      // 测试统一提供固定身份，保持各用例语义不变。
+      getBackendIdentity: () => ({ id: "browser-backend", generation: 1 }),
+      postToMain: () => {},
+    });
     // 未知 requestId 的迟到结果应被安全忽略。
     expect(() =>
       bridge.handleResult({ requestId: "unknown", result: { ok: true, elapsedMs: 1 } }),
@@ -317,7 +382,12 @@ describe("browserControlMainBridge", () => {
   });
 
   it("dispose resolves pending commands instead of stranding promises", async () => {
-    const bridge = createBrowserControlMainBridge({ postToMain: () => {} });
+    const bridge = createBrowserControlMainBridge({
+      // 上游 v3.17.1：桥的 list/execute 以 main 侧 browser backend 身份（id+generation）为门控，
+      // 测试统一提供固定身份，保持各用例语义不变。
+      getBackendIdentity: () => ({ id: "browser-backend", generation: 1 }),
+      postToMain: () => {},
+    });
     const pending = bridge.execute({ sessionId: "s1", command: NAV });
     bridge.dispose();
     await expect(pending).resolves.toMatchObject({

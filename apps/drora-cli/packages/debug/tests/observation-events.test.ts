@@ -32,7 +32,10 @@ describe("observation events", () => {
       const eventText = await readUntil(reader, "event: change");
 
       expect(eventText).toContain("结构化日志");
-      expect(eventText).toContain(logDir);
+      // Windows 修复：SSE data 载荷是 JSON 字符串，路径中的 `\` 会被转义为 `\\`，
+      // 直接 toContain(logDir) 只在 POSIX（路径无反斜杠）成立。按 JSON 转义形态
+      // 断言，跨平台语义一致（路径确实出现在载荷里）。
+      expect(eventText).toContain(JSON.stringify(logDir).slice(1, -1));
     } finally {
       await reader.cancel();
     }

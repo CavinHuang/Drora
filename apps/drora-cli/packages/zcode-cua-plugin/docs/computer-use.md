@@ -28,9 +28,7 @@ bootstrap and the actions must be in the **same** cell:
 
 ```js
 const root =
-  process.env.DRORA_CUA_PLUGIN_ROOT ??
-  process.env.DRORA_PLUGIN_ROOT ??
-    process.env.ZCODE_CUA_PLUGIN_ROOT ??
+  process.env.ZCODE_CUA_PLUGIN_ROOT ??
   process.env.ZCODE_PLUGIN_ROOT ??
   process.env.CLAUDE_PLUGIN_ROOT;
 const { join } = await import("node:path");
@@ -165,7 +163,8 @@ get_app_state({app_ref, include_screenshot?=false, disable_diffing?=false})
 
 left_click({target, mouse_button?="left", click_count?=1, modifiers?="",
            strategy?="auto", app_ref?, return_state?="none"})
-left_click_drag({from_target, to, modifiers?="", app_ref?, return_state?="none"})
+left_click_drag({from_target, to, modifiers?="", strategy?="auto", app_ref?,
+                return_state?="none"})
 scroll({target, scroll_direction, scroll_amount, strategy?="auto", app_ref?,
        return_state?="none"})
 
@@ -346,7 +345,7 @@ Minimize round trips while keeping the state fresh:
 
 ```typescript
 await target.click(42);
-await target.setValue(42, "openai.com");
+await target.setValue(42, "example.com");
 await target.pressKey("Return");
 await target.typeText("hello");
 await target.scroll(42, "down", 1);

@@ -7,6 +7,7 @@ import {
   type RefObject,
 } from "react";
 import {
+  droraProviderRuntimeHeadersErrorCode,
   type DroraApiRetryStatus,
   type DroraConfigOption,
   type DroraConfigSelectValue,
@@ -134,7 +135,12 @@ export function ChatApiRetryStatus({
     // 这里先收敛成稳定的重试状态文案，只展示第几次重试。
     const formatter = new Intl.NumberFormat(locale);
     return intl.formatMessage(
-      { id: "chat.apiRetryStatus" },
+      {
+        id:
+          apiRetry.error === droraProviderRuntimeHeadersErrorCode.configNetwork
+            ? "chat.configReadRetryStatus"
+            : "chat.apiRetryStatus",
+      },
       {
         attempt: formatter.format(apiRetry.attempt),
         maxRetries: formatter.format(apiRetry.maxRetries),

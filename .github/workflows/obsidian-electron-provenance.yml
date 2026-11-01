@@ -83,7 +83,7 @@ jobs:
           node-version: "24.14.0"
       - run: corepack enable
       - name: Install locked dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile || (rm -rf node_modules && pnpm install --frozen-lockfile)
       - name: Build the UI/E2E reporting and CLI dependencies
         run: |
           pnpm --filter @drora/e2e-report build:node
@@ -126,7 +126,7 @@ jobs:
           node-version: "24.14.0"
       - run: corepack enable
       - name: Install locked dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile || (rm -rf node_modules && pnpm install --frozen-lockfile)
       - name: Build UI/E2E reporting and CLI dependencies
         run: |
           pnpm --filter @drora/e2e-report build:node
@@ -170,7 +170,7 @@ jobs:
           node-version: "24.14.0"
       - run: corepack enable
       - name: Install locked dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile || (rm -rf node_modules && pnpm install --frozen-lockfile)
       - name: Build reporting and desktop Agent CLI
         run: |
           pnpm --filter @drora/e2e-report build:node

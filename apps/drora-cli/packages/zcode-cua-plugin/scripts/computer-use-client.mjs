@@ -1,22 +1,21 @@
 /**
- * Computer Use SDK —— 模型可见面与 Codex 的 `cua` 逐字同构（去掉 browser 半边）。
+ * Computer Use SDK —— 模型可见的 `cua` 对象面（只含 computer 部分，不含 browser）。
  *
  * 设计文档：zcode-cua/docs/refactor-port-specs/2026-09-10-cua-sdk-v3-api.md
- * 逆向基线：@oai/cua@0.2.4 的 tinysky_alt/types.d.ts 与 docs/tinysky-alt-core-node-repl.md
  *
  * 三条原则（文档 §1）：
- *   R1 同名同签 —— Codex 有的方法，名字、位置参数顺序、选项键名、返回类型逐字一致。
- *   R2 Codex 没有的能力先问能不能删；留下的只能出现在可选选项键、尾部可选参数，
+ *   R1 同名同签 —— 公开方法的名字、位置参数顺序、选项键名、返回类型保持冻结。
+ *   R2 公开面之外的能力先问能不能删；留下的只能出现在可选选项键、尾部可选参数，
  *      或 `cua.computer` 逃逸口里。`Target` 上的附加成员数必须为 0。
  *   R3 安全语义只藏不删 —— state_id 强校验、frame 精确栅格、possibly_sent 防重放、
  *      controller lease、kill switch 全部保留，改为内部字段或类型化错误。
  *
- * 与 Codex 的两处不可对齐（文档 §5）：
+ * 两处刻意的语义选择（文档 §5）：
  *   1. node_repl 的 Worker 每次 `js` 调用都是全新的，`const app` 活不到下一个 cell。
  *      stateId / frameId / diff 基线由 shared host 的 runtime session 持有，所以下一个
  *      cell 里 `getApp` 是重新绑定而非重新观察。
- *   2. 动作失败抛 ComputerUseError 并带 actionSent —— Codex 的动作全是 Promise<void>，
- *      把「可能已下发」的信息扔了；ZCode 这条语义是事故驱动的，必须保留。
+ *   2. 动作失败抛 ComputerUseError 并带 actionSent —— 不能把动作做成单纯的 Promise<void>，
+ *      那样会丢掉「可能已下发」的信息；这条语义是事故驱动的，必须保留。
  *
  * 不融合 Browser Use：这里不存在 browsers / getBrowser / createBrowserTab / getTab；
  * `State` 没有 `browsers` 键；`Target` 只被 App 实现，不与 browser 的 Tab 共享类型。
@@ -52,7 +51,7 @@ const COMPUTER_METHOD_NAMES = Object.freeze([
  *
  * 2026-09-16：`open_application` 已在 producer 侧**整体删除**（不再只是 darwin 排除）——
  * 启动与激活并入 get_app_state 的透明拉起（见 zcode-cua/src/tools/manifest.ts 的说明），
- * 与 codex 一致（其 `targets/mac` 本来就没有启动/激活原语）。于是这张表暂时为空：
+ * 模型面不再有单独的启动/激活原语。于是这张表暂时为空：
  * 留着它是因为「按平台收缩」这个机制本身还需要，下一个平台专属工具直接往里加。
  */
 const PLATFORM_EXCLUDED_METHODS = Object.freeze({});
@@ -166,9 +165,7 @@ function textBlocks(result) {
     .map((block) => block.text);
 }
 
-/** 从 MCP envelope 里挖出结构化收据（顶层、structuredContent、action_receipt 或 action_outcome）。
- *  action_receipt 是 producer 的实际嵌套形状（{action_sent, dispatch_status, ...}）——
- *  不下钻它，possibly_sent（动作可能已下发）会被静默当成功，破坏防重放契约。 */
+/** 从 MCP envelope 里挖出结构化收据（顶层、structuredContent 或 action_outcome）。 */
 function receiptOf(result) {
   const candidates = [];
   if (result && typeof result === "object") candidates.push(result);
@@ -179,9 +176,6 @@ function receiptOf(result) {
     const parsed = parseJsonRecord(text);
     if (!parsed) continue;
     candidates.push(parsed);
-    if (parsed.action_receipt && typeof parsed.action_receipt === "object") {
-      candidates.push(parsed.action_receipt);
-    }
     if (parsed.action_outcome && typeof parsed.action_outcome === "object") {
       candidates.push(parsed.action_outcome);
     }
@@ -307,8 +301,8 @@ function assertOk(methodName, result) {
 /**
  * number → 元素索引，[x,y] → 当前栅格像素。
  *
- * 索引按**该 app 最新一次观察**解析（2026-09-12 对齐 codex：它的动作形如
- * `set_value({app, elementIndex, value})`，索引身份只有 app + index，wire 上没有任何
+ * 索引按**该 app 最新一次观察**解析（2026-09-12：动作形如
+ * `set_value({app, elementIndex, value})`，索引身份只有 app + index，wire 上不携带
  * 「这个索引属于哪次观察」的凭证）。所以这里只发 `{type:"element", index}`，
  * 由动作自带的 app_ref 说明作用域；坐标用当前 frameId，模型永远不需要碰 frame_id。
  *
@@ -355,10 +349,10 @@ function bindTarget(binding, target, what) {
     //
     // 代价（真机 2026-09-14）：node_repl 每个 cell 都是新 Worker，binding 不跨 cell，于是
     // 每个要点坐标的 cell 都得先截一次图。模型照做前先撞一次这个错误、再补截图重来，
-    // 白花一轮。codex 的 mac 面根本没有帧凭证概念：坐标就是"最近一张 app 窗口截图的像素"，
+    // 白花一轮。模型面本来就不需要帧凭证概念：坐标就是"最近一张 app 窗口截图的像素"，
     // 只要会话已激活就能直接点。
     //
-    // 放宽之后安全性不变，且仍比 codex 严：帧过期 / 被替换 / 非可动作，以及 app_ref 与该帧
+    // 放宽之后安全性不变：帧过期 / 被替换 / 非可动作，以及 app_ref 与该帧
     // 真实 owner 不一致（`frame_dispatch_identity_mismatch`），都仍然 fail-closed；一次栅格
     // 都没有过时，broker 会给出「no actionable frame is available in this transport」。
     return binding.frameId
@@ -426,7 +420,7 @@ const MOUSE_BUTTONS = { left: "left", right: "right", middle: "middle", l: "left
 // ─────────────────────────────────────────────────────────── 展示
 
 /**
- * 观察方法自行展示结果（对齐 Codex）。
+ * 观察方法自行展示结果。
  *
  * v1 把这件事写成 SKILL 里的一条纪律（「每个动作 cell 末尾必须显式
  * nodeRepl.write(state.text)」），模型忘记就整段观察丢失。纪律本该由 SDK 承担。
@@ -584,7 +578,7 @@ function advisoryTextOf(result, treeText) {
 // ─────────────────────────────────────────────────────────── Target
 
 /**
- * App / Window 共享的交互面 —— Codex `Target` 的 12 个成员，逐字同签。
+ * App / Window 共享的交互面 —— `Target` 的 12 个公开成员，签名冻结。
  * 附加成员数为 0（zoom 已在评审中删除）；ZCode 的附加能力只出现在选项袋里。
  */
 function createTarget(ctx, binding) {
@@ -607,8 +601,7 @@ function createTarget(ctx, binding) {
     // 都要重新 getApp，所以这不是"首次观察"的个例，而是**每个 cell 都发生**。
     //
     // 只截图的观察同样移动了 Helper 的基线却不给树文本，所以它把 treeSeen 清掉 ——
-    // 这和 codex 文档那条 "After a screenshot-only observation, request a full tree before
-    // relying on accessibility indexes again" 是同一条规则，只是这里强制执行而非靠模型记住。
+    // 规则是「只截图观察之后，再依赖无障碍索引前必须先拿整树」，这里由 SDK 强制执行而非靠模型记住。
     if (yieldsTree === true && binding.treeSeen !== true) args.disable_diffing = true;
     if (options?.disableDiffing === true) args.disable_diffing = true;
     // yieldsTree=false（getScreenshot）不给树文本 —— 上面 binding.treeSeen 的注释里本来就写着
@@ -630,20 +623,18 @@ function createTarget(ctx, binding) {
     assertOk(methodName, result);
     // 这里原先动作后无条件 `binding.stateId = undefined`，逼下一次索引解析先重新观察。
     //
-    // 为什么去掉（2026-09-12，逆向 codex 后）：
-    // 1. 与我们自己的文档打架。参考文档原样抄了 codex 的动作目录块（标题「Perform one or
-    //    more actions, and then fetch the latest state」，里面就是 click(42) 紧跟 setValue(42)），
+    // 为什么去掉（2026-09-12）：
+    // 1. 与我们自己的文档打架。当时参考文档的动作示例就是 click(42) 紧跟 setValue(42)，
     //    而这条守卫让那种写法必然失败。真机上模型正是照文档写 click(9); setValue(9, ...)，
     //    然后被拒，白烧两个 cell（一个重新观察、一个重做）。
-    // 2. codex 没有任何等价物。它的模型面里 stateId/stale/generation 出现 0 次，
-    //    set_value({app, elementIndex, value}) 不带任何新鲜度凭证；失效判定在原生服务，
-    //    而且是被动的 —— UIElementTreeInvalidationMonitor 先尝试按特征重取元素，
-    //    只有重取歧义/失败才报 "The element ID is no longer valid"。
+    // 2. 模型面不需要新鲜度凭证：set_value({app, elementIndex, value}) 不带
+    //    stateId/stale/generation 之类的字段；失效应由持有原生元素的一侧被动判定 ——
+    //    先尝试按特征重取元素，只有重取歧义/失败才报错。
     // 3. 这条守卫没有信息支撑：SDK 只知道"发生过动作"，不知道 UI 是否变化、也不知道那个
     //    元素还在不在。真正知道的是 Helper —— 索引在观察时就已冻结成 native token，
     //    元素消失时它本来就 fail-closed。
     //
-    // 所以保留冻结映射 + Helper 侧校验（与 codex 同档），不再在客户端提前否决。
+    // 所以保留冻结映射 + Helper 侧校验，不再在客户端提前否决。
   };
 
   return {
@@ -685,8 +676,8 @@ function createTarget(ctx, binding) {
     async getAXStateAndScreenshot(options) {
       const { state, result } = await observe(options, true, true);
       const screenshot = imageBytesOf(result);
-      // 静默丢图是本轮最后一条同类缺陷（codex 这条路径同样静默：screenshot===null 时
-      // 直接 return {state}，一句话不给）。真机上模型正是从"没收到图"推断出「截图没有
+      // 静默丢图是本轮最后一条同类缺陷（过去 screenshot===null 时直接 return {state}，
+      // 一句话不给）。真机上模型正是从"没收到图"推断出「截图没有
       // 回传（窗口在副显示器上，坐标为负）」，然后去抢用户焦点——它得到的信息量是零，
       // 所以只能猜。请求了像素却没拿到，必须说清为什么、以及重试有没有用。
       const note =
@@ -739,6 +730,11 @@ function createTarget(ctx, binding) {
         to: bindTarget(binding, to, "drag to"),
         app_ref: binding.appRef,
         ...(options?.modifiers ? { modifiers: options.modifiers } : {}),
+        // Bug 原因（2026-10-27）：文档 DragOptions 声明了 strategy，broker 的 drag
+        // handler 也早已按 strategy==="event" 跳过后台中间级走前台 SendInput，但
+        // 此前 SDK 只透传 modifiers —— 调用方显式选 event 被静默吞成 auto，前台
+        // 拖拽从 SDK 层不可达。与 click/pressKey/scroll 同形透传。
+        ...(options?.strategy ? { strategy: options.strategy } : {}),
       });
     },
 
@@ -773,7 +769,7 @@ function createTarget(ctx, binding) {
 
     async selectText(elementIndex, text, options) {
       const bound = bindTarget(binding, elementIndex, "selectText");
-      // Codex 的签名是按内容匹配。range 由 SDK 在**已观察到的元素 value** 上本地算出，
+      // 签名按内容匹配（传要选中的文本）。range 由 SDK 在**已观察到的元素 value** 上本地算出，
       // 不需要额外的 broker 往返：value 就在上一次 getAXState 的结构化结果里。
       const range = resolveTextRange(binding, elementIndex, text, options);
       await act("select_text", { target: bound, app_ref: binding.appRef, text_range: range });
@@ -859,7 +855,7 @@ function resolveTextRange(binding, elementIndex, text, options) {
 }
 
 /**
- * 键位别名规范化：接受 xdotool / X keysym 写法（Codex 全线用它，模型先验也在那边），
+ * 键位别名规范化：接受 xdotool / X keysym 写法（模型先验多是这种写法），
  * 输出 ZCode 的内部 token 集合。只做输入侧兼容，不改跨平台修饰键规则
  * （macOS cmd，Linux / Windows ctrl）。
  */
@@ -870,7 +866,10 @@ const KEY_ALIASES = Object.freeze({
   shift_l: "shift", shift_r: "shift", shift: "shift",
   escape: "esc", esc: "esc",
   prior: "pageup", next: "pagedown",
-  period: ".", comma: ",", greater: ">", slash: "/", minus: "-", equal: "=",
+  // 曾有 greater: ">"——输出 ">" 从未通过工具层白名单（S2 前后均如此），是端到端
+  // 死路径，且会让组合契约测试（sdk-key-chord-contract.node-test.mjs）被迫开
+  // 豁免口，故移除。需要输出 ">" 时应先给工具层 canonical 集补该 token。
+  period: ".", comma: ",", slash: "/", minus: "-", equal: "=",
 });
 
 function normalizeKeyChord(chord, platform) {
@@ -975,7 +974,7 @@ export async function setupComputerUseRuntime({ globals }) {
     let appRef = objectRef ?? appRefFor(target, windowId);
     const binding = createBinding(label, appRef);
     const app = createTarget(ctx, binding);
-    // 绑定即观察（对齐 Codex）：返回前展示该 app 的**全量** AX 树。
+    // 绑定即观察：返回前展示该 app 的**全量** AX 树。
     let result = await call("get_app_state", {
       app_ref: appRef,
       include_screenshot: false,
@@ -1049,11 +1048,10 @@ export async function setupComputerUseRuntime({ globals }) {
     // getApp 不展示状态（2026-09-13）。它仍然做一次观察 —— 身份解析、窗口校验与索引解析
     // 基线都要它 —— 但不再把那棵树写进输出。
     //
-    // 根因：Codex 的 `cua.getApp()` 同样自动输出结果，但它的 kernel 是**持久**的，
-    // `const app = await cua.getApp(...)` 跨 cell 存活，所以一个会话只调一次 getApp，
-    // 那次展示确实省掉一次单独观察。ZCode 的 node_repl 每个 cell 都是全新 Worker，绑定
-    // 不跨 cell，于是**每个 cell 都要重新 getApp**，那次"顺便展示"就从"一次性省一个往返"
-    // 变成了"每个 cell 都多一棵注定作废的树"。行为照抄了 Codex，前提没跟着抄。
+    // 根因：「getApp 自动输出结果」只在 kernel **持久**时划算 —— `const app = await
+    // cua.getApp(...)` 跨 cell 存活，一个会话只调一次 getApp，那次展示确实省掉一次单独观察。
+    // ZCode 的 node_repl 每个 cell 都是全新 Worker，绑定不跨 cell，于是**每个 cell 都要重新
+    // getApp**，那次"顺便展示"就从"一次性省一个往返"变成了"每个 cell 都多一棵注定作废的树"。
     //
     // 代价不只是 token。真机实测（会话 sess_f14c07fd）：8 个 cell 里 5 个吐两棵树，
     // 36% 的工具输出（43902/120854 字符）是被同 cell 后续观察直接覆盖的前序树；更糟的是
@@ -1064,28 +1062,28 @@ export async function setupComputerUseRuntime({ globals }) {
     //
     // 想看状态就显式 getAXState()，与其它观察方法一致。
     //
-    // 结构化元素视图。Codex 的 Target 只给字符串，但模型写的是代码，单 cell 内
+    // 结构化元素视图。Target 的公开观察方法只给字符串，但模型写的是代码，单 cell 内
     // 「观察 → 找元素 → 动作」能省一次往返；树被按优先级裁剪（targeting/format.ts 的
     // `indices are sparse` 注记）时，它还是模型拿到隐藏元素索引的唯一途径。因此它已被
     // 提为**文档化成员**（SKILL 的 Keyboard 段 + docs/computer-use.md 的 API 段），
     // 保持 enumerable:false 只是为了不进 Object.keys —— R2 的「Target 附加成员为 0」
-    // 说的是与 Codex 逐字对齐的**可枚举**面，不是禁止具名逃逸口。
+    // 说的是冻结的**可枚举**公开面，不是禁止具名逃逸口。
     Object.defineProperty(app, "elements", {
       enumerable: false,
       value: async () => {
-        // 与 getScreenshot 同档的静默观察（见 createTarget 的 observe）：结果只回给 JS、
-        // 不 emit 任何东西，所以两条声明都必须给。
+        // 与 getScreenshot 不同档（2026-10-25 修正）：返回值（含 index 的元素表）
+        // 回给了模型所写的 JS——els[3].index 直接进 click 参数，这张表就是模型
+        // 选目标的信息来源，构成「模型可见」。2026-09-16 评审按「不 emit」把它
+        // 与 bindApp/getScreenshot 一刀切标 false，掩盖了本质差异（那两条的
+        // 返回值不含树）；false 的真实后果是位移台账只剩更旧的树，模型用
+        // elements() 的新鲜索引点击时被拿旧树对照新树，element_index_shifted
+        // 假阳性（真位移同时拦不住）。记账后 producer 台账与模型实际所见一致。
         //
-        // Bug 原因（2026-09-16 评审）：这里过去两条都没给。
-        // 1. 漏 tree_shown_to_model=false ⇒ producer 默认按「模型看过」记账
-        //    （observation.ts 的 `treeShownToModel !== false`），索引位移台账被一棵模型
-        //    没看过的树覆盖，校验退化成当前树跟当前树自比，静默点错元素的保护失效。
-        // 2. 这次 capture 还把 Helper 的 diff 基线推到了这棵未展示的树上，而 binding.treeSeen
-        //    仍是 true ⇒ 下一次 getAXState 会拿到相对未展示树的增量，SKILL 承诺的
-        //    「diff 只相对本 cell 展示过的树」就成了假话。清 treeSeen 让它强制整树。
+        // diff 基线问题不受影响：binding.treeSeen 仍清空（treeSeen 管的是 emit
+        // 展示面的整树承诺，与记账正交），下一次 getAXState 照旧强制整树。
         const fresh = appStateOf(
           "get_app_state",
-          await call("get_app_state", { app_ref: appRef, tree_shown_to_model: false }),
+          await call("get_app_state", { app_ref: appRef, tree_shown_to_model: true }),
         );
         binding.stateId = fresh.state_id;
         binding.elements = fresh.elements;
@@ -1110,8 +1108,7 @@ export async function setupComputerUseRuntime({ globals }) {
     return state;
   };
 
-  // `cua.computer` —— 平台特定逃逸口。角色与 Codex 一致（官方文档：
-  // "cua.browsers and cua.computer expose additional platform-specific computer APIs"）。
+  // `cua.computer` —— 平台特定逃逸口，暴露额外的平台相关 computer API。
   // 内容是存活的 14 个工具，入参 schema 逐字保留。
   //
   // 返回值**解封**（2026-09-16）：此前原样返回 MCP envelope，于是模型拿到的是
@@ -1174,8 +1171,8 @@ export async function setupComputerUseRuntime({ globals }) {
       assertOk("stop_computer_control", result);
     },
   };
-  // 未文档化成员：窗口绑定。Codex 把窗口概念按平台分裂（macOS 面没有窗口寻址，
-  // Windows 的 window2 面整套以 Window 对象寻址），ZCode 三平台统一命名做不了那种分裂，
+  // 未文档化成员：窗口绑定。窗口寻址各平台差异很大（有的平台没有窗口寻址，有的整套
+  // 以 Window 对象寻址），ZCode 三平台统一命名，不按平台分裂公开面，
   // 所以窗口寻址留在逃逸口 + 这个未文档化入口。
   Object.defineProperty(cua, "getWindow", {
     enumerable: false,
@@ -1183,7 +1180,7 @@ export async function setupComputerUseRuntime({ globals }) {
   });
 
   // 入口是 `agent.computerUse`（ZCode 自己的命名空间约定，与 agent.documentation /
-  // agent.browsers 并列）。codex 用的是裸 `cua` 全局；这一处是有意的分歧。
+  // agent.browsers 并列），不注入裸 `cua` 全局。
   // 平铺的 14 个工具在 `agent.computerUse.computer.*` 下（COMPUTER_METHOD_NAMES）。
   const agent = (globals.agent ??= {});
   agent.computerUse = cua;
@@ -1210,4 +1207,4 @@ export async function setupComputerUseRuntime({ globals }) {
   return cua;
 }
 
-export { COMPUTER_METHOD_NAMES, PLATFORM_EXCLUDED_METHODS, ComputerUseError, normalizeKeyChord };
+export { COMPUTER_METHOD_NAMES, PLATFORM_EXCLUDED_METHODS, ComputerUseError, normalizeKeyChord, KEY_ALIASES };

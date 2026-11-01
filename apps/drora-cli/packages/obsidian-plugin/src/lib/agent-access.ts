@@ -47,6 +47,13 @@ export async function resolveAuthorizedVaultPath(
   if (typeof candidatePath !== "string" || candidatePath.trim() === "" || candidatePath.includes("\0")) {
     return null;
   }
+  // K-POL-3（specs/obsidian-knowledge.md）：`\\?\` 扩展路径一律静默。Windows 的
+  // realpath 会剥掉设备前缀（前缀展开），realpathLongestExistingPrefix 的坐标系
+  // 修复反而会把指向根内的扩展路径改写成普通绝对路径后放行；与软链前缀同属
+  // "输入坐标系 ≠ 授权根坐标系"，保守交回问询，不做前缀展开。
+  if (candidatePath.startsWith("\\\\?\\")) {
+    return null;
+  }
   try {
     const realRoot = await realpath(rootPath);
     const baseDir = typeof cwd === "string" && cwd.trim() !== "" ? cwd : realRoot;
@@ -91,6 +98,11 @@ export async function resolveAuthorizedVaultWritePath(
   candidatePath: unknown,
 ): Promise<AuthorizedVaultWritePath | null> {
   if (typeof candidatePath !== "string" || candidatePath.trim() === "" || candidatePath.includes("\0")) {
+    return null;
+  }
+  // K-POL-3：同 resolveAuthorizedVaultPath，`\\?\` 扩展路径（含 `\\?\UNC\`）不做
+  // 前缀展开，直接静默交回问询，防止 realpath 剥前缀后经坐标系修复意外放行。
+  if (candidatePath.startsWith("\\\\?\\")) {
     return null;
   }
   try {

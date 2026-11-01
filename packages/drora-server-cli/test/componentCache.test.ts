@@ -223,10 +223,11 @@ describe("component cache", () => {
     await expect(readFile(join(release, "runtime", "server-core.js"), "utf8")).resolves.toBe("new");
 
     await writeFile(join(release, "runtime", "server-core.js"), "tampered", "utf8");
-    await expect(cache.assemble(assembleOptions)).rejects.toThrow(/immutable release conflict/i);
-    await expect(readFile(join(release, "runtime", "server-core.js"), "utf8")).resolves.toBe(
-      "tampered",
-    );
+    // 上游 v3.17.1 A2 修复：identity 记录与 archive 一致、仅磁盘内容偏离的现存 release
+    // 判为 damaged 副本并自动替换（不再抛 immutable release conflict 卡死强制重装）。
+    // 替换走 rename，inode 会变化，内容恢复为 archive 中的 "new"。
+    await expect(cache.assemble(assembleOptions)).resolves.toBeUndefined();
+    await expect(readFile(join(release, "runtime", "server-core.js"), "utf8")).resolves.toBe("new");
   });
 
   it("ignores a cache entry whose archive bytes no longer match its marker", async () => {

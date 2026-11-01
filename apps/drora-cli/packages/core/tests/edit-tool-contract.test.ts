@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, sep } from "node:path";
 import {
   createFileSystemError,
   type FileSystemLineEndings,
@@ -23,7 +23,7 @@ import {
   isToolHandlerFailure,
 } from "../src/tool/executor/errors.js";
 import { editHandler, editToolEntry } from "../src/tool/handlers/edit.js";
-import { createReadFileStateKey } from "../src/tool/read-file-state.js";
+import { createReadFileStatePathKey } from "../src/tool/read-file-state.js";
 import type {
   ExecutableToolCall,
   ReadFileStateMap,
@@ -164,7 +164,7 @@ describe("Edit tool contract", () => {
     const revision = revisionFor(file, "original\n");
     const readFileState: ReadFileStateMap = new Map([
       [
-        createReadFileStateKey(file, 1, undefined),
+        createReadFileStatePathKey(file),
         {
           path: `${tmpDir}/nested/../existing-normalized-key.txt`,
           content: "original\n",
@@ -463,7 +463,7 @@ describe("Edit tool contract", () => {
       readAt: new Date(1),
     });
     const latestRevision = revisionFor(file, "line one\nline two\n", 3);
-    readFileState.set(createReadFileStateKey(file, 2, 1), {
+    readFileState.set(createReadFileStatePathKey(file), {
       path: file,
       content: "line two",
       offset: 2,
@@ -767,7 +767,9 @@ describe("Edit tool contract", () => {
       deny: [
         {
           toolName: "Edit",
-          ruleContent: `${tmpDir}/blocked/*`,
+          // 修复：规则模式与 file_path 用同一路径形态（join），避免 Windows 上
+          // 正斜杠模式与反斜杠路径互不匹配导致 deny 规则漏判。
+          ruleContent: join(tmpDir, "blocked", "*"),
         },
       ],
     };
@@ -834,11 +836,7 @@ function createReadFileState(
   const revisionContent = options.revisionContent ?? content;
   return new Map([
     [
-      [
-        filePath,
-        String(options.offset ?? 1),
-        options.limit === undefined ? "" : String(options.limit),
-      ].join("\0"),
+      createReadFileStatePathKey(filePath),
       {
         path: filePath,
         content,
@@ -956,7 +954,10 @@ function createMemoryFileSystem(initial: Record<string, string>): MemoryFileSyst
       return { path: request.path, removed };
     },
     async listDirectory(request) {
-      const prefix = `${request.path.replace(/\/+$/u, "")}/`;
+      // 修复：文件键由 join 构造（Windows 为反斜杠），前缀分隔符须与键形态一致，
+      // 否则目录列举恒为空、相似文件名建议永远缺失。
+      const trimmed = request.path.replace(/[\/]+$/u, "");
+      const prefix = `${trimmed}${trimmed.at(-1) === "\\" ? "" : sep}`;
       const entries = Array.from(files.keys())
         .filter((path) => path.startsWith(prefix))
         .map((path) => ({

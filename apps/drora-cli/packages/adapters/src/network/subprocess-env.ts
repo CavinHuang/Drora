@@ -76,9 +76,7 @@ function applyProxyEnv(
 ): void {
   const configuredProxy = normalizeProxyValue(network.httpProxy);
   if (configuredProxy) {
-    for (const key of ALL_PROXY_KEYS) {
-      setEnvKey(env, key, configuredProxy, platform);
-    }
+    setEnvKeyGroup(env, ALL_PROXY_KEYS, configuredProxy, platform);
     return;
   }
 
@@ -86,9 +84,7 @@ function applyProxyEnv(
     getFirstEnvValue(sourceEnv, [DRORA_HTTP_PROXY_ENV_KEY], platform),
   );
   if (droraProxy) {
-    for (const key of ALL_PROXY_KEYS) {
-      setEnvKey(env, key, droraProxy, platform);
-    }
+    setEnvKeyGroup(env, ALL_PROXY_KEYS, droraProxy, platform);
     return;
   }
 }
@@ -105,9 +101,7 @@ function applyNoProxyEnv(
   if (!noProxy) {
     return;
   }
-  for (const key of NO_PROXY_KEYS) {
-    setEnvKey(env, key, noProxy, platform);
-  }
+  setEnvKeyGroup(env, NO_PROXY_KEYS, noProxy, platform);
 }
 
 function applyCaEnv(
@@ -122,9 +116,7 @@ function applyCaEnv(
   if (!caCertFile) {
     return;
   }
-  for (const key of CA_TARGET_KEYS) {
-    setEnvKey(env, key, caCertFile, platform);
-  }
+  setEnvKeyGroup(env, CA_TARGET_KEYS, caCertFile, platform);
 }
 
 function normalizeProxyValue(value: string | undefined): string | undefined {
@@ -165,6 +157,27 @@ function setEnvKey(
 ): void {
   deleteEnvKey(env, key, platform);
   env[key] = value;
+}
+
+/**
+ * Windows 修复：同一值的别名族（HTTP_PROXY/http_proxy 等）必须成组写入。
+ * 原来逐个 setEnvKey，win32 的 deleteEnvKey 按大小写不敏感删除"已有变体"——
+ * 先写的大写别名会被后写的小写别名整体删掉，最终只剩一种大小写形态（POSIX
+ * 大小写敏感不受影响）。成组语义：先按组内全部键清理大小写变体，再整组写入，
+ * 保持"替换陈旧变体"的既有意图。
+ */
+function setEnvKeyGroup(
+  env: Record<string, string>,
+  keys: readonly string[],
+  value: string,
+  platform: NodeJS.Platform,
+): void {
+  for (const key of keys) {
+    deleteEnvKey(env, key, platform);
+  }
+  for (const key of keys) {
+    env[key] = value;
+  }
 }
 
 function deleteEnvKey(env: Record<string, string>, key: string, platform: NodeJS.Platform): void {

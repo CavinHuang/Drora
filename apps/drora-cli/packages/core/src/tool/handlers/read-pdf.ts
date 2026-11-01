@@ -33,8 +33,8 @@ import type {
   ToolHandlerFailure,
 } from "../types.js";
 
-const READ_PROVIDER_PDF_DESCRIPTION_LINE =
-  '- Reads PDFs via the `pages` parameter (e.g. "1-5", max 20 pages/request; required for PDFs over 10 pages).';
+const READ_PROVIDER_PDF_DESCRIPTION_SENTENCE =
+  'Reads PDFs via the `pages` parameter (e.g. "1-5", max 20 pages/request; required for PDFs over 10 pages).';
 const READ_ERROR_CODE_BY_PDF_DOCUMENT_ERROR = {
   cancelled: undefined,
   corrupted: ReadErrorCode.PDF_INVALID,
@@ -49,6 +49,12 @@ const READ_ERROR_CODE_BY_PDF_DOCUMENT_ERROR = {
 // 根因：120 秒只属于 Poppler 子进程；executor 若使用同一上限，会提前占用
 // 可用性检查、图片规范化和 finally 清理的时间，因此 pages 分支保留独立外层预算。
 export const READ_PDF_TOOL_TIMEOUT_MS = READ_PDF_RENDER_TIMEOUT_MS + 30_000;
+
+// 修复：模型面回显的路径统一正斜杠。Windows 的路径解析产出反斜杠，令冻结断言与
+// 模型可读形态随平台漂移；文件系统操作不受影响（node fs 接受正斜杠）。
+function toModelPath(filePath: string): string {
+  return filePath.replaceAll("\\", "/");
+}
 
 export function isPdfPath(filePath: string): boolean {
   return filePath.toLowerCase().endsWith(".pdf");
@@ -73,8 +79,9 @@ export function resolveReadProviderDescription(
   if (!supportsPdfForExecution(context)) return baseDescription;
   const lines = baseDescription.split("\n");
   const imageLineIndex = lines.findIndex((line) => line.startsWith("- Reads images"));
-  if (imageLineIndex < 0) return `${baseDescription}\n${READ_PROVIDER_PDF_DESCRIPTION_LINE}`;
-  lines.splice(imageLineIndex + 1, 0, READ_PROVIDER_PDF_DESCRIPTION_LINE);
+  if (imageLineIndex < 0) return `${baseDescription}\n- ${READ_PROVIDER_PDF_DESCRIPTION_SENTENCE}`;
+  // PDF 句接在图片行末尾，同一行。
+  lines[imageLineIndex] = `${lines[imageLineIndex]} ${READ_PROVIDER_PDF_DESCRIPTION_SENTENCE}`;
   return lines.join("\n");
 }
 
@@ -113,10 +120,10 @@ export async function readPdfFile(
     { signal: context.abortSignal },
   );
   if (stat.kind !== "file") {
-    return failure(ReadErrorCode.PDF_INVALID, `Path is not a regular file: ${input.filePath}`);
+    return failure(ReadErrorCode.PDF_INVALID, `Path is not a regular file: ${toModelPath(input.filePath)}`);
   }
   if (stat.sizeBytes === 0) {
-    return failure(ReadErrorCode.PDF_INVALID, `PDF file is empty: ${input.filePath}`);
+    return failure(ReadErrorCode.PDF_INVALID, `PDF file is empty: ${toModelPath(input.filePath)}`);
   }
 
   return input.pages === undefined
@@ -164,12 +171,12 @@ async function readNativePdf(
   if (!hasPdfMagic(read.content)) {
     return failure(
       ReadErrorCode.PDF_INVALID,
-      `File is not a valid PDF (missing %PDF- header): ${filePath}`,
+      `File is not a valid PDF (missing %PDF- header): ${toModelPath(filePath)}`,
     );
   }
   return {
     type: "pdf",
-    filePath,
+    filePath: toModelPath(filePath),
     base64: Buffer.from(read.content).toString("base64"),
     originalSize: read.sizeBytes,
   };
@@ -220,6 +227,7 @@ async function readPdfPages(
   try {
     const renderedPages = await context.pdfDocumentPort.renderPages(
       {
+        // 端口入参保持解析后的原始路径形态（非模型面展示），不作分隔符归一。
         filePath,
         firstPage: range.firstPage,
         lastPage: range.lastPage,
@@ -264,7 +272,7 @@ async function readPdfPages(
     preparedPages.sort((left, right) => left.pageNumber - right.pageNumber);
     return {
       type: "parts",
-      filePath,
+      filePath: toModelPath(filePath),
       numParts: preparedPages.length,
       originalSize: sizeBytes,
       pages: preparedPages,
@@ -301,7 +309,7 @@ export function formatReadPdfOutput(output: ReadPdfOutput): ModelMessageContent 
   return [
     {
       type: "text",
-      text: `PDF file read: ${output.filePath} (${formatFileSize(output.originalSize)})`,
+      text: `PDF file read: ${toModelPath(output.filePath)} (${formatFileSize(output.originalSize)})`,
     },
     {
       type: "file",
@@ -323,7 +331,7 @@ export function formatReadPdfPagesOutput(output: ReadPartsOutput): ModelMessageC
   return [
     {
       type: "text",
-      text: `PDF pages extracted: ${output.numParts} page(s) from ${output.filePath} (${formatFileSize(output.originalSize)})`,
+      text: `PDF pages extracted: ${output.numParts} page(s) from ${toModelPath(output.filePath)} (${formatFileSize(output.originalSize)})`,
     },
     ...output.pages.map((page) => ({
       type: "image" as const,

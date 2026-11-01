@@ -59,7 +59,10 @@ export async function prepareNativeSearchTools({
   }
 
   const plan =
-    prebuiltPlan ?? resolveNativeSearchPrebuiltPlan({ platform, arch, outputDir, dependenciesDir });
+    // env 必须透传：显式 NATIVE_SEARCH_TOOLS_ARTIFACT_SOURCE=repository 时计划不得再
+    // 按调用方进程环境推断出 intranet 并携带下载地址（上游 v3.17.1 契约）。
+    prebuiltPlan ??
+    resolveNativeSearchPrebuiltPlan({ platform, arch, outputDir, dependenciesDir, env });
 
   console.log("==> Preparing native search tools from repository archives");
   console.log(`    platform: ${plan.platformKey}`);

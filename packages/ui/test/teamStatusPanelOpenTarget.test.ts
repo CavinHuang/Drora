@@ -15,6 +15,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ConversationSnapshot } from "@drora/shared/drora-protocol-v4";
 import { DroraIntlProvider } from "@/i18n/IntlProvider.js";
 import { TooltipProvider } from "@/components/ui/tooltip.js";
+import { TabStoreProvider } from "@/store/TabStoreProvider.js";
 import { SessionPane } from "@/v4/SessionPane.js";
 import { TeamNavigationProvider } from "@/team/TeamNavigation.js";
 import { createTeamFixture } from "./fixtures/agents-team.fixture.js";
@@ -305,14 +306,21 @@ describe("状态面板团队行 open 入口 target 形态（§19 契约 6 / M16�
           createElement(
             TeamNavigationProvider,
             { onOpen },
-            createElement(SessionPane, {
-              paneId: "pane-1",
-              sessionId: "lead-session",
-              workspacePath: "/workspace",
-              workspaceIdentity: "identity://virtual/team",
-              remoteSessionId: "remote-1",
-              onOpenWorkflowRun: () => {},
-            }),
+            // 上游 v3.17.1 在 SessionPane 早期 hook 区接入 useSessionRuntimeRestart，其
+            // useWorkspaceServices 链读取 tab store；渲染环境补 TabStoreProvider（空 store
+            // 无 activeTab，remote 解析安全回退 null），团队行 target 断言不变。
+            createElement(
+              TabStoreProvider,
+              null,
+              createElement(SessionPane, {
+                paneId: "pane-1",
+                sessionId: "lead-session",
+                workspacePath: "/workspace",
+                workspaceIdentity: "identity://virtual/team",
+                remoteSessionId: "remote-1",
+                onOpenWorkflowRun: () => {},
+              }),
+            ),
           ),
         ),
       ),

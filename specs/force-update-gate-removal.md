@@ -24,6 +24,16 @@ git 历史，Drora 未来运营自有后端时可按需恢复）。
 - 不触碰常规自动更新（服务端 manifest provider、菜单检查、轮询、差分下载）。
 - Preview/dev 构建原本就跳过 gate，行为不变；production 打包从"可能被上游拦"变为"不拦"。
 
+## 例外：compareSemverVersions 作为通用工具回迁（2026-11-01，v3.17.1 S5 段）
+
+上游 v3.17.1 的新消费方（`packages/ui/src/data-sync/domain/compare.ts` 的行版本比较、
+`sourceServerUpdateAction` 对 `SOURCE_SERVER_LIFECYCLE_CONTROL_MIN_VERSION` 的门槛判断）
+从 `@zcode/shared` 导入 `compareSemverVersions`。该函数在上游与强更门控同住
+`forceUpdate.ts`，但其本身是纯 semver 比较，与"远端强制升级"语义无关。按本 spec 删除
+forceUpdate.ts 后，为避免 UI 侧复制第二份实现，把该函数及其解析辅助**逐行原样**迁至
+`packages/shared/src/semver.ts` 并从 shared index 导出；`resolveForceUpdateRequirement`、
+`ForceUpdateRequirement`、`ForceUpdateConfig` 与 client/configs 强更链路维持删除，不随迁。
+
 ## 验收
 
 1. 全仓无 forceUpdate 残留引用（typecheck 证明）。

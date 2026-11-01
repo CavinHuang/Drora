@@ -1,0 +1,220 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-10-31",
+  "timezone": "Asia/Shanghai",
+  "scope": "planning-only; no product merge by this task",
+  "refs": {
+    "base": "0a1fc56d279fd1001f78387bd81aec1c26767411",
+    "middle": "3c5b227649371507ddc4eb46ac5133afe6db1cab",
+    "target": "a60ba6a7e5a06742270ca605f5d2cc2766afa7e1",
+    "main": "66c9193fdd006df0bb30f0cc7c6ab316553d6052",
+    "localMain": "02b0e30410b7547226abec2a65a0fc1206508fb2",
+    "head": "1a0081c230f578c420ed9d41545ad6d67bd641b5",
+    "ours": "66c9193fdd006df0bb30f0cc7c6ab316553d6052",
+    "previousMain": "8ee406fc92d4f217ccdc2c3f357c341621f15e3c"
+  },
+  "mainAdvance": {
+    "pullRequest": "https://github.com/CavinHuang/Drora/pull/32",
+    "headIsAncestor": true,
+    "mainAndHeadTreeEqual": true
+  },
+  "counts": {
+    "upstream": 5548,
+    "upstreamStatus": {
+      "M": 1987,
+      "D": 2298,
+      "A": 1263
+    },
+    "middle": 263,
+    "middleStatus": {
+      "M": 221,
+      "A": 35,
+      "D": 7
+    },
+    "last": 5464,
+    "lastStatus": {
+      "M": 1921,
+      "D": 2303,
+      "A": 1240
+    },
+    "local": 10164,
+    "localStatus": {
+      "M": 2683,
+      "D": 16,
+      "A": 7465
+    },
+    "localOverlap": 845,
+    "historicalFeatureBranchPaths": 176,
+    "historicalFeatureBranchCommits": 11,
+    "localMainBehindRemoteMain": 144,
+    "historicalFeatureBranchUpstreamOverlap": 41
+  },
+  "segments": {
+    "S6": {
+      "A": 122,
+      "M": 311,
+      "D": 13,
+      "T": 0,
+      "testsDeleted": 3
+    },
+    "S1": {
+      "A": 38,
+      "M": 81,
+      "D": 165,
+      "T": 0,
+      "testsDeleted": 162
+    },
+    "S2": {
+      "A": 279,
+      "M": 639,
+      "D": 2,
+      "T": 0,
+      "testsDeleted": 1
+    },
+    "S3": {
+      "A": 43,
+      "M": 122,
+      "D": 444,
+      "T": 0,
+      "testsDeleted": 440
+    },
+    "S4": {
+      "A": 655,
+      "M": 557,
+      "D": 545,
+      "T": 0,
+      "testsDeleted": 542
+    },
+    "S5": {
+      "A": 126,
+      "M": 277,
+      "D": 1129,
+      "T": 0,
+      "testsDeleted": 1111
+    }
+  },
+  "testAssetPaths": {
+    "deleted": 2259,
+    "added": 785
+  },
+  "dryrun": {
+    "previousMain": {
+      "take-upstream": 1519,
+      "delete-review": 1928,
+      "text-conflict": 140,
+      "text-clean-needs-semantic-review": 310,
+      "zone-decision": 17,
+      "add": 1262,
+      "delete-local-change-review": 365,
+      "already-present": 1,
+      "lockfile-regenerate": 2,
+      "already-deleted": 4
+    },
+    "currentMain": {
+      "take-upstream": 1506,
+      "delete-review": 1926,
+      "text-conflict": 149,
+      "text-clean-needs-semantic-review": 314,
+      "zone-decision": 17,
+      "add": 1262,
+      "delete-local-change-review": 367,
+      "already-present": 1,
+      "lockfile-regenerate": 2,
+      "already-deleted": 4
+    },
+    "currentMainBySegment": {
+      "S6": {
+        "take-upstream": 175,
+        "delete-review": 8,
+        "text-conflict": 47,
+        "text-clean-needs-semantic-review": 77,
+        "add": 121,
+        "delete-local-change-review": 4,
+        "already-present": 1,
+        "zone-decision": 13
+      },
+      "S1": {
+        "take-upstream": 42,
+        "text-conflict": 12,
+        "text-clean-needs-semantic-review": 24,
+        "zone-decision": 1,
+        "add": 38,
+        "delete-review": 141,
+        "lockfile-regenerate": 2,
+        "delete-local-change-review": 23,
+        "already-deleted": 1
+      },
+      "S2": {
+        "take-upstream": 559,
+        "add": 279,
+        "text-clean-needs-semantic-review": 59,
+        "text-conflict": 18,
+        "delete-review": 2,
+        "zone-decision": 3
+      },
+      "S3": {
+        "text-clean-needs-semantic-review": 28,
+        "take-upstream": 85,
+        "delete-review": 375,
+        "delete-local-change-review": 68,
+        "text-conflict": 9,
+        "add": 43,
+        "already-deleted": 1
+      },
+      "S4": {
+        "text-conflict": 44,
+        "add": 655,
+        "text-clean-needs-semantic-review": 91,
+        "take-upstream": 422,
+        "delete-review": 420,
+        "delete-local-change-review": 123,
+        "already-deleted": 2
+      },
+      "S5": {
+        "text-conflict": 19,
+        "text-clean-needs-semantic-review": 35,
+        "take-upstream": 223,
+        "delete-review": 980,
+        "add": 126,
+        "delete-local-change-review": 149
+      }
+    }
+  },
+  "previousMainLocalDifference": {
+    "upstream": 5548,
+    "upstreamStatus": {
+      "M": 1987,
+      "D": 2298,
+      "A": 1263
+    },
+    "middle": 263,
+    "middleStatus": {
+      "M": 221,
+      "A": 35,
+      "D": 7
+    },
+    "last": 5464,
+    "lastStatus": {
+      "M": 1921,
+      "D": 2303,
+      "A": 1240
+    },
+    "local": 10032,
+    "localStatus": {
+      "M": 2661,
+      "D": 16,
+      "A": 7355
+    },
+    "localOverlap": 830,
+    "featureBranch": 176
+  },
+  "method": "Current committed transformContent/mapRelPath/zoneOf; binary extension set and UTF-8/NUL behavior reproduced from current transform source. Blob-level audit, no product tree writes.",
+  "limitations": [
+    "No product tree written by this task; merge-file textual results do not prove semantic integration.",
+    "Current main advanced externally by PR 32; its tree equals the audited feature HEAD.",
+    "No whole-tree rename, dependency install, runtime, E2E, or bundle parity performed.",
+    "All final dispositions are pending. Test-asset counting includes helpers and fixtures.",
+    "Local differences include documentation, generated and vendor files, not just features.",
+    "TSV Git OIDs are blob object hashes; missing values use a single hyphen."
+  ]
+}

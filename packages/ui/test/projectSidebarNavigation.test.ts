@@ -82,7 +82,8 @@ it("SBV02: filter has project, group and recent update choices", async () => {
   const trigger = screen.getByTestId("sidebar-view-menu");
   fireEvent.keyDown(trigger, { key: "ArrowDown" });
   const choices = await screen.findAllByRole("menuitemradio");
-  expect(choices).toHaveLength(3);
+  // 上游 v3.17.1 在 projects/grouped/timeline 之外新增 unread 过滤项，计数随新实现更新。
+  expect(choices).toHaveLength(4);
   expect(choices[0]?.getAttribute("aria-checked")).toBe("true");
   fireEvent.click(screen.getByTestId("sidebar-view-timeline"));
   expect(onViewChange).toHaveBeenCalledWith("timeline");

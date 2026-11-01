@@ -174,7 +174,9 @@ export class ShellInitSnapshotManager {
   private async resolveSnapshotPathValue(
     request: ShellInitSnapshotRequest & { shellDialect: ShellInitSnapshotDialect },
   ): Promise<string> {
-    if (request.shellDialect !== "git-bash") return request.env.PATH ?? "";
+    if (request.shellDialect !== "git-bash") {
+      return toShellPathList(request.env.PATH ?? "");
+    }
 
     try {
       const result = await this.execFile(request.shellPath, ["-lc", 'echo "$PATH"'], {
@@ -184,11 +186,27 @@ export class ShellInitSnapshotManager {
         timeout: SNAPSHOT_TIMEOUT_MS,
         windowsHide: true,
       });
-      return result.stdout.trim() || request.env.PATH || "";
+      return result.stdout.trim() || toShellPathList(request.env.PATH ?? "");
     } catch {
-      return request.env.PATH ?? "";
+      return toShellPathList(request.env.PATH ?? "");
     }
   }
+}
+
+/**
+ * Windows 修复：快照里的 `export PATH=...` 由 bash source，必须是用 `:` 分隔的
+ * POSIX/MSYS 形态。宿主 env.PATH 在 win32 是 `;` 分隔的 Windows 路径串，原样写入
+ * 会让 bash 把整串当成单个 PATH 条目——source 之后所有外部命令（sleep 等）都
+ * `command not found`，内建命令仍可用。检测到 Windows 形态（含 `;` 或盘符开头）时
+ * 逐段转成 MSYS 路径再用 `:` 连接；POSIX 的 PATH 本就是 `:` 分隔，原样返回。
+ */
+function toShellPathList(value: string): string {
+  if (!value.includes(";") && !/^[A-Za-z]:[\\/]/u.test(value)) return value;
+  return value
+    .split(";")
+    .filter(Boolean)
+    .map((entry) => windowsPathToGitBashPath(entry))
+    .join(":");
 }
 
 export async function cleanupStaleShellInitSnapshots(
@@ -254,9 +272,13 @@ export function detectShellInitConfigPath(input: {
 }): string {
   const home = input.env.HOME || input.env.USERPROFILE || "";
   const shellKind = detectShellKind(input.shellPath);
-  if (shellKind === "zsh") return join(home, ".zshrc");
-  if (shellKind === "bash") return join(home, ".bashrc");
-  return join(home, ".profile");
+  // Windows 修复：rc 路径会写进 bash 的 `source "..."` 行，反斜杠在 shell 双引号里
+  // 是转义符（"\h" → h），按字面拼会把 /home/user/.zshrc 变成 \home\user\.zshrc 再
+  // 被吃掉分隔符。统一输出正斜杠形态；MSYS/bash 接受 C:/... 与 /home/... 的正斜杠
+  // 写法，POSIX 无反斜杠、行为不变。
+  const configName =
+    shellKind === "zsh" ? ".zshrc" : shellKind === "bash" ? ".bashrc" : ".profile";
+  return join(home, configName).replace(/\\/g, "/");
 }
 
 export function buildShellInitSnapshotCreationScript(input: {

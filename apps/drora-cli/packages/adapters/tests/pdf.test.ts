@@ -56,8 +56,9 @@ describe("Poppler PDF adapter", () => {
       },
       timeoutMs: 120_000,
     });
+    // Windows：join 产物用 `\` 分隔；用 join+escapeRegExp 生成平台无关的前缀正则。
     expect(dirname((requests[1]!.command as { args: string[] }).args.at(-1)!)).toMatch(
-      new RegExp(`^${escapeRegExp(tempRoot)}/drora-read-pdf-`, "u"),
+      new RegExp(`^${escapeRegExp(join(tempRoot, "drora-read-pdf-"))}`, "u"),
     );
     expect(basename((requests[1]!.command as { args: string[] }).args.at(-1)!)).toBe("page");
   });

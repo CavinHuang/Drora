@@ -1,0 +1,2204 @@
+{
+ "segment": "S6",
+ "ledger": {
+  "path": "docs/upstream-sync/2026-10-31-v3.17.1/upstream-ledger.tsv",
+  "sha256": "8e1c507199cb4d50d876c6c23d2ff2a3f335496eec29bf4f433b62a341a3e2cc"
+ },
+ "dry": true,
+ "counts": {
+  "add": 121,
+  "take-upstream": 175,
+  "text-clean-needs-semantic-review": 77,
+  "text-conflict": 47,
+  "delete-review": 8,
+  "delete-local-change-review": 4,
+  "zone-decision": 13,
+  "already-present": 1,
+  "lockfile-regenerate": 0,
+  "already-deleted": 0
+ },
+ "applied": [
+  {
+   "path": ".agents/skills/architecture-governance/SKILL.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": ".agents/skills/architecture-governance/references/golden-module/CONTRACT.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": ".agents/skills/architecture-governance/references/golden-module/contract.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": ".agents/skills/architecture-governance/references/module-contract.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": ".agents/skills/architecture-governance/references/policy-schema.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": ".agents/skills/architecture-governance/references/rule-catalog.md",
+   "action": "text-conflict",
+   "conflicts": 1
+  },
+  {
+   "path": ".agents/skills/architecture-governance/references/troubleshooting.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": ".agents/skills/e2e-case-lifecycle/SKILL.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": ".agents/skills/feature-boundary-planner/references/drora-feature-graph.yaml",
+   "action": "text-conflict",
+   "conflicts": 2
+  },
+  {
+   "path": ".agents/skills/session-management/SKILL.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/agents/instruction-maintenance.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/agents/issue-tracker.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/agents/runtime-boundaries.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/analysis/credentials-json-code-audit.md",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "docs/architecture/architecture-governance.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/architecture/r2-server-cli-and-daemon-test-plan.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/architecture/r2-server-cli-and-daemon.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/architecture/r3-source-server-remote-architecture.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/architecture/r3-source-server-remote-open-issues.md",
+   "action": "text-conflict",
+   "conflicts": 1
+  },
+  {
+   "path": "docs/architecture/remote-device-connection-ux-spec.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/architecture/rpc.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/ask-user-question-auto-resolution.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/automation-edit-status.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/bigmodel-business-error-retry.md",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "docs/bots-e2e-case-catalog.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/bots-feishu-group-collaboration.md",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "docs/bots.md",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "docs/browser-use/2026-07-09-browser-use-codex-alignment-phase1-spec.md",
+   "action": "delete"
+  },
+  {
+   "path": "docs/browser-use/2026-07-09-browser-use-phase1-spec.md",
+   "action": "add"
+  },
+  {
+   "path": "docs/browser-use/2026-07-10-browser-use-spec.md",
+   "action": "add"
+  },
+  {
+   "path": "docs/browser-use/2026-07-12-browser-tab-process-lifetime-spec.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/browser-use/2026-07-12-browser-tab-selection-activation-spec.md",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "docs/browser-use/2026-07-12-browser-use-runtime-semantics-spec.md",
+   "action": "add"
+  },
+  {
+   "path": "docs/browser-use/2026-07-13-cli-headless-cdp-backend-spec.md",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "docs/browser-use/2026-07-14-browser-resize-operation-warning-spec.md",
+   "action": "text-conflict",
+   "conflicts": 1
+  },
+  {
+   "path": "docs/browser-use/2026-07-15-browser-turn-final-screenshot-spec.md",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "docs/browser-use/2026-07-19-desktop-iab-e2e-spec.md",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "docs/browser-use/2026-07-31-browser-generic-target-popup-recovery-guidance-spec.md",
+   "action": "text-conflict",
+   "conflicts": 1
+  },
+  {
+   "path": "docs/browser-use/2026-08-23-browser-guest-scope-recovery-spec.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/browser-use/2026-09-07-desktop-zoom-coordinate-spec.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/builtin-provider-maintenance/README.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/builtin-provider-maintenance/configuration.md",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "docs/builtin-provider-maintenance/current-state.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/builtin-provider-maintenance/delivery.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/builtin-provider-maintenance/expansion-2026-10-15.md",
+   "action": "add"
+  },
+  {
+   "path": "docs/builtin-provider-maintenance/expansion-plan.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/builtin-provider-maintenance/kimi-k3-1-pro.md",
+   "action": "add"
+  },
+  {
+   "path": "docs/builtin-provider-maintenance/minimax-m31-flash.md",
+   "action": "add"
+  },
+  {
+   "path": "docs/builtin-provider-maintenance/regression-testing.md",
+   "action": "add"
+  },
+  {
+   "path": "docs/builtin-provider-maintenance/research.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/builtin-provider-maintenance/scope.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/builtin-provider-maintenance/validation.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/builtin-provider-maintenance/workflow.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/chat/assistant-streaming-text-rendering.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/chat/changes-tool-call-grouping.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/chat/conversation-turn-view-model.md",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "docs/chat/interaction-behavior.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/chat/message-render-performance.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/chat/synthetic-timeline-dividers.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/ci-cache-strategy.md",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "docs/ci/affected-unit-test-baseline.md",
+   "action": "text-conflict",
+   "conflicts": 1
+  },
+  {
+   "path": "docs/claude-code-marketplace-plugin-compat.md",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "docs/cli-background-subagent-wake-plan.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/cli-plugins-command-parity.md",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "docs/coding-plan/drora-official-plugin-command-auth-spec.md",
+   "action": "add"
+  },
+  {
+   "path": "docs/coding-plan/drora-official-server-mcp-auth-spec.md",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "docs/coding-plan/drora-official-server-mcp-quota-banner-spec.md",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "docs/composer-model-thinking.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/context-cache-hit-rate.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/conversation-product-protocol.md",
+   "action": "text-conflict",
+   "conflicts": 1
+  },
+  {
+   "path": "docs/conversation-product-state-space.md",
+   "action": "text-conflict",
+   "conflicts": 1
+  },
+  {
+   "path": "docs/conversation-protocol-declaration.md",
+   "action": "text-conflict",
+   "conflicts": 1
+  },
+  {
+   "path": "docs/conversation-session-case-catalog.md",
+   "action": "text-conflict",
+   "conflicts": 4
+  },
+  {
+   "path": "docs/conversation-share-v1.md",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "docs/cua/2026-10-13-windows-input-delivery-spec.md",
+   "action": "add"
+  },
+  {
+   "path": "docs/cua/2026-10-16-windows-input-s3-dispatch-plan.md",
+   "action": "add"
+  },
+  {
+   "path": "docs/cua/2026-10-19-scroll-postmessage-probe-report.md",
+   "action": "add"
+  },
+  {
+   "path": "docs/cua/2026-10-19-windows-input-s4-parallel-baseline.md",
+   "action": "add"
+  },
+  {
+   "path": "docs/cua/2026-10-19-windows-input-s4-plan.md",
+   "action": "add"
+  },
+  {
+   "path": "docs/cua/2026-10-20-electron-postmessage-probe-report.md",
+   "action": "add"
+  },
+  {
+   "path": "docs/cua/2026-10-23-windows-app-frame-surface-spec.md",
+   "action": "add"
+  },
+  {
+   "path": "docs/cua/cua-tool-app-identity-summary.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/cua/evidence/README.md",
+   "action": "add"
+  },
+  {
+   "path": "docs/cua/producer/multi-session-cursor-overlay-spec.md",
+   "action": "add"
+  },
+  {
+   "path": "docs/cua/producer/windows-app-identity-and-transparent-launch.md",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "docs/cua/windows-product-runtime.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/cua/zcode-cua-monorepo-migration.md",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "docs/design/v2/tool/00-tool-change-chain.md",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "docs/design/v2/tool/tool-history-order-repair-proposal.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/design/workspace-independent-panels.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/desktop-ci-cd.md",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "docs/desktop/auto-update-service-manifest.md",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "docs/desktop/dev-auto-update-test.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/desktop/finder-open-folder-deep-link.md",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "docs/desktop/windows-taskbar-unread-badge.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/desktop/windows-update-install-handoff.md",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "docs/dynamic-workflow/authoring.md",
+   "action": "text-conflict",
+   "conflicts": 2
+  },
+  {
+   "path": "docs/dynamic-workflow/concurrency.md",
+   "action": "text-conflict",
+   "conflicts": 5
+  },
+  {
+   "path": "docs/dynamic-workflow/launch.md",
+   "action": "text-conflict",
+   "conflicts": 3
+  },
+  {
+   "path": "docs/dynamic-workflow/presentation.md",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "docs/dynamic-workflow/transcript-and-notifications.md",
+   "action": "text-conflict",
+   "conflicts": 1
+  },
+  {
+   "path": "docs/electron/desktop-bundle.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/electron/docs/README.md",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "docs/electron/electron-44-upgrade.md",
+   "action": "add"
+  },
+  {
+   "path": "docs/electron/electron-builder-26.17-upgrade.md",
+   "action": "add"
+  },
+  {
+   "path": "docs/feedback-new-api-migration.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/feedback-simplified-flow.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/file-preview-open-apps.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/git/release-build-publish-separation.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/git/untracked-file-stat-budget.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/highspeed/highspeed-card-spec.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/hooks-implementation-analysis.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/hooks-runtime-contract.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/issues/data-sync/01-harden-user-config-writers.md",
+   "action": "add"
+  },
+  {
+   "path": "docs/issues/data-sync/02-block-sync-channels-on-mobile.md",
+   "action": "add"
+  },
+  {
+   "path": "docs/issues/data-sync/03-local-docker-remote-e2e-runner.md",
+   "action": "add"
+  },
+  {
+   "path": "docs/issues/data-sync/04-data-sync-page-skill-push.md",
+   "action": "add"
+  },
+  {
+   "path": "docs/issues/data-sync/05-device-list-status-connect.md",
+   "action": "add"
+  },
+  {
+   "path": "docs/issues/data-sync/06-mcp-category.md",
+   "action": "add"
+  },
+  {
+   "path": "docs/issues/data-sync/07-inline-plugin-category.md",
+   "action": "add"
+  },
+  {
+   "path": "docs/issues/data-sync/08-marketplace-plugin-category.md",
+   "action": "add"
+  },
+  {
+   "path": "docs/issues/data-sync/09-subagent-category-sync-channel.md",
+   "action": "add"
+  },
+  {
+   "path": "docs/issues/data-sync/10-command-category.md",
+   "action": "add"
+  },
+  {
+   "path": "docs/issues/data-sync/11-hook-category.md",
+   "action": "add"
+  },
+  {
+   "path": "docs/issues/data-sync/12-subagent-dependency-hints.md",
+   "action": "add"
+  },
+  {
+   "path": "docs/issues/data-sync/13-provider-readonly-retry.md",
+   "action": "add"
+  },
+  {
+   "path": "docs/issues/data-sync/14-route-legacy-sync-entries.md",
+   "action": "add"
+  },
+  {
+   "path": "docs/issues/data-sync/15-scope-menu-by-device.md",
+   "action": "add"
+  },
+  {
+   "path": "docs/issues/data-sync/16-migration-entry.md",
+   "action": "add"
+  },
+  {
+   "path": "docs/issues/data-sync/19-scope-menu-project-submenu.md",
+   "action": "add"
+  },
+  {
+   "path": "docs/issues/e2e-promotion/01-project-create-telemetry-source.md",
+   "action": "add"
+  },
+  {
+   "path": "docs/issues/e2e-promotion/02-edit-fork-model-selection.md",
+   "action": "add"
+  },
+  {
+   "path": "docs/issues/e2e-promotion/03-auto-compact-duplicate-command.md",
+   "action": "add"
+  },
+  {
+   "path": "docs/issues/e2e-promotion/04-remote-join-before-renderer-attachment.md",
+   "action": "add"
+  },
+  {
+   "path": "docs/issues/e2e-promotion/05-first-submit-project-frame-order.md",
+   "action": "add"
+  },
+  {
+   "path": "docs/issues/e2e-promotion/06-plugin-source-error-lost-on-auto-refresh.md",
+   "action": "add"
+  },
+  {
+   "path": "docs/issues/e2e-promotion/07-remote-project-editor-escape.md",
+   "action": "add"
+  },
+  {
+   "path": "docs/issues/e2e-promotion/08-file-tree-tooltip-contract.md",
+   "action": "add"
+  },
+  {
+   "path": "docs/issues/e2e-promotion/09-git-find-match-not-centered.md",
+   "action": "add"
+  },
+  {
+   "path": "docs/issues/e2e-promotion/10-feishu-group-draft-mode-missing.md",
+   "action": "add"
+  },
+  {
+   "path": "docs/issues/e2e-promotion/11-oversized-image-upload-error-code.md",
+   "action": "add"
+  },
+  {
+   "path": "docs/issues/e2e-promotion/12-automation-task-membership-lost.md",
+   "action": "add"
+  },
+  {
+   "path": "docs/issues/e2e-promotion/13-config-pending-blocks-first-submit.md",
+   "action": "add"
+  },
+  {
+   "path": "docs/issues/e2e-promotion/14-additional-root-subagents-missing.md",
+   "action": "add"
+  },
+  {
+   "path": "docs/issues/e2e-promotion/15-browser-guest-destroyed-on-task-switch.md",
+   "action": "add"
+  },
+  {
+   "path": "docs/issues/e2e-promotion/16-offpeak-selection-leaks-into-resumed-composer.md",
+   "action": "add"
+  },
+  {
+   "path": "docs/issues/e2e-promotion/18-electron-quit-window-not-closed.md",
+   "action": "add"
+  },
+  {
+   "path": "docs/issues/e2e-promotion/19-login-guard-settings-hydration-order.md",
+   "action": "add"
+  },
+  {
+   "path": "docs/issues/e2e-promotion/20-edit-submit-rejected-near-title-update.md",
+   "action": "add"
+  },
+  {
+   "path": "docs/issues/e2e-promotion/21-query-continues-after-runtime-close.md",
+   "action": "add"
+  },
+  {
+   "path": "docs/issues/e2e-promotion/22-start-plan-subagent-thought-menu.md",
+   "action": "add"
+  },
+  {
+   "path": "docs/issues/e2e-promotion/23-production-model-trajectory-store-bridge.md",
+   "action": "add"
+  },
+  {
+   "path": "docs/issues/e2e-promotion/24-remote-project-entry-overlapping-navigation.md",
+   "action": "add"
+  },
+  {
+   "path": "docs/issues/remote-connection-ux/04-wizard-p0-fixes-and-flow-controller.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/issues/remote-connection-ux/23-chat-remote-folder-existing-project.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/issues/remote-daemon-lifecycle/01-stop-restart-remote-service.md",
+   "action": "add"
+  },
+  {
+   "path": "docs/issues/remote-daemon-lifecycle/02-prefactor-stop-wait-and-lifecycle-flight.md",
+   "action": "add"
+  },
+  {
+   "path": "docs/issues/remote-daemon-lifecycle/03-stop-remote-service.md",
+   "action": "add"
+  },
+  {
+   "path": "docs/issues/remote-daemon-lifecycle/04-restart-remote-service.md",
+   "action": "add"
+  },
+  {
+   "path": "docs/issues/remote-daemon-lifecycle/05-confirm-running-tasks-and-impact.md",
+   "action": "add"
+  },
+  {
+   "path": "docs/issues/remote-daemon-lifecycle/06-online-error-shown-as-failed.md",
+   "action": "add"
+  },
+  {
+   "path": "docs/issues/remote-e2e-stability/02-uninstall-reinstall-entry.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/issues/remote-e2e-stability/12-project-symlink-workspace-identity.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/issues/remote-e2e-stability/16-settings-show-project-focus.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/issues/remote-e2e-stability/17-unavailable-root-history-navigation.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/issues/remote-e2e-stability/22-project-editor-focus-missing.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/issues/remote-e2e-stability/23-desktop-upgrade-guidance-missing.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/issues/remote-e2e-stability/26-minimized-connection-progress-missing.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/issues/remote-e2e-stability/27-concurrent-navigation-shared-session.md",
+   "action": "add"
+  },
+  {
+   "path": "docs/issues/remote-e2e-stability/28-connect-wizard-one-click-sync-unreachable.md",
+   "action": "add"
+  },
+  {
+   "path": "docs/issues/remote-performance-3-16/01-remote-session-lag-analysis.md",
+   "action": "add"
+  },
+  {
+   "path": "docs/issues/remote-startup-failures-3-16/01-source-server-startup-failure-triage.md",
+   "action": "add"
+  },
+  {
+   "path": "docs/issues/remote-startup-failures-3-16/02-service-registration-failure-fallback.md",
+   "action": "add"
+  },
+  {
+   "path": "docs/issues/remote-startup-failures-3-16/03-corrupted-release-recovery.md",
+   "action": "add"
+  },
+  {
+   "path": "docs/issues/remote-startup-failures-3-16/04-shared-home-across-hosts.md",
+   "action": "add"
+  },
+  {
+   "path": "docs/issues/remote-startup-failures-3-16/05-unexplained-ssh-timeouts-and-token-read.md",
+   "action": "add"
+  },
+  {
+   "path": "docs/issues/remote-startup-failures-3-16/06-legacy-lock-pid-reuse-after-upgrade.md",
+   "action": "add"
+  },
+  {
+   "path": "docs/issues/remote-tickets-3-16-2-1022/01-ticket-triage.md",
+   "action": "add"
+  },
+  {
+   "path": "docs/issues/remote-tickets-3-16-2-1022/02-startup-reconnect-cancel-hangs-ssh-flight.md",
+   "action": "add"
+  },
+  {
+   "path": "docs/issues/remote-tickets-3-16-2-1022/03-install-confirm-drops-ssh-password.md",
+   "action": "add"
+  },
+  {
+   "path": "docs/issues/remote-tickets-3-16-2-1022/04-wsl-stale-failure-handoff-and-profile-split.md",
+   "action": "add"
+  },
+  {
+   "path": "docs/issues/remote-tickets-3-16-2-1022/05-local-setting-lock-blocks-remote-admission.md",
+   "action": "add"
+  },
+  {
+   "path": "docs/issues/remote-tickets-3-16-2-1022/06-orphan-supervisor-after-server-root-replaced.md",
+   "action": "add"
+  },
+  {
+   "path": "docs/issues/remote-tickets-3-16-2-1022/07-systemd-user-service-without-linger.md",
+   "action": "add"
+  },
+  {
+   "path": "docs/issues/remote-tickets-3-16-2-1022/08-first-provisioning-barrier-on-slow-remote.md",
+   "action": "add"
+  },
+  {
+   "path": "docs/issues/remote-tickets-3-16-2-1022/09-remote-devices-settings-typography.md",
+   "action": "add"
+  },
+  {
+   "path": "docs/issues/web-remote-control-relay-v2/03-desktop-v2-register-token-pair.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/issues/web-remote-control-relay-v2/05-mobile-login-and-qr-direct-connect.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/mcp-platform-boundary.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/mcp-stateless-node-repl.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/model-provider-config-overrides.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/model-provider-project-access-token.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/model-provider-regression-case-catalog.md",
+   "action": "text-conflict",
+   "conflicts": 2
+  },
+  {
+   "path": "docs/model-request-output-tokens.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/model-tool-call-validation.md",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "docs/monitoring/arms-browser-monitoring.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/monitoring/business-monitoring.md",
+   "action": "text-conflict",
+   "conflicts": 1
+  },
+  {
+   "path": "docs/monitoring/composer-send-funnel-telemetry.md",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "docs/monitoring/conversation-telemetry-v4.md",
+   "action": "text-conflict",
+   "conflicts": 1
+  },
+  {
+   "path": "docs/monitoring/local-ttft-queries.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/monitoring/plugin-lifecycle-telemetry.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/monitoring/process-resource-telemetry.md",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "docs/monitoring/ttft-stage-telemetry.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/off-peak-task/background-lifecycle-plan.md",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "docs/off-peak-task/decisions.md",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "docs/off-peak-task/glossary.md",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "docs/off-peak-task/spec.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/off-peak-task/tech-design.md",
+   "action": "text-conflict",
+   "conflicts": 2
+  },
+  {
+   "path": "docs/performance/react-scan-dev.md",
+   "action": "add"
+  },
+  {
+   "path": "docs/performance/runtime-communication-repro.md",
+   "action": "text-conflict",
+   "conflicts": 1
+  },
+  {
+   "path": "docs/plan/trajectory/provider-visible-content-parity.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/plans/2026-07-15-subagent-summary-side-pane-only-plan.md",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "docs/plans/2026-09-18-feedback-upload-privacy.md",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "docs/plans/2026-10-12-electron-44-upgrade.md",
+   "action": "add"
+  },
+  {
+   "path": "docs/plans/session-task-restart-implementation.md",
+   "action": "add"
+  },
+  {
+   "path": "docs/plugin-cdn-zip-source.md",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "docs/plugin-creator.md",
+   "action": "text-conflict",
+   "conflicts": 1
+  },
+  {
+   "path": "docs/plugin-management-lifecycle-case-catalog.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/plugin-marketplace-ui-ux.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/plugin-ui-background-execution.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/plugin-ui-display-modes-spec.md",
+   "action": "add"
+  },
+  {
+   "path": "docs/plugins/2026-10-15-office-viewer-builtin-panels-spec.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/plugins/plugin-market-interactions-scope.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/plugins/workspace-level-plugin-architecture.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/project-primary-root-availability.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/remote/README.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/remote/data-sync.md",
+   "action": "add"
+  },
+  {
+   "path": "docs/remote/desktop-remote-session-renderer-reattach.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/remote/project-first-remote-navigation-spec.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/remote/provider-provisioning.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/runtime-tools/agent-electron-node-runtime.md",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "docs/runtime-tools/embedded-search-native-build.md",
+   "action": "text-conflict",
+   "conflicts": 1
+  },
+  {
+   "path": "docs/runtime-tools/mcp-status-list-control-plane.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/security/deep-link-project-trust-boundary.md",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "docs/session-context-tool.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/session-idle-deactivation.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/session-task-restart.md",
+   "action": "add"
+  },
+  {
+   "path": "docs/settings-command-list.md",
+   "action": "text-conflict",
+   "conflicts": 1
+  },
+  {
+   "path": "docs/settings-mcp-list.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/settings-storage-management.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/settings-subagent-list.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/shared-task-cli.md",
+   "action": "add"
+  },
+  {
+   "path": "docs/side-pane-terminal-session-keepalive.md",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "docs/site/sites-e2e-case-catalog.md",
+   "action": "add"
+  },
+  {
+   "path": "docs/site/sites-panel.md",
+   "action": "add"
+  },
+  {
+   "path": "docs/skills-product.md",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "docs/specs/gen-ui-model-context.md",
+   "action": "add"
+  },
+  {
+   "path": "docs/specs/workspace-hook-trust-persistent-only.md",
+   "action": "text-conflict",
+   "conflicts": 2
+  },
+  {
+   "path": "docs/specs/workspace-hook-trust-soft-gate.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/ssh-remote-app-global-state-authority.md",
+   "action": "text-conflict",
+   "conflicts": 1
+  },
+  {
+   "path": "docs/start-plan-daily-quota-banner.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/start-plan-provider-business-errors.md",
+   "action": "text-conflict",
+   "conflicts": 1
+  },
+  {
+   "path": "docs/subagent-runtime-refresh.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/subagent-session-side-tabs.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/subagents-built-in-model-overrides.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/superpowers/plans/2026-07-02-agent-step-message-scope-e2e.md",
+   "action": "text-conflict",
+   "conflicts": 1
+  },
+  {
+   "path": "docs/superpowers/plans/2026-07-07-exit-plan-mode-plan-file-compact-continuity.md",
+   "action": "text-conflict",
+   "conflicts": 2
+  },
+  {
+   "path": "docs/superpowers/plans/2026-07-15-compact-stream-first-nonstream-fallback.md",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "docs/superpowers/plans/2026-07-21-desktop-e2e-runtime-paths.md",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "docs/superpowers/plans/2026-07-23-browser-background-screenshot-surface.md",
+   "action": "text-conflict",
+   "conflicts": 1
+  },
+  {
+   "path": "docs/superpowers/plans/2026-07-23-browser-guest-crash-recovery.md",
+   "action": "text-conflict",
+   "conflicts": 1
+  },
+  {
+   "path": "docs/superpowers/plans/2026-07-24-browser-screenshot-negative-zoom.md",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "docs/superpowers/plans/2026-07-29-selection-side-chat-multi-open.md",
+   "action": "text-conflict",
+   "conflicts": 1
+  },
+  {
+   "path": "docs/superpowers/specs/2026-06-09-agent-model-request-session-header-design.md",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "docs/superpowers/specs/2026-06-10-model-switch-context-window-guard-design.md",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "docs/superpowers/specs/2026-06-29-remote-skill-sync-design.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/superpowers/specs/2026-07-03-remote-mcp-sync-design.md",
+   "action": "text-conflict",
+   "conflicts": 2
+  },
+  {
+   "path": "docs/superpowers/specs/2026-07-06-remote-plugin-sync-design.md",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "docs/superpowers/specs/2026-07-14-wsl-remote-sync-design.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/superpowers/specs/2026-07-23-browser-background-screenshot-surface-design.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/superpowers/specs/2026-09-09-virtual-project-design.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/superpowers/specs/2026-09-11-archive-management.md",
+   "action": "text-conflict",
+   "conflicts": 1
+  },
+  {
+   "path": "docs/superpowers/specs/2026-09-11-project-sidebar-width-stability.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/superpowers/specs/2026-10-24-project-management.md",
+   "action": "add"
+  },
+  {
+   "path": "docs/testing/bots-e2e-coverage-matrix.md",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "docs/testing/browser-use-coverage-matrix.md",
+   "action": "add"
+  },
+  {
+   "path": "docs/testing/conversation-session-background-e2e-coverage-matrix.md",
+   "action": "text-conflict",
+   "conflicts": 1
+  },
+  {
+   "path": "docs/testing/conversation-session-case-coverage-audit.md",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "docs/testing/conversation-session-compact-decision-worksheet.md",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "docs/testing/conversation-session-decision-e2e-roadmap.md",
+   "action": "text-conflict",
+   "conflicts": 1
+  },
+  {
+   "path": "docs/testing/conversation-session-decision-workflow-board.md",
+   "action": "text-conflict",
+   "conflicts": 3
+  },
+  {
+   "path": "docs/testing/conversation-session-docker-automation-plan.md",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "docs/testing/conversation-session-e2e-coverage-matrix.md",
+   "action": "text-conflict",
+   "conflicts": 8
+  },
+  {
+   "path": "docs/testing/conversation-session-e2e-development-workflow.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/testing/conversation-session-e2e-human-readable-cases.md",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "docs/testing/conversation-session-fault-e2e-coverage-matrix.md",
+   "action": "text-conflict",
+   "conflicts": 3
+  },
+  {
+   "path": "docs/testing/conversation-session-fork-cross-product-matrix.md",
+   "action": "text-conflict",
+   "conflicts": 1
+  },
+  {
+   "path": "docs/testing/conversation-session-goal-specific-coverage-matrix.md",
+   "action": "text-conflict",
+   "conflicts": 2
+  },
+  {
+   "path": "docs/testing/conversation-session-manual-review-pending-run-2026-06-23.md",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "docs/testing/conversation-session-sse-stall-e2e-diagnostic.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/testing/conversation-session-tool-cross-product-matrix.md",
+   "action": "text-conflict",
+   "conflicts": 1
+  },
+  {
+   "path": "docs/testing/conversation-telemetry-differential-regression-plan.md",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "docs/testing/desktop-auth-config-e2e-cases.md",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "docs/testing/desktop-e2e-reporting.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/testing/desktop-local-model-provider-p0-e2e-cases.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/testing/e2e-sse-capture-replay.md",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "docs/testing/file-tools-atomic-write-e2e-coverage-matrix.md",
+   "action": "text-conflict",
+   "conflicts": 1
+  },
+  {
+   "path": "docs/testing/hooks-e2e-coverage-matrix.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/testing/marketing-touch-e2e-implementation.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/testing/model-provider-restart-connection-e2e-cases.md",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "docs/testing/model-selection-regression-decision-questionnaire.md",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "docs/testing/opensource-export-validation.md",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "docs/testing/plugin-management-lifecycle-e2e-coverage-matrix.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/testing/pre-push-hook.md",
+   "action": "text-conflict",
+   "conflicts": 1
+  },
+  {
+   "path": "docs/testing/provider-settings-batch-20260910.md",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "docs/testing/r3-remote-automation-case-matrix.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/testing/r3-remote-automation-plan.md",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "docs/testing/r3-remote-server-harness.md",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "docs/testing/side-pane-tabs-e2e-case-catalog.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/testing/side-pane-tabs-e2e-coverage-matrix.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/testing/ssh-remote-p0-e2e-plan.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/testing/stop-tool-results-reproduction.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/testing/subagents-built-in-model-overrides-e2e-coverage-matrix.md",
+   "action": "text-conflict",
+   "conflicts": 1
+  },
+  {
+   "path": "docs/testing/unit-test-quality.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/testing/unit-test-review/ui-tail.jsonl",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/testing/workspace-file-tree-e2e-coverage.md",
+   "action": "text-conflict",
+   "conflicts": 1
+  },
+  {
+   "path": "docs/testing/workspace-hook-trust-manual-acceptance.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/tmpdir-storage-paths-spec.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/ui/assistant-preview-cards.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/ui/chat-composer-action-menu.md",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "docs/ui/chat-composer-placeholder.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/ui/chat-find-placement.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/ui/chat-virtual-scroll.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/ui/command-center-cmd-k.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/ui/conversation-turn-navigator.md",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "docs/ui/help-report-vulnerability.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/ui/login-page.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/ui/message-link-context-menu.md",
+   "action": "add"
+  },
+  {
+   "path": "docs/ui/office-file-preview.md",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "docs/ui/onboarding-migration-flow.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/ui/pptx-preview.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/ui/preview-pane-image-copy.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/ui/preview-pane.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/ui/project-task-draft-lifecycle.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/ui/scheduled-tasks-main-view.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/ui/settings-personalization.md",
+   "action": "add"
+  },
+  {
+   "path": "docs/ui/settings-sidebar-layout.md",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "docs/ui/shared-image-preview-dialog.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/ui/side-pane-full-view.md",
+   "action": "add"
+  },
+  {
+   "path": "docs/ui/side-pane-tabs.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/ui/sidebar-show-more-typography.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/ui/sidebar-task-view-switcher.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/ui/sidebar-tooltips.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/ui/task-grouped-view.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/ui/task-scoped-composer-drafts.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/ui/task-title-authority.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/ui/task-unread-state.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/ui/terminal-sessions.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/ui/tool-display-rendering.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/ui/v4-chat-turn-render-units.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/ui/workspace-file-tree.md",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "docs/ui/workspace-header-help-menu.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/ui/workspace-layout.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/ui/yolo-mode-confirmation.md",
+   "action": "add"
+  },
+  {
+   "path": "docs/v4-refactor/02-projection.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/v4-refactor/04-sync-and-recovery.md",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "docs/v4-refactor/07-persistence.md",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "docs/v4-refactor/09-protocol-schema.md",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "docs/v4-refactor/10-protocol-spec.md",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "docs/v4-session-workbench-groups.md",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "docs/v4-split-pane-workbench.md",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "docs/web-remote-control/mobile-event-push.md",
+   "action": "add"
+  },
+  {
+   "path": "docs/web-remote-control/mobile-input-prediction.md",
+   "action": "add"
+  },
+  {
+   "path": "docs/web-remote-control/mobile-log-channel.md",
+   "action": "add"
+  },
+  {
+   "path": "docs/web-remote-control/mobile-task-home-design.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/web-remote-control/relay-v2-pairing.md",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "docs/web-remote-control/web-remote-control-architecture.md",
+   "action": "text-conflict",
+   "conflicts": 1
+  },
+  {
+   "path": "docs/web-remote-control/web-remote-login.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/working-memory/provider-refactor/design/interaction/selection-state.md",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "docs/working-memory/provider-refactor/design/registry/configuration.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/working-memory/provider-refactor/plan/staging-conflict-restoration-audit.md",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "docs/working-memory/provider-refactor/research/todo103-staging-source-inventory.json",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "docs/working-memory/provider-refactor/steps/01-model-and-request-implementation-log.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/working-memory/provider-refactor/steps/todo-115-provider-header-actions-and-toggle-hit-area.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/working-memory/provider-refactor/steps/todo-127-implementation-review.md",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "docs/working-memory/provider-refactor/steps/todo-154-start-plan-independent-provider.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/working-memory/provider-refactor/steps/todo-99-worker-account-selection-repair.md",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "docs/workspace-hook-trust-user-guide.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/workspace-project-removal-runtime-release.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/wsl-task-status-inconsistency.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "docs/drora-endpoint-device-mid-header.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "patches/@aiden0z__pptx-renderer@1.2.4.patch",
+   "action": "add"
+  },
+  {
+   "path": "patches/@extend-ai__react-xlsx@0.16.0.patch",
+   "action": "add"
+  },
+  {
+   "path": "scripts/affected-unit-test-baseline.mjs",
+   "action": "delete"
+  },
+  {
+   "path": "scripts/affected-unit-tests/process.mjs",
+   "action": "delete"
+  },
+  {
+   "path": "scripts/architecture/adopt.mjs",
+   "action": "take-theirs"
+  },
+  {
+   "path": "scripts/architecture/context.mjs",
+   "action": "take-theirs"
+  },
+  {
+   "path": "scripts/architecture/default-branch.mjs",
+   "action": "add"
+  },
+  {
+   "path": "scripts/architecture/git-base.mjs",
+   "action": "take-theirs"
+  },
+  {
+   "path": "scripts/architecture/git-file-names.mjs",
+   "action": "take-theirs"
+  },
+  {
+   "path": "scripts/architecture/index.mjs",
+   "action": "take-theirs"
+  },
+  {
+   "path": "scripts/architecture/upstream-snapshot.json",
+   "action": "text-conflict",
+   "conflicts": 127
+  },
+  {
+   "path": "scripts/audit-conversation-session-case-coverage.mjs",
+   "action": "text-conflict",
+   "conflicts": 1
+  },
+  {
+   "path": "scripts/build-desktop-agent-cli.mjs",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "scripts/check-e2e-remote-targets.mjs",
+   "action": "add"
+  },
+  {
+   "path": "scripts/check-push-worktree.mjs",
+   "action": "add"
+  },
+  {
+   "path": "scripts/check-stale-doc-phrases.mjs",
+   "action": "add"
+  },
+  {
+   "path": "scripts/electron-builder-binaries-macos.json",
+   "action": "add"
+  },
+  {
+   "path": "scripts/engineering-test-files.json",
+   "action": "add"
+  },
+  {
+   "path": "scripts/engineering-tests/process.mjs",
+   "action": "add"
+  },
+  {
+   "path": "scripts/engineering-tests/scope.mjs",
+   "action": "add"
+  },
+  {
+   "path": "scripts/lib/retired-app-unit-evidence.mjs",
+   "action": "add"
+  },
+  {
+   "path": "scripts/license-identifiers.mjs",
+   "action": "take-theirs"
+  },
+  {
+   "path": "scripts/licenses.mjs",
+   "action": "take-theirs"
+  },
+  {
+   "path": "scripts/native-search-tools-config.mjs",
+   "action": "take-theirs"
+  },
+  {
+   "path": "scripts/prepare-native-search-tools.mjs",
+   "action": "take-theirs"
+  },
+  {
+   "path": "scripts/run-affected-engineering-tests.mjs",
+   "action": "add"
+  },
+  {
+   "path": "scripts/run-affected-unit-tests.mjs",
+   "action": "delete"
+  },
+  {
+   "path": "scripts/run-lint-staged-vitest.mjs",
+   "action": "delete"
+  },
+  {
+   "path": "scripts/test-desktop-e2e-container.sh",
+   "action": "take-theirs"
+  },
+  {
+   "path": "scripts/test/affected-engineering-test-cli.test.mjs",
+   "action": "add"
+  },
+  {
+   "path": "scripts/test/affected-unit-test-cli.test.mjs",
+   "action": "delete"
+  },
+  {
+   "path": "scripts/test/architecture-default-branch.test.mjs",
+   "action": "add"
+  },
+  {
+   "path": "scripts/test/architecture-governance-review.test.mjs",
+   "action": "take-theirs"
+  },
+  {
+   "path": "scripts/test/architecture-governance.test.mjs",
+   "action": "take-theirs"
+  },
+  {
+   "path": "scripts/test/conversation-session-formal-admission-audit.test.mjs",
+   "action": "take-theirs"
+  },
+  {
+   "path": "scripts/test/e2e-remote-targets-check.test.mjs",
+   "action": "add"
+  },
+  {
+   "path": "scripts/test/license-identifiers.test.mjs",
+   "action": "take-theirs"
+  },
+  {
+   "path": "scripts/test/pre-push-worktree.test.mjs",
+   "action": "add"
+  },
+  {
+   "path": "scripts/test/retired-app-unit-evidence.test.mjs",
+   "action": "add"
+  },
+  {
+   "path": "scripts/test/run-affected-unit-tests.test.mjs",
+   "action": "delete"
+  },
+  {
+   "path": "scripts/test/third-party-npm-platform.test.mjs",
+   "action": "take-theirs"
+  },
+  {
+   "path": "scripts/test/verify-electron-builder-binaries-mirror.test.mjs",
+   "action": "add"
+  },
+  {
+   "path": "scripts/third-party-npm.mjs",
+   "action": "take-theirs"
+  },
+  {
+   "path": "scripts/verify-electron-builder-binaries-mirror.mjs",
+   "action": "add"
+  },
+  {
+   "path": "scripts/drora-distribution.test.mjs",
+   "action": "take-theirs"
+  },
+  {
+   "path": "scripts/drora-distribution/assets.mjs",
+   "action": "take-theirs"
+  },
+  {
+   "path": "specs/drora-unified-distribution.md",
+   "action": "take-theirs"
+  }
+ ],
+ "skipped": [],
+ "conflicts": [
+  {
+   "path": ".agents/skills/architecture-governance/references/rule-catalog.md",
+   "hunks": 1
+  },
+  {
+   "path": ".agents/skills/feature-boundary-planner/references/drora-feature-graph.yaml",
+   "hunks": 2
+  },
+  {
+   "path": "docs/architecture/r3-source-server-remote-open-issues.md",
+   "hunks": 1
+  },
+  {
+   "path": "docs/browser-use/2026-07-14-browser-resize-operation-warning-spec.md",
+   "hunks": 1
+  },
+  {
+   "path": "docs/browser-use/2026-07-31-browser-generic-target-popup-recovery-guidance-spec.md",
+   "hunks": 1
+  },
+  {
+   "path": "docs/ci/affected-unit-test-baseline.md",
+   "hunks": 1
+  },
+  {
+   "path": "docs/conversation-product-protocol.md",
+   "hunks": 1
+  },
+  {
+   "path": "docs/conversation-product-state-space.md",
+   "hunks": 1
+  },
+  {
+   "path": "docs/conversation-protocol-declaration.md",
+   "hunks": 1
+  },
+  {
+   "path": "docs/conversation-session-case-catalog.md",
+   "hunks": 4
+  },
+  {
+   "path": "docs/dynamic-workflow/authoring.md",
+   "hunks": 2
+  },
+  {
+   "path": "docs/dynamic-workflow/concurrency.md",
+   "hunks": 5
+  },
+  {
+   "path": "docs/dynamic-workflow/launch.md",
+   "hunks": 3
+  },
+  {
+   "path": "docs/dynamic-workflow/transcript-and-notifications.md",
+   "hunks": 1
+  },
+  {
+   "path": "docs/model-provider-regression-case-catalog.md",
+   "hunks": 2
+  },
+  {
+   "path": "docs/monitoring/business-monitoring.md",
+   "hunks": 1
+  },
+  {
+   "path": "docs/monitoring/conversation-telemetry-v4.md",
+   "hunks": 1
+  },
+  {
+   "path": "docs/off-peak-task/tech-design.md",
+   "hunks": 2
+  },
+  {
+   "path": "docs/performance/runtime-communication-repro.md",
+   "hunks": 1
+  },
+  {
+   "path": "docs/plugin-creator.md",
+   "hunks": 1
+  },
+  {
+   "path": "docs/runtime-tools/embedded-search-native-build.md",
+   "hunks": 1
+  },
+  {
+   "path": "docs/settings-command-list.md",
+   "hunks": 1
+  },
+  {
+   "path": "docs/specs/workspace-hook-trust-persistent-only.md",
+   "hunks": 2
+  },
+  {
+   "path": "docs/ssh-remote-app-global-state-authority.md",
+   "hunks": 1
+  },
+  {
+   "path": "docs/start-plan-provider-business-errors.md",
+   "hunks": 1
+  },
+  {
+   "path": "docs/superpowers/plans/2026-07-02-agent-step-message-scope-e2e.md",
+   "hunks": 1
+  },
+  {
+   "path": "docs/superpowers/plans/2026-07-07-exit-plan-mode-plan-file-compact-continuity.md",
+   "hunks": 2
+  },
+  {
+   "path": "docs/superpowers/plans/2026-07-23-browser-background-screenshot-surface.md",
+   "hunks": 1
+  },
+  {
+   "path": "docs/superpowers/plans/2026-07-23-browser-guest-crash-recovery.md",
+   "hunks": 1
+  },
+  {
+   "path": "docs/superpowers/plans/2026-07-29-selection-side-chat-multi-open.md",
+   "hunks": 1
+  },
+  {
+   "path": "docs/superpowers/specs/2026-07-03-remote-mcp-sync-design.md",
+   "hunks": 2
+  },
+  {
+   "path": "docs/superpowers/specs/2026-09-11-archive-management.md",
+   "hunks": 1
+  },
+  {
+   "path": "docs/testing/conversation-session-background-e2e-coverage-matrix.md",
+   "hunks": 1
+  },
+  {
+   "path": "docs/testing/conversation-session-decision-e2e-roadmap.md",
+   "hunks": 1
+  },
+  {
+   "path": "docs/testing/conversation-session-decision-workflow-board.md",
+   "hunks": 3
+  },
+  {
+   "path": "docs/testing/conversation-session-e2e-coverage-matrix.md",
+   "hunks": 8
+  },
+  {
+   "path": "docs/testing/conversation-session-fault-e2e-coverage-matrix.md",
+   "hunks": 3
+  },
+  {
+   "path": "docs/testing/conversation-session-fork-cross-product-matrix.md",
+   "hunks": 1
+  },
+  {
+   "path": "docs/testing/conversation-session-goal-specific-coverage-matrix.md",
+   "hunks": 2
+  },
+  {
+   "path": "docs/testing/conversation-session-tool-cross-product-matrix.md",
+   "hunks": 1
+  },
+  {
+   "path": "docs/testing/file-tools-atomic-write-e2e-coverage-matrix.md",
+   "hunks": 1
+  },
+  {
+   "path": "docs/testing/pre-push-hook.md",
+   "hunks": 1
+  },
+  {
+   "path": "docs/testing/subagents-built-in-model-overrides-e2e-coverage-matrix.md",
+   "hunks": 1
+  },
+  {
+   "path": "docs/testing/workspace-file-tree-e2e-coverage.md",
+   "hunks": 1
+  },
+  {
+   "path": "docs/web-remote-control/web-remote-control-architecture.md",
+   "hunks": 1
+  },
+  {
+   "path": "scripts/architecture/upstream-snapshot.json",
+   "hunks": 127
+  },
+  {
+   "path": "scripts/audit-conversation-session-case-coverage.mjs",
+   "hunks": 1
+  }
+ ],
+ "semanticReview": [
+  "docs/analysis/credentials-json-code-audit.md",
+  "docs/bigmodel-business-error-retry.md",
+  "docs/bots-feishu-group-collaboration.md",
+  "docs/bots.md",
+  "docs/browser-use/2026-07-12-browser-tab-selection-activation-spec.md",
+  "docs/browser-use/2026-07-13-cli-headless-cdp-backend-spec.md",
+  "docs/browser-use/2026-07-15-browser-turn-final-screenshot-spec.md",
+  "docs/browser-use/2026-07-19-desktop-iab-e2e-spec.md",
+  "docs/builtin-provider-maintenance/configuration.md",
+  "docs/chat/conversation-turn-view-model.md",
+  "docs/ci-cache-strategy.md",
+  "docs/claude-code-marketplace-plugin-compat.md",
+  "docs/cli-plugins-command-parity.md",
+  "docs/coding-plan/drora-official-server-mcp-auth-spec.md",
+  "docs/coding-plan/drora-official-server-mcp-quota-banner-spec.md",
+  "docs/conversation-share-v1.md",
+  "docs/cua/producer/windows-app-identity-and-transparent-launch.md",
+  "docs/cua/zcode-cua-monorepo-migration.md",
+  "docs/design/v2/tool/00-tool-change-chain.md",
+  "docs/desktop-ci-cd.md",
+  "docs/desktop/auto-update-service-manifest.md",
+  "docs/desktop/finder-open-folder-deep-link.md",
+  "docs/desktop/windows-update-install-handoff.md",
+  "docs/dynamic-workflow/presentation.md",
+  "docs/electron/docs/README.md",
+  "docs/model-tool-call-validation.md",
+  "docs/monitoring/composer-send-funnel-telemetry.md",
+  "docs/monitoring/process-resource-telemetry.md",
+  "docs/off-peak-task/background-lifecycle-plan.md",
+  "docs/off-peak-task/decisions.md",
+  "docs/off-peak-task/glossary.md",
+  "docs/plans/2026-07-15-subagent-summary-side-pane-only-plan.md",
+  "docs/plans/2026-09-18-feedback-upload-privacy.md",
+  "docs/plugin-cdn-zip-source.md",
+  "docs/runtime-tools/agent-electron-node-runtime.md",
+  "docs/security/deep-link-project-trust-boundary.md",
+  "docs/side-pane-terminal-session-keepalive.md",
+  "docs/skills-product.md",
+  "docs/superpowers/plans/2026-07-15-compact-stream-first-nonstream-fallback.md",
+  "docs/superpowers/plans/2026-07-21-desktop-e2e-runtime-paths.md",
+  "docs/superpowers/plans/2026-07-24-browser-screenshot-negative-zoom.md",
+  "docs/superpowers/specs/2026-06-09-agent-model-request-session-header-design.md",
+  "docs/superpowers/specs/2026-06-10-model-switch-context-window-guard-design.md",
+  "docs/superpowers/specs/2026-07-06-remote-plugin-sync-design.md",
+  "docs/testing/bots-e2e-coverage-matrix.md",
+  "docs/testing/conversation-session-case-coverage-audit.md",
+  "docs/testing/conversation-session-compact-decision-worksheet.md",
+  "docs/testing/conversation-session-docker-automation-plan.md",
+  "docs/testing/conversation-session-e2e-human-readable-cases.md",
+  "docs/testing/conversation-session-manual-review-pending-run-2026-06-23.md",
+  "docs/testing/conversation-telemetry-differential-regression-plan.md",
+  "docs/testing/desktop-auth-config-e2e-cases.md",
+  "docs/testing/e2e-sse-capture-replay.md",
+  "docs/testing/model-provider-restart-connection-e2e-cases.md",
+  "docs/testing/model-selection-regression-decision-questionnaire.md",
+  "docs/testing/opensource-export-validation.md",
+  "docs/testing/provider-settings-batch-20260910.md",
+  "docs/testing/r3-remote-automation-plan.md",
+  "docs/testing/r3-remote-server-harness.md",
+  "docs/ui/chat-composer-action-menu.md",
+  "docs/ui/conversation-turn-navigator.md",
+  "docs/ui/office-file-preview.md",
+  "docs/ui/settings-sidebar-layout.md",
+  "docs/ui/workspace-file-tree.md",
+  "docs/v4-refactor/04-sync-and-recovery.md",
+  "docs/v4-refactor/07-persistence.md",
+  "docs/v4-refactor/09-protocol-schema.md",
+  "docs/v4-refactor/10-protocol-spec.md",
+  "docs/v4-session-workbench-groups.md",
+  "docs/v4-split-pane-workbench.md",
+  "docs/web-remote-control/relay-v2-pairing.md",
+  "docs/working-memory/provider-refactor/design/interaction/selection-state.md",
+  "docs/working-memory/provider-refactor/plan/staging-conflict-restoration-audit.md",
+  "docs/working-memory/provider-refactor/research/todo103-staging-source-inventory.json",
+  "docs/working-memory/provider-refactor/steps/todo-127-implementation-review.md",
+  "docs/working-memory/provider-refactor/steps/todo-99-worker-account-selection-repair.md",
+  "scripts/build-desktop-agent-cli.mjs"
+ ],
+ "driftBlocked": [],
+ "decisionRequired": [
+  {
+   "path": "docs/browser-use/2026-07-10-browser-use-codex-parity-spec.md",
+   "outcome": "delete-local-change-review"
+  },
+  {
+   "path": "docs/browser-use/2026-07-12-browser-use-codex-runtime-semantics-alignment-spec.md",
+   "outcome": "delete-local-change-review"
+  },
+  {
+   "path": "docs/monitoring/onboarding-telemetry.md",
+   "outcome": "already-present"
+  },
+  {
+   "path": "docs/testing/browser-use-codex-parity-coverage-matrix.md",
+   "outcome": "delete-local-change-review"
+  },
+  {
+   "path": "packages/zcode-cua/broker-helper-constants.d.ts",
+   "outcome": "zone-decision"
+  },
+  {
+   "path": "packages/zcode-cua/broker-helper-constants.js",
+   "outcome": "zone-decision"
+  },
+  {
+   "path": "packages/zcode-cua/broker.d.ts",
+   "outcome": "zone-decision"
+  },
+  {
+   "path": "packages/zcode-cua/broker.js",
+   "outcome": "zone-decision"
+  },
+  {
+   "path": "packages/zcode-cua/index.d.ts",
+   "outcome": "zone-decision"
+  },
+  {
+   "path": "packages/zcode-cua/package.json",
+   "outcome": "zone-decision"
+  },
+  {
+   "path": "scripts/affected-unit-tests/scope.mjs",
+   "outcome": "delete-local-change-review"
+  },
+  {
+   "path": "third-party/README.md",
+   "outcome": "zone-decision"
+  },
+  {
+   "path": "third-party/SPEC.md",
+   "outcome": "zone-decision"
+  },
+  {
+   "path": "third-party/inventory.json",
+   "outcome": "zone-decision"
+  },
+  {
+   "path": "third-party/native-search/sources.json",
+   "outcome": "zone-decision"
+  },
+  {
+   "path": "third-party/npm-overrides.json",
+   "outcome": "zone-decision"
+  },
+  {
+   "path": "third-party/upstream/d8a3a14c4ea44385e299f072db9e8a73994e2ff2b344ea5ae5a39c09f11cc984.txt",
+   "outcome": "zone-decision"
+  },
+  {
+   "path": "third-party/upstream/noto-sans-sc-5.3.1-LICENSE.txt",
+   "outcome": "zone-decision"
+  }
+ ],
+ "errors": []
+}

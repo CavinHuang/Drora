@@ -1,5 +1,10 @@
 import { recordArmsCustomEventForE2E } from "@drora/ui";
-import { DesktopCommandIds, buildLocalMediaPreviewUrl, type IPlatformService } from "@drora/shared";
+import {
+  DesktopCommandIds,
+  buildLocalMediaPreviewUrl,
+  unwrapRemoteWorkspaceBindResult,
+  type IPlatformService,
+} from "@drora/shared";
 
 import { desktopBrowserPlatformBridge } from "./desktopBrowserPlatformBridge.js";
 import { createDesktopPluginSandboxPlatform } from "./plugin-sandbox/desktopPluginSandboxPlatform.js";
@@ -34,9 +39,15 @@ export function createDesktopPlatform(options: {
       Promise.reject(new Error("Source settings attachment bridge unavailable")),
     cancelPendingRemoteConnection: (requestId) =>
       window.drora.cancelPendingRemoteConnection?.(requestId) ?? Promise.resolve(),
-    bindRemoteWorkspaceSessionContext: (context) =>
-      window.drora.bindRemoteWorkspaceSessionContext?.(context) ??
-      Promise.reject(new Error("Desktop bindRemoteWorkspaceSessionContext bridge unavailable")),
+    bindRemoteWorkspaceSessionContext: async (context) => {
+      if (!window.drora.bindRemoteWorkspaceSessionContext) {
+        throw new Error("Desktop bindRemoteWorkspaceSessionContext bridge unavailable");
+      }
+      // preload 返回结构化结果，在页面一侧还原错误才能保留 code/retryable。
+      return unwrapRemoteWorkspaceBindResult(
+        await window.drora.bindRemoteWorkspaceSessionContext(context),
+      );
+    },
     startWebRemoteControl: (context) => window.drora.startWebRemoteControl(context),
     stopWebRemoteControl: () => window.drora.stopWebRemoteControl(),
     getWebRemoteControlStatus: () => window.drora.getWebRemoteControlStatus(),
@@ -76,6 +87,7 @@ export function createDesktopPlatform(options: {
     onPaymentCallback: (callback) => window.drora.onPaymentCallback(callback),
     onShareImport: (callback) => window.drora.onShareImport?.(callback) ?? (() => {}),
     notifyRendererReady: () => window.drora.notifyRendererReady(),
+    syncTelemetryContext: (context) => window.drora.syncTelemetryContext(context),
     reportTelemetryEvent: (payload) => window.drora.reportTelemetryEvent(payload),
     reportArmsCustomEvent: (payload) => {
       recordArmsCustomEventForE2E(payload);
@@ -104,6 +116,8 @@ export function createDesktopPlatform(options: {
       window.drora.syncWebRemoteControlWorkspaces?.(workspaces),
     onWebRemoteControlReconnectWorkspace: (handler) =>
       window.drora.onWebRemoteControlReconnectWorkspace?.(handler) ?? (() => {}),
+    onWebRemoteControlRendererAction: (handler) =>
+      window.drora.onWebRemoteControlRendererAction?.(handler) ?? (() => {}),
     syncWindowUnreadCount: (count) => window.drora.syncWindowUnreadCount(count),
     syncActiveTaskSession: (sessionId) => window.drora.syncActiveTaskSession(sessionId),
     syncAppSettings: (patch) => window.drora.syncAppSettings?.(patch),
@@ -193,6 +207,9 @@ export function createDesktopPlatform(options: {
     skipUpdateVersion: (version) => window.drora.skipUpdateVersion?.(version) ?? Promise.resolve(),
     quitAndInstallUpdate: () => window.drora.quitAndInstallUpdate(),
     getInstalledEditors: (filePath) => window.drora.getInstalledEditors(filePath),
+    getFileApplications: (target) => window.drora.getFileApplications(target),
+    openFileWithApplication: (applicationId, target) =>
+      window.drora.openFileWithApplication(applicationId, target),
     getApplicationIcon: (bundleId) =>
       window.drora.getApplicationIcon?.(bundleId) ?? Promise.resolve(null),
     openInEditor: (editorId, path, editorOptions) =>

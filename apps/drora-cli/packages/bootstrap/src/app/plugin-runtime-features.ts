@@ -24,7 +24,11 @@ export function resolvePluginRuntimeFeatures(
     // Node REPL 已迁到真实 MCP server；这里仅启用 BrowserControlPort 注入，不再注册 core 裸 js*。
     ...(browserUsePlugin ? { browserUse: true } : {}),
     ...(browserUsePlugin
-      ? { browserDocumentationRoot: join(browserUsePlugin.rootPath, "docs") }
+      ? {
+          // 修复：该路径进入 node_repl 文档注入与提示词（模型面），Windows 的 join 产反斜杠
+          // 会令形态随平台漂移；node fs 接受正斜杠，统一归一。
+          browserDocumentationRoot: join(browserUsePlugin.rootPath, "docs").replaceAll("\\", "/"),
+        }
       : {}),
     // CUA 与 Browser Use 共用同一个无状态 node_repl MCP server；这里只记录 CUA
     // SDK 是否需要由 bootstrap 注入 broker。不要设置 nodeRepl：那个字段会重新注册

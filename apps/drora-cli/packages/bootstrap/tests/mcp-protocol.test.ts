@@ -177,3 +177,23 @@ describe("mcp/list connection revalidation", () => {
     }
   });
 });
+
+import { convertToDroraAgentMcpServer, droraProtocolMcpServerSchema } from "@drora/shared";
+import { protocolMcpServersToRuntimeMcpConfig } from "../src/drora-protocol/protocol-mcp-config.js";
+
+it("preserves workspace provenance and cwd from Host DTO to runtime; rejects arbitrary runtime source", () => {
+  const dto = convertToDroraAgentMcpServer(
+    "probe",
+    { type: "stdio", command: "node", cwd: "tools", args: ["server.mjs"], env: { TEST: "1" } },
+    "workspace",
+  );
+  const parsed = droraProtocolMcpServerSchema.parse(dto);
+  expect(protocolMcpServersToRuntimeMcpConfig([parsed])?.servers.probe).toMatchObject({
+    source: { kind: "workspace" },
+    cwd: "tools",
+    env: { TEST: "1" },
+  });
+  expect(droraProtocolMcpServerSchema.safeParse({ ...dto, source: { kind: "user" } }).success).toBe(
+    false,
+  );
+});

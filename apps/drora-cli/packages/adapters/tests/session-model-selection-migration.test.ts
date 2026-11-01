@@ -19,12 +19,15 @@ describe("旧 Session 当前选择的单次迁移", () => {
   let root: string;
   let store: Awaited<ReturnType<typeof createSqliteSessionStore>>;
   let db: DatabaseSync;
-  let opened = false;
+  // Windows 修复：migrate 允许并发调用（"重复打开幂等"用例 Promise.all 两次），
+  // 单变量跟踪会漏掉先开的那份连接——Windows 上未关闭的 SQLite 句柄会锁住
+  // -wal/-shm，清理目录必 EBUSY。登记全部实例，afterEach 统一关闭。
+  const openedStores: Array<Awaited<ReturnType<typeof createSqliteSessionStore>>> = [];
   beforeEach(async () => {
     root = await mkdtemp(join(tmpdir(), "drora-selection-migration-"));
     const dbPath = join(root, "session.sqlite");
     store = await createSqliteSessionStore({ dbPath });
-    opened = true;
+    openedStores.push(store);
     db = new DatabaseSync(dbPath);
     await store.createSession({
       id: sessionID,
@@ -38,15 +41,32 @@ describe("旧 Session 当前选择的单次迁移", () => {
     db.prepare("DELETE FROM schema_migration WHERE id = ?").run("0020_provider_model_selection");
   });
   const migrate = async (_input: { sessionID: typeof sessionID }) => {
-    if (opened) store.close();
-    opened = false;
+    closeAll();
     store = await createSqliteSessionStore({ dbPath: join(root, "session.sqlite") });
-    opened = true;
+    openedStores.push(store);
+  };
+  // 用例可能手动 store.close() 后自行重开（不走 migrate）；统一关闭入口，
+  // 重复关闭按已关处理吞掉，保证 afterEach 不因单个已关句柄失败。
+  const closeAll = () => {
+    for (const open of openedStores.splice(0)) {
+      try {
+        open.close();
+      } catch {
+        // 已被用例手动关闭。
+      }
+    }
+    try {
+      store.close();
+    } catch {
+      // store 可能已随列表关闭或被用例手动关闭。
+    }
   };
   afterEach(async () => {
     db.close();
-    if (opened) store.close();
-    await rm(root, { recursive: true, force: true });
+    closeAll();
+    // Windows 修复：SQLite close 后 -wal/-shm 的句柄释放有延迟，立即 rmdir 会
+    // EBUSY；fs.rm 的重试专为该竞态设计（POSIX 行为不变）。
+    await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   });
   const entry = async (data: unknown) =>
     store.saveSessionEntry({

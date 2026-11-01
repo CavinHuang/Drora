@@ -17,12 +17,22 @@ vi.mock("node:child_process", () => ({
   spawn: mocks.spawn,
 }));
 
-vi.mock("@drora/server/remote/wsl-detect.js", () => ({
-  isWSLAvailable: mocks.isWSLAvailable,
-  listWSLDistros: mocks.listWSLDistros,
-}));
+vi.mock("@drora/server/remote/wsl-detect.js", async (importOriginal) => {
+  // 上游 v3.17.1：wsl-backend 新增引用 createWslExecError（wsl.exe 失败错误构造，带
+  // stdout/退出码）。改部分 mock 保留真实导出，只覆写探测入口，避免再漏新增导出。
+  const actual = await importOriginal<typeof import("../src/remote/wsl-detect.js")>();
+  return {
+    ...actual,
+    isWSLAvailable: mocks.isWSLAvailable,
+    listWSLDistros: mocks.listWSLDistros,
+  };
+});
 
 import { WSLBackend, buildWslArgs } from "../src/remote/wsl-backend.js";
+
+// 上游 v3.17.1：WSL 身份探测输出以哨兵行 __DRORA_WSL_IDENTITY__ 开头（wsl-backend
+// resolveInfo 用 lastIndexOf(sentinel) 定位身份三行），所有 mock 的身份回退输出补齐该行。
+const WSL_IDENTITY_OUTPUT = "__DRORA_WSL_IDENTITY__\nUbuntu-24.04\ntester\n/home/tester";
 
 const originalPlatform = Object.getOwnPropertyDescriptor(process, "platform");
 
@@ -67,7 +77,7 @@ beforeEach(() => {
     ) => {
       const child = new EventEmitter();
       queueMicrotask(() => {
-        callback(null, Buffer.from("Ubuntu-24.04\ntester\n/home/tester"), Buffer.alloc(0));
+        callback(null, Buffer.from(WSL_IDENTITY_OUTPUT), Buffer.alloc(0));
         child.emit("close", 0);
       });
       return child as never;
@@ -265,7 +275,17 @@ describe("buildWslArgs", () => {
     });
     expect(mocks.execFile).toHaveBeenCalledWith(
       "wsl.exe",
-      expect.arrayContaining(["-d", "Ubuntu-24.04", "bash", "-lc"]),
+      // 上游 v3.17.1：身份探测改用 bash --noprofile --norc -c（登录 profile 的 echo 会
+      // 污染身份输出），断言同步更新为新的探测 argv 形状。
+      expect.arrayContaining([
+        "-d",
+        "Ubuntu-24.04",
+        "--exec",
+        "bash",
+        "--noprofile",
+        "--norc",
+        "-c",
+      ]),
       expect.any(Object),
       expect.any(Function),
     );
@@ -322,7 +342,7 @@ describe("buildWslArgs", () => {
             ? "unreachable"
             : shellCommand.includes("ip route show default")
               ? "route=172.21.240.1"
-              : "Ubuntu-24.04\ntester\n/home/tester";
+              : WSL_IDENTITY_OUTPUT;
         const child = new EventEmitter();
         queueMicrotask(() => {
           callback(null, Buffer.from(stdout), Buffer.alloc(0));
@@ -347,9 +367,7 @@ describe("buildWslArgs", () => {
         callback: (error: Error | null, stdout: Buffer, stderr: Buffer) => void,
       ) => {
         const shellCommand = args.at(-1) ?? "";
-        const stdout = shellCommand.includes("/dev/tcp/")
-          ? "reachable"
-          : "Ubuntu-24.04\ntester\n/home/tester";
+        const stdout = shellCommand.includes("/dev/tcp/") ? "reachable" : WSL_IDENTITY_OUTPUT;
         const child = new EventEmitter();
         queueMicrotask(() => {
           callback(null, Buffer.from(stdout), Buffer.alloc(0));
@@ -387,7 +405,7 @@ describe("buildWslArgs", () => {
           ? "unreachable"
           : shellCommand.includes("ip route show default")
             ? "route=172.21.240.1"
-            : "Ubuntu-24.04\ntester\n/home/tester";
+            : WSL_IDENTITY_OUTPUT;
         const child = new EventEmitter();
         queueMicrotask(() => {
           callback(null, Buffer.from(stdout), Buffer.alloc(0));
@@ -418,7 +436,7 @@ describe("buildWslArgs", () => {
             ? "unreachable"
             : shellCommand.includes("ip route show default")
               ? "resolv=127.0.0.53 resolv=172.21.240.1"
-              : "Ubuntu-24.04\ntester\n/home/tester";
+              : WSL_IDENTITY_OUTPUT;
         const child = new EventEmitter();
         queueMicrotask(() => {
           callback(null, Buffer.from(stdout), Buffer.alloc(0));
@@ -447,7 +465,7 @@ describe("buildWslArgs", () => {
           ? "unreachable"
           : shellCommand.includes("ip route show default")
             ? "resolv=8.8.8.8"
-            : "Ubuntu-24.04\ntester\n/home/tester";
+            : WSL_IDENTITY_OUTPUT;
         const child = new EventEmitter();
         queueMicrotask(() => {
           callback(null, Buffer.from(stdout), Buffer.alloc(0));

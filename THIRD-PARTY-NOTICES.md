@@ -72,7 +72,11 @@ Original copyright, license and NOTICE text is retained below. Identical text is
 
 - @babel/helper-string-parser@7.27.1 — MIT
 
+- @babel/helper-string-parser@7.29.7 — MIT
+
 - @babel/helper-validator-identifier@7.28.5 — MIT
+
+- @babel/helper-validator-identifier@7.29.7 — MIT
 
 - @babel/helper-validator-option@7.27.1 — MIT
 
@@ -97,6 +101,8 @@ Original copyright, license and NOTICE text is retained below. Identical text is
 - @babel/traverse@7.29.0 — MIT
 
 - @babel/types@7.29.0 — MIT
+
+- @babel/types@7.29.8 — MIT
 
 - @borewit/text-codec@0.2.2 — MIT
 
@@ -144,7 +150,11 @@ Original copyright, license and NOTICE text is retained below. Identical text is
 
 - @egjs/hammerjs@2.0.17 — MIT
 
+- @electron-internal/extract-zip@1.0.5 — BSD-2-Clause
+
 - @electron/get@2.0.3 — MIT
+
+- @electron/get@5.1.0 — MIT
 
 - @extend-ai/react-docx@0.8.1 — MIT
 
@@ -876,6 +886,8 @@ Original copyright, license and NOTICE text is retained below. Identical text is
 
 - builder-util-runtime@9.5.1 — MIT
 
+- builder-util-runtime@9.7.0 — MIT
+
 - bun-ffi-structs@0.2.2 — MIT
 
 - bundle-name@4.1.0 — MIT
@@ -1160,9 +1172,15 @@ Original copyright, license and NOTICE text is retained below. Identical text is
 
 - electron-to-chromium@1.5.336 — ISC
 
+- electron-to-chromium@1.5.452 — ISC
+
+- electron-updater@6.8.10 — MIT
+
 - electron-updater@6.8.3 — MIT
 
 - electron@41.0.3 — MIT
+
+- electron@44.7.0 — MIT
 
 - elkjs@0.12.0 — EPL-2.0 OR GPL-3.0-or-later
 
@@ -1189,6 +1207,8 @@ Original copyright, license and NOTICE text is retained below. Identical text is
 - entities@7.0.1 — BSD-2-Clause
 
 - env-paths@2.2.1 — MIT
+
+- env-paths@3.0.0 — MIT
 
 - error-ex@1.3.4 — MIT
 
@@ -1549,6 +1569,8 @@ Original copyright, license and NOTICE text is retained below. Identical text is
 - lexical@0.42.0 — MIT
 
 - lib0@0.2.117 — MIT
+
+- lib0@0.2.119 — MIT
 
 - lie@3.3.0 — MIT
 
@@ -2214,6 +2236,8 @@ Original copyright, license and NOTICE text is retained below. Identical text is
 
 - tinyexec@1.1.1 — MIT
 
+- tinyexec@1.2.4 — MIT
+
 - tldts-core@7.0.28 — MIT
 
 - tldts@7.0.28 — MIT
@@ -2478,6 +2502,8 @@ Some publishers provide only a license identifier or a short README license sect
 
 - @arms/rum-electron@0.0.3: https://registry.npmjs.org/%40arms%2frum-electron%400.0.3
 
+- @electron-internal/extract-zip@1.0.5: https://registry.npmjs.org/@electron-internal%2fextract-zip/1.0.5
+
 The original import revisions of copied components are not recorded in the current checkout. Pinned license references below do not establish the original copy revision. They cover upstream-derived portions only; local adaptations do not change the upstream terms.
 
 ## Copied source and assets
@@ -2529,6 +2555,10 @@ Electron/Chromium target-specific notices are shipped separately under Resources
 - @ai-sdk/openai-compatible@2.0.60: modified by ZCode; the changes are recorded in patches/@ai-sdk__openai-compatible@2.0.60.patch in the source repository.
 
 - @ai-sdk/anthropic@3.0.81: modified by ZCode; the changes are recorded in patches/@ai-sdk__anthropic@3.0.81.patch in the source repository.
+
+- @aiden0z/pptx-renderer@1.2.4: modified by ZCode; the changes are recorded in patches/@aiden0z__pptx-renderer@1.2.4.patch in the source repository.
+
+- @extend-ai/react-xlsx@0.16.0: modified by ZCode; the changes are recorded in patches/@extend-ai__react-xlsx@0.16.0.patch in the source repository.
 
 ## License and NOTICE texts
 
@@ -3265,7 +3295,11 @@ SOFTWARE.
 
 - @babel/helper-string-parser@7.27.1: LICENSE
 
+- @babel/helper-string-parser@7.29.7: LICENSE
+
 - @babel/helper-validator-identifier@7.28.5: LICENSE
+
+- @babel/helper-validator-identifier@7.29.7: LICENSE
 
 - @babel/helper-validator-option@7.27.1: LICENSE
 
@@ -3286,6 +3320,8 @@ SOFTWARE.
 - @babel/traverse@7.29.0: LICENSE
 
 - @babel/types@7.29.0: LICENSE
+
+- @babel/types@7.29.8: LICENSE
 
 
 
@@ -3935,9 +3971,64 @@ THE SOFTWARE.
 
 ````
 
+### Notice f64eca06693734626fe5c515ef365ef2e55aedb204c4dfd672a4832f9d8a4fc1
+
+- @electron-internal/extract-zip@1.0.5: README.md (license section)
+
+
+
+````text
+## License
+
+BSD-2-Clause
+
+````
+
+### Notice d8a3a14c4ea44385e299f072db9e8a73994e2ff2b344ea5ae5a39c09f11cc984
+
+- @electron-internal/extract-zip@1.0.5: https://registry.npmjs.org/@electron-internal%2fextract-zip/1.0.5
+
+
+
+````text
+@electron-internal/extract-zip@1.0.5
+Publisher-declared license: BSD-2-Clause
+Evidence: https://registry.npmjs.org/@electron-internal%2fextract-zip/1.0.5
+The published package and its exact gitHead source tree did not supply a separate license file or copyright notice.
+No copyright holder or year has been inferred from the npm author field or from a later source revision.
+The following is the SPDX v3.27.0 standard license text, not a claim that an upstream LICENSE file was published.
+
+BSD 2-Clause License
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice,
+   this list of conditions and the following disclaimer.
+
+2. Redistributions in binary form must reproduce the above copyright notice,
+   this list of conditions and the following disclaimer in the documentation
+   and/or other materials provided with the distribution.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+POSSIBILITY OF SUCH DAMAGE.
+
+````
+
 ### Notice edab8abb78d9c5b36944c3e00aebf6a90eb32378993f49ac8a3904007029c629
 
 - @electron/get@2.0.3: LICENSE
+
+- @electron/get@5.1.0: LICENSE
 
 
 
@@ -6643,6 +6734,8 @@ SOFTWARE.
 - default-browser@5.5.0: license
 
 - define-lazy-prop@3.0.0: license
+
+- env-paths@3.0.0: license
 
 - escape-string-regexp@4.0.0: license
 
@@ -9420,6 +9513,10 @@ IN THE SOFTWARE.
 ### Notice bed8d0ab3e6031817f775a641ff37313b0f5591bc8ba0ed79b978dafbd4231ce
 
 - builder-util-runtime@9.5.1: LICENSE
+
+- builder-util-runtime@9.7.0: LICENSE
+
+- electron-updater@6.8.10: LICENSE
 
 - electron-updater@6.8.3: LICENSE
 
@@ -15068,6 +15165,8 @@ THE SOFTWARE.
 
 - electron-to-chromium@1.5.336: LICENSE
 
+- electron-to-chromium@1.5.452: LICENSE
+
 
 
 ````text
@@ -15083,6 +15182,8 @@ THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH RE
 
 - electron-to-chromium@1.5.336: README.md (license section)
 
+- electron-to-chromium@1.5.452: README.md (license section)
+
 
 
 ````text
@@ -15094,6 +15195,8 @@ THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH RE
 ### Notice 5154e165bd6c2cc0cfbcd8916498c7abab0497923bafcd5cb07673fe8480087d
 
 - electron@41.0.3: LICENSE
+
+- electron@44.7.0: LICENSE
 
 
 
@@ -15125,6 +15228,8 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ### Notice 56a37896ff6edec2b75b41465b66dd768f2d294c315255164898ca3e685bbd30
 
 - electron@41.0.3: README.md (license section)
+
+- electron@44.7.0: README.md (license section)
 
 
 
@@ -22931,6 +23036,8 @@ SOFTWARE.
 
 - lib0@0.2.117: LICENSE
 
+- lib0@0.2.119: LICENSE
+
 
 
 ````text
@@ -22961,6 +23068,8 @@ SOFTWARE.
 ### Notice 2a88c16bef1c3bef4a5bd265bd61ea2e30b19d0a501e12e1d5d79e523ca4836c
 
 - lib0@0.2.117: README.md (license section)
+
+- lib0@0.2.119: README.md (license section)
 
 
 
@@ -36023,6 +36132,8 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 ### Notice f95f668fe64081ddb4153b322e34fdd719b991285ed08177d5ad7133b7988d92
 
 - tinyexec@1.1.1: LICENSE
+
+- tinyexec@1.2.4: LICENSE
 
 
 

@@ -56,8 +56,11 @@ class FakeBackend implements IRemoteBackend {
         ? `__DRORA_PROBE_RELEASE__\n${JSON.stringify({ version: "3.8.0", archiveSha256: "c".repeat(64) })}\n`
         : "";
       return completedStream(
+        // 上游 v3.17.1：环境探测把 ROOT 提为必需字段（invalidFields 含 PLATFORM/ARCH/ROOT，
+        // INSTALLED 须为 0/1 且必须收尾 END），mock 输出补齐 ROOT 段。
         `__DRORA_PROBE_PLATFORM__\nLinux\n` +
           `__DRORA_PROBE_ARCH__\nx86_64\n` +
+          `__DRORA_PROBE_ROOT__\n/home/tester/.drora/server\n` +
           `__DRORA_PROBE_KERNEL__\nLinux\n` +
           `__DRORA_PROBE_INSTALLED__\n1\n` +
           releaseSection +
@@ -253,7 +256,12 @@ it("reuses a just-probed ready daemon status instead of running serve --daemon a
 
   await expect(
     adapter.ensureDaemon(targets[0]!, {}, { observedStatus: probe.daemonStatus }),
-  ).resolves.toEqual({ port: 43123, ingressToken: "ingress-token-value" });
+    // 上游 v3.17.1：复用刚探测到的 ready 状态时返回体新增 reusedProbeStatus: true 标记。
+  ).resolves.toEqual({
+    port: 43123,
+    ingressToken: "ingress-token-value",
+    reusedProbeStatus: true,
+  });
 
   expect(backend.commands.slice(commandCountBeforeEnsure)).not.toEqual(
     expect.arrayContaining([expect.stringContaining("'serve' '--daemon'")]),

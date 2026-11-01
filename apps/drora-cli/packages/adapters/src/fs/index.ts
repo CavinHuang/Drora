@@ -434,7 +434,7 @@ export class NodeFileSystemAdapter implements FileSystemPort {
 
       const offset = request.offset ?? 0;
       const maxResults = request.maxResults ?? DEFAULT_GLOB_MAX_RESULTS;
-      const files = matches.slice(offset, offset + maxResults).map((match) => match.path);
+      const files = matches.slice(offset, offset + maxResults).map((match) => toPosixPath(match.path));
 
       return {
         path,
@@ -615,12 +615,16 @@ async function searchTextWithJavaScript(
       if (search.matchCount === 0) continue;
 
       numMatches += search.matchCount;
-      matchingFiles.push({ path: candidate.path, mtimeMs: candidate.mtimeMs });
+      // JS 回退与 rg 路径输出同形：posix 分隔符（见 toPosixPath）。
+      const posixCandidatePath = toPosixPath(candidate.path);
+      matchingFiles.push({ path: posixCandidatePath, mtimeMs: candidate.mtimeMs });
       if (mode === "content") {
-        contentEntries.push(...search.entries);
+        contentEntries.push(
+          ...search.entries.map((entry) => ({ ...entry, path: posixCandidatePath })),
+        );
       } else if (mode === "count") {
         countEntries.push({
-          path: candidate.path,
+          path: posixCandidatePath,
           count: search.matchCount,
         });
       }
@@ -637,7 +641,7 @@ async function searchTextWithJavaScript(
       mode,
       startedAt,
       request,
-      files: matchingFiles.map((item) => item.path),
+      files: matchingFiles.map((item) => toPosixPath(item.path)),
       entries: mode === "content" ? contentEntries : countEntries,
       numMatches,
     });
@@ -1333,9 +1337,10 @@ function createTextResultFilter(
 }
 
 function resolveRipgrepOutputPath(root: string, rawPath: string): string {
-  if (isAbsolute(rawPath)) return normalize(rawPath);
+  // 输出统一正斜杠形态（见 toPosixPath 的 Windows 修复说明）。
+  if (isAbsolute(rawPath)) return toPosixPath(normalize(rawPath));
   const withoutLeadingDot = rawPath.startsWith("./") ? rawPath.slice(2) : rawPath;
-  return normalize(join(root, withoutLeadingDot));
+  return toPosixPath(normalize(join(root, withoutLeadingDot)));
 }
 
 function stripTrailingLineEnding(value: string): string {
@@ -1806,6 +1811,17 @@ function escapeRegExp(value: string): string {
 
 function toPosixRelative(root: string, filePath: string): string {
   return relative(root, filePath).split(sep).join("/");
+}
+
+/**
+ * Windows 修复：FileSystemPort 的搜索结果路径统一输出正斜杠形态。glob 匹配本身
+ * 已经按 posix 相对路径做（toPosixRelative），POSIX 上宿主路径就是该形态；win32
+ * 的 walkFiles/rg 输出是反斜杠宿主形态，直接透出会让同一请求跨平台结果形状分叉
+ * （下游 Glob/Grep 工具把该路径喂给模型与后续 Read）。node fs 在 win32 同样接受
+ * 正斜杠绝对路径，消费侧无影响。
+ */
+function toPosixPath(value: string): string {
+  return value.split(sep).join("/");
 }
 
 function applyHeadLimit<T>(

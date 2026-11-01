@@ -52,6 +52,17 @@ describe("guarded workflow runtime ingress", () => {
           workingDirectory: root,
           mcp: { enabled: false },
           modelSelection: selection,
+          // 修复：危险命令匹配依赖 shell dialect；测试 env 未带 PATH，Windows 真实探测
+          // 会落 legacy-shell（matchDangerousCommand 对其返回 unsupported，guarded 退化
+          // 放行）。显式注入 POSIX 选定，让本安全用例在所有平台走同一条可分析路径。
+          bashShellSelection: {
+            dialect: "posix",
+            display: { name: "bash" },
+            id: "test:bash",
+            label: "bash",
+            path: "/bin/bash",
+            source: "user-config",
+          },
         },
         modelExecutor: {
           async generateText(request) {

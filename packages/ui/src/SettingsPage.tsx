@@ -1,9 +1,7 @@
-import { SettingsMachinesProvider } from "@/settings/SettingsMachine.js";
+import { DataSyncSection } from "@/data-sync/index.js";
 import { getWorkspaceSourceServerId } from "@/conversation-workspace-target/sourceIdentity.js";
-import { RemoteConnectionNavigationDot } from "@/remote-connection/RemoteConnectionNavigationDot.js";
-import { resolveRemoteConnectionNavigationPresentation } from "@/lib/remoteConnectionPresentation.js";
 /* oxlint-disable eslint(max-lines) */
-import { ArrowLeft, Rocket, type LucideIcon } from "lucide-react";
+import { ArrowLeft, type LucideIcon } from "lucide-react";
 import { useStore } from "zustand";
 import {
   marketingNavigation,
@@ -71,7 +69,12 @@ import {
   resolveEntitledAccountProviderAccessFingerprint,
 } from "@/lib/accountProviderAccess.js";
 import { buildUsageEntitlementCacheKey } from "@/lib/usageEntitlementCache.js";
-import { ArchiveManagement } from "@/project-sidebar/index.js";
+import {
+  ArchiveManagement,
+  ProjectManagement,
+  useOptionalProjectDirectory,
+} from "@/project-sidebar/index.js";
+import { resolveRecentRemoteProjectPreference } from "@/project-sidebar/remote-project-connection.js";
 import { ModelProviderSection } from "@/settings/ModelProviderSection.js";
 import { useCodingPlanUpgradeDialog } from "@/settings/CodingPlanUpgradeDialogProvider.js";
 import { useEnterpriseCodingPlanProducts } from "@/settings/model-provider-section/useEnterpriseCodingPlanProducts.js";
@@ -90,6 +93,7 @@ import { WorkspaceFileSearchSection } from "@/settings/WorkspaceFileSearchSectio
 import { MemorySettingsSection } from "@/settings/MemorySettingsSection.js";
 import { PersonaSettingsSection } from "@/drora-persona/PersonaSettingsSection.js";
 import { usePersonaControlAvailability } from "@/drora-persona/usePersonaControlAvailability.js";
+import { PersonalizationSection } from "@/settings/PersonalizationSection.js";
 import { BrowserSettingsSection } from "@/settings/BrowserSettingsSection.js";
 import { ComputerUseSection } from "@/settings/ComputerUseSection.js";
 import { VoiceSection } from "@/settings/VoiceSection.js";
@@ -437,6 +441,8 @@ export function SettingsPage({
   const setCodePreviewSettings = useDroraStore((state) => state.setCodePreviewSettings);
   const uiFontSizePx = useDroraStore((state) => state.uiFontSizePx);
   const setUiFontSizePx = useDroraStore((state) => state.setUiFontSizePx);
+  const hideProjectDeviceNames = useDroraStore((state) => state.hideProjectDeviceNames);
+  const setHideProjectDeviceNames = useDroraStore((state) => state.setHideProjectDeviceNames);
   const notificationEnabled = useDroraStore((state) => state.notificationEnabled);
   const setNotificationEnabled = useDroraStore((state) => state.setNotificationEnabled);
   const notificationSoundEnabled = useDroraStore((state) => state.notificationSoundEnabled);
@@ -684,7 +690,9 @@ export function SettingsPage({
     );
   }, [selectedUsageCodingPlanSource, usageActiveTab, usageCodingPlanSources]);
   const setNewUserOnboardingOpen = useDroraStore((state) => state.setNewUserOnboardingOpen);
-  const requestOnboardingDialog = () => setNewUserOnboardingOpen(true);
+  // 「通用」页「打开引导」打开职业引导；迁移向导只从数据同步页「迁移」进入。
+  const openOccupationOnboarding = () => setNewUserOnboardingOpen(true);
+  const requestMigrationDialog = useDroraStore((state) => state.requestOnboardingDialog);
   const setActiveSettingsSection = useCallback(
     (section: SettingsSectionId, fallbackSection: SettingsSectionId = activeSection) => {
       const resolvedSection = resolveSettingsSection(section, fallbackSection);
@@ -694,7 +702,7 @@ export function SettingsPage({
     [activeSection],
   );
   useEffect(() => {
-    if (!isDesktop && activeSection === "remoteDevices") {
+    if (!isSettingsSectionAvailable(activeSection, Boolean(isDesktop))) {
       setActiveSettingsSection("general");
     }
   }, [activeSection, isDesktop, setActiveSettingsSection]);
@@ -765,6 +773,7 @@ export function SettingsPage({
   const onboardingRecordService = services.onboardingRecordService;
   // localHostServices 在组件顶部声明：Drora 人格入口门控与本页共享设置/模型配置
   // 一样必须固定走本机 Host，不能随当前 ServiceProvider 的远端上下文漂移。
+  const projectDirectory = useOptionalProjectDirectory();
   // SettingsPage 可能挂在远端 workspace 的 ServiceProvider 下；共享设置属于本机 Host，
   // 读写必须固定走本机 settingService，否则会写进远端 setting。
   const { settings: sharedSettings, update: updateSharedSettings } = useSettings({
@@ -779,10 +788,6 @@ export function SettingsPage({
           error: error instanceof Error ? error.message : String(error),
         }),
     },
-  );
-  const remoteDevicesPresentation = useMemo(
-    () => resolveRemoteConnectionNavigationPresentation(sourceManagementSnapshot),
-    [sourceManagementSnapshot],
   );
   const memoryWorkspaceDisplayNames = useMemo(() => {
     const names = new Set<string>();
@@ -828,7 +833,7 @@ export function SettingsPage({
   const [embeddedBrowserAllowInsecureCertificates, setEmbeddedBrowserAllowInsecureCertificates] =
     useState(false);
   const [taskAutoArchiveEnabled, setTaskAutoArchiveEnabled] = useState(false);
-  const [taskAutoArchiveOlderThanDays, setTaskAutoArchiveOlderThanDays] = useState(7);
+  const [taskAutoArchiveOlderThanDays, setTaskAutoArchiveOlderThanDays] = useState(30);
   const [closeToTrayOnWindows, setCloseToTrayOnWindows] = useState(Boolean(isWindowsDesktop));
   const [
     desktopChromiumHardwareAccelerationEnabled,
@@ -887,10 +892,11 @@ export function SettingsPage({
         if (section === "usage" && detail?.usageTab) {
           setUsageActiveTab(detail.usageTab);
         }
+        // MCP 独立分区也接收工作区意图，否则会话内审核会误落到用户配置。
+        setPluginScopeKey(detail?.pluginScopeKey);
         if (resolveSettingsSection(section) === "plugin" && detail?.pluginTab) {
           setPluginTab(detail.pluginTab);
           setPluginNavigationOrigin(detail.pluginOrigin);
-          setPluginScopeKey(detail.pluginScopeKey);
         } else if (resolveSettingsSection(section) !== "plugin") {
           setPluginNavigationOrigin(undefined);
         }
@@ -960,7 +966,7 @@ export function SettingsPage({
         setTerminalInheritSystemProfile(settings.terminalInheritSystemProfile ?? true);
         setTerminalFontFamily(settings.terminalFontFamily ?? "");
         setTaskAutoArchiveEnabled(settings.taskAutoArchiveEnabled ?? false);
-        setTaskAutoArchiveOlderThanDays(settings.taskAutoArchiveOlderThanDays ?? 7);
+        setTaskAutoArchiveOlderThanDays(settings.taskAutoArchiveOlderThanDays ?? 30);
       })
       .catch(() => {});
     return () => {
@@ -1706,11 +1712,6 @@ export function SettingsPage({
                                   <span className="truncate text-ui-base text-foreground">
                                     {label}
                                   </span>
-                                  {id === "remoteDevices" ? (
-                                    <RemoteConnectionNavigationDot
-                                      presentation={remoteDevicesPresentation}
-                                    />
-                                  ) : null}
                                 </span>
                               </SettingsSidebarButton>
                             );
@@ -1719,28 +1720,6 @@ export function SettingsPage({
                     );
                   })}
                 </div>
-
-                <SettingsSidebarButton
-                  icon={Rocket}
-                  label={intl.formatMessage({ id: "settings.onboarding" })}
-                  className="mt-4 border border-dashed border-border hover:border-border-hover"
-                  onClick={() => {
-                    runUserAction({
-                      input: {
-                        featureId: "settings.navigation",
-                        action: "open_onboarding",
-                        trigger: "button",
-                      },
-                      operation: requestOnboardingDialog,
-                      completed: { resultSource: "local_commit" },
-                      failureStage: "dialog_open",
-                    });
-                  }}
-                >
-                  <span className="text-ui-base text-foreground">
-                    {intl.formatMessage({ id: "settings.onboarding" })}
-                  </span>
-                </SettingsSidebarButton>
               </nav>
 
               <div className="max-lg:hidden">
@@ -1832,7 +1811,7 @@ export function SettingsPage({
                       />
                     </div>
                   </div>
-                  <SettingsMachinesProvider servers={sourceManagementSnapshot?.servers ?? []}>
+                  <>
                     <main className="min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable]">
                       <div
                         className={cn(
@@ -1842,35 +1821,42 @@ export function SettingsPage({
                           // isWindowsDesktop && "pt-12",
                         )}
                       >
-                        {/* 归档设置迁入后也需要公共页头，不能再因列表自带标题而隐藏页面标题。 */}
-                        <div>
-                          <div className="flex flex-wrap items-center justify-between gap-3">
-                            <div className="flex min-w-0 flex-wrap items-center gap-3">
-                              {showActiveSectionTitle ? (
-                                <h2 className="text-ui-settings-title font-semibold tracking-tight text-foreground lg:text-ui-settings-title-lg">
-                                  {activeSectionLabel}
-                                </h2>
-                              ) : null}
-                              {!hasVisibleSettingsBreadcrumb && activeSectionMeta.titleBadgeId ? (
-                                <span className="inline-flex h-6 items-center rounded-md border border-border px-2 text-ui-xs font-semibold tracking-normal text-foreground">
-                                  {intl.formatMessage({
-                                    id: activeSectionMeta.titleBadgeId,
-                                  })}
-                                </span>
-                              ) : null}
-                              {activeSection === "usage" ? (
-                                <SettingsUsageProviderTabs
-                                  activeTab={usageActiveTab}
-                                  codingPlanSources={usageCodingPlanSources}
-                                  onTabChange={handleUsageTabSelect}
-                                />
-                              ) : null}
+                        {/* 数据同步自带标题与迁移入口，避免公共页头重复显示标题和间距。 */}
+                        {activeSection !== "dataSync" ? (
+                          <div>
+                            <div className="flex flex-wrap items-center justify-between gap-3">
+                              <div className="flex min-w-0 flex-wrap items-center gap-3">
+                                {showActiveSectionTitle ? (
+                                  <h2 className="text-ui-settings-title font-semibold tracking-tight text-foreground lg:text-ui-settings-title-lg">
+                                    {activeSectionLabel}
+                                  </h2>
+                                ) : null}
+                                {!hasVisibleSettingsBreadcrumb && activeSectionMeta.titleBadgeId ? (
+                                  <span className="inline-flex h-6 items-center rounded-md border border-border px-2 text-ui-xs font-semibold tracking-normal text-foreground">
+                                    {intl.formatMessage({
+                                      id: activeSectionMeta.titleBadgeId,
+                                    })}
+                                  </span>
+                                ) : null}
+                                {activeSection === "usage" ? (
+                                  <SettingsUsageProviderTabs
+                                    activeTab={usageActiveTab}
+                                    codingPlanSources={usageCodingPlanSources}
+                                    onTabChange={handleUsageTabSelect}
+                                  />
+                                ) : null}
+                              </div>
                             </div>
+                            {activeSection === "general" ? (
+                              <GeneralSectionHeader localePreference={localePreference} />
+                            ) : null}
+                            {activeSection === "projects" ? (
+                              <p className="mt-2 max-w-2xl text-ui-base text-foreground-subtle">
+                                {intl.formatMessage({ id: "projectManagement.intro" })}
+                              </p>
+                            ) : null}
                           </div>
-                          {activeSection === "general" ? (
-                            <GeneralSectionHeader localePreference={localePreference} />
-                          ) : null}
-                        </div>
+                        ) : null}
                         <div className="space-y-8">
                           {activeSection === "general" ? (
                             <GeneralSectionContent
@@ -1998,12 +1984,25 @@ export function SettingsPage({
                                     action: "open_onboarding",
                                     trigger: "button",
                                   },
-                                  operation: requestOnboardingDialog,
+                                  operation: openOccupationOnboarding,
                                   completed: { resultSource: "local_commit" },
                                   failureStage: "dialog_open",
                                 })
                               }
                             />
+                          ) : activeSection === "dataSync" ? (
+                            isDesktop ? (
+                              <DataSyncSection
+                                snapshot={sourceManagementSnapshot}
+                                sourceServices={localHostServices}
+                                deviceSyncStateService={localHostServices.deviceSyncStateService}
+                                requestSourceSettingsAttachment={
+                                  platform?.requestSourceSettingsAttachment
+                                }
+                                onOpenRemoteConnection={onOpenRemoteWorkspace}
+                                onOpenMigration={requestMigrationDialog}
+                              />
+                            ) : null
                           ) : activeSection === "remoteDevices" ? (
                             sharedSettings && isDesktop && sourceManagement ? (
                               <SourceServerManagementPanel
@@ -2049,15 +2048,27 @@ export function SettingsPage({
                                 onOpenProject={
                                   onOpenRemoteWorkspace
                                     ? async (sourceServerId, path, profileId) => {
-                                        // 已知项目未必已有 attachment；复用保留目录的连接意图。
+                                        // 仅传目录会被 Root 当成新建；复用侧栏唯一目录 owner，同步固定原入口。
+                                        const preference =
+                                          projectDirectory &&
+                                          resolveRecentRemoteProjectPreference(
+                                            projectDirectory.directory,
+                                            {
+                                              sourceServerId,
+                                              path,
+                                              profileId,
+                                            },
+                                          );
+                                        if (!preference) {
+                                          throw Object.assign(
+                                            new Error("remote-project.entry-not-found"),
+                                            {
+                                              code: "recent-project-unresolved",
+                                            },
+                                          );
+                                        }
                                         onBack?.();
-                                        onOpenRemoteWorkspace({
-                                          preferredSourceServerId: profileId
-                                            ? undefined
-                                            : sourceServerId,
-                                          preferredProfileId: profileId,
-                                          preferredDirectoryPath: path,
-                                        });
+                                        onOpenRemoteWorkspace(preference);
                                       }
                                     : undefined
                                 }
@@ -2099,6 +2110,8 @@ export function SettingsPage({
                                 }}
                                 settings={sharedSettings}
                                 onUpdateSettings={updateSharedSettings}
+                                hideProjectDeviceNames={hideProjectDeviceNames}
+                                onHideProjectDeviceNamesChange={setHideProjectDeviceNames}
                               />
                             ) : (
                               <p className="text-ui-sm text-remote-foreground-muted">
@@ -2147,6 +2160,15 @@ export function SettingsPage({
                                 }
                               />
                             </ServiceProvider>
+                          ) : activeSection === "personalization" ? (
+                            // 个性化指令编辑的是本机 ~/.drora/AGENTS.md（Agent 实际读取的文件）。
+                            // 仅桌面本地入口可编辑：手机远控的 base services 可能归属远程
+                            // Source（remoteWorkspaceServiceCollection 注册的是远端 settingService），
+                            // 编辑会写错机器；Web 端只显示本地桌面端指引。
+                            <PersonalizationSection
+                              settingService={localHostServices.settingService}
+                              isDesktop={Boolean(isDesktop)}
+                            />
                           ) : activeSection === "memory" ? (
                             <ServiceProvider services={localHostServices}>
                               {/* Memory catalog 始终使用本地 Host，避免远程 workspace 误读本机数据。 */}
@@ -2192,6 +2214,7 @@ export function SettingsPage({
                             <PluginsSection
                               key={`mcp:${settingsSectionNavigationVersion}`}
                               mode="mcp"
+                              initialScopeKey={pluginScopeKey}
                               isWebRemoteControl={isWebRemoteControl}
                               workspacePath={activeWorkspacePath}
                               workspaceIdentity={activeWorkspaceIdentity}
@@ -2222,6 +2245,8 @@ export function SettingsPage({
                               workspaceIdentity={activeWorkspaceIdentity}
                               isDesktop={isDesktop}
                             />
+                          ) : activeSection === "projects" ? (
+                            <ProjectManagement />
                           ) : activeSection === "archives" ? (
                             <div className="min-w-0 space-y-6">
                               <TaskAutoArchiveSettings
@@ -2376,7 +2401,7 @@ export function SettingsPage({
                         </div>
                       </div>
                     </main>
-                  </SettingsMachinesProvider>
+                  </>
                 </div>
               </SettingsBreadcrumbProvider>
             </div>

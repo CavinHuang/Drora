@@ -23,6 +23,7 @@ import type {
   DroraAgentRuntimePolicy,
   DroraAgentWorkspaceTarget,
 } from "./droraAgent.js";
+import { isRemoteInputPredictionEnabled } from "./inputPredictionSwitch.js";
 
 export type DroraAgentV4ClientMode = "desktop-continuous" | "web-remote-replayable";
 
@@ -222,6 +223,7 @@ function createHello(context: DroraAgentV4ConnectionContext): HelloMessage {
       compression: "none",
       workspaceHookReview: true,
       independentPlanState: true,
+      genUiContext: true,
       // 本 Host 会转发 `workflowRun.*` 键级增量；客户端见到它才能在 clientHello 里回声明
       // （那个 capabilities 是 .strict() 的，反过来会让老 Host 握不上手）。
       workflowRunDeltas: true,
@@ -230,6 +232,10 @@ function createHello(context: DroraAgentV4ConnectionContext): HelloMessage {
       // UI 仍须由 overview 确认目标本地 CLI 的支持和服务状态。P0/P1 对手机/远端连接
       // （web-remote-replayable）不广告——本位沿连接类型判断，只在 desktop-continuous 出现。
       ...(continuous ? { [PERSONA_PROTOCOL_CAPABILITY_CONTROL_V1]: true } : {}),
+      // 手机远控输入预测：受 Host 开关控制；缺席/false 时手机不得发起 inputPrediction。
+      inputPrediction: isRemoteInputPredictionEnabled(),
+      // 手机任务列表预加载：rowsRange 支持 residency=resident-only（只读热会话）。
+      residentRowsRange: true,
     },
     auth: {},
   };
@@ -677,6 +683,29 @@ export function createDroraAgentConnectionScope(
       });
 
   const overrides: Partial<IDroraAgentService> = {
+    onDynamicSessionLifecycle(params) {
+      return (listener) =>
+        base.onDynamicSessionLifecycle(params)((snapshot) => {
+          if (snapshot.state === "stopping") {
+            const topic = conversationTopic(snapshot.sessionId);
+            const key = workspaceKey(params);
+            // 只清当前 session 的 owner；不能使其他任务或 sessions-index 的订阅失效。
+            for (const entry of owned.values()) {
+              if (workspaceKey(entry.target) === key && entry.topic === topic) forget(entry);
+            }
+            for (const group of [...pendingByOwnership.values()]) {
+              for (const pending of [...group]) {
+                if (workspaceKey(pending.target) !== key || pending.topic !== topic) continue;
+                pending.invalidatedByRuntimeRestart = true;
+                removePendingOwnership(pending);
+                pending.frames.length = 0;
+                pending.stagedBytes = 0;
+              }
+            }
+          }
+          listener(snapshot);
+        });
+    },
     async helloConversationV4() {
       assertOpen();
       helloIssued = true;
@@ -933,6 +962,10 @@ export function createDroraAgentConnectionScope(
       // 资源事实不属于会话流，桌面 continuous 与手机 replayable attachment 均不能订阅。
       if (disposed || role !== "trusted-host-relay") return RpcEvent.None;
       return base.onDynamicMcpResourceSamples();
+    },
+    onDynamicRemoteConversationTelemetry() {
+      if (disposed || role !== "trusted-host-relay") return RpcEvent.None;
+      return base.onDynamicRemoteConversationTelemetry();
     },
     onDynamicMcpTelemetry() {
       assertOpen();

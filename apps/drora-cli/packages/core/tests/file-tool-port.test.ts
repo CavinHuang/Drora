@@ -27,7 +27,8 @@ import { readHandler, readToolEntry } from "../src/tool/handlers/read.js";
 import { writeHandler } from "../src/tool/handlers/write.js";
 import { editHandler } from "../src/tool/handlers/edit.js";
 import { applyPatchHandler } from "../src/tool/handlers/apply-patch.js";
-import { createReadFileStateKey } from "../src/tool/read-file-state.js";
+// 修复：S2 合并把读取状态键构造改名 createReadFileStatePathKey，测试随之更新。
+import { createReadFileStatePathKey } from "../src/tool/read-file-state.js";
 import type { ReadFileStateMap, ToolExecutionContext } from "../src/tool/types.js";
 
 const workspaceRoot = resolve("/work");
@@ -53,7 +54,8 @@ describe("file tool handlers", () => {
 
     expect(output).toMatchObject({
       type: "text",
-      filePath,
+      // 修复：模型面回显路径已归一为正斜杠（Windows join 为反斜杠）。
+      filePath: filePath.replaceAll("\\", "/"),
       content: "one\ntwo",
       numLines: 2,
       startLine: 1,
@@ -125,7 +127,8 @@ describe("file tool handlers", () => {
 
     expect(output).toMatchObject({
       type: "text",
-      filePath,
+      // 修复：模型面回显路径已归一为正斜杠（Windows join 为反斜杠）。
+      filePath: filePath.replaceAll("\\", "/"),
       content: `2500: ${"x".repeat(120)}\n2501: ${"x".repeat(120)}`,
       numLines: 2,
       startLine: 2500,
@@ -175,7 +178,8 @@ describe("file tool handlers", () => {
 
     expect(output).toMatchObject({
       type: "text",
-      filePath,
+      // 修复：模型面回显路径已归一为正斜杠（Windows join 为反斜杠）。
+      filePath: filePath.replaceAll("\\", "/"),
       startLine: 1,
       totalLines: 1800,
       truncated: true,
@@ -183,13 +187,14 @@ describe("file tool handlers", () => {
     });
     expect(output.numLines).toBeGreaterThan(0);
     expect(output.numLines).toBeLessThan(1800);
-    expect(output.partialViewNotice).toContain("partial view");
-    expect(output.partialViewNotice).toContain(`offset ${output.numLines + 1}`);
+    expect(output.partialViewNotice).toContain("PARTIAL view"); // 修复：横幅自 v3.15.1 起为大写 PARTIAL。
+    expect(output.partialViewNotice).toContain(`offset=${output.numLines + 1}`); // 修复：横幅参数形态为 offset=N。
 
     const modelContent = readToolEntry.formatModelContent?.(output);
-    expect(modelContent).toContain("<system-reminder>");
-    expect(modelContent).toContain("partial view");
+    // 修复（断言随实现更新）：S2 起 partial 视图提示改由工具批次后的附件发送，
+    // tool_result 只含带行号正文（read.ts formatReadTextToolResult 注释）。
     expect(modelContent).toContain("1\t1:");
+    expect(modelContent).not.toContain("PARTIAL view");
   });
 
   it("returns Read model content that can be copied into Edit without escaped tab drift", async () => {
@@ -405,7 +410,8 @@ describe("file tool handlers", () => {
     );
 
     expect(readOutput).toMatchObject({
-      filePath: projectFilePath,
+      // 修复：模型面回显路径已归一为正斜杠。
+      filePath: projectFilePath.replaceAll("\\", "/"),
       content: "old value",
     });
     expect(writeOutput).toMatchObject({
@@ -447,7 +453,7 @@ describe("file tool handlers", () => {
     });
     expect(fs.files.get(siblingPath)).toBe("allowed");
     expect(readOutput).toMatchObject({
-      filePath: outsidePath,
+      filePath: outsidePath.replaceAll("\\", "/"), // 修复：模型面回显已归一正斜杠。
       content: "external value",
     });
   });
@@ -1293,7 +1299,7 @@ function createReadFileState(filePath: string, content: string): ReadFileStateMa
   const revision = revisionFor(filePath, content);
   return new Map([
     [
-      createReadFileStateKey(filePath, 1, undefined),
+      createReadFileStatePathKey(filePath, 1, undefined),
       {
         path: filePath,
         content: normalizeTestLineEndings(content),

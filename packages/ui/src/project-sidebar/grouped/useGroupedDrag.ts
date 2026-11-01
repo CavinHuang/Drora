@@ -5,7 +5,6 @@ import {
   useState,
   type Dispatch,
   type SetStateAction,
-  type PointerEvent,
 } from "react";
 import {
   PointerSensor,
@@ -16,7 +15,7 @@ import {
   type DragMoveEvent,
   type DragEndEvent,
 } from "@dnd-kit/core";
-import type { ProjectTask, MoveGroupNode, GroupNode } from "@/project-sidebar/contract.js";
+import type { MoveGroupNode, GroupNode } from "@/project-sidebar/contract.js";
 import { groupTaskRef } from "@/project-sidebar/grouped-view.js";
 import { groupedMoveCommand } from "@/project-sidebar/grouped/model.js";
 import type { DroraGroupedTaskView } from "@/project-sidebar/grouped/types.js";
@@ -39,30 +38,21 @@ import {
   groupedTaskCollisionDetection,
   GROUPED_TASK_AUTO_SCROLL_THRESHOLD,
 } from "@/project-sidebar/grouped/drag.js";
-import {
-  createWorkbenchPointerPositionTracker,
-  type WorkbenchPointerPositionTracker,
-} from "@/v4/workbenchPointerPositionTracker.js";
-import {
-  cancelWorkbenchPointerDrag,
-  finishWorkbenchPointerDrag,
-  updateWorkbenchPointerDrag,
-} from "@/v4/workbenchPointerDragDrop.js";
-import type { WorkbenchSessionDragPayload } from "@/v4/workbenchDragDrop.js";
 import { logger } from "@/logger.js";
+
+// 任务活动不能重建 sensor options，否则拖拽 Context 会唤醒全部未变化行。
+const pointerOptions = { activationConstraint: { distance: 6 } };
 
 /** 原 WorkspaceGroupedTasksSection 的手势生命周期；持久化替换为当前单节点命令。 */
 export function useGroupedDrag({
   authoritativeView,
   collapsedGroupIds,
   onCollapsedGroupIdsChange,
-  getTaskRemoteSessionId,
   onMove,
 }: {
   authoritativeView: DroraGroupedTaskView;
   collapsedGroupIds: Set<string>;
   onCollapsedGroupIdsChange: Dispatch<SetStateAction<Set<string>>>;
-  getTaskRemoteSessionId(task: ProjectTask): string | undefined;
   onMove(command: MoveGroupNode): Promise<void>;
 }) {
   const root = useRef<HTMLDivElement>(null);
@@ -76,11 +66,9 @@ export function useGroupedDrag({
   const deltaY = useRef(0);
   const lastOver = useRef<DragOverEvent | null>(null);
   const collapsedSnapshot = useRef<Set<string> | null>(null);
-  const pointer = useRef<WorkbenchPointerPositionTracker | null>(null);
-  const payload = useRef<WorkbenchSessionDragPayload | null>(null);
   const animationFrame = useRef<number | null>(null);
   const pendingPreview = useRef<DroraGroupedTaskView | null>(null);
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
+  const sensors = useSensors(useSensor(PointerSensor, pointerOptions));
   const view = preview ?? authoritativeView;
   const animate = useCallback((next: DroraGroupedTaskView) => {
     const rects = collectGroupedTaskLayoutRects(root.current);
@@ -93,8 +81,6 @@ export function useGroupedDrag({
   }, []);
   useEffect(
     () => () => {
-      pointer.current?.dispose();
-      cancelWorkbenchPointerDrag();
       if (animationFrame.current !== null) cancelAnimationFrame(animationFrame.current);
     },
     [],
@@ -107,23 +93,12 @@ export function useGroupedDrag({
       document.body.style.cursor = previous;
     };
   }, [activeTaskKey, activeGroupId]);
-  const onPointerDownCapture = (event: PointerEvent<HTMLDivElement>) => {
-    pointer.current?.dispose();
-    pointer.current = createWorkbenchPointerPositionTracker(
-      event.currentTarget.ownerDocument,
-      event.nativeEvent,
-    );
-  };
   const restoreCollapsed = () => {
     if (!collapsedSnapshot.current) return;
     onCollapsedGroupIdsChange(collapsedSnapshot.current);
     collapsedSnapshot.current = null;
   };
   const reset = () => {
-    cancelWorkbenchPointerDrag();
-    pointer.current?.dispose();
-    pointer.current = null;
-    payload.current = null;
     setActiveTaskKey(null);
     setActiveGroupId(null);
     setWidth(null);
@@ -151,15 +126,6 @@ export function useGroupedDrag({
     } else {
       const key = getGroupedTaskDragTaskKey(event.active.data.current);
       if (!key) return;
-      const task = findTaskInGroupedView(authoritativeView, key);
-      if (task)
-        payload.current = {
-          kind: "drora/session",
-          workspacePath: task.workspacePath,
-          workspaceIdentity: task.workspaceIdentity,
-          remoteSessionId: getTaskRemoteSessionId(task),
-          sessionId: task.taskId,
-        };
       setWidth(measureGroupedTaskPreviewWidth(root.current, key));
       setActiveTaskKey(key);
     }
@@ -201,8 +167,6 @@ export function useGroupedDrag({
     animate(next);
   };
   const onDragMove = (event: DragMoveEvent) => {
-    const point = pointer.current?.getPosition();
-    if (payload.current && point) updateWorkbenchPointerDrag(payload.current, point.x, point.y);
     const previous = direction.current;
     if (event.delta.y > deltaY.current) direction.current = "after";
     else if (event.delta.y < deltaY.current) direction.current = "before";
@@ -220,12 +184,6 @@ export function useGroupedDrag({
   const onDragEnd = (event: DragEndEvent) => {
     const before = origin.current;
     const next = latestPreview.current ?? authoritativeView;
-    const point = pointer.current?.getPosition();
-    // 旧版分屏交接优先于组织保存；接管后必须撤销侧栏预览。
-    if (payload.current && point && finishWorkbenchPointerDrag(payload.current, point.x, point.y)) {
-      onDragCancel();
-      return;
-    }
     const groupId = getGroupedTaskDragGroupId(event.active.data.current);
     const key = getGroupedTaskDragTaskKey(event.active.data.current);
     const task = before && key ? findTaskInGroupedView(before, key) : null;
@@ -256,7 +214,6 @@ export function useGroupedDrag({
     activeTaskKey,
     activeGroupId,
     width,
-    onPointerDownCapture,
     dragging: Boolean(activeTaskKey || activeGroupId),
     dnd: {
       sensors,

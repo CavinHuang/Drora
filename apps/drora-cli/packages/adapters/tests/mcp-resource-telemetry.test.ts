@@ -207,6 +207,20 @@ describe("MCP 五分钟资源采样", () => {
       onEvent: vi.fn(),
       onResourceSamples: (samples) => batches.push(samples),
     });
+    // 修复依据：探针的产品语义是「采样失败=本次无样本，不重试」（spec 性能红线），Windows 的
+    // tasklist 枚举全部进程本就要 ~500ms（本机 400+ 进程），整套测试并发满载时进一步逼近或
+    // 超过探针 1s 采样超时，单次 sampleNow 可能拿不到批次，把链路正确的烟测误判失败（本段
+    // 门禁定向重跑即触发改抖动）。烟测验证的是探针→tracker 链路而非单次采样的时延，故在测试
+    // 侧按时间预算轮询：满载窗口过去后采样必然恢复；每次 sampleNow 都会 probe.reset() 清零
+    // 失败预算（resource-telemetry.sampleNow 开头），重试安全，断言不变。预算 25s + 收尾，
+    // 用例超时相应放宽到 60s，避免 vitest 默认 5s 截断轮询。
+    const sampleUntilBatchAppears = async (budgetMs: number): Promise<void> => {
+      const before = batches.length;
+      const deadline = Date.now() + budgetMs;
+      while (batches.length === before && Date.now() < deadline) {
+        await tracker.sampleNow();
+      }
+    };
     try {
       await once(child, "message");
       if (!child.pid) throw new Error("child pid missing");
@@ -216,11 +230,11 @@ describe("MCP 五分钟资源采样", () => {
         serverName: "node_repl",
       });
       tracker.recordProcessStarted({ connectionId: "runtime", pid: child.pid });
-      await tracker.sampleNow();
+      await sampleUntilBatchAppears(25_000);
       const done = once(child, "message");
       child.send("burn");
       await done;
-      await tracker.sampleNow();
+      await sampleUntilBatchAppears(25_000);
       expect(batches).toHaveLength(2);
       expect(batches[0]?.[0]?.cpuTimeMsDelta).toBe(0);
       expect(batches[1]?.[0]?.rssKbTotal).toBeGreaterThan(0);
@@ -231,7 +245,7 @@ describe("MCP 五分钟资源采样", () => {
       child.kill();
       await exited;
     }
-  });
+  }, 60_000);
   it("定时器创建或清理失败不能改变 MCP 生命周期", () => {
     const tracker = createMcpTelemetryTracker({
       idSalt: "timer-failure",

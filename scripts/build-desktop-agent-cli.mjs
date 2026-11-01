@@ -94,6 +94,8 @@ const requiredDevPluginRuntimeBuilds = [
     packageDir: `${name}-plugin`,
     artifactPath: `${name}-plugin/dist/server.mjs`,
   })),
+  // Sites 面板的 MCP server 由插件自己构建；不构建时面板入口可见但 MCP 启动失败。
+  { packageName: "@drora/drora-site-plugin", artifactPath: "drora-site-plugin/dist/server.mjs" },
 ];
 // workspace 排除、须走目录直构的 seed 插件（packageDir 在上；其余走 --filter）。
 const workspaceExcludedSeedDirs = new Map(

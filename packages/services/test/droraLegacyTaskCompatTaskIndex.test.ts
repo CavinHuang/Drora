@@ -1357,9 +1357,14 @@ describe("Drora legacy task compat task index", () => {
       provider: "glm",
     });
 
+    // 上游 v3.17.1：releaseWorkspacePreparation 现在额外携带 releasePreparation: true，
+    // 让 disposeWorkspace 在共享 runtime 场景取消等待中的启动并关闭 deferred 会话
+    // （droraTaskServiceAdapter.ts 对齐上游 zcodeTaskServiceAdapter 同名调用）。
+    // 断言随契约演进更新，仍验证"走 workspace 级生命周期而非 disposeAll"的原意。
     expect(agent.disposeWorkspace).toHaveBeenCalledWith({
       workspacePath: "/repo",
       workspaceIdentity: "remote:wsl:ubuntu:/repo",
+      releasePreparation: true,
     });
     expect(agent.disposeAll).not.toHaveBeenCalled();
   });

@@ -195,6 +195,22 @@ describe("Drora plugins", () => {
     }
   });
 
+  it("declares the ui component type exactly for bundled plugins with UI surfaces", async () => {
+    const packagesRoot = fileURLToPath(new URL("../../", import.meta.url));
+
+    for (const plugin of OFFICIAL_PLUGIN_DEFINITIONS) {
+      const packageRoot = join(packagesRoot, basename(plugin.rootCandidates[0] ?? ""));
+      const pluginManifest = JSON.parse(
+        await readFile(join(packageRoot, ".zcode-plugin", "plugin.json"), "utf8"),
+      ) as { ui?: { surfaces?: unknown[] } };
+      // 卸载后的可恢复条目没有运行时信息，商店只能靠定义里的 componentTypes 归入「UI 插件」。
+      expect(
+        plugin.componentTypes?.includes("ui") ?? false,
+        plugin.name,
+      ).toBe((pluginManifest.ui?.surfaces?.length ?? 0) > 0);
+    }
+  });
+
   it("rejects an incomplete Browser Use filesystem or SEA seed", () => {
     const browserUse = OFFICIAL_PLUGIN_DEFINITIONS.find((plugin) => plugin.name === "browser-use");
     if (!browserUse) throw new Error("missing Browser Use official plugin definition");
@@ -552,6 +568,34 @@ describe("Drora plugins", () => {
     }
   });
 
+  it("keeps the ui component type on a suppressed bundled document plugin", async () => {
+    const root = await mkdtemp(join(tmpdir(), "drora-bootstrap-restorable-ui-"));
+    const pluginStorageRoot = join(root, "plugins");
+    const userConfigPath = join(root, "config.json");
+    const documentsId = "documents@drora-plugins-official";
+
+    try {
+      await writeFile(
+        userConfigPath,
+        JSON.stringify({ plugins: { enabled: true, suppressedBuiltins: [documentsId] } }),
+      );
+      const overview = getDroraPluginsOverview({
+        pluginStorageRoot,
+        userConfigPath,
+        workingDirectory: root,
+      });
+      // UI 合并时优先保留目录条目的 summary，所以目录条目与可恢复条目都必须带 "ui"。
+      expect(
+        overview.availablePlugins.find((plugin) => plugin.id === documentsId)?.componentTypes,
+      ).toContain("ui");
+      expect(
+        overview.restorableBuiltins.find((plugin) => plugin.id === documentsId)?.componentTypes,
+      ).toEqual(["ui"]);
+    } finally {
+      await rm(root, { force: true, recursive: true });
+    }
+  });
+
   it("includes the merged Drora official marketplace and Claude marketplace for empty storage", async () => {
     const root = await mkdtemp(join(tmpdir(), "drora-bootstrap-default-marketplace-"));
 
@@ -570,7 +614,10 @@ describe("Drora plugins", () => {
             id: "drora-plugins-official",
             isOfficial: true,
             name: "drora-plugins-official",
-            pluginCount: 15,
+            // 修复（断言随实现更新）：v3.17.1 S2 合并把 drora-site-plugin 并入官方
+            // 插件包，官方市场条目 15→16。
+            // 同上：官方市场 15→16（drora-site-plugin）。
+        pluginCount: 16,
             source: {
               source: "url",
               url: "https://cdn-zcode.z.ai/zcode/official-plugin/marketplace.json",
@@ -1520,7 +1567,12 @@ describe("Drora plugins", () => {
     }
   });
 
-  it("reseeds official plugin cache when hook executable mode changes", async () => {
+  // 修复（平台标注）：断言依赖 stat 的可执行位；Windows 上 node 只支持只读位，
+  // mode & 0o111 恒为 0，该断言在 win32 不可满足，按平台跳过（重播种路径本身
+  // 由同文件其它用例覆盖）。
+  it.skipIf(process.platform === "win32")(
+    "reseeds official plugin cache when hook executable mode changes",
+    async () => {
     const root = await mkdtemp(join(tmpdir(), "drora-bootstrap-plugin-mode-reseed-"));
     const entryRoot = join(root, "resources", "glm");
     const pluginStorageRoot = join(root, "plugins");
@@ -2351,7 +2403,7 @@ describe("Drora plugins", () => {
       expect(
         overview.marketplaces.find((marketplace) => marketplace.id === "drora-plugins-official"),
       ).toMatchObject({
-        pluginCount: 15,
+        pluginCount: 16,
         source: {
           source: "url",
           url: "https://cdn-zcode.z.ai/zcode/official-plugin/marketplace.json",

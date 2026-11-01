@@ -163,6 +163,13 @@ Transport 独占 socket、重试次数与计时器；共享 helper 负责心跳�
 
 HTTP401 置 `auth-required` 并停止自动重连；其他4xx、无效响应或重复 AUTH_FAILED 置 `error/relay-unavailable`。保留上次启用意图，既不全局登出也不清除启用记录；登录通知按下节恢复。二维码在 auth_ack 后可用，重注册后更新 SID；JWT/token 不进入状态或日志。30秒首次调用等待超时后报告失败并保留可恢复 runtime，后台退避继续，用户 stop 才撤销启用意图。
 
+401 只否定发起该请求时使用的 JWT。token 或注册请求返回 401 时，manager 先重新读取当前登录：同账号、同 endpoint 的 JWT 已被替换（例如请求在途时重新登录），这次 401 按可重试网络错误处理，transport 退避后用新 JWT 重新申请，不进入 `auth-required`；JWT 未变才置 `auth-required`；账号或 endpoint 已变化时沿用既有身份变更处理。
+
+```text
+修复前：旧 JWT 请求在途 → 同账号重新登录（signed-in 已处理）→ 旧请求 401 → auth-required，需第二次登录通知
+修复后：旧 JWT 请求在途 → 同账号重新登录 → 旧请求 401 → 当前 JWT 已不同 → 退避重试 → 新 JWT token → 配对恢复
+```
+
 Renderer 可达依赖面仅 `authorizeStart/startAuthorized/stop/getStatus`；刷新二维码的按钮、确认弹窗、平台方法和 IPC 删除，不新增 UI 文案。桌面 continuous 与手机 replayable 的业务 owner、workspaceIdentity 隔离、snapshot/gap 与 acknowledged replay 保持不变。
 
 ## 桌面登录门禁与恢复（04）
@@ -257,13 +264,47 @@ sequenceDiagram
 
 回调模式先于普通入口；生产回调地址由 endpoint origin 推导，本地调试仍经允许的私网 `return_to=/remote/v4` 转发，只有显式启用开发转发的构建接受它。`app_return_to` 只允许同源 `/remote/v4`、保留的 `/remote/__test__`（均可有尾斜杠）和已有分享路径；远控 query 仅放行 `app_version`、`sid`、`mid`、`name`，其他参数与 fragment 不进入 OAuth 安全回跳。测试入口复用 `/remote/v4` 回调后返回原测试链接，不新增 OAuth 或私网 callback 路径；验收见 [测试入口登录回跳](./web-remote-login.md#独立测试入口的登录回跳)。
 
-发起授权时，回调地址与私网 return_to 同样保留上述白名单参数，保证网关在加载 JS 前能按 app_version 选取资源。凭据仓储保存本次完整回调地址，nonce 校验后按该地址交换 token；旧 pending 会话无保存地址时沿用固定配置。具体边界与回归见 [回调保留扫码参数](./web-remote-login.md#回调保留扫码参数)。
+发起授权时，回调地址与私网 return_to 同样保留上述白名单参数，保证网关在加载 JS 前能按 app_version 选取资源。凭据仓储在同源 localStorage 按 nonce 保存本次登录记录（含完整回调地址），回调取出匹配记录后按该地址交换 token。具体边界与回归见 [回调保留扫码参数](./web-remote-login.md#回调保留扫码参数) 与 [回调落到同一浏览器的其他标签页](./web-remote-login.md#回调落到同一浏览器的其他标签页)。
 
-有 SID 直接认证，不先查询设备列表。V1 hash/t 链接显示 invalid-mobile-connection，不计算 HMAC。每次重连重新读 JWT、申请并消费一次性 terminal token；transport 使用共享 V2 心跳（5秒±1秒/15秒 watchdog）、pair_status 映射和 KICKED 窗口。手机网络/5xx 保留 500ms×2ⁿ、最大10秒退避；桌面保留既有1秒起步/最大30秒/jitter。首次 KICKED 随机2~5秒后恢复，60秒内第二次终止为 session-conflict，回前台不能绕过该终态。
+有 SID 直接认证，不先查询设备列表；连接确认目标失效后按 06 的[旧 SID 自动接续](#旧-sid-自动接续)查询一次。V1 hash/t 链接显示 invalid-mobile-connection，不计算 HMAC。每次重连重新读 JWT、申请并消费一次性 terminal token；transport 使用共享 V2 心跳（5秒±1秒/15秒 watchdog）、pair_status 映射和 KICKED 窗口。手机网络/5xx 保留 500ms×2ⁿ、最大10秒退避；桌面保留既有1秒起步/最大30秒/jitter。首次 KICKED 随机2~5秒后恢复，60秒内第二次终止为 session-conflict，回前台不能绕过该终态。
 
-HTTP401 或重连前 JWT 缺失：关闭连接、清除本地会话、回登录页，当前完整 URL 作为再次登录返回地址。auth_init 后 AUTH_FAILED：device-not-owned；切换账号同样清除会话并保留返回地址。WRONG_PARAM：invalid-mobile-connection。DEVICE_OFFLINE 保留15秒宽限恢复；INTERNAL 维持现有可恢复等待/重连。waiting 是合法配对态，继续心跳；业务 data 仅在已认证 paired 时可接收。dispose/挂起/重建使迟到 token、旧 socket 消息失效。
+HTTP401 或重连前 JWT 缺失：关闭连接、清除本地会话、回登录页，当前完整 URL 作为再次登录返回地址。401 只否定发起请求时的 JWT：terminal token 请求返回 401 时，若同源 storage 里已是另一份非空 JWT（其他标签页刚重新登录），这次 401 按可重试处理，下一轮读取新 JWT 重新申请，不清除会话；设备列表请求沿用 06 的同一规则。auth_init 后 AUTH_FAILED：device-not-owned；切换账号同样清除会话并保留返回地址。WRONG_PARAM：invalid-mobile-connection。DEVICE_OFFLINE 保留15秒宽限恢复；INTERNAL 维持现有可恢复等待/重连。waiting 是合法配对态，继续心跳；普通 app data 仅在已认证 paired 时可接收，已绑定 bridge 的 raw 帧见下段。dispose/挂起/重建使迟到 token、旧 socket 消息失效。
+
+挂起保留连接的可靠帧：hidden/pagehide/freeze 后 transport 为 suspended，回前台的原 socket 探测为 reconnecting。这两段时间里，同一条已认证、已 matched 且仍 OPEN 的 socket 可能继续收到当前 bridge 的 `rpc-frame` / `rpc-frame-ack`。3.16.x 曾把它们和普通 data 一起丢弃，回前台后下一帧序号断档，触发 physicalGap 和 bridge 重建。规则如下：
+
+- transport 记录当前有效的已配对 socket：matched 时授予；waiting、INTERNAL、关闭、替换和终态时撤销。挂起期间迟到的 matched 不重新授予，回前台由原 socket 探测重新确认。
+- 许可有效时，只把 raw 帧交给现有 pending/active adapter，由 adapter 校验 bridgeSessionId、bridgeGeneration、recoveryId、顺序与去重；未被接纳的帧丢弃，不回落普通 app payload。普通 app data（bootstrap 回包、bridge-degraded 等）仍按 paired 门禁丢弃。
+- 只放行该连接的出站 `rpc-frame-ack`。新的 `rpc-frame`、app 请求、查看声明和诊断继续按 paired 门禁暂停。ACK 不改变 transport 状态，不触发 send-ready、bootstrap 或查看重申。
+- 挂起或探测期间收到 INTERNAL（例如 ACK 投递时 hub 找不到桌面）只撤销许可，保留 socket 与已配对语义；回前台仍先探测原 socket，不按首次配对进入30秒 waiting 失败。流式输出时可能同时有多个 ACK 在途，hub 对每个都回 INTERNAL；判断只看是否仍在同一条已配对 socket 的挂起或探测窗口，不看许可是否已撤销，重复 INTERNAL 结果相同。
+- 期限不变：后台排队的新出站 RPC（例如任务状态变化后的元数据读取）仍受45秒 raw 期限约束，超时按既有降级恢复；本规则不承诺长后台始终保留 bridge。真实断网、socket 关闭和真实序号缺口继续走原恢复。
+
+```text
+桌面 → 同一有效配对 socket → 手机 suspended / 原 socket 探测
+                              ├ rpc-frame / rpc-frame-ack → 当前 bridge adapter（身份/顺序/去重）→ ACK 出站
+                              ├ 普通 app data → 丢弃（不变）
+                              └ waiting / INTERNAL → 撤销许可，保留 socket，回前台探测
+```
 
 前后台恢复继续先探测同一 socket，必要时重新申请 token；重配对后按原顺序校验桌面版本、恢复 bootstrap/mobile-view-state、bridge、ACK 未确认帧与 snapshot/gap。桌面 `desktop-continuous`、手机 `web-remote-replayable` 的业务 owner、workspaceIdentity 和恢复顺序不变。
+
+### 浏览器 HTTP 取消兼容
+
+terminal token 与设备列表 HTTP adapter 不依赖 `AbortSignal.any()`、`AbortSignal.timeout()` 或 `throwIfAborted()`。缺少这些方法时，仍须完成真实请求和配对，不能在构造请求参数时抛错并持续重连。
+
+两个 adapter 共用请求作用域的 `AbortController`，将调用方取消和既有 15 秒期限连接到同一请求信号。期限覆盖 fetch 和完整正文读取；收到响应头时不能提前释放。调用方已取消时不发请求；成功、HTTP/业务错误、网络失败、取消或超时后，均清理定时器和调用方监听。提前拒绝 HTTP 状态时也终止未读正文，避免取消期限后留下无期限请求。HTTP 401、业务错误与可重试网络错误沿用原分类，不吞错或返回部分正文。
+
+```text
+修复前：token / list → 缺少静态 API → fetch 未执行 → 重连 / 列表失败
+修复后：入口 / transport 的取消信号 → 请求内 AbortController → fetch + 完整正文
+                                               ├─ 15 秒期限
+                                               └─ finally 清理计时器 / 监听
+```
+
+helper 只拥有一次 HTTP 请求的取消资源；导航由 Entry 持有，socket/generation/重试由 transport 持有。配对协议、账号隔离、桌面 continuous 和手机 replayable 的状态归属不变。
+
+回归：两种静态 API 分别缺失及同时缺失时，token/list 成功；取消覆盖请求头和正文阶段，已取消输入零请求，正文期限与成功/异常清理均有 adapter 测试；真实 loopback relay 验证配对和 bootstrap 透传。ML08 pending 浏览器用例覆盖扫码直连、无码选设备到配对发送 bootstrap，矩阵为三种 API 缺失 × 两入口 × 手机/宽屏 × 深浅主题，交错使用中英文。此证据不替代真机浏览器、生产 relay 或用户现场事故验证。
+
+2026-10-19 本地验证：修复前兼容回归 27 项失败，浏览器缺少 `any` 时 token/WS/bootstrap 均为零；候选的未读错误正文清理另以 2 项失败测试确认。最终受影响 UT 为 21 文件、223 项通过；ML08 的 24 组浏览器回归均只取一次 token、建立一次 WS 并配对发送 bootstrap，证据在 `.tmp/remote-abort-api-compat-e2e/`。正常环境、缺少 `any`、缺少 `timeout` 的真实 HTTP/WS 探针均配对成功。typecheck、桌面 E2E typecheck、lint、architecture 和改动文件格式检查通过；lint 告警位于未修改文件。真机与生产环境仍未验证，用例保持 pending。
 
 ### 手机文案与截图验收
 
@@ -288,14 +329,16 @@ HTTP401 或重连前 JWT 缺失：关闭连接、清除本地会话、回登录�
 
 截图矩阵：登录门禁 / 无 SID / device-not-owned × 390px / 1024px × Zai Light / Zai Dark × zh-CN / en-US，共24张；pending 用例 `packages/web/test/e2e/manual-review/pending/remote-login-v2.mjs`，不自动转正。测试接缝沿用本票已定义的前置编排 + 注入 auth/fetch/location/storage/transport，以及真实 loopback 假 relay。
 
-| 用例 | 行为与断言                                                                                                      | 自动化层级                       |
-| ---- | --------------------------------------------------------------------------------------------------------------- | -------------------------------- |
-| ML01 | 无 JWT 显示双平台登录门禁，零 token/WS；24张矩阵中的8张                                                         | pending 浏览器                   |
-| ML02 | 已登录无 SID 查询设备并显示列表，选定前零 token/WS；06 更新为混合/空列表16张                                    | pending 浏览器                   |
-| ML03 | AUTH_FAILED 展示归属失败；切换账号清会话且保留 URL；8张                                                         | pending 浏览器                   |
-| ML04 | 两平台 × 手机/宽屏保留回调的扫码参数，保存 nonce/provider/回调地址，按原地址换 token 并回跳、配对发送 bootstrap | pending 浏览器，受控 OAuth/relay |
-| ML05 | 已登录直接 terminal token/auth_init/配对发送 bootstrap                                                          | pending 浏览器                   |
-| ML06 | token401 清凭据回登录并保留 URL，无 WS                                                                          | pending 浏览器                   |
+| 用例 | 行为与断言                                                                                                      | 自动化层级                                    |
+| ---- | --------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
+| ML01 | 无 JWT 显示双平台登录门禁，零 token/WS；24张矩阵中的8张                                                         | pending 浏览器                                |
+| ML02 | 已登录无 SID 查询设备并显示列表，选定前零 token/WS；06 更新为混合/空列表16张                                    | pending 浏览器                                |
+| ML03 | AUTH_FAILED 展示归属失败；切换账号清会话且保留 URL；8张                                                         | pending 浏览器                                |
+| ML04 | 两平台 × 手机/宽屏保留回调的扫码参数，保存 nonce/provider/回调地址，按原地址换 token 并回跳、配对发送 bootstrap | pending 浏览器，受控 OAuth/relay              |
+| ML05 | 已登录直接 terminal token/auth_init/配对发送 bootstrap                                                          | pending 浏览器                                |
+| ML06 | token401 清凭据回登录并保留 URL，无 WS                                                                          | pending 浏览器                                |
+| ML08 | 缺少 AbortSignal 静态 API 时，扫码直连和设备列表选择均完成 token/WS/auth/配对并发送 bootstrap                   | pending 浏览器，`remote-abort-api-compat.mjs` |
+| ML09 | 旧 JWT 的 token 请求在途时其他标签页写入新 JWT，迟到 401 不清会话，用新 JWT 重新申请并配对                      | pending 浏览器                                |
 
 ### 环境验收记录
 
@@ -313,7 +356,7 @@ HTTP401 或重连前 JWT 缺失：关闭连接、清除本地会话、回登录�
 
 `WebRemoteControlEntry` 是入口视图、设备列表请求和自动连接 admission 的唯一 owner；页面只渲染其投影并发送选择、刷新和切换账号命令。凭据继续由 `WebAuthService` 持有，设备在线事实来自当前账号的 `GET /api/v1/remote/device`，localStorage 最近 SID/MID 仅是偏好，不能证明归属或在线；同源 localStorage 记住的设备名和平台同样只是展示偏好，不参与身份、归属或在线判断。
 
-1. 回调模式和登录门禁保持优先；有 SID 沿用 05 直接连接，不查询设备列表。
+1. 回调模式和登录门禁保持优先；有 SID 沿用 05 直接连接，不查询设备列表。直连确认目标失效后按下文[旧 SID 自动接续](#旧-sid-自动接续)查询一次。
 2. 已登录且无 SID 时，读取同源 localStorage 的 `drora-web-remote-last-device-sid` 与 `drora-web-remote-last-device-mid`，拉取当前账号的设备列表，按以下顺序决定落点：
    - 返回列表包含最近 SID 且 `online=true`：自动连接该 SID。
    - 最近 SID 不在线（离线或已被桌面重新注册删除），但最近 MID 在当前列表中恰好只有 1 个在线 SID：自动连接这个 SID。同一台电脑重新注册后 SID 会变化，MID 代表同一台机器，列表已限定为当前账号，因此可以直接接上。最近 MID 缺失（只记录过 SID 的旧偏好）时，取列表中最近 SID 记录的 MID。
@@ -471,6 +514,36 @@ GET 设备记录成功 → 账号校验通过 → 读取本地设备名/平台�
 有 SID 的扫码/历史链接在 relay 配对成功后也更新最近 SID（URL 带 `mid` 时同时更新最近 MID），使“最近用过”包含扫码进入；归属失败的直连不覆盖最近记录。已有按 SID 保存的 client ID、工作区选择与 mobile-view-state 均保留原键和隔离方式。
 
 失败页“选择其他设备”清除 URL 的 `sid`、`mid`、`name`（及非法旧链接遗留的 `hash`、`t`），保留 `app_version`，释放当前连接与业务资源，再进入明确跳过自动连接的列表流程。它不清除按 SID 保存的业务状态。`device-not-owned` 显示两个动作：“切换账号”为主按钮，与列表页共用[手动切换账号确认弹窗](./web-remote-login.md#手动切换账号确认)，确认登出后保留当前目标 URL 回登录；“选择其他设备”为下方 ghost 按钮，留在当前账号选设备。其余连接失败保留既有重试主按钮并增加选设备次级动作。
+
+### 旧 SID 自动接续
+
+桌面在 auth_init 收到 AUTH_FAILED 后会重新注册，换账号后再开启远控也会得到新 SID；同一台电脑的 MID 不变。旧扫码链接、历史标签页或已配对页面仍带旧 SID，此前只会停在失败页，用户要手动“选择其他设备”或重新扫码。2026-10-27 用户确认改为自动接续，规则复用本节无 SID 的最近设备落点，不新增设备发现或轮询：
+
+1. 触发：任一连接（有 SID 直连、列表选择、最近设备自动连接）以 `device-not-owned`（auth_init AUTH_FAILED）或 `desktop-disconnected`（首次 waiting 超时、DEVICE_OFFLINE 宽限超时、回前台恢复超时）失败。`session-conflict`、`relay-unavailable`、`invalid-mobile-connection`、`auth-required` 等其他失败保持原行为。
+2. 查询：bootstrap 已释放当前连接后，Entry 用当前 JWT 请求一次 `GET device`；查询期间保留当前画面，不闪出列表页。
+3. 落点：以失败连接的 SID 为最近 SID、其 MID（URL `mid`，缺失时取列表中该 SID 记录的 MID）为最近 MID，按“落点”规则求值。只有结果是另一个在线 SID 时才接续：与手动选择共用同一次 admission（replaceState 写 `sid`/`mid`/`name`、写最近 SID/MID、走 05 建连）。原 SID 仍在线、同 MID 有 0 个或多个在线 SID、无 MID 时，显示原失败页及其既有动作，不任选电脑。
+4. 有界：接续出的新连接在配对成功前失败，不再接续，直接显示失败页；配对成功后若再次失效，可按同一规则再接续一次。没有定时器和重试循环。
+5. 查询失败：401 与设备列表请求一致（JWT 已变则按新登录重新进入，未变才清会话回登录）；网络、5xx、非法响应显示原失败页。
+6. 业务状态：新 SID 走新的 bootstrap，按 SID 隔离的 client ID、工作区选择与 mobile-view-state 不迁移，不复用旧 bridge、RPC 或 remoteSessionId。
+
+```text
+连接 SID_old ─► transport 终态：device-not-owned | desktop-disconnected
+   bootstrap 释放连接 ─► Entry.onFailure
+   Entry：本连接配对过，或不是接续出的连接？
+     ├─ 否 ─────────────────────────────────────────► 原失败页
+     └─ 是 ─► GET device（当前 JWT，一次）
+               ├─ SID_old 在线 / 同 MID 0 或 ≥2 在线 / 无 MID ─► 原失败页
+               └─ 同 MID 唯一在线 SID_new ≠ SID_old
+                    ─► replaceState(sid=SID_new) ─► 写最近设备 ─► 连接 SID_new（配对前不可再接续）
+```
+
+2026-10-27 本地验证（迟到 401 与旧 SID 自动接续，macOS arm64）：
+
+- `remote-login-v2.mjs` 全量 82 项通过，含 ML09 与 MD11–MD13；这几项在修改前的 Entry 上全部失败（直接登出、不接续或不查询）。MD04 与归属失败矩阵的列表请求次数按本节更新为多一次接续查询。
+- `remote-device-groups.mjs` 24 组、`remote-abort-api-compat.mjs` 24 项通过。`remote-device-switch.mjs` 修改前后都停在同一处（会话迁移弹窗遮挡，等不到 `onboarding-page`），是用例与现有 UI 不一致，未据此声称覆盖。
+- 真实 Entry 运行时场景：接续后配对再失效可再接续、配对前失败不循环、列表 401 与网络失败、查询期间 JWT 变化、URL 无 MID、`session-conflict` 等不查询。
+- 桌面：真实 manager + loopback 假 relay 覆盖 token 与注册两处迟到 401（修复前 `auth-required`，修复后用新 JWT 恢复）、JWT 未变的 401 仍 `auth-required`、普通断网重连；AUTH-08 两份 Electron 用例共 4 项通过。
+- 受控 relay 与接口，不等于真机、线上 relay 或 Windows/Linux 验收。
 
 ### 已连接页面的设备入口
 

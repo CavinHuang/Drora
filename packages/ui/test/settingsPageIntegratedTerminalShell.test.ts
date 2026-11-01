@@ -382,6 +382,9 @@ describe("SettingsPage integrated terminal shell", () => {
         isDesktop: false,
         isMacDesktop: false,
         isWindowsDesktop: true,
+        // v3.17.1 合并后人格入口的能力发现字段随每次配置计算显式传入；
+        // 无 personaControlV1 能力时为 false（specs/drora-persona-system.md §10）。
+        showDroraPersona: false,
       },
     ]);
     expect(html).toContain('aria-label="settings.navLabel"');

@@ -36,14 +36,15 @@ describe("DataRootLock", () => {
     const root = await mkdtemp(join(tmpdir(), "drora-r2-lock-live-"));
     const lockFile = join(root, "run", "server.lock");
     await mkdir(join(root, "run"), { recursive: true });
-    await writeFile(
-      lockFile,
-      `${JSON.stringify({ pid: process.pid, acquiredAt: Date.now() })}\n`,
-      "utf8",
-    );
+
+    // 上游 v3.17.1：判活核对进程身份，自 PID 锁必须有 ownerToken（见 isHolderAlive）。
+    // 模拟真实持锁者：先由本进程 acquire 登记 token，另一实例再抢必须被拒。
+    const holder = new DataRootLock(lockFile);
+    await holder.acquire();
 
     const lock = new DataRootLock(lockFile);
     await expect(lock.acquire()).rejects.toThrow(/already running/);
+    await holder.release();
   });
 
   it("reports missing, stale, active and malformed lock owners without mutating the file", async () => {
@@ -55,8 +56,13 @@ describe("DataRootLock", () => {
     await mkdir(join(root, "run"), { recursive: true });
     await writeFile(lockFile, `${JSON.stringify({ pid: DEAD_PID })}\n`, "utf8");
     await expect(lock.inspect()).resolves.toMatchObject({ state: "stale", pid: DEAD_PID });
-    await writeFile(lockFile, `${JSON.stringify({ pid: process.pid })}\n`, "utf8");
+    // active 态要求锁由存活持锁者经 acquire 写下（含 ownerToken/processIdentity），
+    // 上游 v3.17.1 起手写的裸 PID 锁一律视为 stale。
+    const holder = new DataRootLock(lockFile);
+    await writeFile(lockFile, "", "utf8");
+    await holder.acquire();
     await expect(lock.inspect()).resolves.toMatchObject({ state: "active", pid: process.pid });
+    await holder.release();
     await writeFile(lockFile, "not-json", "utf8");
     await expect(lock.inspect()).resolves.toMatchObject({ state: "invalid" });
     await expect(readFile(lockFile, "utf8")).resolves.toBe("not-json");

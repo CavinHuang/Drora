@@ -881,6 +881,13 @@ test("allows skill-only official plugins when SEA runtime assets are required", 
       "packages/drora-guide-plugin/skills/drora-configuration-guide/SKILL.md",
       "",
     );
+    await writeTestFile(root, "packages/drora-site-plugin/.zcode-plugin/plugin.json", "{}");
+    await writeTestFile(root, "packages/drora-site-plugin/scripts/drora-site.mjs", "");
+    await writeTestFile(root, "packages/drora-site-plugin/skills/site-deploy/SKILL.md", "");
+    await writeTestFile(root, "packages/drora-site-plugin/scripts/stage.mjs", "");
+    // 0.4.0 起带 Sites 面板：插件自己构建的 server 与面板页面是必需运行时产物。
+    await writeTestFile(root, "packages/drora-site-plugin/dist/server.mjs", "");
+    await writeTestFile(root, "packages/drora-site-plugin/dist/ui/panel.html", "");
 
     const { manifest } = await collectSeaOfficialPluginAssets({
       requireRuntime: true,

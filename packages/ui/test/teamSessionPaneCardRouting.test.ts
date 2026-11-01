@@ -17,6 +17,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ConversationSnapshot } from "@drora/shared/drora-protocol-v4";
 import { DroraIntlProvider } from "@/i18n/IntlProvider.js";
+import { TabStoreProvider } from "@/store/TabStoreProvider.js";
 import { resolveTeamStatusPanelOpenTarget, SessionPane } from "@/v4/SessionPane.js";
 import { createTeamFixture } from "./fixtures/agents-team.fixture.js";
 
@@ -247,13 +248,20 @@ function renderPane({
     createElement(
       DroraIntlProvider,
       { initialLocale: "zh-CN" },
-      createElement(SessionPane, {
-        paneId: "pane-1",
-        readOnly,
-        sessionId: "lead-session",
-        workspacePath: "/workspace",
-        ...(readOnly ? {} : { onOpenWorkflowRun: () => {} }),
-      }),
+      // 上游 v3.17.1 在 SessionPane 早期 hook 区接入 useSessionRuntimeRestart，其
+      // useWorkspaceServices 链读取 tab store；渲染环境补 TabStoreProvider（空 store
+      // 无 activeTab，remote 解析安全回退 null），团队卡双路由断言不变。
+      createElement(
+        TabStoreProvider,
+        null,
+        createElement(SessionPane, {
+          paneId: "pane-1",
+          readOnly,
+          sessionId: "lead-session",
+          workspacePath: "/workspace",
+          ...(readOnly ? {} : { onOpenWorkflowRun: () => {} }),
+        }),
+      ),
     ),
   );
 }

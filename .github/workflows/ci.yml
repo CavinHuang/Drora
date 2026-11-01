@@ -22,7 +22,7 @@ jobs:
           node-version: "24.14.0"
       - run: corepack enable
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile || (rm -rf node_modules && pnpm install --frozen-lockfile)
       - name: Freshness baseline
         run: node scripts/check-workspace-freshness.mjs
         continue-on-error: true
@@ -79,7 +79,7 @@ jobs:
           node-version: "24.14.0"
       - run: corepack enable
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile || (rm -rf node_modules && pnpm install --frozen-lockfile)
       - name: drora-cua smoke (mock broker)
         run: node packages/zcode-cua/test/restored-smoke.mjs
       - name: Helper typecheck + Windows bundle build
@@ -103,7 +103,7 @@ jobs:
           node-version: "24.14.0"
       - run: corepack enable
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile || (rm -rf node_modules && pnpm install --frozen-lockfile)
       - name: Build plugin MCP runtimes
         # node-repl-host 依赖 @drora/core、@drora/contracts 的 dist,
         # 必须先走依赖闭包。turbo 2.9 在「子目录 turbo.json + 仓库根 workspace」
@@ -169,7 +169,7 @@ jobs:
           node-version: "24.14.0"
       - run: corepack enable
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile || (rm -rf node_modules && pnpm install --frozen-lockfile)
       # 同 Typecheck job：本分支 typecheck 尾段的 bootstrap tsc 需要依赖闭包 dist 先在。
       - name: Build bootstrap dependency closure
         run: pnpm --filter @drora/bootstrap^... run build
@@ -216,7 +216,7 @@ jobs:
           node-version: "24.14.0"
       - run: corepack enable
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile || (rm -rf node_modules && pnpm install --frozen-lockfile)
       # 构建链守卫：addon 文件名、node 版本错配（modules 137 守卫）、SEA 熔丝、
       # ax_native 基线 SHA-256 钉扎——任一回归即红灯。
       - name: Build macOS helper .app
@@ -253,7 +253,7 @@ jobs:
           node-version: "24.14.0"
       - run: corepack enable
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile || (rm -rf node_modules && pnpm install --frozen-lockfile)
         shell: cmd
       - name: Rebuild addon from restored source (MSVC + Windows SDK autodetect)
         run: node packages/zcode-cua-helper/native/reverse/build-rebuilt.mjs

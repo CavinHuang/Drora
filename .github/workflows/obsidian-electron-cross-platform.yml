@@ -85,7 +85,7 @@ jobs:
       - name: Enable pnpm
         run: corepack enable
       - name: Install locked dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile || (rm -rf node_modules && pnpm install --frozen-lockfile)
       - name: Build reporting and actual desktop Agent CLI
         run: |
           pnpm --filter @drora/e2e-report build:node
@@ -155,7 +155,7 @@ jobs:
       - name: Enable pnpm
         run: corepack enable
       - name: Install locked dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile || (rm -rf node_modules && pnpm install --frozen-lockfile)
       - name: Build reporting and actual desktop Agent CLI
         run: |
           pnpm --filter @drora/e2e-report build:node

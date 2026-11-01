@@ -89,13 +89,20 @@ const explicit = norm([
   "packages/ui/src/v4/useComposerTextInsertApplied.test.ts",
   "packages/ui/src/v4/paneEscapeStopGeneration.test.ts",
   "packages/ui/src/prompt-editor/composerEscapePlan.test.ts",
+  // ui/test 下的 .tsx 组件测试：上游 v3.17.1 删除 packages/ui/vitest.config.ts
+  // （UP05372）后失去本地执行通道，且 test/ glob 只收 .ts——显式登记防再孤儿化
+  // （完成度审查 2026-11-01 发现：knowledgeReviewView 曾因之全通道失执行）。
+  "packages/ui/test/knowledgeReviewView.test.tsx",
+  "packages/ui/test/teamApprovalDock.test.tsx",
+  "packages/ui/test/teamCardInlineFlow.test.tsx",
+  "packages/ui/test/teamStatusPanelHalt.test.tsx",
   "scripts/assert-safe-cua-helper-zip.test.mjs",
   "scripts/ci/ci-telemetry-keyword-guard.test.mjs",
   "scripts/test/upstream-apply-ledger.test.mjs",
 ]).filter((f) => existsSync(resolve(root, f)));
 
 const globbed = norm([
-  ...globSync("packages/*/test/**/*.test.ts", { cwd: root }),
+  ...globSync("packages/*/test/**/*.test.{ts,tsx}", { cwd: root }),
   ...globSync("packages/*/src/**/contract.test.ts", { cwd: root }),
   ...globSync("packages/services/src/gen-ui/**/*.test.ts", { cwd: root }),
   ...globSync("packages/ui/src/voice/**/*.test.{ts,tsx}", { cwd: root }),

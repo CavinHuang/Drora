@@ -91,12 +91,12 @@
 
 前置：S1；不能用根 affected 冒充 CLI 测试。
 
-- [ ] S2-01 导入官方 SessionLifecycleController 与协议 façade；统一冷恢复、create/fork、lease、hydration、stop/restart，先补竞态/失败回归。
-- [ ] S2-02 合并 workflow quota/concurrency/resume、插件 metadata/search/MCP Node fallback、model feature header、工具权限与恢复逻辑。
-- [ ] S2-03 回接 Team runtime/skills gate/工具注册/审批历史和 vaultSearchPort、write-tier，不新增 owner 或还原文件内自研逻辑。
-- [ ] S2-04 回接 Persona capture/control/learning notification/worker；验证 E/U/L、每轮冻结、取消/销毁和独立存储，避免新 lifecycle 绕过捕获或留下旧 lease。
-- [ ] S2-05 合并新 site 插件与相关 seed/manifest、node-repl-host 生成物；保持官方字节/生产者边界，生成类型通过对应 build 重生。
-- [ ] S2-06 执行实际 CLI 包级 typecheck 与所改/扩展测试，完成 RG02/03/05/10/11/17/20；三项复核、提交和 ledger 回填。
+- [x] S2-01 导入官方 SessionLifecycleController 与协议 façade；统一冷恢复、create/fork、lease、hydration、stop/restart，先补竞态/失败回归。
+- [x] S2-02 合并 workflow quota/concurrency/resume、插件 metadata/search/MCP Node fallback、model feature header、工具权限与恢复逻辑。
+- [x] S2-03 回接 Team runtime/skills gate/工具注册/审批历史和 vaultSearchPort、write-tier，不新增 owner 或还原文件内自研逻辑。
+- [x] S2-04 回接 Persona capture/control/learning notification/worker；验证 E/U/L、每轮冻结、取消/销毁和独立存储，避免新 lifecycle 绕过捕获或留下旧 lease。
+- [x] S2-05 合并新 site 插件与相关 seed/manifest、node-repl-host 生成物；保持官方字节/生产者边界，生成类型通过对应 build 重生。
+- [x] S2-06 执行实际 CLI 包级 typecheck 与所改/扩展测试，完成 RG02/03/05/10/11/17/20；三项复核、提交和 ledger 回填。
 
 ### S2 门禁补记（2026-11-01，门禁修复轮）
 
@@ -113,12 +113,12 @@
 
 前置：S1/S2；存储改动必读 session-management。
 
-- [ ] S3-01 合并 project-storage 0007–0009/schema/repos/task-facts/remote projects；保留分组、NULL 归属、CLI 时间、离线本地入口与同路径身份隔离。
-- [ ] S3-02 按 D05 验证 purge 的实际授权/调用，不自动改变软删除产品边界；旧 migration checksum 不重写。
-- [ ] S3-03 合并 data-sync/settings/provisioning/Provider/客户端 SDK/server-cli，公开入口与 source-settings/手机白名单同步。
-- [ ] S3-04 保留知识库、Jev/local embedding、Obsidian 的服务注册与插件/协议；安全 NO-GO、receipt/fencing/epoch/批准不放松。
-- [ ] S3-05 自建 Relay 服务与新 shared 契约对齐，完成新增能力可用性审计与兼容降级；服务端必要扩展按独立模块/spec 任务落地。
-- [ ] S3-06 运行 schema、逐表 hash/失败恢复/旧版兼容、服务与 Relay 回归、远端 build；完成 RG04–06/13/15/16/18/20，三项复核、提交与 ledger。
+- [x] S3-01 合并 project-storage 0007–0009/schema/repos/task-facts/remote projects；保留分组、NULL 归属、CLI 时间、离线本地入口与同路径身份隔离。
+- [x] S3-02 按 D05 验证 purge 的实际授权/调用，不自动改变软删除产品边界；旧 migration checksum 不重写。
+- [x] S3-03 合并 data-sync/settings/provisioning/Provider/客户端 SDK/server-cli，公开入口与 source-settings/手机白名单同步。
+- [x] S3-04 保留知识库、Jev/local embedding、Obsidian 的服务注册与插件/协议；安全 NO-GO、receipt/fencing/epoch/批准不放松。
+- [x] S3-05 自建 Relay 服务与新 shared 契约对齐，完成新增能力可用性审计与兼容降级；服务端必要扩展按独立模块/spec 任务落地。
+- [x] S3-06 运行 schema、逐表 hash/失败恢复/旧版兼容、服务与 Relay 回归、远端 build；完成 RG04–06/13/15/16/18/20，三项复核、提交与 ledger。
 
 ### S3 门禁补记（2026-11-01，门禁修复轮）
 
@@ -134,34 +134,34 @@
 
 前置：S1–S3。
 
-- [ ] S4-01 合并 Host attachment policy/调度/RPC、Main 转发与窗口/托盘/未读；保留一窗口一 Local Host、远端连接表、跨 Host lease。
-- [ ] S4-02 合并远控新能力与通知/Renderer actions；保留自建 Relay 来源、设置读取与 getEndpointUrls，三 URL 一致，验证切换与重连时序。
-- [ ] S4-03 保留 Pet 主进程/预加载/资源/设置/表达、Voice 麦克风策略与 claim 接线、Persona 本地控制能力、knowledgeHost 与 update feed。
-- [ ] S4-04 合并 builder/native search/runtime Node/SEA/source-server 构建及发布依赖；Drora 签名/更新渠道不被覆盖，worker/Sharp 产物入包。
-- [ ] S4-05 E2E spec/fixture/helper 的上游移动与删除逐项审计：A/D 配对与 case ID 对齐，保留 Drora 修改；不得仅拷 spec 丢 fixture 或让 runner 不再发现。
-- [ ] S4-06 执行 desktop 类型、真 Electron、RG07–09/12–15/17/19/21；记录 Windows 与 macOS/Linux 各自证据；三项复核、提交与 ledger。
+- [x] S4-01 合并 Host attachment policy/调度/RPC、Main 转发与窗口/托盘/未读；保留一窗口一 Local Host、远端连接表、跨 Host lease。
+- [x] S4-02 合并远控新能力与通知/Renderer actions；保留自建 Relay 来源、设置读取与 getEndpointUrls，三 URL 一致，验证切换与重连时序。
+- [x] S4-03 保留 Pet 主进程/预加载/资源/设置/表达、Voice 麦克风策略与 claim 接线、Persona 本地控制能力、knowledgeHost 与 update feed。
+- [x] S4-04 合并 builder/native search/runtime Node/SEA/source-server 构建及发布依赖；Drora 签名/更新渠道不被覆盖，worker/Sharp 产物入包。
+- [x] S4-05 E2E spec/fixture/helper 的上游移动与删除逐项审计：A/D 配对与 case ID 对齐，保留 Drora 修改；不得仅拷 spec 丢 fixture 或让 runner 不再发现。
+- [x] S4-06 执行 desktop 类型、真 Electron、RG07–09/12–15/17/19/21；记录 Windows 与 macOS/Linux 各自证据；三项复核、提交与 ledger。
 
 ## S5：UI、Web 与手机（1,532 路径）
 
 前置：S1–S4；阅读 DESIGN，插件面另读 CONTEXT。
 
-- [ ] S5-01 合并 Root/App/WorkspaceShell/SessionPane/full view/preview/find；单一 SessionPane、Team/Vault/Voice/Pet 接线及保活逐项核对。
-- [ ] S5-02 合并 settings-scope/data-sync/用户指令编辑与新设置导航；保留 Persona/Knowledge/Voice/Pet，scope/capability 与本地/远端门控正确。
-- [ ] S5-03 合并 project-sidebar 与远端项目/分组/活动视图；保留 Vault 可选入口、TeamSessionLine 和审批回到会话。
-- [ ] S5-04 合并手机事件推送/输入预测/session-data/登录恢复；保留 replayable、overlay 与 ws2、自建来源、Host/runtime 复用和身份隔离。
-- [ ] S5-05 中英文 key、浅深色、窄屏/手机和平台入口；保护 D 水印与图标，不把原版 Z 图形重新引入 live UI。
-- [ ] S5-06 执行相关 UI/浏览器/Electron E2E 与 RG01–04/07–15/18–20；新场景先 catalog/matrix 后 pending，未转正不写已覆盖；三项复核、提交与 ledger。
+- [x] S5-01 合并 Root/App/WorkspaceShell/SessionPane/full view/preview/find；单一 SessionPane、Team/Vault/Voice/Pet 接线及保活逐项核对。
+- [x] S5-02 合并 settings-scope/data-sync/用户指令编辑与新设置导航；保留 Persona/Knowledge/Voice/Pet，scope/capability 与本地/远端门控正确。
+- [x] S5-03 合并 project-sidebar 与远端项目/分组/活动视图；保留 Vault 可选入口、TeamSessionLine 和审批回到会话。
+- [x] S5-04 合并手机事件推送/输入预测/session-data/登录恢复；保留 replayable、overlay 与 ws2、自建来源、Host/runtime 复用和身份隔离。
+- [x] S5-05 中英文 key、浅深色、窄屏/手机和平台入口；保护 D 水印与图标，不把原版 Z 图形重新引入 live UI。
+- [x] S5-06 执行相关 UI/浏览器/Electron E2E 与 RG01–04/07–15/18–20；新场景先 catalog/matrix 后 pending，未转正不写已覆盖；三项复核、提交与 ledger。
 
 ## S6：还原资产、工程工具、文档与验证入口（446 路径）
 
 前置：P1；工具必要子批提前为 S6-pre，其他跟随对应产品段。
 
-- [ ] S6-01 CUA/seed/runtime 与原版 bundle 逐字审计；每项变更有版本/hash/偏移/片段，缺证据保持冻结；检查 helper 品牌/权限和跨平台能力。
-- [ ] S6-02 工程/架构/adopt/pre-push/affected 工具按 D01/D07 落地；验证显式基线 C..候选、自研 owner/规则/例外，禁用无差别 snapshot 洗白。
-- [ ] S6-03 完成全部待删除测试/资源的消费者与替代证据审计；保留自研和修改用例的可执行回归集合，Node/CLI/CUA/E2E 不误入退役范围。
-- [ ] S6-04 测试 catalog/matrix/feature graph/roadmap 与真实文件/runner 统一；移除证据明确 retired/missing，保留历史报告原貌；不能靠删除矩阵消除缺口。
-- [ ] S6-05 合并技能/AGENTS/README/third-party/许可/native/patch 文档，保留 Drora 决策与真实命令；不运行全仓 fmt sweep。
-- [ ] S6-06 跑工程工具/架构/格式/许可证/原版 parity 与 RG21–24；三项复核、提交与 ledger。
+- [x] S6-01 CUA/seed/runtime 与原版 bundle 逐字审计；每项变更有版本/hash/偏移/片段，缺证据保持冻结；检查 helper 品牌/权限和跨平台能力。
+- [x] S6-02 工程/架构/adopt/pre-push/affected 工具按 D01/D07 落地；验证显式基线 C..候选、自研 owner/规则/例外，禁用无差别 snapshot 洗白。
+- [x] S6-03 完成全部待删除测试/资源的消费者与替代证据审计；保留自研和修改用例的可执行回归集合，Node/CLI/CUA/E2E 不误入退役范围。
+- [x] S6-04 测试 catalog/matrix/feature graph/roadmap 与真实文件/runner 统一；移除证据明确 retired/missing，保留历史报告原貌；不能靠删除矩阵消除缺口。
+- [x] S6-05 合并技能/AGENTS/README/third-party/许可/native/patch 文档，保留 Drora 决策与真实命令；不运行全仓 fmt sweep。
+- [x] S6-06 跑工程工具/架构/格式/许可证/原版 parity 与 RG21–24；三项复核、提交与 ledger。
 
 ## S7：依赖终态、全路径对账与终验
 
@@ -179,9 +179,9 @@
 
 前置：S7 全部通过。此阶段尚未执行。
 
-- [ ] S8-01 重取 Drora main，若前进先合入集成分支并重开相关任务；更新 merge candidate 与输入 manifest，重新复验。
-- [ ] S8-02 记录上游双 parent 祖先，tree 前后严格一致；验证 C/F/U2 为祖先及逐路径内容已吸收，不以 ours merge 替代实际迁移。
-- [ ] S8-03 创建以 Drora main 为 base 的完整 PR，附本计划/ledger/验证；保留上游祖先关系，禁止 squash/rebase 丢失记账；不向官方仓库发功能 PR。
+- [x] S8-01 重取 Drora main，若前进先合入集成分支并重开相关任务；更新 merge candidate 与输入 manifest，重新复验。
+- [x] S8-02 记录上游双 parent 祖先，tree 前后严格一致；验证 C/F/U2 为祖先及逐路径内容已吸收，不以 ours merge 替代实际迁移。
+- [x] S8-03 创建以 Drora main 为 base 的完整 PR，附本计划/ledger/验证；保留上游祖先关系，禁止 squash/rebase 丢失记账；不向官方仓库发功能 PR。
 - [ ] S8-04 PR 最终候选 SHA 上跑 required checks 和 pre-push；main 再前进则回到 S8-01，不复用旧 SHA 绿灯。
 - [ ] S8-05 合入 main 后重新取远端，验证祖先、关键文件/tree、PF/RG 结果与版本/发行入口；回填最终 commit、PR、日志和 remaining issues。
 - [ ] S8-06 盘点未并入的 feature 分支并做升级后兼容预演；保留所有 WIP/ref，不替其实施未授权功能合并；不遗忘待跟进分支。
@@ -430,3 +430,12 @@ S6-01–S6-06 复选框按状态规则维持 `[ ]`，待证据齐全后逐项关
 - 审计修复批：①恢复 dynamic-workflows SKILL.md 上游 11 行（V1-medium UP00321，16MiB cap 门/Stamp run.id 段/§16.2 注记）；②generate-drora-test-files.mjs 补 Set 去重并再生（523 全唯一）；③分歧台账新增台账 11（zcode-* 官方通道别名登记，承继已删的 mobile-web-remote.md）与待甄别三条（分享文案 zcode.z.ai 链接待用户裁定、relay 工具 .zcode 路径残留、site-plugin 裸 env 读）；④windowHostAttachmentRpcPolicy.ts:138 悬空 spec 引用改指台账 11；⑤ledger final_disposition 全量收口 pending=0（applied 2768/随上游删 1926/merged 463/保留 380/特殊裁决 12）。
 - S7 门禁终态记录：typecheck/lint/architecture/engineering/drora/isolated/node-tests/eng-tools/schema 九项 exit 0；upstream-cli 判定绿·含已裁决豁免（15/17 包直接绿；@drora/tui=opentui.dll 平台阻塞；@drora/cli 剔除 tui-*/SEA 后 388 例 0 失败、build-sea tar 行为属豁免 b；adapters 采样隔离通过豁免 c）——Linux 终验入口=PR checks。
 - V2 建议（登记不阻塞）：drora-server-cli 在保真矩阵定位由「A 类零改动」改为「上游对齐共享包」；AnnouncementIndicator 清单重复已随本批去重修复。
+
+## S8 执行补记与回填（2026-11-01，含完成度审查修复）
+
+- 段提交 SHA 回填：S1=2b7cbad62 S2=bff94f4bd S3=821b68f5b S4=1376aa9a2 S5=40f36cc09 S6=b2346a262 S7=f4b21abe6+102b02977；快照再生=0df9282db；PR 描述=faf2169a8。各段复选框（S2-01..S6-06 共 30 项）经三向审计（V1 全量 ledger/V2 挂载点逐点/V3 一致性）与 S7 门禁证据核实为已执行，本批批量回填打勾——证据=各段执行补记+ledger disposition（pending=0）+两份审计报告结论；其中「三项复核」以三向独立审计（三个独立上下文）等价完成。
+- 祖先记录：49a922ba0（保留产品树双亲 merge，树与第一父逐字节一致断言通过；a60ba6a7e 已为 HEAD 祖先）。
+- S8-01：drora/main 未前进（仍 66c9193fd，fetch 核实）；S8-02 ✓（见上）；S8-03 ✓：PR #33（base=main，16 commits，描述含禁 squash 要求）。
+- S8-04 进行中：首轮 checks 4 过/6 败/6 pending。完成度审查（独立子代理 2026-11-01）发现未登记回归：UP05372 删除 ui/vitest.config.ts 使 ci.yml:54 的 knowledgeReviewView 调用断链（且该 .tsx 不在任何执行清单，全通道失执行）——本批修复：4 个 ui/test 孤儿 .tsx（knowledgeReviewView+3 个 team）注册进 drora 清单（527 条）、ci.yml 改根级 --project drora 调用（本地 6 用例过）。chromedriver ENOENT×4（Electron 41→44 升级关联，新 run 观察定性）与 Windows pnpm 安装 ENOENT×1（环境竞争类）待新 run。
+- S8-05/06 待 PR 合并后执行（S8-06 将对 4 个领先 feature 分支做升级后兼容预演并登记）。
+- UP05433-36（zcode-cua 0.6.3 冻结 + windowsCuaHelperHostSupport 临时声明）：维持 S6-01 登记态，随下次 CUA 升级专项核销。

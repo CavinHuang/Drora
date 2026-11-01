@@ -34,6 +34,34 @@
         // §21 C（2026-10-24）：team hub 有效行超 800（状态所有者单文件集中裁决，
         // 拆分归后续重构卡）——照 steering.ts 先例只 warn 不机械拆分。
         "**/apps/drora-cli/packages/core/src/team/hub.ts",
+        // v3.17.1 收口（2026-11-01）：pnpm dedupe 移除嵌套旧版 oxlint 后，统一到
+        // 1.81 的根配置首次在全量跑中如实执行 max-lines=error——以下为本仓既有
+        // 存量大文件（基线即超限，部分经本轮合并再增长），按 hub.ts 先例降为只
+        // warn；不含冻结还原区（其另有整目录豁免）。禁止把上限整体调高来绕过。
+        "**/packages/ui/src/v4/SessionPane.tsx",
+        "**/packages/services/src/drora-agent/droraAgentService.ts",
+        "**/packages/services/src/drora-agent/droraTaskServiceAdapter.ts",
+        "**/packages/ui/src/lib/droraSessionProjection.ts",
+        "**/packages/ui/src/v4/ConversationTimeline.tsx",
+        "**/packages/ui/src/v4/ConversationRowView.tsx",
+        "**/packages/ui/src/v4/ConversationComposer.tsx",
+        "**/packages/ui/src/v4/ConversationStatusPanel.tsx",
+        "**/packages/ui/src/v4/composer/V4ComposerToolbar.tsx",
+        "**/packages/ui/src/v4/composer/useComposerAttachments.ts",
+        "**/packages/ui/src/v4/ConversationShareReadonlyTimeline.tsx",
+        "**/packages/ui/src/v4/ConversationShareConfirmationDock.tsx",
+        "**/packages/ui/src/SettingsPage.tsx",
+        "**/packages/ui/src/settingsPageHelpers.tsx",
+        "**/packages/ui/src/store/droraSessionStoreTaskSlice.ts",
+        "**/packages/ui/src/browser-use/UnifiedBrowserView.tsx",
+        "**/packages/shared/src/drora-protocol/index.ts",
+        "**/packages/shared/src/drora-task-types-core.ts",
+        "**/packages/shared/src/bots.ts",
+        "**/packages/shared/src/conversation-telemetry/messageTelemetry.ts",
+        "**/packages/shared/src/conversation-telemetry/conversationTelemetryEngine.ts",
+        "**/packages/services/src/conversation-share/conversationShareService.ts",
+        "**/packages/services/src/model-provider/legacyDroraConfigProviderReader.ts",
+        "**/packages/desktop/src/main/taskRealtimeBus.ts",
         // model 契约继承上游存量 901 行；本次仅增加配置网络错误码，不为此拆分公共契约。
         "**/apps/drora-cli/packages/contracts/src/model/index.ts",
         // fork 选型回退只补一行隐藏提醒判定；不为行数机械拆分 fork 流程。

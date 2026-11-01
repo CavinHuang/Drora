@@ -8,6 +8,7 @@
 @import "./highspeed/highspeed-share.css";
 /* Vault / Live Markdown 面板（Proma 保真移植）的组件样式；颜色 token 适配见文件头注释。 */
 @import "./v4/vault/vault-live-markdown.css";
+@import "./nativeMediaControls.css";
 @source "../../../node_modules/streamdown/dist/*.js"; /* 显式扫描 streamdown 的运行时类名 */
 
 @plugin "@tailwindcss/typography";
@@ -75,6 +76,7 @@ body,
 }
 
 :root {
+  --shadow-composer-soft: 0 0 #0000;
   --ui-font-size: 14px;
   --color-remote-continuity-panel: #202124;
   --color-remote-continuity-panel-surface: #2c2d30;
@@ -196,6 +198,7 @@ html[data-document-hidden] *::after {
   --color-panel: var(--color-neutral-100);
   --color-sidebar: var(--color-neutral-100);
   --color-surface: color-mix(in oklab, var(--color-neutral-950) 3%, transparent);
+  --color-user-message-bubble: color-mix(in oklab, var(--color-neutral-950) 5%, transparent);
   --color-surface-hover: color-mix(in oklab, var(--color-neutral-950) 5%, transparent);
   --color-markdown-inline-code: var(--color-tag);
   --color-card: var(--color-white);
@@ -366,6 +369,7 @@ html[data-document-hidden] *::after {
   --color-panel: var(--color-neutral-900);
   --color-sidebar: var(--color-neutral-950);
   --color-surface: color-mix(in oklab, var(--color-white) 5%, transparent);
+  --color-user-message-bubble: color-mix(in oklab, var(--color-white) 8%, transparent);
   --color-surface-hover: color-mix(in oklab, var(--color-white) 10%, transparent);
   --color-card: var(--color-neutral-800);
   --color-card-selected: var(--color-neutral-700);
@@ -513,6 +517,7 @@ html[data-document-hidden] *::after {
 }
 
 .theme-zai-light {
+  --shadow-composer-soft: 0 1px 3px rgb(0 0 0 / 4%), 0 6px 18px rgb(0 0 0 / 4%);
   --animated-gradient-text-strong: rgba(13, 13, 13, 1);
   --animated-gradient-text-soft: rgba(13, 13, 13, 0.22);
   --color-background: #f8f8f8;
@@ -538,6 +543,7 @@ html[data-document-hidden] *::after {
   --color-panel: #ffffff;
   --color-sidebar: #f0f0f0;
   --color-surface: rgba(13, 13, 13, 0.03);
+  --color-user-message-bubble: rgba(13, 13, 13, 0.05);
   --color-surface-hover: rgba(13, 13, 13, 0.05);
   --color-card: #ffffff;
   --color-card-selected: var(--color-input);
@@ -702,6 +708,7 @@ html[data-document-hidden] *::after {
   --color-panel: #202020;
   --color-sidebar: #161616;
   --color-surface: rgba(255, 255, 255, 0.05);
+  --color-user-message-bubble: rgba(255, 255, 255, 0.08);
   --color-surface-hover: rgba(255, 255, 255, 0.1);
   --color-card: #2b2b2b;
   --color-card-selected: var(--color-input);
@@ -2292,4 +2299,139 @@ html[data-document-hidden] *::after {
 [data-workspace-shell]:has([data-project-sidebar-panel="navigation"][aria-hidden="true"])
   [data-sidebar-divider-extension] {
   display: none;
+}
+
+/* 连续圆角下增大半径，保留不支持 corner-shape 的浏览器原有回退。 */
+@supports (corner-shape: squircle) {
+  [data-v4-user-input-bubble] {
+    corner-shape: squircle;
+    border-radius: 24px;
+  }
+
+  [data-composer-layout] {
+    corner-shape: squircle;
+    border-radius: 32px;
+  }
+}
+
+@keyframes drora-loading-pixel-on {
+  0%,
+  100% {
+    opacity: 0.15;
+    transform: scale(1);
+  }
+  35% {
+    opacity: var(--loading-pixel-peak, 0.75);
+    transform: scale(1.08);
+  }
+}
+.dark .drora-loading-pixel,
+.theme-zai-dark .drora-loading-pixel {
+  --loading-pixel-peak: 1;
+}
+.drora-loading-pixel {
+  animation: drora-loading-pixel-on 650ms ease-in-out infinite;
+}
+@keyframes drora-loading-shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+.drora-loading-label {
+  display: inline-block;
+  font-weight: 500;
+  background-image: linear-gradient(
+    90deg,
+    var(--color-foreground-subtle) 35%,
+    var(--color-foreground) 50%,
+    var(--color-foreground-subtle) 65%
+  );
+  background-position: 200% 0;
+  background-size: 200% 100%;
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  animation: drora-loading-shimmer 1.4s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .drora-loading-pixel,
+  .drora-loading-label {
+    animation: none;
+  }
+}
+
+[data-v4-user-input-bubble] {
+  border-width: 0;
+  border-top-right-radius: 12px;
+  background-color: var(--color-user-message-bubble);
+}
+
+@supports (corner-shape: squircle) {
+  [data-v4-user-input-bubble] {
+    border-top-right-radius: 24px;
+  }
+}
+
+/* thumb 伪元素需继承容器颜色；每个真实子元素重置透明，隔离嵌套滚动区。 */
+@property --drora-scrollbar-thumb {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: transparent;
+}
+:is([data-project-sidebar-panel], [data-workspace-conversation-frame], [data-workspace-side-frame]),
+:is([data-project-sidebar-panel], [data-workspace-conversation-frame], [data-workspace-side-frame])
+  * {
+  --drora-scrollbar-thumb: transparent;
+  scrollbar-color: auto;
+}
+:is(
+  [data-project-sidebar-panel],
+  [data-workspace-conversation-frame],
+  [data-workspace-side-frame]
+)::-webkit-scrollbar-thumb,
+:is([data-project-sidebar-panel], [data-workspace-conversation-frame], [data-workspace-side-frame])
+  *::-webkit-scrollbar-thumb {
+  background-color: var(--drora-scrollbar-thumb);
+}
+[data-scrollbar-active] {
+  --drora-scrollbar-thumb: var(--color-border);
+}
+
+/* 只在滑块本身悬停/拖动时增强反馈，不改变轨道与内容尺寸。 */
+:is(
+    [data-project-sidebar-panel],
+    [data-workspace-conversation-frame],
+    [data-workspace-side-frame]
+  )::-webkit-scrollbar-thumb:hover,
+:is([data-project-sidebar-panel], [data-workspace-conversation-frame], [data-workspace-side-frame])
+  *::-webkit-scrollbar-thumb:hover {
+  background-color: color-mix(in oklab, var(--color-foreground) 30%, transparent);
+}
+:is(
+    [data-project-sidebar-panel],
+    [data-workspace-conversation-frame],
+    [data-workspace-side-frame]
+  )::-webkit-scrollbar-thumb:active,
+:is([data-project-sidebar-panel], [data-workspace-conversation-frame], [data-workspace-side-frame])
+  *::-webkit-scrollbar-thumb:active {
+  background-color: color-mix(in oklab, var(--color-foreground) 45%, transparent);
+}
+
+[data-scrollbar-hover]::-webkit-scrollbar-thumb {
+  background-color: color-mix(in oklab, var(--color-foreground) 30%, transparent);
+}
+[data-scrollbar-dragging]::-webkit-scrollbar-thumb {
+  background-color: color-mix(in oklab, var(--color-foreground) 45%, transparent);
+}
+
+[data-scrollbar-active][data-scrollbar-hover] {
+  --drora-scrollbar-thumb: color-mix(in oklab, var(--color-foreground) 30%, transparent);
+}
+[data-scrollbar-active][data-scrollbar-dragging] {
+  --drora-scrollbar-thumb: color-mix(in oklab, var(--color-foreground) 45%, transparent);
 }

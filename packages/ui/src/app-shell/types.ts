@@ -46,6 +46,7 @@ import type {
 import type { ComposerMentionPrefill } from "@/store/droraSessionStoreTypes.js";
 import type { TaskFindDialogProps } from "@/quickpick/TaskFindDialog.js";
 import type { AutomationsNavigationTab, OpenAutomationsMain } from "@/lib/taskNavigationHistory.js";
+import type { SidePaneFullViewController } from "@/side-pane-full-view/contract.js";
 
 export interface WorkspaceShellDroraState {
   activeTaskId: WorkspaceDroraUIState["activeTaskId"];
@@ -110,8 +111,12 @@ export type DeviceAdditionResult =
 
 /** 仅当前 renderer 内存中的原 owner 引用；不序列化草稿或凭据。 */
 export interface DeviceAdditionReturnTarget {
-  /** 已有设备连接留在原项目页；只有新增设备往返设置。 */
-  kind: "connect-device" | "add-device";
+  /**
+   * 已有设备连接留在原项目页；只有新增设备往返设置。
+   * data-sync：从「设置 → 数据同步」发起（连接已有设备或新增设备），完成后留在数据同步页，
+   * 不跳到「远程设备」页。
+   */
+  kind: "connect-device" | "add-device" | "data-sync";
   isCurrent(): boolean;
   /** 只投递连接层可见性；原 owner 决定自己的提交门禁。 */
   onVisibilityChange?(visible: boolean): void;
@@ -237,6 +242,8 @@ export interface WorkspaceShellLayoutProps extends Omit<AppProps, "baseFeedbackS
   goBackShortcutLabel: string;
   goForwardShortcutLabel: string;
   toggleSidePaneShortcutLabel: string;
+  /** 「进入 / 退出完整视图」快捷键标签（仅桌面）。 */
+  toggleSidePaneFullViewShortcutLabel?: string;
   canGoBack: boolean;
   canGoForward: boolean;
   canTaskNavBack: boolean;
@@ -247,6 +254,8 @@ export interface WorkspaceShellLayoutProps extends Omit<AppProps, "baseFeedbackS
   supportsEmbeddedBrowser: boolean;
   isGitOpen: boolean;
   isSidePaneOpen: boolean;
+  /** Side Pane 完整视图控制器（仅桌面；spec：docs/ui/side-pane-full-view.md）。 */
+  sidePaneFullView?: SidePaneFullViewController;
   summaryPanelVariantOverride: ChatViewSummaryPanelVariant | null;
   onSummaryPanelVariantOverrideChange: (variant: ChatViewSummaryPanelVariant | null) => void;
   sidePaneState: WorkspaceSidePaneState | null;

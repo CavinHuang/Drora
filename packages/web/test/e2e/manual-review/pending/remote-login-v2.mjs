@@ -1,4 +1,4 @@
-// ML01–ML06、MD01–MD06：真实 Web 入口 + 浏览器 OAuth 回跳/登录门禁；外部 OAuth/relay 使用受控响应。
+// ML01–ML07、ML09、MD01–MD06、MD11–MD13：真实 Web 入口 + 浏览器 OAuth 回跳/登录门禁；外部 OAuth/relay 使用受控响应。
 // 启动：VITE_WEB_REMOTE_CONTROL_ROUTE_PATH=/remote/__test__ pnpm --filter @drora/web exec vite --host 127.0.0.1 --port 5178 --strictPort
 // 运行：node packages/web/test/e2e/manual-review/pending/remote-login-v2.mjs
 // 截图保留 pending，不代表真实 OAuth/手机/OSS 验收，不自动转正。
@@ -91,6 +91,8 @@ try {
               await h.page.evaluate(() => document.documentElement.scrollWidth > innerWidth),
               false,
             );
+            // 归属失败后按 MID 查一次当前账号设备；mixedDevices 里原 SID 仍在线，不接续，留在失败页。
+            if (screen === "device-not-owned") assert.equal(h.traffic.lists, 1);
             assert.equal(h.traffic.tokens, screen === "device-not-owned" ? 1 : 0);
             assert.equal(h.traffic.sockets, screen === "device-not-owned" ? 1 : 0);
             assert.deepEqual(h.errors, []);
@@ -181,7 +183,8 @@ try {
     await other.page.getByRole("button", { name: "选择其他设备", exact: true }).click();
     await other.page.getByRole("button", { name: /Alice’s MacBook/ }).waitFor();
     assert.equal(other.traffic.tokens, 1);
-    assert.equal(other.traffic.lists, 1);
+    // 第 1 次是归属失败后的旧 SID 接续查询（原 SID 在线，不接续），第 2 次是“选择其他设备”。
+    assert.equal(other.traffic.lists, 2);
     assert.deepEqual(Object.fromEntries(new URL(other.page.url()).searchParams), {
       app_version: "3.13.0",
     });
@@ -336,7 +339,9 @@ try {
             assert.equal(payload.app_return_to, `${origin}${loginQrPath}`);
             await login.page.goto(`${origin}/remote/v4`);
             assert.equal(
-              await login.page.evaluate(() => sessionStorage.getItem("oauth_pending_provider")),
+              await login.page.evaluate(
+                () => JSON.parse(localStorage.getItem("oauth_pending_logins"))[0].provider,
+              ),
               provider,
             );
             callback.searchParams.set(provider === "bigmodel" ? "authCode" : "code", "e2e-code");
@@ -363,7 +368,7 @@ try {
               "e2e-access",
             );
             assert.equal(
-              await login.page.evaluate(() => sessionStorage.getItem("oauth_pending_provider")),
+              await login.page.evaluate(() => localStorage.getItem("oauth_pending_logins")),
               null,
             );
             assert.equal(login.traffic.exchange.provider, provider);
@@ -377,6 +382,47 @@ try {
             await login.context.close();
           }
         }
+
+  // ML07：回调落在同一浏览器的另一个标签页（新标签页 sessionStorage 为空，只共享 localStorage）。
+  // 修复前回调页读不到发起页 sessionStorage 中的 nonce，停在 “OAuth CSRF 检测失败”。
+  for (const provider of ["zai", "bigmodel"]) {
+    const login = await setup(browser, { relayError: null, provider });
+    const callbackPage = await login.context.newPage();
+    callbackPage.on("pageerror", (error) => login.errors.push(error.message));
+    try {
+      await login.page.goto(`${origin}${qrPath}`);
+      await login.page
+        .getByRole("button", {
+          name: provider === "zai" ? /连接 Z.ai 继续使用/ : /连接 BigModel 继续使用/,
+        })
+        .click();
+      await assertEventually(() => !!login.traffic.authorize);
+      const redirectUri = login.traffic.authorize.searchParams.get(
+        provider === "zai" ? "redirect_uri" : "redirect",
+      );
+      const callback = new URL(redirectUri);
+      callback.searchParams.set(provider === "bigmodel" ? "authCode" : "code", "e2e-code");
+      callback.searchParams.set("state", login.traffic.authorize.searchParams.get("state"));
+      await callbackPage.goto(`${origin}${callback.pathname}${callback.search}`);
+      await callbackPage.waitForURL(`${origin}${qrPath}`);
+      await assertEventually(() => login.traffic.bootstraps === 1);
+      assert.equal(login.traffic.exchange.provider, provider);
+      assert.equal(login.traffic.exchange.redirect_uri, redirectUri);
+      assert.equal(
+        await callbackPage.evaluate(() => localStorage.getItem("drorajwttoken")),
+        "e2e-jwt",
+      );
+      assert.equal(
+        await callbackPage.evaluate(() => localStorage.getItem("oauth_pending_logins")),
+        null,
+      );
+      assert.deepEqual(login.errors, []);
+      results.push({ case: `ML07 ${provider} 回调落在新标签页仍完成登录并配对`, result: "passed" });
+    } finally {
+      await callbackPage.screenshot({ path: resolve(artifacts, `ml07-${provider}.png`) });
+      await login.context.close();
+    }
+  }
 
   for (const provider of ["zai", "bigmodel"])
     for (const tokenStatus of [200, 401]) {
@@ -406,6 +452,121 @@ try {
         await h.context.close();
       }
     }
+
+  // ML09：旧 JWT 的 token 请求在途时，另一个标签页写入新 JWT（同源 localStorage 共享），旧请求才回 401。
+  // 修复前入口直接登出，清掉新 JWT 并回登录页；修复后按可重试处理，用新 JWT 重新申请并配对。
+  {
+    const h = await setup(browser, { signedIn: true, relayError: null });
+    let releaseStale;
+    const staleHeld = new Promise((done) => (releaseStale = done));
+    const authorizations = [];
+    await h.page.route("**/api/v1/remote/token", async (route) => {
+      h.traffic.tokens++;
+      authorizations.push(route.request().headers().authorization);
+      if (authorizations.length === 1) {
+        await staleHeld;
+        await route.fulfill({ status: 401, json: { code: 1001, msg: "unauthorized" } });
+        return;
+      }
+      await route.fulfill({
+        json: { code: 0, msg: "", data: { token: "AAAAAAAAAAAAAAAAAAAAAA", expires_in: 60 } },
+      });
+    });
+    try {
+      await h.page.goto(`${origin}${qrPath}`);
+      await assertEventually(() => authorizations.length === 1);
+      await h.page.evaluate(() => localStorage.setItem("drorajwttoken", "e2e-jwt-2"));
+      releaseStale();
+      await assertEventually(() => h.traffic.bootstraps === 1);
+      assert.deepEqual(authorizations, ["Bearer e2e-jwt", "Bearer e2e-jwt-2"]);
+      assert.equal(await h.page.evaluate(() => localStorage.getItem("drorajwttoken")), "e2e-jwt-2");
+      assert.equal(await h.page.getByRole("button", { name: /连接 Z.ai 继续使用/ }).count(), 0);
+      assert.equal(h.traffic.sockets, 1);
+      assert.equal(h.page.url(), `${origin}${qrPath}`);
+      assert.deepEqual(h.errors, []);
+      results.push({ case: "ML09 迟到401不清除其他标签页的新登录并用新JWT配对", result: "passed" });
+    } finally {
+      await h.context.close();
+    }
+  }
+
+  // MD11–MD13：旧 SID 自动接续。桌面重新注册后同 MID 换了新 SID，旧链接仍带旧 SID。
+  const sameMidDevices = (...sids) => [
+    { device_sid: "e2e-device", device_mid: "e2e-mid", online: false, created_at: 1, meta: {} },
+    ...sids.map((sid) => ({
+      device_sid: sid,
+      device_mid: "e2e-mid",
+      online: true,
+      created_at: 2,
+      meta: { name: "Alice’s MacBook", platform: "darwin", version: "3.15.0" },
+    })),
+    mixedDevices[1],
+  ];
+  for (const oldReply of ["AUTH_FAILED", "waiting"]) {
+    const h = await setup(browser, {
+      signedIn: true,
+      devices: sameMidDevices("e2e-device-new"),
+      relayReplies: { "e2e-device": oldReply, "e2e-device-new": "matched" },
+    });
+    try {
+      await h.page.goto(`${origin}${qrPath}`);
+      // waiting 走首次 30 秒等待超时（desktop-disconnected）后才查询。
+      await assertEventually(() => h.traffic.bootstraps === 1, 45_000);
+      assert.deepEqual(h.traffic.authSids.slice(-2), ["e2e-device", "e2e-device-new"]);
+      assert.equal(h.traffic.lists, 1);
+      assert.deepEqual(Object.fromEntries(new URL(h.page.url()).searchParams), {
+        app_version: "3.13.0",
+        sid: "e2e-device-new",
+        mid: "e2e-mid",
+        name: "Alice’s MacBook",
+      });
+      assert.equal(
+        await h.page.evaluate(() => localStorage.getItem("drora-web-remote-last-device-sid")),
+        "e2e-device-new",
+      );
+      // 刷新按新 SID 直连，不再查询列表。
+      await h.page.reload();
+      await assertEventually(() => h.traffic.bootstraps === 2);
+      assert.equal(h.traffic.authSids.at(-1), "e2e-device-new");
+      assert.equal(h.traffic.lists, 1);
+      assert.deepEqual(h.errors, []);
+      results.push({
+        case: `${oldReply === "AUTH_FAILED" ? "MD11 归属失败" : "MD12 等待超时"}后接续同 MID 唯一在线新 SID`,
+        result: "passed",
+      });
+    } finally {
+      await h.context.close();
+    }
+  }
+  for (const [label, devices, relayReplies, expectedSockets] of [
+    // 同 MID 多个在线 SID：不猜目标，留在失败页由用户选择。
+    [
+      "同 MID 多个在线",
+      sameMidDevices("e2e-device-a", "e2e-device-b"),
+      { "e2e-device": "AUTH_FAILED" },
+      1,
+    ],
+    // 接续出的新 SID 配对前又失败：只接续一次，不在 SID 间循环。
+    [
+      "接续目标也失效",
+      sameMidDevices("e2e-device-new"),
+      { "e2e-device": "AUTH_FAILED", "e2e-device-new": "AUTH_FAILED" },
+      2,
+    ],
+  ]) {
+    const h = await setup(browser, { signedIn: true, devices, relayReplies });
+    try {
+      await h.page.goto(`${origin}${qrPath}`);
+      await h.page.getByRole("heading", { name: "该设备不属于当前账号", exact: true }).waitFor();
+      assert.equal(h.traffic.lists, 1);
+      assert.equal(h.traffic.sockets, expectedSockets);
+      assert.equal(h.traffic.bootstraps, 0);
+      assert.deepEqual(h.errors, []);
+      results.push({ case: `MD13 ${label}：不接续，显示原失败页`, result: "passed" });
+    } finally {
+      await h.context.close();
+    }
+  }
 } finally {
   await writeFile(resolve(artifacts, "results.json"), JSON.stringify(results, null, 2));
   const shots = results.filter((result) => result.screenshot);

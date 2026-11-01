@@ -3,12 +3,9 @@
   "packages/desktop/test/desktopRuntimeEnv.test.ts",
   "packages/desktop/test/e2eDesktopBuildCache.test.ts",
   "packages/desktop/test/pluginE2EAdmissionScripts.test.ts",
-  "packages/desktop/test/webRemoteControlTransport.test.ts",
   "packages/desktop/test/windowsInstallerCompile.test.ts",
   "packages/server/test/remoteDeploy.test.ts",
   "packages/services/test/gitCheckpointService.test.ts",
   "packages/services/test/mcpSyncService.test.ts",
-  "packages/services/test/processTreeTerminator.test.ts",
-  "packages/ui/test/pdfJsCMapSupport.test.ts",
-  "packages/web/test/webRemoteControlTransport.test.ts"
+  "packages/services/test/processTreeTerminator.test.ts"
 ]

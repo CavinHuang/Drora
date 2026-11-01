@@ -3,6 +3,7 @@ import { cleanup, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useRef } from "react";
 import { useVoiceSessionStore } from "@/store/voiceSessionStore.js";
+import { registerVoiceRecordingAbort } from "@/voice/voiceRecordingControl.js";
 import { usePaneEscapeStopGeneration } from "./paneEscapeStopGeneration.js";
 
 /**
@@ -15,10 +16,7 @@ function resetVoiceStore(): void {
   useVoiceSessionStore.setState({ inputLeg: "idle", boundSessionId: null, partialText: "" });
 }
 
-function mountPaneEscape(params: {
-  canStop?: boolean;
-  handleStop?: (source: "escape") => void;
-}) {
+function mountPaneEscape(params: { canStop?: boolean; handleStop?: (source: "escape") => void }) {
   const canStop = params.canStop ?? false;
   const handleStop: (source: "escape") => void = params.handleStop ?? (() => undefined);
   const canStopRef = () => canStop;
@@ -58,12 +56,19 @@ describe("usePaneEscapeStopGeneration（§9.9.4-L3）", () => {
     const handleStop = vi.fn();
     expect(useVoiceSessionStore.getState().startMicRequest("sess-1", "entry-a")).toBe(true);
     expect(useVoiceSessionStore.getState().beginRecording()).toBe(true);
+    // §9.8-F1 起 Esc 停录音走定向 abort 端口（先交给真实资源持有者，不能只翻 store 态）。
+    // 单测环境没有挂载 useVoiceDictation，按真实接线同款注册 abort→abortRecording，
+    // 与 voiceSessionStore.test.ts「consumes Esc only while recording」一致。
+    const unregister = registerVoiceRecordingAbort("entry-a", () => {
+      useVoiceSessionStore.getState().abortRecording();
+    });
     mountPaneEscape({ canStop: false, handleStop });
     const event = pressEscape();
     // 回退即红：恢复 canStop 注册前置则监听未注册——Esc 零消费（inputLeg 恒 recording）。
     expect(useVoiceSessionStore.getState().inputLeg).toBe("idle");
     expect(handleStop).not.toHaveBeenCalled();
     expect(event.defaultPrevented).toBe(true);
+    unregister();
   });
 
   it("requestingMic 期 Esc：取消请求（§9.9.4-L1 联动）且零停生成", () => {

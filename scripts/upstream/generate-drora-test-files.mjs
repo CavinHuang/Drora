@@ -73,6 +73,9 @@ const isNodeTest = (file) =>
 const explicit = norm([
   "packages/shared/src/contracts/persona-contract.test.ts",
   "packages/shared/src/node/genUiPaths.test.ts",
+  // packages/*/test 的 glob 只收 .ts；ui/test 下的 .tsx 用例若不显式登记会落出
+  // 所有执行通道（baseline-gap#3，RG03 Team 分阶段审批回归）。
+  "packages/ui/test/teamConversationSummaryStagedApproval.test.tsx",
   "packages/ui/src/voice/AnnouncementIndicator.test.tsx",
   "packages/ui/src/settings/VoiceSection.test.tsx",
   "packages/ui/src/drora-persona/PersonaSettingsSection.test.tsx",

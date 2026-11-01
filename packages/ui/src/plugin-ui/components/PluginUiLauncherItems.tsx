@@ -3,7 +3,11 @@ import { useOptionalPlatform } from "@/hooks/usePlatform.js";
 import { toast } from "@/components/ui/toast.js";
 import { isRemoteWorkspaceIdentity } from "@drora/shared";
 import { useRecommendedUiPlugins } from "@/plugin-ui/adapters/useRecommendedUiPlugins.js";
-import { resolveItemDisplayName, resolveItemDescription } from "@/settings/pluginStoreListing.js";
+import {
+  resolveItemDisplayName,
+  resolveItemDescription,
+  resolvePluginStoreSegment,
+} from "@/settings/pluginStoreListing.js";
 import { useEffect, type ReactNode } from "react";
 import { PluginStoreAvatar } from "@/settings/PluginStoreAvatar.js";
 import { PuzzleIcon, type LucideIcon } from "lucide-react";
@@ -37,8 +41,14 @@ export function buildPluginUiLauncherItemId(pluginId: string, surfaceId: string)
 export function PluginUiLauncherItems(props: PluginUiLauncherItemsProps) {
   const { intl, locale } = useDroraIntl();
   const platform = useOptionalPlatform();
-  const { entries, loading, prepare, resolveSurface, busy, busyPluginId, error } =
-    useRecommendedUiPlugins(props);
+  const {
+    entries,
+    loading,
+    prepare,
+    resolveSurface,
+    isBusy: isPluginBusy,
+    error,
+  } = useRecommendedUiPlugins(props);
   useEffect(() => {
     if (error) toast(error, { variant: "warning" });
   }, [error]);
@@ -98,7 +108,7 @@ export function PluginUiLauncherItems(props: PluginUiLauncherItemsProps) {
           : resolveItemDisplayName(item, locale);
         const itemId = buildPluginUiLauncherItemId(pluginId, surfaceId);
         // 原入口只替换加载文案，缺少持续可见的进度；图标与文案共用当前插件的忙碌态。
-        const isBusy = busyPluginId === pluginId;
+        const isBusy = isPluginBusy(item);
         const actionLabel = intl.formatMessage({
           id: isBusy
             ? "common.loading"
@@ -149,7 +159,7 @@ export function PluginUiLauncherItems(props: PluginUiLauncherItemsProps) {
                 if (!item.installed || !item.info?.enabled) event.preventDefault();
                 void open();
               }}
-              disabled={busy}
+              disabled={isBusy}
               aria-busy={isBusy || undefined}
             >
               <PuzzleIcon className="size-4 text-foreground-subtle" />
@@ -183,9 +193,14 @@ export function PluginUiLauncherItems(props: PluginUiLauncherItemsProps) {
             description={
               surface ? resolveItemDisplayName(item, locale) : resolveItemDescription(item, locale)
             }
+            descriptionTag={
+              resolvePluginStoreSegment(item) === "community"
+                ? intl.formatMessage({ id: "settings.plugins.store.segment.community" })
+                : undefined
+            }
             actionLabel={actionLabel}
             loading={isBusy}
-            disabled={busy}
+            disabled={isBusy}
             onOpen={open}
           />
         );
@@ -204,6 +219,7 @@ export function SidePaneLauncherRow({
   avatar,
   label,
   description,
+  descriptionTag,
   actionLabel,
   loading,
   disabled,
@@ -214,6 +230,7 @@ export function SidePaneLauncherRow({
   avatar?: ReactNode;
   label: string;
   description?: string;
+  descriptionTag?: string;
   actionLabel?: string;
   loading?: boolean;
   disabled?: boolean;
@@ -237,12 +254,18 @@ export function SidePaneLauncherRow({
       )}
       <span className="min-w-0 flex-1">
         <span className="block truncate text-ui-base font-semibold text-foreground">{label}</span>
-        {description ? (
-          <span
-            className="mt-0.5 block truncate text-ui-sm text-foreground-subtle"
-            title={description}
-          >
-            {description}
+        {description || descriptionTag ? (
+          <span className="mt-0.5 flex min-w-0 items-center gap-1.5 text-ui-sm text-foreground-subtle">
+            {descriptionTag ? (
+              <span className="inline-flex h-4 shrink-0 items-center rounded-sm bg-tag px-1 text-ui-xs font-medium">
+                {descriptionTag}
+              </span>
+            ) : null}
+            {description ? (
+              <span className="truncate" title={description}>
+                {description}
+              </span>
+            ) : null}
           </span>
         ) : null}
       </span>

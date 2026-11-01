@@ -135,6 +135,9 @@ export * from "./server-remote.js";
 export * from "./knowledge-evidence.js";
 export * from "./knowledge/queryTerms.js";
 export * from "./source-server/index.js";
+// semver 比较工具：自 v3.17.1 起供 data-sync 与 source-server 兼容性判断使用
+// （compareSemverVersions 原随上游 forceUpdate.ts 分发，Drora 删除强更门控后迁至独立模块）。
+export * from "./semver.js";
 
 export interface ICredentialStore {
   get(key: string): Promise<string | null>;

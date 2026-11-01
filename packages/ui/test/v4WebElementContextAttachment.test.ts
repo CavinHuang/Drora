@@ -273,6 +273,9 @@ function flushAsyncWork() {
   return new Promise((resolve) => setTimeout(resolve, 0));
 }
 
+// 渲染期间保持同一 scope incarnation；与真实 useDraftConfigControl 的 token 语义一致。
+const composerScopeToken = Symbol("v4WebElementContextAttachment-test-scope");
+
 function renderComposer(onSendText: (text: string, options?: unknown) => Promise<void>) {
   const container = installMinimalDom();
   const root: Root = createRoot(container);
@@ -283,6 +286,20 @@ function renderComposer(onSendText: (text: string, options?: unknown) => Promise
         { initialLocale: "en-US" },
         createElement(ConversationComposer, {
           composerDraft: { text: "", updatedAt: 0 },
+          // 上游 v3.17.1 给 Composer 增加 scope 化草稿生命周期（stage/commit/claim/
+          // finalize 事务，见 useDraftConfigControl）。本测试只关心 web element 上下文
+          // 的接收、提交与移除，生命周期桩按“提交被接纳并正常结算”返回。
+          composerDraftScopeToken: composerScopeToken,
+          stageComposerContent: vi.fn(),
+          captureComposerContentLifecycleCommit: () => vi.fn(),
+          captureComposerSubmissionDraftTransaction: () => ({
+            claim: () => true,
+            restore: () => ({ applied: false, current: false }),
+            finalize: () => ({ applied: true, current: true }),
+            release: () => undefined,
+            matchesTarget: () => true,
+          }),
+          persistComposerContent: vi.fn(),
           updateComposerContent: vi.fn(),
           replaceComposerDraft: vi.fn(),
           draftMode: true,

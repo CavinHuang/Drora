@@ -699,6 +699,8 @@ describe("McpSettingsSection status list", () => {
       {
         headers: [],
         name: "figma",
+        // v3.17.1 起 convertToDroraAgentMcpServer 随 wire 契约携带 scope（settings-scope）。
+        scope: "user",
         type: "http",
         url: "https://mcp.example.test/mcp",
       },

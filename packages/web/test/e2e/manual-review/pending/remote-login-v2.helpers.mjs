@@ -29,6 +29,8 @@ export async function setup(
     signedIn = false,
     tokenStatus = 200,
     relayError = "AUTH_FAILED",
+    // 按 SID 指定 relay 回复（"matched" / "waiting" / 错误码），用于旧 SID 接续；提供时覆盖 relayError。
+    relayReplies,
     devices = mixedDevices,
     lastSid,
     provider = "zai",
@@ -40,7 +42,14 @@ export async function setup(
   const context = await browser.newContext({ viewport: { width, height }, locale });
   const page = await context.newPage();
   const errors = [];
-  const traffic = { tokens: 0, sockets: 0, bootstraps: 0, lists: 0, authorize: undefined };
+  const traffic = {
+    tokens: 0,
+    sockets: 0,
+    bootstraps: 0,
+    lists: 0,
+    authSids: [],
+    authorize: undefined,
+  };
   page.on("pageerror", (error) => errors.push(error.message));
   await context.addInitScript(
     ({ theme, signedIn, lastSid, provider }) => {
@@ -59,13 +68,14 @@ export async function setup(
     },
     { theme, signedIn, lastSid, provider: initialProvider },
   );
-  await page.route("**/api/v1/remote/device", async (route) => {
+  // 受控响应挂在 context 上，同一浏览器新开的标签页也能命中；用例在 page 上的路由仍优先。
+  await context.route("**/api/v1/remote/device", async (route) => {
     traffic.lists++;
     assert.equal(route.request().method(), "GET");
     assert.equal(route.request().headers().authorization, "Bearer e2e-jwt");
     await route.fulfill({ json: { code: 0, msg: "", data: devices } });
   });
-  await page.route("**/api/v1/remote/token", async (route) => {
+  await context.route("**/api/v1/remote/token", async (route) => {
     traffic.tokens++;
     assert.equal(route.request().headers().authorization, "Bearer e2e-jwt");
     assert.deepEqual(route.request().postDataJSON(), { role: "terminal" });
@@ -74,7 +84,7 @@ export async function setup(
       json: { code: 0, msg: "", data: { token: "AAAAAAAAAAAAAAAAAAAAAA", expires_in: 60 } },
     });
   });
-  await page.route("**/api/v1/oauth/token", async (route) => {
+  await context.route("**/api/v1/oauth/token", async (route) => {
     traffic.exchange = route.request().postDataJSON();
     assert.equal(traffic.exchange.provider, provider);
     await route.fulfill({
@@ -89,17 +99,47 @@ export async function setup(
       },
     });
   });
-  await page.route(/\/(?:api\/oauth\/authorize|login)\?/, async (route) => {
+  await context.route(/\/(?:api\/oauth\/authorize|login)\?/, async (route) => {
     traffic.authorize = new URL(route.request().url());
     await route.fulfill({ contentType: "text/html", body: "<p>E2E OAuth provider</p>" });
   });
-  await page.routeWebSocket(/\/api\/v1\/remote\/ws2(?:\?|$)/, (socket) => {
+  await context.routeWebSocket(/\/api\/v1\/remote\/ws2(?:\?|$)/, (socket) => {
     traffic.sockets++;
+    let authedSid;
     const url = new URL(socket.url());
     assert.equal(url.searchParams.get("mid"), expectedDeviceMid);
     assert.equal(url.searchParams.get("token"), "AAAAAAAAAAAAAAAAAAAAAA");
     socket.onMessage((raw) => {
       const message = JSON.parse(String(raw));
+      if (message.type === "auth_init" && relayReplies) {
+        traffic.authSids.push(message.device_sid);
+        assert.ok(message.device_sid in relayReplies, `unexpected SID ${message.device_sid}`);
+        const reply = relayReplies[message.device_sid];
+        socket.send(
+          JSON.stringify(
+            reply === "matched" || reply === "waiting"
+              ? {
+                  type: "auth_ack",
+                  device_sid: message.device_sid,
+                  terminal_sid: "e2e-terminal",
+                  pair_status: reply,
+                }
+              : { type: "error", code: reply },
+          ),
+        );
+        authedSid = message.device_sid;
+        return;
+      }
+      // 按 SID 回复时也回应心跳，避免 15 秒 watchdog 重建连接、重置首次 waiting 计时。
+      if (message.type === "pair_status_query" && relayReplies && authedSid) {
+        socket.send(
+          JSON.stringify({
+            type: "pair_status_ack",
+            pair_status: relayReplies[authedSid] === "matched" ? "matched" : "waiting",
+          }),
+        );
+        return;
+      }
       if (message.type === "auth_init") {
         assert.equal(message.device_sid, expectedDeviceSid);
         assert.equal(message.role, undefined);
@@ -123,8 +163,8 @@ export async function setup(
   return { page, context, errors, traffic };
 }
 
-export async function assertEventually(check) {
-  for (let attempt = 0; attempt < 150; attempt++) {
+export async function assertEventually(check, timeoutMs = 15_000) {
+  for (let attempt = 0; attempt < timeoutMs / 100; attempt++) {
     if (check()) return;
     await new Promise((done) => setTimeout(done, 100));
   }

@@ -10,6 +10,8 @@ export type SettingsSectionId =
   | "browser"
   | "modelProvider"
   | "remoteDevices"
+  | "dataSync"
+  | "personalization"
   | "memory"
   // Drora 人格资料管理（specs/drora-persona-system.md §10）：入口由
   // hello.capabilities.personaControlV1 + 本地桌面连接动态门控，不是常驻分区。
@@ -19,6 +21,7 @@ export type SettingsSectionId =
   | "mcp"
   | "skill"
   | "plugins"
+  | "projects"
   | "archives"
   | "usage"
   | "subagents"
@@ -78,12 +81,15 @@ function isSettingsSectionId(value: string): value is SettingsSectionId {
     value === "browser" ||
     value === "modelProvider" ||
     value === "remoteDevices" ||
+    value === "dataSync" ||
+    value === "personalization" ||
     value === "memory" ||
     value === "knowledge" ||
     value === "plugin" ||
     value === "mcp" ||
     value === "skill" ||
     value === "plugins" ||
+    value === "projects" ||
     value === "archives" ||
     value === "usage" ||
     value === "subagents" ||

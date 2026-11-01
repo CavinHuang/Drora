@@ -41,13 +41,38 @@ function createProductionWebZaiOAuthConfig() {
   });
 }
 
+/**
+ * v3.17.1 起 pending 登录不再拆三个 sessionStorage 键，而是整体存同源 localStorage 的
+ * `oauth_pending_logins`（[{nonce, provider, redirectUri}]，按 nonce 原子消费，最多 5 条）。
+ * 手机浏览器的 OAuth 回调常不在发起登录的标签页里，sessionStorage 读不到就永远 CSRF 失败。
+ */
+function readPendingLogins(
+  storage: Storage,
+): Array<{ nonce: string; provider: string; redirectUri: string }> {
+  const raw = storage.getItem("oauth_pending_logins");
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function seedPendingLogin(
+  storage: Storage,
+  login: { nonce: string; provider: string; redirectUri: string },
+): void {
+  storage.setItem("oauth_pending_logins", JSON.stringify([login]));
+}
+
 function createService(options?: {
   currentHref?: string;
   currentOrigin?: string;
   allowDevReturnToRedirect?: boolean;
+  createNonce?: () => string;
 }) {
   const localStorage = new MemoryStorage();
-  const sessionStorage = new MemoryStorage();
   const assigned: string[] = [];
   const replaced: string[] = [];
   const config = {
@@ -58,10 +83,10 @@ function createService(options?: {
     new WebAuthService({
       config,
       provider: new ZaiWebOAuthProvider(config, () => 1_000),
-      repo: new BrowserOAuthCredentialRepo({ localStorage, sessionStorage }),
+      repo: new BrowserOAuthCredentialRepo({ localStorage }),
       runtime: {
         assign: (url) => assigned.push(url),
-        createNonce: () => "nonce-1",
+        createNonce: options?.createNonce ?? (() => "nonce-1"),
         getCurrentHref: () =>
           options?.currentHref ??
           "http://192.168.1.8:5173/remote/v4?app_version=3.13.0&sid=device-1&mid=mid-1&name=Desktop",
@@ -75,7 +100,6 @@ function createService(options?: {
     localStorage,
     replaced,
     service: reloadService(),
-    sessionStorage,
     reloadService,
   };
 }
@@ -108,12 +132,11 @@ describe("WebAuthService", () => {
       VITE_ZAI_OAUTH_ORIGIN: "https://chat.z.ai/",
     });
     const localStorage = new MemoryStorage();
-    const sessionStorage = new MemoryStorage();
     const assigned: string[] = [];
     const service = new WebAuthService({
       config: testConfig,
       provider: new ZaiWebOAuthProvider(testConfig, () => 1_000),
-      repo: new BrowserOAuthCredentialRepo({ localStorage, sessionStorage }),
+      repo: new BrowserOAuthCredentialRepo({ localStorage }),
       runtime: {
         assign: (url) => assigned.push(url),
         createNonce: () => "nonce-1",
@@ -134,7 +157,7 @@ describe("WebAuthService", () => {
   });
 
   it("starts ZAI login with nonce, dev return_to, and original app_return_to", () => {
-    const { assigned, service, sessionStorage } = createService();
+    const { assigned, localStorage, service } = createService();
 
     service.startLogin({
       devReturnTo: "http://192.168.1.8:5173/remote/v4",
@@ -142,7 +165,15 @@ describe("WebAuthService", () => {
 
     const authorizeUrl = new URL(assigned[0]!);
     const state = parseOAuthState(authorizeUrl.searchParams.get("state")!);
-    expect(sessionStorage.getItem("oauth_pending_nonce")).toBe("nonce-1");
+    // pending 登记整体落 localStorage（v3.17.1 多标签页回调模型）。
+    expect(readPendingLogins(localStorage)).toEqual([
+      {
+        nonce: "nonce-1",
+        provider: "zai",
+        redirectUri:
+          "https://zcode.z.ai/remote/v4?app_version=3.13.0&sid=device-1&mid=mid-1&name=Desktop",
+      },
+    ]);
     expect(authorizeUrl.origin + authorizeUrl.pathname).toBe(
       "https://chat.z.ai/api/oauth/authorize",
     );
@@ -218,7 +249,8 @@ describe("WebAuthService", () => {
       });
       expect(result?.appReturnTo).toBe(`${path}?${query}`);
       expect(h.localStorage.getItem("oauth:active_provider")).toBe(provider);
-      expect(h.sessionStorage.getItem("oauth_pending_redirect_uri")).toBeNull();
+      // 成功回调按 nonce 原子消费 pending 登录；清空后键整体移除。
+      expect(h.localStorage.getItem("oauth_pending_logins")).toBeNull();
     },
   );
 
@@ -267,8 +299,10 @@ describe("WebAuthService", () => {
   it("does not exchange or consume the pending redirect before nonce validation", async () => {
     const h = createService();
     h.service.startLogin({ provider: "bigmodel" });
-    const pendingRedirect = h.sessionStorage.getItem("oauth_pending_redirect_uri");
-    expect(pendingRedirect).toContain("app_version=3.13.0");
+    const pendingLogin = readPendingLogins(h.localStorage).find(
+      (login) => login.nonce === "nonce-1",
+    );
+    expect(pendingLogin?.redirectUri).toContain("app_version=3.13.0");
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
     const state = buildOAuthState({ nonce: "wrong-nonce" });
@@ -276,15 +310,27 @@ describe("WebAuthService", () => {
       h.reloadService().handleCallback(`https://zcode.z.ai/remote/v4?authCode=code&state=${state}`),
     ).rejects.toThrow(/CSRF/);
     expect(fetchMock).not.toHaveBeenCalled();
-    expect(h.sessionStorage.getItem("oauth_pending_redirect_uri")).toBe(pendingRedirect);
+    // 错误 nonce 的回调不得改动真实 pending 记录（takePendingLogin 找不到时零写入）。
+    expect(readPendingLogins(h.localStorage)).toContainEqual(pendingLogin);
   });
 
-  it("ignores an abandoned new redirect when an older page starts another login", async () => {
+  it("consumes only the matching login when another tab starts a newer login", async () => {
+    // v3.17.1 多标签页模型：每个登录自带 nonce/provider/redirectUri 记录。旧页面
+    // （只认识 sessionStorage 旧键）的遗留写入不再影响新模型；并发的另一标签页
+    // 发起新登录后，旧回调仍按自己的记录完成，且不消费新记录。
     const h = createService();
-    h.service.startLogin();
-    // 历史页面只覆盖 nonce/provider，不知道新增的 pending 地址键。
-    h.sessionStorage.setItem("oauth_pending_nonce", "legacy-nonce");
-    const state = buildOAuthState({ nonce: "legacy-nonce" });
+    h.localStorage.setItem(
+      "oauth_pending_logins",
+      JSON.stringify([
+        { nonce: "nonce-1", provider: "zai", redirectUri: "https://zcode.z.ai/remote/v4" },
+        {
+          nonce: "nonce-2",
+          provider: "bigmodel",
+          redirectUri: "https://zcode.z.ai/cn/share/callback",
+        },
+      ]),
+    );
+    const state = buildOAuthState({ nonce: "nonce-1" });
     const fetchMock = vi.fn(async () => ({
       ok: true,
       json: async () => ({
@@ -303,7 +349,8 @@ describe("WebAuthService", () => {
     expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body)).redirect_uri).toBe(
       "https://zcode.z.ai/remote/v4",
     );
-    expect(h.sessionStorage.getItem("oauth_pending_redirect_uri")).toBeNull();
+    // 只消费 nonce-1；nonce-2 留给另一标签页的回调。
+    expect(readPendingLogins(h.localStorage).map((login) => login.nonce)).toEqual(["nonce-2"]);
   });
 
   it("preserves the canonical share page as the whole-Web OAuth return target", () => {
@@ -344,8 +391,12 @@ describe("WebAuthService", () => {
   });
 
   it("exchanges token, persists complete session, and returns sanitized app_return_to", async () => {
-    const { localStorage, service, sessionStorage } = createService();
-    sessionStorage.setItem("oauth_pending_nonce", "nonce-1");
+    const { localStorage, service } = createService();
+    seedPendingLogin(localStorage, {
+      nonce: "nonce-1",
+      provider: "zai",
+      redirectUri: "https://zcode.z.ai/remote/v4",
+    });
     const state = buildOAuthState({
       nonce: "nonce-1",
       app_return_to: "http://192.168.1.8:5173/remote/v4?sid=device-1&ignored=1",
@@ -381,15 +432,20 @@ describe("WebAuthService", () => {
     expect(localStorage.getItem("drorajwttoken")).toBe("jwt-token");
     expect(localStorage.getItem("oauth:zai:access_token")).toBe("zai-token");
     expect(localStorage.getItem("oauth:active_provider")).toBe("zai");
-    expect(sessionStorage.getItem("oauth_pending_nonce")).toBeNull();
+    // pending 登录按 nonce 原子消费，成功后清空并移除键。
+    expect(localStorage.getItem("oauth_pending_logins")).toBeNull();
     expect(JSON.parse(String(vi.mocked(fetch).mock.calls[0]?.[1]?.body)).redirect_uri).toBe(
       "https://zcode.z.ai/remote/v4",
     );
   });
 
   it("does not persist a half-login state when token response is incomplete", async () => {
-    const { localStorage, service, sessionStorage } = createService();
-    sessionStorage.setItem("oauth_pending_nonce", "nonce-1");
+    const { localStorage, service } = createService();
+    seedPendingLogin(localStorage, {
+      nonce: "nonce-1",
+      provider: "zai",
+      redirectUri: "https://zcode.z.ai/remote/v4",
+    });
     const state = buildOAuthState({ nonce: "nonce-1" });
     vi.stubGlobal(
       "fetch",
@@ -429,7 +485,7 @@ describe("WebAuthService BigModel provider", () => {
   });
 
   it("授权 URL 用 BigModel 的参数名（redirect/appId），不是 ZAI 的那套", () => {
-    const { assigned, service, sessionStorage } = createService();
+    const { assigned, localStorage, service } = createService();
 
     service.startLogin({
       provider: "bigmodel",
@@ -446,14 +502,23 @@ describe("WebAuthService BigModel provider", () => {
     expect(url.searchParams.get("redirect_uri")).toBeNull();
     expect(url.searchParams.get("client_id")).toBeNull();
     expect(url.searchParams.get("response_type")).toBeNull();
-    // 回调页要靠它知道用哪个 provider 换 token
-    expect(sessionStorage.getItem("oauth_pending_provider")).toBe("bigmodel");
+    // 回调页靠 pending 记录知道用哪个 provider 换 token（v3.17.1 整体登记）。
+    expect(readPendingLogins(localStorage)).toEqual([
+      {
+        nonce: "nonce-1",
+        provider: "bigmodel",
+        redirectUri: "https://zcode.z.ai/cn/share/callback",
+      },
+    ]);
   });
 
   it("换 token 时带 provider，并从 data.bigmodel.access_token 取值", async () => {
-    const { localStorage, service, sessionStorage } = createService();
-    sessionStorage.setItem("oauth_pending_nonce", "nonce-1");
-    sessionStorage.setItem("oauth_pending_provider", "bigmodel");
+    const { localStorage, service } = createService();
+    seedPendingLogin(localStorage, {
+      nonce: "nonce-1",
+      provider: "bigmodel",
+      redirectUri: "https://zcode.z.ai/cn/share/callback",
+    });
     const state = buildOAuthState({ nonce: "nonce-1" });
     const fetchMock = vi.fn(async () => ({
       ok: true,
@@ -477,37 +542,40 @@ describe("WebAuthService BigModel provider", () => {
     expect(localStorage.getItem("oauth:active_provider")).toBe("bigmodel");
     expect(localStorage.getItem("oauth:bigmodel:access_token")).toBe("bigmodel-token");
     expect(localStorage.getItem("drorajwttoken")).toBe("jwt-token");
-    // pending provider 用完即清，避免污染下一次登录
-    expect(sessionStorage.getItem("oauth_pending_provider")).toBeNull();
+    // pending 记录用完即清（按 nonce 原子消费），避免污染下一次登录
+    expect(localStorage.getItem("oauth_pending_logins")).toBeNull();
   });
 
-  it("缺少 pending provider 时按 zai 兜底，保持旧回调链接可用", async () => {
-    const { localStorage, service, sessionStorage } = createService();
-    sessionStorage.setItem("oauth_pending_nonce", "nonce-1");
-    const state = buildOAuthState({ nonce: "nonce-1" });
-    const fetchMock = vi.fn(async () => ({
-      ok: true,
-      json: async () => ({
-        code: 0,
-        data: {
-          token: "jwt-token",
-          zai: { access_token: "zai-token" },
-          user: { user_id: "u_1", name: "Ada" },
-        },
-      }),
-    }));
+  it("回调找不到对应 pending 记录时按 CSRF 拒绝（v3.17.1 起无 provider 兜底）", async () => {
+    // 上游 v3.17.1 把 nonce/provider/redirectUri 改为一条原子记录：记录不存在即
+    // CSRF 失败、不发 token 请求（旧模型「缺 provider 按 zai 兜底」随旧键一并退役）。
+    const { localStorage, service } = createService();
+    seedPendingLogin(localStorage, {
+      nonce: "nonce-1",
+      provider: "zai",
+      redirectUri: "https://zcode.z.ai/remote/v4",
+    });
+    const state = buildOAuthState({ nonce: "unknown-nonce" });
+    const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
 
-    await service.handleCallback(`https://zcode.z.ai/cn/share/callback?code=code-1&state=${state}`);
+    await expect(
+      service.handleCallback(`https://zcode.z.ai/cn/share/callback?code=code-1&state=${state}`),
+    ).rejects.toThrow(/CSRF/);
 
-    expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body)).provider).toBe("zai");
-    expect(localStorage.getItem("oauth:active_provider")).toBe("zai");
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(localStorage.getItem("oauth:active_provider")).toBeNull();
+    // 真实 pending 记录不受影响。
+    expect(readPendingLogins(localStorage).map((login) => login.nonce)).toEqual(["nonce-1"]);
   });
 
   it("BigModel 响应缺 access_token 时不落半个登录态", async () => {
-    const { localStorage, service, sessionStorage } = createService();
-    sessionStorage.setItem("oauth_pending_nonce", "nonce-1");
-    sessionStorage.setItem("oauth_pending_provider", "bigmodel");
+    const { localStorage, service } = createService();
+    seedPendingLogin(localStorage, {
+      nonce: "nonce-1",
+      provider: "bigmodel",
+      redirectUri: "https://zcode.z.ai/cn/share/callback",
+    });
     const state = buildOAuthState({ nonce: "nonce-1" });
     vi.stubGlobal(
       "fetch",

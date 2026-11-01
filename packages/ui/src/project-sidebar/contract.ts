@@ -23,6 +23,8 @@ export interface ProjectRowAction {
   run(): void;
   disabled?: boolean;
   destructive?: boolean;
+  /** 与上一组操作之间画分隔线；首项忽略。 */
+  separatorBefore?: boolean;
 }
 export {
   buildRemoteHostWorkspaceIdentity,
@@ -60,11 +62,13 @@ export type {
 } from "@drora/services";
 export interface ProjectAvailability {
   entryId?: string;
+  /** 仅首次升级入口用于替换旧排序键，不改变项目身份。 */
+  upgradeEntryId?: string;
   online: boolean;
   unresolved?: boolean;
 }
 export type { Locale, Theme };
-export type ProjectSidebarView = "projects" | "grouped" | "timeline";
+export type ProjectSidebarView = "projects" | "grouped" | "timeline" | "unread";
 export interface SidebarFileTreeTarget {
   workspacePath: string;
   workspaceName: string;

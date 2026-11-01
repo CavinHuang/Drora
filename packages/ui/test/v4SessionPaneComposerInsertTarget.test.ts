@@ -20,6 +20,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ConversationSnapshot } from "@drora/shared/drora-protocol-v4";
 import { DroraIntlProvider } from "@/i18n/IntlProvider.js";
+import { TabStoreProvider } from "@/store/TabStoreProvider.js";
 import { SessionPane } from "@/v4/SessionPane.js";
 import type { ComposerTextInsertRequest } from "@/store/droraSessionStoreTypes.js";
 
@@ -43,6 +44,8 @@ const composerState = vi.hoisted(() => ({
 /** workspace store 的可配置插入请求（其余 workspace 字段按 selector 触达面给缺省）。 */
 const workspaceState = vi.hoisted(() => ({
   composerTextInsertRequest: null as ComposerTextInsertRequest | null,
+  /** §9.9.2-H4 多槽：请求写入的会话槽键（sessionId ?? ""，空串 = 草稿 composer）。 */
+  requestSlotKey: "",
 }));
 
 vi.mock("@/store/droraSessionStore.js", async (importOriginal) => {
@@ -58,7 +61,11 @@ vi.mock("@/store/droraSessionStore.js", async (importOriginal) => {
       workspaces: {
         "/workspace": {
           ...getDefaultWorkspaceState(),
-          composerTextInsertRequest: workspaceState.composerTextInsertRequest,
+          // SessionPane 按 composerTextInsertRequests[slotKey] 多槽读取（§9.9.2-H4）；
+          // 桩必须写进对应槽位，否则正向消费用例恒为 null（升级前既有缺口，随本轮修复）。
+          composerTextInsertRequests: workspaceState.composerTextInsertRequest
+            ? { [workspaceState.requestSlotKey]: workspaceState.composerTextInsertRequest }
+            : {},
         },
       },
     };
@@ -266,6 +273,7 @@ function renderPane({
   focused?: boolean;
 }): unknown {
   workspaceState.composerTextInsertRequest = request;
+  workspaceState.requestSlotKey = sessionId ?? "";
   projectionState.current = {
     lastError: null,
     loadingOlder: false,
@@ -279,13 +287,20 @@ function renderPane({
     createElement(
       DroraIntlProvider,
       { initialLocale: "zh-CN" },
-      createElement(SessionPane, {
-        paneId: "pane-1",
-        readOnly: false,
-        sessionId,
-        focused,
-        workspacePath: "/workspace",
-      }),
+      // 上游 v3.17.1 在 SessionPane 早期 hook 区接入 useSessionRuntimeRestart，其
+      // useWorkspaceServices 链读取 tab store；渲染环境补 TabStoreProvider（空 store
+      // 无 activeTab，remote 解析安全回退 null），特性断言不变。
+      createElement(
+        TabStoreProvider,
+        null,
+        createElement(SessionPane, {
+          paneId: "pane-1",
+          readOnly: false,
+          sessionId,
+          focused,
+          workspacePath: "/workspace",
+        }),
+      ),
     ),
   );
   return composerState.externalTextInsertRequest;
@@ -304,6 +319,7 @@ beforeEach(() => {
 
 afterEach(() => {
   workspaceState.composerTextInsertRequest = null;
+  workspaceState.requestSlotKey = "";
 });
 
 describe("SessionPane composer 插入请求消费门（缺口9）", () => {

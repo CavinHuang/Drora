@@ -1,3 +1,4 @@
+import { useInterfaceModeTelemetry } from "@/lib/appTelemetry.js";
 import { ProjectDirectoryProvider } from "@/project-sidebar/ProjectDirectoryProvider.js";
 import { RemoteProjectPicker } from "@/project-sidebar/RemoteProjectPicker.js";
 import {
@@ -36,7 +37,11 @@ import {
   useDynamicWorkflowUserModeSync,
 } from "@/hooks/useDynamicWorkflowAvailability.js";
 import { DirectoryBrowser } from "@/DirectoryBrowser.js";
-import { attachRemoteProjectWorkspace } from "@/project-sidebar/index.js";
+import {
+  attachRemoteProjectWorkspace,
+  resolveEntryProject,
+  useWebRemoteControlRendererActions,
+} from "@/project-sidebar/index.js";
 import { useTabPersistence, type WorkspacePersistenceGate } from "@/hooks/useTabPersistence.js";
 import { useTokenRefresh } from "@/hooks/useTokenRefresh.js";
 import { useWorkspaceServices } from "@/hooks/useWorkspaceServices.js";
@@ -157,6 +162,7 @@ export function Root(props: RootProps) {
         <ServiceProvider
           services={props.services}
           composerClientNamespace={props.composerClientNamespace}
+          terminalOwnerId={props.terminalOwnerId}
         >
           <PlatformProvider platform={props.platform}>
             <StoreProvider
@@ -217,6 +223,7 @@ function RootInner({
   webRemoteControlTerminalTransportState,
   initialWorkspaceLoadingFallback,
 }: RootProps) {
+  useInterfaceModeTelemetry(platform, isDesktop === true);
   useEffect(() => {
     setRequestSecurityReporter(platform);
     setMcpStorePlatform(platform);
@@ -696,6 +703,7 @@ function RootInner({
     activeWorkspacePath,
     activeWorkspaceIdentity,
     supportsSettings,
+    isDesktop,
     allowOpenWorkspace,
     preferDirectoryBrowser: shouldPreferDirectoryBrowser,
     openDirectoryBrowser: handleOpenDirectoryBrowser,
@@ -719,17 +727,21 @@ function RootInner({
       workspacePath,
       workspaceIdentity,
       restoreSelection,
+      projectId,
     }: {
       workspacePath: string;
       workspaceIdentity: string;
       restoreSelection?: boolean;
+      projectId?: string | null;
     }) => {
       // 桌面重连只恢复连接，不得把已选会话覆盖成草稿；手机仍沿用 replayable 入口。
       const selectedTask = useDroraSessionStore
         .getState()
         .getWorkspaceState(workspacePath, workspaceIdentity).activeTaskId;
       if (!isDesktop || !restoreSelection || !selectedTask) {
-        startDraftInWorkspace(workspacePath, workspaceIdentity);
+        if (projectId !== undefined)
+          logger.info("[Root] 按原项目初始化远程草稿", { workspaceIdentity, projectId });
+        startDraftInWorkspace(workspacePath, workspaceIdentity, { projectId });
       }
     },
     [isDesktop, startDraftInWorkspace],
@@ -848,6 +860,7 @@ function RootInner({
       }
     });
   }, [handleReconnectRemoteWorkspace, platform]);
+  useWebRemoteControlRendererActions(platform);
 
   useEffect(() => {
     // Bugfix: fileDisplay 默认不传 basePath 时需要落到“当前激活 workspace”。
@@ -1014,9 +1027,7 @@ function RootInner({
     startDraftInWorkspace,
     startNewTaskFromActiveWorkspace,
     openWorkspace: handleOpenWorkspace,
-    openWorkspacePath: (path) => {
-      void handleSelectProject(path);
-    },
+    openWorkspacePath: handleSelectProject,
     setWorkspaceActionError,
     allowOpenWorkspace,
     isDesktop,
@@ -1316,30 +1327,57 @@ function RootInner({
           throw Object.assign(new Error("remote-project.entry-not-found"), {
             code: "remote-connection-canceled",
           });
-        await handleSelectRemoteProject(sessionId, path, localWorkspacePath, identity, async () => {
-          if (epoch !== remoteProjectIntentEpoch.current) return false;
-          // bind 会等待远端 IO；初检快照不能授权迟到结果复活已移除/换代的成员。
-          const current = await services.remoteProjectService!.readDirectory();
-          return (
-            epoch === remoteProjectIntentEpoch.current &&
-            current.hosts.some(
-              (item) => item.id === host.id && item.membershipId === host.membershipId,
-            ) &&
-            current.entries.some(
-              (entry) =>
-                entry.id === retained.id &&
-                entry.hostId === host.id &&
-                (entry.roots.some((root) => root.rootPath === path) ||
-                  entry.legacyWorkspace?.workspacePath === path),
-            )
+        let draftProjectId: string | undefined;
+        // 会话重连只恢复原选择；打开项目才解析草稿归属，避免阻止已删除项目的历史会话重连。
+        if (!remoteConnectionOpenPreference.preferredWorkspaceTabId) {
+          if (!services.projectService) throw new Error("project.service-unavailable");
+          // 入口 ID 只校验成员，不会初始化草稿归属；不能沿用本地同目录旧缓存。
+          const project = resolveEntryProject(
+            retained,
+            await services.projectService.readTree({ hostId: host.id }),
           );
+          if (!project || project.deleted || !project.roots.some((root) => root.rootPath === path))
+            throw new Error("project.not-found");
+          draftProjectId = project.id;
+        }
+        await remoteWorkspaceController.dispatch({
+          type: "open-project",
+          sourceServerId: session.sourceServerId ?? "",
+          remoteSessionId: sessionId,
+          path,
+          localWorkspacePath,
+          preparedWorkspaceIdentity: identity,
+          draftProjectId,
+          isCurrent: async () => {
+            if (epoch !== remoteProjectIntentEpoch.current) return false;
+            // bind 会等待远端 IO；初检快照不能授权迟到结果复活已移除/换代的成员。
+            const current = await services.remoteProjectService!.readDirectory();
+            return (
+              epoch === remoteProjectIntentEpoch.current &&
+              current.hosts.some(
+                (item) => item.id === host.id && item.membershipId === host.membershipId,
+              ) &&
+              current.entries.some(
+                (entry) =>
+                  entry.id === retained.id &&
+                  entry.hostId === host.id &&
+                  (entry.roots.some((root) => root.rootPath === path) ||
+                    entry.legacyWorkspace?.workspacePath === path),
+              )
+            );
+          },
         });
         return;
       }
       // 选目录只进入项目编辑，保存与入口登记完成之前不打开会话。
       setRemoteProjectSelection({ host, path, sessionId });
     },
-    [services.remoteProjectService, remoteConnectionOpenPreference, handleSelectRemoteProject],
+    [
+      services.remoteProjectService,
+      services.projectService,
+      remoteConnectionOpenPreference,
+      remoteWorkspaceController,
+    ],
   );
   const handleRemoteConnectionDialogOpenChange = useCallback((open: boolean) => {
     const target =
@@ -1443,6 +1481,22 @@ function RootInner({
     previousRemoteConnectionInProgressRef.current = remoteConnectionInProgress;
   }, [remoteConnectionInProgress, resetRemoteConnectionLogs]);
 
+  // 修复原因：没有打开的项目时 Root 只渲染独立设置页，迁移向导没有挂载，数据同步页「迁移」点了没有反应。
+  // 两个分支共用同一个迁移向导节点；没有项目时 workspacePath 为空，用户级的项照常导入（见 useSettingsSync）。
+  const onboardingDialog = (
+    <ScopedErrorBoundary
+      scope="onboarding-dialog"
+      resetKeys={[workspaceShellIdentity?.trim() || workspaceShellPath]}
+      variant="silent"
+    >
+      <OnboardingDialog
+        workspacePath={workspaceShellPath || undefined}
+        workspaceIdentity={workspaceShellIdentity}
+        isDesktop={isDesktop}
+      />
+    </ScopedErrorBoundary>
+  );
+
   const settingsLayerProps = {
     isDesktop,
     isMacDesktop,
@@ -1502,6 +1556,7 @@ function RootInner({
         >
           <SettingsPage {...settingsLayerProps} />
         </ScopedErrorBoundary>
+        {onboardingDialog}
       </RootShell>
     );
   }
@@ -1617,17 +1672,7 @@ function RootInner({
             </RemoteProjectPresentationProvider>
           </RemoteWorkspaceControllerProvider>
         )}
-        <ScopedErrorBoundary
-          scope="onboarding-dialog"
-          resetKeys={[workspaceShellIdentity?.trim() || workspaceShellPath]}
-          variant="silent"
-        >
-          <OnboardingDialog
-            workspacePath={workspaceShellPath || undefined}
-            workspaceIdentity={workspaceShellIdentity}
-            isDesktop={isDesktop}
-          />
-        </ScopedErrorBoundary>
+        {onboardingDialog}
       </OccupationOnboarding>
     </RootShell>
   );

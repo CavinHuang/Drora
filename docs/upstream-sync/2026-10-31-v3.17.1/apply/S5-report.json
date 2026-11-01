@@ -1,0 +1,6323 @@
+{
+ "segment": "S5",
+ "ledger": {
+  "path": "docs/upstream-sync/2026-10-31-v3.17.1/upstream-ledger.tsv",
+  "sha256": "95150a678ccf9a47a8088aa54d766d31c635f857b28483c263c3513d55828bfc"
+ },
+ "dry": false,
+ "counts": {
+  "add": 126,
+  "take-upstream": 223,
+  "text-clean-needs-semantic-review": 35,
+  "text-conflict": 19,
+  "delete-review": 980,
+  "delete-local-change-review": 149,
+  "zone-decision": 0,
+  "already-present": 0,
+  "lockfile-regenerate": 0,
+  "already-deleted": 0
+ },
+ "applied": [
+  {
+   "path": "packages/ui/package.json",
+   "action": "text-conflict",
+   "conflicts": 1
+  },
+  {
+   "path": "packages/ui/src/App.tsx",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "packages/ui/src/AssistantPreviewCards.tsx",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/ChatErrorBanner.tsx",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/ConfirmDialog.tsx",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/LexicalChatInput.tsx",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "packages/ui/src/ModelConfigSelect.tsx",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/OpenSplitButton.tsx",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/PermissionDialog.tsx",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/PreviewPane.tsx",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/RemoteConnectionDialogContent.tsx",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/Root.tsx",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "packages/ui/src/SettingsPage.tsx",
+   "action": "text-conflict",
+   "conflicts": 2
+  },
+  {
+   "path": "packages/ui/src/SlashCommandPlugin.tsx",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/TaskActionMenuContent.tsx",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/TaskListItem.tsx",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "packages/ui/src/TaskListItemContextMenu.tsx",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/Terminal.tsx",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/ToolCallBlocks/renderers/search.tsx",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/ToolCallBlocks/renderers/send-message.tsx",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/ToolCallBlocks/resolveRenderer.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/UpdateReleaseNotesTooltip.tsx",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/WelcomeScreen.tsx",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/WorkspaceFileTree.tsx",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/WorkspaceHeader.tsx",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/WorkspaceHeaderSections.tsx",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "packages/ui/src/WorkspaceHelpMenuButton.tsx",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/app-shell/AnimatedSidePanePanel.tsx",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "packages/ui/src/app-shell/SelectionSideChatPane.tsx",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/app-shell/SidePaneTabTrigger.tsx",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "packages/ui/src/app-shell/WorkflowArtifactSidePane.tsx",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/app-shell/WorkspaceShellLayout.tsx",
+   "action": "text-conflict",
+   "conflicts": 3
+  },
+  {
+   "path": "packages/ui/src/app-shell/animatedSidePanePanelModel.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/app-shell/types.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "packages/ui/src/app-shell/useWorkspaceSessionReload.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/app-shell/useWorkspaceTaskNavigation.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/app-shell/workflow-artifacts/ArtifactOpenAsFileButton.tsx",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/src/assets/provider-icons/model-provider-logo-sources.json",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/assets/provider-icons/model-provider-siliconflow.png",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/src/assets/provider-icons/model-provider-stepfun.png",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/src/assets/provider-icons/model-provider-tencent-cloud.png",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/src/assets/provider-icons/model-provider-volcengine.png",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/src/browser-use/UnifiedBrowserView.tsx",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/chat-input-toolbar/ComposerProviderMenu.tsx",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/chat-input-toolbar/display.tsx",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "packages/ui/src/command-center/CommandCenterDialog.tsx",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/components/ai-elements/chat-loading.tsx",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/components/ai-elements/image-preview-dialog.tsx",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/components/ai-elements/message.tsx",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "packages/ui/src/components/mobile-ui/contract.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/src/components/ui/toast.tsx",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/composer-toolbar-layout/CONTRACT.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/conversation-share-interaction/contract.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/src/conversation-workspace-target/contract.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/src/data-sync/CONTRACT.md",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/src/data-sync/app/categories.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/src/data-sync/app/marketplacePluginSync.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/src/data-sync/app/useDataSyncDialog.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/src/data-sync/app/useDataSyncProviders.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/src/data-sync/contract.example.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/src/data-sync/contract.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/src/data-sync/domain/compare.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/src/data-sync/domain/entry.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/src/data-sync/domain/marketplacePlugins.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/src/data-sync/domain/providers.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/src/data-sync/index.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/src/data-sync/module.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/src/data-sync/ui/DataSyncDialog.tsx",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/src/data-sync/ui/DataSyncDialogContainer.tsx",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/src/data-sync/ui/DataSyncEntry.tsx",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/src/data-sync/ui/DataSyncProvidersPanel.tsx",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/src/data-sync/ui/DataSyncSection.tsx",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/src/data-sync/ui/settingsEntry.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/src/file-menu/ArtifactOpenAsFileButton.tsx",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/src/file-menu/CONTRACT.md",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/src/file-menu/DefaultFileApplicationLabel.tsx",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/src/file-menu/FileApplicationChoices.tsx",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/src/file-menu/FileApplicationIcon.tsx",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/src/file-menu/FileApplicationSubmenu.tsx",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/src/file-menu/FileSaveAsMenuItem.tsx",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/src/file-menu/contract.example.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/src/file-menu/contract.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/src/file-menu/fileApplicationSubmenu.css",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/src/file-menu/fileCopy.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/src/file-menu/index.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/src/file-menu/module.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/src/file-menu/useFileApplications.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/src/gen-ui/CONTRACT.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/gen-ui/app/tweaks.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/src/gen-ui/contract.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/src/gen-ui/domain/references.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/src/highspeed/highspeedConversationRows.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/highspeed/highspeedTurnStore.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "packages/ui/src/hooks/useAppPanels.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "packages/ui/src/hooks/useCommands.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/hooks/useConfirmDialog.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/hooks/useEnsureWorkspaceMcpLoaded.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/hooks/useGlobalTaskList.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/hooks/useModelProviders.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/hooks/useOAuth.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/hooks/useServices.tsx",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/hooks/useSettingsSync.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/hooks/useSourceServerStatuses.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/hooks/useWorkspaceActiveTaskState.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/i18n/locales/en-US.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "packages/ui/src/i18n/locales/zh-CN.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "packages/ui/src/image-preview-editor/CONTRACT.md",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/src/image-preview-editor/ImageEditorToolbar.tsx",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/src/image-preview-editor/ImagePreviewSurface.tsx",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/src/image-preview-editor/annotations.tsx",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/src/image-preview-editor/composerTarget.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/src/image-preview-editor/contract.example.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/src/image-preview-editor/contract.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/src/image-preview-editor/geometry.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/src/image-preview-editor/index.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/src/image-preview-editor/module.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/src/index.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "packages/ui/src/lib/appTelemetry.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/lib/assistantCodeComment.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/lib/chatPlaceholder.ts",
+   "action": "text-conflict",
+   "conflicts": 1
+  },
+  {
+   "path": "packages/ui/src/lib/messageTelemetry.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/lib/modelProviderConnectivityTarget.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/lib/providerBusinessError.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/lib/providerTelemetryIdentity.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/lib/remoteConnectionPresentation.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/lib/remoteConnectionPresentationErrors.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/lib/remoteConnectionWizard.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/lib/remotePluginSyncRefresh.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/lib/remoteWorkspaceHistory.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/lib/settingsNavigation.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "packages/ui/src/lib/sourceServerUpdateAction.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/lib/taskSidePaneMemory.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/src/lib/taskSidePaneMemory.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/lib/workDuration.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/lib/droraSessionProjection.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "packages/ui/src/marketing-touch-contract/CONTRACT.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/marketing-touch-contract/contract.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/src/mentions/mentionMarkdown.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "packages/ui/src/mentions/providers/sessionsMentionProvider.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/nativeMediaControls.css",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/src/onboarding/OccupationOnboarding.tsx",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/onboarding/OnboardingDialog.tsx",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/onboarding/OnboardingDialogParts.tsx",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/onboarding/OnboardingFlowParts.tsx",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/onboarding/OnboardingWelcomeAsciiVisual.tsx",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/src/onboarding/OnboardingWelcomeView.tsx",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/src/onboarding/useOnboardingMigration.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/plugin-ui/CONTRACT.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/plugin-ui/adapters/pluginUiHostTypes.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/plugin-ui/adapters/pluginUiManagedPage.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/plugin-ui/adapters/pluginUiPagePlane.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/plugin-ui/adapters/pluginUiPageRegistry.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/plugin-ui/adapters/sandboxPageOwners.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/src/plugin-ui/adapters/usePluginUiSidePaneModel.tsx",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/plugin-ui/adapters/usePluginUiToolCallModel.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/plugin-ui/adapters/useRecommendedUiPlugins.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/plugin-ui/app/pluginUiAppTools.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/src/plugin-ui/app/pluginUiBackgroundRetention.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/src/plugin-ui/app/pluginUiDisclosureStore.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/plugin-ui/app/pluginUiHostAppHandlers.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/plugin-ui/app/pluginUiHostBridge.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/plugin-ui/app/pluginUiHostController.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/src/plugin-ui/app/pluginUiHostController.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/plugin-ui/app/pluginUiHostControllerContract.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/plugin-ui/app/pluginUiPageManager.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/src/plugin-ui/app/pluginUiSampling.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/src/plugin-ui/components/PluginUiLauncherItems.tsx",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/plugin-ui/components/PluginUiToolCallBlock.tsx",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/plugin-ui/contract.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/src/plugin-ui/contract.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/plugin-ui/domain/buildPluginUiHostCapabilities.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/plugin-ui/domain/buildPluginUiHostContext.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/plugin-ui/domain/pluginUiInstancePolicy.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/plugin-ui/domain/pluginUiLogicalScope.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/src/plugin-ui/domain/pluginUiRowPolicy.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/src/plugin-ui/index.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/previewPaneOfficeXlsxContent.tsx",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/project-sidebar/CONTRACT.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/project-sidebar/ProjectComposerMenu.tsx",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/project-sidebar/ProjectDirectoryProvider.tsx",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/project-sidebar/ProjectManagement.tsx",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/src/project-sidebar/ProjectManagementRow.tsx",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/src/project-sidebar/ProjectNodeContent.tsx",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "packages/ui/src/project-sidebar/ProjectRemovalDialog.tsx",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/src/project-sidebar/ProjectSidebarListHeader.tsx",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/project-sidebar/ProjectSidebarNavigation.tsx",
+   "action": "text-conflict",
+   "conflicts": 1
+  },
+  {
+   "path": "packages/ui/src/project-sidebar/ProjectSidebarNode.tsx",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/project-sidebar/ProjectTaskRows.tsx",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/project-sidebar/RemovedProjects.tsx",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/src/project-sidebar/SortableProjects.tsx",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/project-sidebar/TaskGroupedView.tsx",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/project-sidebar/activity/contract.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/src/project-sidebar/activity/hook/contract.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/src/project-sidebar/activity/refresh/contract.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/src/project-sidebar/contract.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/src/project-sidebar/contract.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "packages/ui/src/project-sidebar/grouped/task-item.tsx",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/project-sidebar/grouped/task-row.tsx",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "packages/ui/src/project-sidebar/grouped/useGroupedDrag.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/project-sidebar/grouped/virtualized-group-task-list.tsx",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/project-sidebar/index.tsx",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/project-sidebar/module.ts",
+   "action": "text-conflict",
+   "conflicts": 1
+  },
+  {
+   "path": "packages/ui/src/project-sidebar/project-management-view.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/src/project-sidebar/project-tree-reader.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/project-sidebar/projectOrder.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/project-sidebar/remote-navigation.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/project-sidebar/remote-project-connection.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/project-sidebar/useProjectConnectionDiagnostics.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/project-sidebar/useProjectManagement.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/src/project-sidebar/useProjectRemoteSync.tsx",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/project-sidebar/useProjectSidebarPreferences.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/project-sidebar/useProjectTaskNavigation.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/project-sidebar/useProjectTree.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/project-sidebar/useWebRemoteControlRendererActions.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/src/project-sidebar/view-preference.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/project-sidebar/view.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/project-workflow/contract.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/src/prompt-editor/ChatPromptEditor.tsx",
+   "action": "text-conflict",
+   "conflicts": 1
+  },
+  {
+   "path": "packages/ui/src/prompt-editor/useComposerToolbarFit.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/remote-connection-flow/contract.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/src/remote-connection-flow/contract.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/remote-connection-flow/index.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/remote-connection-flow/requestRemoteProjectConnection.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/remote-connection-flow/ui/RemoteConnectionProgress.tsx",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/remote-connection/RemoteConnectionConnectingStep.tsx",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/remote-connection/RemoteConnectionNavigationDot.tsx",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/src/remote-connection/RemoteConnectionTags.tsx",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/request-security-edition/errors.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/root/reconnectRemoteWorkspaceHistoryEntry.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "packages/ui/src/root/types.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/root/useRemoteWorkspaceHistory.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/root/useRootPlatformEffects.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "packages/ui/src/root/useRootWorkspaceActions.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/settings-scope/CONTRACT.md",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/src/settings-scope/app/useSettingsScope.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/src/settings-scope/app/useSettingsScopeForm.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/src/settings-scope/contract.example.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/src/settings-scope/contract.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/src/settings-scope/domain/scope.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/src/settings-scope/index.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/src/settings-scope/module.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/src/settings-scope/ui/SettingsScopeBlockedNotice.tsx",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/src/settings-scope/ui/SettingsScopeDevice.tsx",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/src/settings-sync/types.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/settings/AddMarketplaceSourceDialog.tsx",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/settings/AutomationEditView.tsx",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/settings/CommandsSection.tsx",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/settings/DynamicWorkflowModeSetting.tsx",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/settings/HooksSection.tsx",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/settings/McpServerList.tsx",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/settings/McpSettingsSection.tsx",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/settings/OffPeakEditView.tsx",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/settings/PersonalizationSection.tsx",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/src/settings/PluginScopeMenu.tsx",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/settings/PluginStoreCard.tsx",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/settings/PluginStoreDetailView.tsx",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/settings/PluginStoreListView.tsx",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/settings/PluginStorePage.tsx",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/settings/PluginsSection.tsx",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/settings/RemoteMcpSyncDialog.tsx",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/src/settings/RemotePluginSyncDialog.tsx",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/src/settings/RemoteSkillSyncDialog.tsx",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/src/settings/RemoteSkillSyncResultList.tsx",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/src/settings/RemoteSkillSyncSelectionList.tsx",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/src/settings/RemoteSkillSyncTitle.tsx",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/src/settings/RemoteSyncActions.tsx",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/src/settings/SettingsMachine.tsx",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/src/settings/ShortcutSettingsSection.tsx",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/settings/SkillsSection.tsx",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/settings/SourceServerDeviceRow.tsx",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/src/settings/SourceServerManagementPanel.tsx",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/settings/SourceServerUpdateActivity.tsx",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/settings/SubagentsSection.tsx",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/settings/model-provider-section/InlineEditableProviderCard.tsx",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/settings/model-provider-section/ProviderCardSections.tsx",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/settings/model-provider-section/ProviderLogo.tsx",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/settings/pluginStoreListing.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/settings/saved-workflows/SavedWorkflowsSection.tsx",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/settings/settingsPageConfig.ts",
+   "action": "text-conflict",
+   "conflicts": 1
+  },
+  {
+   "path": "packages/ui/src/settings/sourceServerDeviceList.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/src/settingsPageHelpers.tsx",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "packages/ui/src/side-pane-full-view/CONTRACT.md",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/src/side-pane-full-view/ConversationHost.tsx",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/src/side-pane-full-view/ConversationTab.tsx",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/src/side-pane-full-view/ToggleButton.tsx",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/src/side-pane-full-view/anchorPreference.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/src/side-pane-full-view/contract.example.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/src/side-pane-full-view/contract.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/src/side-pane-full-view/conversationPanePresentation.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/src/side-pane-full-view/index.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/src/side-pane-full-view/model.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/src/side-pane-full-view/module.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/src/side-pane-full-view/useSidePaneFullView.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/src/slashCommandHelpers.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/slashCommandPanelSections.tsx",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/store/commandsStore.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/store/confirmDialogStore.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/store/dynamicWorkflowAvailabilityStore.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/store/index.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/store/mcpStore.ts",
+   "action": "text-conflict",
+   "conflicts": 2
+  },
+  {
+   "path": "packages/ui/src/store/mcpStoreStatusList.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/store/pluginManagementStore.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/store/subagentsStore.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/styles.css",
+   "action": "text-conflict",
+   "conflicts": 1
+  },
+  {
+   "path": "packages/ui/src/terminal/TerminalSession.tsx",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/terminal/sidePaneTerminalSessionRegistry.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/terminal/terminalComposedInputFallback.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/terminal/terminalPanelState.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/v4/ConversationComposer.tsx",
+   "action": "text-conflict",
+   "conflicts": 6
+  },
+  {
+   "path": "packages/ui/src/v4/ConversationHeader.tsx",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "packages/ui/src/v4/ConversationRowView.tsx",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "packages/ui/src/v4/ConversationTimeline.tsx",
+   "action": "text-conflict",
+   "conflicts": 4
+  },
+  {
+   "path": "packages/ui/src/v4/ConversationTurnGroup.tsx",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "packages/ui/src/v4/ConversationTurnNavigator.tsx",
+   "action": "text-conflict",
+   "conflicts": 3
+  },
+  {
+   "path": "packages/ui/src/v4/SessionPane.tsx",
+   "action": "text-conflict",
+   "conflicts": 4
+  },
+  {
+   "path": "packages/ui/src/v4/SessionPluginReferenceIconProvider.tsx",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/v4/SessionSubscriptionErrorPanel.tsx",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/v4/V4ChatPane.tsx",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/v4/V4InteractionDialogs.tsx",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/v4/V4WorkspaceChatArea.tsx",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/v4/WorkbenchPane.tsx",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/v4/WorkspaceHookPendingBanner.tsx",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "packages/ui/src/v4/agentConversationTransport.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/v4/assistantPreviewPptxAutoOpen.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/v4/commandFactory.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/v4/composer/V4ComposerModeControls.tsx",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/v4/composer/V4ComposerToolbar.tsx",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/v4/composer/composerPromptContexts.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "packages/ui/src/v4/composer/composerSubmissionSettlement.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/v4/composer/toolbarShortcuts.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "packages/ui/src/v4/composer/useComposerAttachments.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/v4/composer/useDraftConfigControl.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/v4/conversationFindHighlightDom.ts",
+   "action": "text-conflict",
+   "conflicts": 1
+  },
+  {
+   "path": "packages/ui/src/v4/conversationFindIndex.ts",
+   "action": "text-conflict",
+   "conflicts": 2
+  },
+  {
+   "path": "packages/ui/src/v4/conversationLayout.ts",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "packages/ui/src/v4/conversationProjectionStore.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/v4/conversationShareItems.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/v4/conversationTimelineLiveTail.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/v4/conversationTurnNavigatorHelpers.ts",
+   "action": "text-conflict",
+   "conflicts": 1
+  },
+  {
+   "path": "packages/ui/src/v4/conversationTurnRenderUnitTypes.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/v4/conversationTurnRenderUnits.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/v4/conversationTurnWorkSegments.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/v4/mcpUnavailableBannerNotice.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/v4/pendingCommandRegistry.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/v4/pluginReferenceIconContext.tsx",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "packages/ui/src/v4/pluginReferenceIconProjection.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/v4/replaceableConversationTransport.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/v4/splitPaneEntryContext.tsx",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/v4/telemetry/conversationPromptTelemetry.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/v4/telemetry/conversationTelemetrySupervisor.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/v4/telemetry/local-ttft/CONTRACT.md",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/src/v4/telemetry/local-ttft/contract.example.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/src/v4/telemetry/local-ttft/contract.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/src/v4/telemetry/local-ttft/localTtftFacts.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/src/v4/telemetry/local-ttft/localTtftObserver.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/src/v4/telemetry/local-ttft/localTtftRecord.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/src/v4/telemetry/local-ttft/module.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/src/v4/telemetry/localTtftFacts.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/src/v4/telemetry/localTtftObserver.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/src/v4/telemetry/localTtftRecord.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/src/v4/transport.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/v4/useConversationTimelineFind.ts",
+   "action": "text-conflict",
+   "conflicts": 2
+  },
+  {
+   "path": "packages/ui/src/v4/windowControllerTaskListRegistry.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/v4/workbenchDragDrop.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/v4/workbenchLayout.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/v4/workbenchPointerDragDrop.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/src/v4/workbenchPointerPositionTracker.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/src/v4/workbenchSessionPlacement.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/v4/workflowRunCardJoin.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/v4/workspaceConnectionRegistry.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/web-remote-control/WebRemoteControlDialog.tsx",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "packages/ui/src/web-remote-control/contract.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/src/workspace-config-catalog/CONTRACT.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/workspace-config-catalog/contract.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/src/workspace-config-catalog/hook/contract.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/src/workspace-config-catalog/useConfigWorkspaceTargets.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/workspace-file-tree/WorkspaceFileTree.tsx",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/workspace-file-tree/WorkspaceFileTreeList.tsx",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "packages/ui/src/workspace-file-tree/WorkspaceFileTreeRowView.tsx",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/workspace-file-tree/WorkspaceFileTreeStickyFolders.tsx",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/workspace-file-tree/types.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/src/workspace-plugin-preview/contract.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/BrowserSitePermissionsPage.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/BrowserUseSidePaneContent.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/HighspeedActivationVisualLifecycle.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/HighspeedModelIndicator.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/UnifiedBrowserView.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/accountConnectionLossNotification.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/accountConnectionLossSuggestion.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/accountConnectionRefreshObserver.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/accountProviderAccess.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/activePromptInputToken.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/agentToolCallBlock.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/agentV4ConnectionTransports.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/alertDialogStore.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/animatedSidePanePanelLayout.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/appErrorBoundary.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/appTaskSwitchGuard.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/appTelemetryPrivacy.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/appUsageDailyModelTrendChart.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/appUsageModelPieChart.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/appUsagePanel.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/appWorkspaceRpcTarget.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/archiveManagement.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/archiveManagementUi.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/archivedTaskDeletion.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/archivedTasksActionsMenu.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/armsCustomEventObservability.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/assistantCodeComment.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/assistantCodeCommentCards.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/assistantFilePreviewV2.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/assistantPreviewCardValidationHook.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/assistantPreviewCards.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/assistantPreviewPptxAutoOpen.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/attachmentsPreview.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/automationAgentConfigOptions.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/automationEditDirtyState.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/automationEditSaveAndRun.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/automationEditSessionCreatedDirtyState.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/automationEditValidation.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/automationFormat.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/automationInstructionsComposer.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/automationManagementStoreCreateLimit.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/automationManagementStoreRunNow.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/automationProjectOptions.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/automationRestartEligibility.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/automationScheduleBadge.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/automationStatusFilter.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/automationTelemetry.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/automationTemplateCatalog.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/automationTemplateRemoteIcons.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/automationTerminologyI18n.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/automationWorkspaceOptions.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/automationsMainBreadcrumbFrame.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/automationsPageTabs.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/automationsSectionOffPeakTelemetry.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/backgroundBashSidePane.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/bashOutputPreview.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/botBoundGroups.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/botBoundGroupsInteraction.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/botGroupDeliveryAction.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/botGroupSourceLabel.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/botPrivateDeliveryRetry.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/botsDialogConfig.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/botsDialogRuntimeError.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/botsProjectAccess.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/botsTaskBroadcast.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/botsTaskStreamBroadcast.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/browser/manual-review/pending/composer-menu-dismiss.fixture.tsx",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/test/browser/manual-review/pending/composer-menu-dismiss.test.mjs",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/test/browser/manual-review/pending/conversation-navigator-performance.fixture.tsx",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/test/browser/manual-review/pending/conversation-navigator-performance.test.mjs",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/test/browser/manual-review/pending/conversation-timeline-resize.fixture.tsx",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/test/browser/manual-review/pending/conversation-timeline-resize.test.mjs",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/test/browser/manual-review/pending/image-preview-edit.fixture.tsx",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/test/browser/manual-review/pending/image-preview-edit.test.mjs",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/test/browser/manual-review/pending/message-render-isolation.fixture.tsx",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/test/browser/manual-review/pending/message-render-isolation.test.mjs",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/test/browser/manual-review/pending/new-task-rendering.fixture.tsx",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/test/browser/manual-review/pending/new-task-rendering.test.mjs",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/test/browser/manual-review/pending/permission-full-access.fixture.tsx",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/test/browser/manual-review/pending/permission-full-access.test.mjs",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/test/browser/manual-review/pending/plugin-marketplace-risk.fixture.tsx",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/test/browser/manual-review/pending/plugin-marketplace-risk.test.mjs",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/test/browser/manual-review/pending/plugin-store-mode-order.fixture.tsx",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/test/browser/manual-review/pending/plugin-store-mode-order.test.mjs",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/test/browser/manual-review/pending/plugin-ui-launcher.fixture.tsx",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/test/browser/manual-review/pending/plugin-ui-launcher.test.mjs",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/test/browser/manual-review/pending/plugin-update-all.fixture.tsx",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/test/browser/manual-review/pending/plugin-update-all.test.mjs",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/test/browser/manual-review/pending/preview-card-actions.fixture.tsx",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/test/browser/manual-review/pending/preview-card-actions.test.mjs",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/test/browser/manual-review/pending/project-device-visibility.fixture.tsx",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/test/browser/manual-review/pending/project-device-visibility.test.mjs",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/test/browser/manual-review/pending/provider-settings-batch.test.mjs",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/test/browser/manual-review/pending/render-boundaries.fixture.tsx",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/test/browser/manual-review/pending/render-boundaries.test.mjs",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/test/browser/manual-review/pending/side-pane-plugin-menu.fixture.tsx",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/test/browser/manual-review/pending/side-pane-plugin-menu.test.mjs",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/ui/test/browser/manual-review/pending/terminal-mobile-input.fixture.tsx",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/test/browser/manual-review/pending/terminal-mobile-input.test.mjs",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/test/browser/manual-review/pending/workflow-file-actions.fixture.tsx",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/test/browser/manual-review/pending/workflow-file-actions.test.mjs",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/test/browser/manual-review/pending/workspace-hook-pending.test.mjs",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/test/browser/manual-review/pending/yolo-confirmation.fixture.tsx",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/test/browser/manual-review/pending/yolo-confirmation.test.mjs",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/test/browserEnvironment.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/browserSettingsSection.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/browserSiteSettingsEntry.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/browserTabRestoreScopeRegistry.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/browserUseTabIcon.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/builtinAgentCli.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/changesGroupToolCallBlock.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/channelMentionContent.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/chatAttachments.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/chatContextUsageBreakdown.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/chatContextUsageMobileInteraction.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/chatEmptyTimeGreetingI18n.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/chatErrorBannerFeedbackDraft.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/chatErrorBannerHook.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/chatErrorBannerI18n.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/chatErrorBannerTelemetry.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/chatInputContextUsage.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/chatLoading.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/chatMediaAttachmentPreviewDialog.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/chatMediaAttachmentPreviewImport.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/chatPlaceholder.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/chatPrepareError.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/chatPromptActionMenuInteraction.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/chatPromptEditorActionOrder.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/chatRemoteFolderChoice.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/chatRemoteFolderCreation.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/chatSessionScrollMemory.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/chatWorkspaceDeviceNames.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/clientScenesVisibilityRecovery.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/closeActiveContext.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/cloudContentDialog.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/cloudContentDialogHero.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/cloudDialogDescription.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/cloudDialogMediaHero.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/codeBlockVisibilitySubscription.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/codeCommentContext.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/codeCommentPreviewStore.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/codeViewer.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/codeViewerComponent.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/codingPlanEmbeddedWebview.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/codingPlanEntitlements.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/codingPlanEntryButton.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/codingPlanFunnelTelemetry.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/codingPlanOwnedEntryPlans.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/codingPlanPricingCards.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/codingPlanQuotaResetAction.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/codingPlanQuotaResetAutoPlayBroadcast.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/codingPlanQuotaResetCoordinator.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/codingPlanQuotaResetOpportunity.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/codingPlanQuotaResetStatus.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/codingPlanQuotaResetUi.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/codingPlanQuotaResetVisibility.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/codingPlanUpgradeDialogProvider.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/codingPlanUsagePanel.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/collapsibleMeasurement.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/commandCenterSearchHistory.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/commandCenterSelection.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/commandCenterTypography.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/composer-toolbar-layout/contract.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/composerAttachmentSource.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/composerConnectionSwitch.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/composerDraftStore.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/composerDraftWorkspaceTransfer.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/composerModelThinking.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/composerPermissionGrant.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/composerPlanGroups.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/composerRecent.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/composerShortcuts.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/composerSubmissionConfig.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/composerSubmissionSettlement.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/composerTeamMenu.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/composerToolbarFit.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/configCommandBarrier.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/configSelectModeOptions.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/confirmDialogKeyboard.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/confirmDialogRequiredAcknowledgement.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/contentHorizontalScroll.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/contextAttachmentPill.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/contextCompactionRuntime.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/contextQuotaResetOpportunityReminder.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/contextQuotaResetSettingsVisibility.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/controlHintTooltip.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/conversationFindSearch.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/conversationRowSharing.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/conversationSelectionGuard.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/conversationSelectionReference.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/conversationShareAttempt.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/conversationShareBundleBoundary.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/conversationShareConfirmationDock.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/conversationShareContent.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/conversationShareContext.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/conversationShareError.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/conversationShareImportNotice.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/conversationShareInputImages.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/conversationShareItems.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/conversationShareMarkdown.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/conversationShareMenu.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/conversationSharePopoverState.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/conversationSharePreflightCache.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/conversationSharePreflightResponse.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/conversationShareReadonlyTimeline.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/conversationShareSelection.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/conversationShareSuccessDock.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/conversationTelemetryAttachment.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/createWorkflowToolCallBlock.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/cronCreateAutomationCard.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/desktopLogoStyle.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/destructiveConfirmationIntents.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/developerToolsPreference.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/diagramViewport.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/diffViewerComponent.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/directoryBrowser.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/documentHiddenMotionPause.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/docxPreviewPagination.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/draftSuggestedPromptItems.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/draftSuggestedPromptPrefill.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/dynamicWorkflowAvailabilityStore.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/dynamicWorkflowGrayAutomationsPage.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/dynamicWorkflowGrayResume.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/dynamicWorkflowModeSetting.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/dynamicWorkflowUserModeSync.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/editConnectionProfileDialog.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/editInlineDiffContent.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/editToolCallBlock.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/elicitationDialog.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/elicitationDialogFocus.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/elicitationDialogRequestIdentity.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/embeddedBrowserHelpers.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/embeddedBrowserPermissionPrompts.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/endpointSuggestionFocus.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/enterpriseCodingPlanProducts.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/enterpriseProductsAuth.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/enterpriseStaticOnly.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/executeGroupToolCallBlock.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/executeOutputFollow.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/executePermissionPreview.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/executeToolCallBlock.test.tsx",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/exportLogsAction.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/featureSuggestedPromptRotation.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/feedbackBackgroundUploadIndicator.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/feedbackBaseServiceBoundary.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/feedbackContactPreference.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/feedbackProcessView.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/feedbackScreenshotDraft.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/feedbackStatusMeta.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/feedbackStore.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/feedbackSubmissionJob.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/feedbackSubmitForm.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/feedbackSubmitFormRetry.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/feedbackSupplementComposer.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/feedbackTicketDetail.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/feedbackTicketsView.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/feedbackTimeline.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/fileChangeFindSearch.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/fileDisplay.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/fileMentionHostSearch.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/fileSummaryTypes.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/genUiFileSummary.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/genUiTheme.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/generalModeToolRendering.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/gitActionMenuCurrentSessionFileScope.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/gitActionMenuDisplay.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/gitAutoRefresh.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/gitBranchSwitcher.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/gitBranchSwitcherDisplay.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/gitCommitConversationContext.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/gitGraphLayout.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/gitRepositoryRefresh.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/glmTaskModelRecovery.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/globalDatabaseStartupLoading.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/goalToolCallBlock.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/groupedLegacyInteraction.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/groupedRenameFocus.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/groupedTaskRowTooltip.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/helpers/weekendPlanDialogFixture.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/highlightMatches.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/highspeed/GlobalNoticeSurface.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/highspeed/HighspeedShareNoticeCard.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/highspeed/globalNoticeStore.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/highspeed/highspeedSavedTime.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/highspeed/highspeedSend.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/highspeed/highspeedShare.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/highspeed/highspeedShareBlockers.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/highspeed/highspeedTurnStore.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/highspeed/highspeedVisibilityRefresh.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/highspeed/sessionPaneHighspeedActivation.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/highspeed/useHighspeedComposerEntrance.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/highspeedActivationVisual.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/highspeedFooterExpiryClock.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/highspeedPrepareSelection.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/hooksListTrustInteraction.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/hooksSection.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/hooksSectionWorkspaceHookTrustNotice.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/imagePreviewDownload.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/imeComposition.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/installedPluginManagement.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/installedPluginManagementUpdate.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/interactionAutoResolutionCommand.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/interfaceMode.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/intlProviderLocalePreference.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/keyboardShortcuts.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/lib/settingsTestServices.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/lib/workspaceHeaderProvider.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/listModelsToolCard.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/localConversationCommands.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/localTtft.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/logger.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/loginApiKeyForm.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/loginDialogProviders.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/loginFailureCancel.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/loginPage.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/manualClaimFailureMessage.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/manualClaimPlanStartUsing.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/mapSessionSummaryToTaskMeta.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/markdownFileLink.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/markdownImageGallery.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/markdownImageLoadingState.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/markdownPreviewSelection.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/markdownSelectionChip.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/markdownTableCsv.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/markdownTableStickyScrollbar.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/markdownTableVirtualScrollbar.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/marketPluginUi.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/marketingBanner.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/marketingFailureDialog.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/marketingNavigation.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/marketingPopupAdapter.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/marketingResources.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/marketingTaskCompletionRefresh.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/marketingTouchController.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/marketingTouchPoller.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/marketingTouchProvider.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/mcpFailurePresentation.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/mcpSettings.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/mcpSettingsSectionStatusList.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/mcpSettingsSharedProtocolVersion.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/mcpStore.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/mcpStoreStatusList.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/memoryDiagnostics.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/memorySettingsLocalImageService.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/memorySettingsSection.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/memoryUpdatedAt.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/mentionPanel.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/mentionPanelRouting.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/mentionSearch.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/mermaidRenderBudget.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/messageChangeSummaryPanel.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/messageResponseArtifactSessionRerender.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/messageResponseShareSafeLinks.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/messageResponseStreamdownMode.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/messageTaskControlToolCallBlock.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/messageTelemetry.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/mobileInputZoom.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/mobileProjectDraftBootstrap.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/modelConfigSelect.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/modelConfigSelectRenderStability.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/modelConfigSync.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/modelProviderAvailability.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/modelProviderCodingPlan.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/modelProviderCodingPlanI18n.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/modelProviderConnectivityTarget.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/modelProviderDraftSave.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/modelProviderFamilyConnectionSelection.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/modelProviderModelRowEditor.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/modelProviderNameIme.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/modelProviderNavigationI18n.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/modelProviderNavigationLoading.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/modelProviderOrdering.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/modelProviderPresetSubscriptionAction.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/modelProviderSectionLayoutLoading.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/modelSelectionGroups.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/modelStateUpdateGuard.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/modelThoughtOption.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/modelTrajectoryPaneParts.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/modelTrajectorySearch.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/modelTrajectorySearchBar.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/modelTrajectorySearchHighlight.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/newTaskButtonGroupShortcut.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/nodeReplToolCallBlock.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/nodeReplToolCallBlockInteraction.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/oauthCachedSessionRestore.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/oauthLoginAttemptGuard.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/occupationOnboardingTelemetry.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/offPeakCreateTaskCard.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/offPeakEligibilityRefresh.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/offPeakMenuHintPlacement.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/offPeakModelSelection.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/offPeakNewTaskEntry.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/offPeakTaskListMenuHint.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/offPeakTaskListOrdering.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/offPeakTaskListRender.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/offPeakTaskStore.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/offPeakTelemetry.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/offPeakUiPresentation.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/officeFilePreview.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/officialMarketplaceAutoRefresh.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/onboardingAutoScan.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/onboardingMeshRenderer.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/onboardingSessionLimitOptions.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/openWithEditors.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/openWorkspaceFolderEntry.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/overlayWindowControls.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/patchDiffOptions.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/patchDiffPreview.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/path.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/pdfJsCMapSupport.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/permissionDialog.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/permissionDialogFocus.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/permissionRequest.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/planGuidanceToolCallBlock.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/planModeTool.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/planToolCall.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/planUsageArmsTelemetry.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/pluginCapabilityProjection.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/pluginConfigPatch.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/pluginCreatorMentionIcon.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/pluginCreatorPrefill.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/pluginManagedResourceGroups.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/pluginManagementProjectionSync.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/pluginManagementStore.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/pluginManagementStoreErrorTarget.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/pluginReferenceIconProjection.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/pluginSearch.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/pluginSettingsSection.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/pluginSlashCommandRefresh.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/pluginSourceLabel.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/pluginStore.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/pluginStoreAvatar.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/pluginStoreCardRestorable.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/pluginStoreGroups.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/pluginStoreInstallEffects.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/pluginStoreItemMenuSeparator.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/pluginStoreListing.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/pluginStoreModeOrder.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/pluginStoreNavigation.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/pluginStorePaidPlanBadge.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/pluginStoreSourcesDialog.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/pluginStoreTryPrefillEditable.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/pluginStoreTryPrompt.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/pluginStoreUpdateEntries.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/pluginUiBackground.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/pluginUiSidePaneVisibility.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/pluginUiStateKey.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/pluginsMentionProvider.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/postUpdateReleaseNotesDialog.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/pptxElementReference.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/pptxElementReferenceChip.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/pptxElementReferencePreview.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/pptxPdfExport.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/pptxPreviewData.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/pptxPreviewViewerLifecycle.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/presentationElementModel.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/presentationPreviewControls.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/presentationTextSelection.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/previewCardActions.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/previewPane.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/previewPaneCodeReviewLifecycle.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/previewPaneFileContent.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/previewPaneHeavyContent.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/previewPaneImageActions.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/previewPaneImageContent.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/previewPaneMediaContent.test.tsx",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/previewPanePptxReload.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/projectAutoArchiveSelection.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/projectBehavior.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/projectComposerMenu.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/projectConnectionDiagnostics.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/projectCreation.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/projectDirectoryProvider.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/projectDragRendering.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/projectEditorLayout.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/projectEditorMenuLifecycle.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/projectEditorOwner.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/projectEditorRoots.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/projectFileNavigation.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/projectFileTree.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/projectFirstSubmitVisibility.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/projectFolderTrust.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/projectMentionProviders.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/projectNodeActions.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/projectNodeOffline.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/projectNodeRemoteIcon.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/projectOrder.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/projectPinIntent.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/projectRemoteSync.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/projectSidebarExpansion.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/projectSidebarForegroundUnread.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/projectSidebarHomeOnlyWorkspaces.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/projectSidebarNavigation.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/projectSidebarNode.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/projectSidebarViewCount.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/projectSidebarViewPreference.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/projectTaskCommands.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/projectTaskNavigationStability.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/projectTimelineDates.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/projectTreeBackgroundUnread.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/projectTreeRemoteRefresh.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/projectTreeStabilization.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/projectTreeWindowDirectory.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/promptClipboard.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/promptHistory.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/promptHistoryStorage.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/promptInputTriggers.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/promptMentionNode.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/promptMentionSelection.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/promptTemplateTelemetry.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/providerApiKeyPersistence.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/providerAvailabilityLoginEntryGuard.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/providerBusinessError.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/providerFamilyConnectionVisibility.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/providerFamilyDomainMigration.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/providerLogo.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/providerLogoAssets.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/providerModelHiddenFields.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/providerModelMapDisplay.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/providerModelMaxOutputLookup.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/providerModelMetadataDialog.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/providerModelModalityOptions.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/providerModelReasoningLevelEditor.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/providerModelSmartDraft.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/providerRuleForm.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/providerSettingsFormBoundary.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/providerSettingsFormProjection.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/providerSettingsSnapshot.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/providerTelemetryIdentity.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/providerTemplatePicker.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/queuedSummaryContent.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/quickPickCommands.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/quickPickConversationNavigation.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/reactErrorArmsTelemetry.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/reactStableReferences.helpers.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/reactStableReferences.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/reactXlsxCompatibility.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/readSessionContextToolCallBlock.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/readSourceText.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/reasoningLayout.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/reconnectingRemoteWorkspaceLogs.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/registryProviderView.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/remoteAccessibility.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/remoteConnectionAssetInstallModeDefault.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/remoteConnectionBackgroundProjection.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/remoteConnectionConnectingScroll.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/remoteConnectionDeviceStepPreferredProfile.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/remoteConnectionDeviceStepRecentWorkspace.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/remoteConnectionDialogContentLayout.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/remoteConnectionDialogState.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/remoteConnectionDirectoryNavigation.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/remoteConnectionDockerOptions.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/remoteConnectionErrorMessage.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/remoteConnectionFieldsAuthMethodLayout.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/remoteConnectionFieldsPlaceholder.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/remoteConnectionFlowRecovery.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/remoteConnectionGlossary.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/remoteConnectionHistoryKeyboard.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/remoteConnectionInstallProgress.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/remoteConnectionLogs.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/remoteConnectionPhases.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/remoteConnectionPlaceholderValues.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/remoteConnectionPresentation.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/remoteConnectionPresentationComponents.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/remoteConnectionReuse.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/remoteConnectionWizard.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/remoteConversationDisconnected.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/remoteI18nPlaceholderValues.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/remoteIdentityHoverCard.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/remoteMcpSyncDialog.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/remoteNewConnectionForm.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/remotePluginSyncDialog.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/remotePluginSyncRefresh.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/remoteProjectConnectHandoff.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/remoteProjectConnectionState.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/remoteProjectDetailsPopover.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/remoteProjectEditor.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/remoteProjectMenu.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/remoteProjectNavigation.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/remoteProjectReconnectIntent.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/remoteReconnectLogRetention.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/remoteSkillSyncDialog.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/remoteSyncActions.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/remoteUiDesignTokenConformance.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/remoteWorkspaceController.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/remoteWorkspaceDirectoryRecovery.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/remoteWorkspaceHistory.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/remoteWorkspaceIdentityRoundtrip.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/remoteWorkspaceProfileReconnect.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/remoteWorkspaceProjection.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/remoteWorkspaceServiceError.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/remoteWorkspaceSessionPersistence.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/remoteWorkspaceSessionRuntime.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/rendererNavigation.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/replaceableConversationTransport.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/resolveConversationWorkspaceTarget.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/resourceManagerNetwork.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/resourceManagerPolling.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/resourceManagerStoragePresentation.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/resourceManagerStorageUsage.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/resourceUsageView.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/rewardsBridge.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/rewardsEmbedded.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/rewardsMenuIcon.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/rewardsProvider.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/rollingToolbarLabel.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/rootAccountRefreshLifecycle.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/rootLaunchReport.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/rootNewTaskWorkbenchContext.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/rootOAuthCallbackCancellation.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/rootOAuthCallbackHandling.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/rootOAuthReauthentication.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/rootSettingsSessionsIndexSubscription.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/rootStartupGate.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/rootStartupLoading.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/rootUpdateReadyOverlay.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/rootWorkspaceContentVisibility.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/rootWorkspaceSettingsLayerServices.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/rootWorkspaceShellTarget.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/savedWorkflowArgsForm.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/savedWorkflowCard.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/savedWorkflowDetailView.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/savedWorkflowDispatchPrecedence.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/savedWorkflowGlobalGroup.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/savedWorkflowLaunchDialog.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/savedWorkflowLaunchPrompt.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/savedWorkflowMoveDialog.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/savedWorkflowPermissionBlocks.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/savedWorkflowProjectGroup.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/savedWorkflowRunHistory.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/savedWorkflowToolCards.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/savedWorkflowsSection.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/scrollFadeViewport.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/selectionSideChatRuntime.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/selectionSideInheritedModel.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/semanticSurfaceContrast.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/sessionCreateTelemetry.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/sessionOpenArmsTelemetry.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/sessionPluginReferenceIconProvider.test.tsx",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/sessionQuotaBannerDismissalStore.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/sessionsIndexRegistry.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/sessionsIndexRegistryEndpointMismatch.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/sessionsIndexStore.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/settingsCommandWorkspaceScope.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/settingsDataBaseDirControl.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/settingsHeaderBreadcrumb.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/settingsMachine.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/settingsModelProviderUpgradeIntent.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/settingsNavigation.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/settingsPageConfig.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/settingsPageIntegratedTerminalShell.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/settingsResourceGroupHeader.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/settingsResourceHeaderActions.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/settingsSearchInput.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/settingsSourceWorkspace.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/shareImportIntent.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/shikiHighlighter.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/shortcutBindings.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/shortcutSettingsSection.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/sidePaneTabPresentation.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/sidePaneTabSearch.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/sidePaneTabStripLayout.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/sidePaneTabTrigger.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/sidePaneTerminalSessionRegistry.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/sidebarBottomActivity.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/sidebarPurposeSectionPreferences.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/skillSourceFilter.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/skillStore.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/skillStoreRefresh.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/skillsMentionProvider.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/skillsSection.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/slashApplyMentionPayload.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/slashCommandHelpers.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/slashCommands.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/slashPanelHistoryNavigation.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/sourceServerBoundaryOnboarding.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/sourceServerDisplayNameRegistry.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/sourceServerManagementError.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/sourceServerManagementPanel.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/sourceServerMigrationReportPanel.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/sourceServerStatus.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/sourceServerStatusRegistryDirectoryEvents.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/sourceServerUpdateAction.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/sourceServerUpdateNotifications.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/sourceServerUpdatePreferences.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/sourceSettingsServiceStore.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/sshDialogFlow.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/sshHistorySuggestions.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/sshPasteTarget.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/startPlanBucketQuota.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/startPlanContextBalanceRefresh.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/startPlanEntitlementAccess.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/startPlanQuotaReminderStore.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/startPlanRecommendation.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/startPlanRecommendationFreshness.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/startPlanStatusMeta.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/storeOAuthRestoreState.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/streamClientId.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/subagentDirectorySidePane.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/subagentReasoningFieldInteraction.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/subagentSidePane.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/subagentsMentionProvider.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/subagentsSection.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/subagentsStore.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/submitResultToolCallBlock.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/switchModeToolCallBlock.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/tabStore.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/taskActionMenuContent.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/taskChangeSummary.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/taskFindDialogNavigation.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/taskFindNavigationState.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/taskFindSearch.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/taskGroupedView.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/taskInteractionBadge.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/taskListChangeSummary.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/taskListItemConnectionOverlay.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/taskListItemHoverActions.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/taskListItemStabilization.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/taskListMembershipSets.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/taskListMembershipVersion.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/taskListMetaSync.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/taskListMobileActiveIndicator.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/taskListOrdering.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/taskListPermissionTag.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/taskListRenderStability.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/taskListUnreadState.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/taskNavigationTarget.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/taskNavigationWorkspace.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/taskNotificationOrchestrator.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/taskNotificationPreferences.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/taskOrderPreference.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/taskQueryCacheStore.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/taskRestoreRuntime.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/taskRowActionButton.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/taskSidePaneMemory.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/taskSourceAttribution.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/taskTitleOverflowText.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/taskUnreadSourceOfTruth.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/taskWorkbenchDragPreview.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/taskWorkflowRunLines.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/teamPlanDisplayName.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/terminalComposedInputFallback.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/terminalDataTransform.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/terminalLinks.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/terminalPanelState.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/terminalSessionFocus.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/terminalTheme.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/thoughtLevelCycleControl.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/thoughtLevelCycleControlSelectionValue.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/thoughtLevelOptions.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/toast.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/toastAnchorFallback.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/toastUpdate.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/todoPanel.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/toolCallBlocks.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/toolCallBodyFileLinks.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/toolCallSummary.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/toolCallTree.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/toolDisplay.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/toolIdentity.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/toolImageFailure.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/toolLayout.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/toolPresentationHost.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/toolPresentationParity.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/toolSearchToolCallBlock.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/toolbarShortcuts.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/topicPreparationRenderUnits.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/treemappingActivity.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/uiFontSize.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/uiPerfArmsTelemetry.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/updateStatusButton.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/updateStatusButtonReleaseNotesCache.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/usageEntitlementAuthority.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/usageEntitlementRefreshPolicy.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/usageStatsAccessRefresh.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/usageStatsErrorNotice.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/usageStatsHeatmap.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/useAppChromeStateAutoUpdate.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/useAppPanelsBrowserViewLifecycle.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/useAppPanelsInterfaceMode.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/useAppPanelsScope.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/useAppPanelsWorkflowArtifactOpen.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/useAssistantPreviewCardsForRow.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/useAutomationTemplates.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/useBackgroundBashOutput.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/useBotBroadcastEffects.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/useBotGroupTaskProvider.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/useBrowserSitePermissions.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/useClientScenesResource.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/useCodingPlanEntryPlanList.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/useCodingPlanQuotaResetUi.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/useComposerAttachmentsAddToChatGate.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/useComposerAttachmentsUpload.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/useConversationWorkspaceActions.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/useDesktopUpdateMenu.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/useDraftConfigControl.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/useFileContextActions.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/useGitAutoRefresh.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/useGlobalTaskListRemoteConnectionGeneration.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/useGlobalTaskListRemoteSessionsIndex.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/useGlobalTaskListSessionsIndex.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/useModelProviders.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/useModelSelectionView.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/useOAuth.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/useOnboardingTrigger.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/useOptimisticReorder.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/usePaneSessionPersistence.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/usePluginCreator.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/usePluginReferenceCatalog.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/usePluginStoreOrder.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/usePptxElementReferences.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/usePptxFileWatch.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/usePrimaryFollowupModifier.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/useProviderModelDraft.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/useProviderSettingsView.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/useRecommendedUiPlugins.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/useRemoteWorkspaceHistory.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/useRemoteWorkspaceHistoryDirectoryProjection.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/useRemoteWorkspaceTabLifecycle.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/useRootPlatformEffects.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/useRootWorkspaceActionsTargetWorkspace.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/useRunningBackgroundTaskElapsedClock.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/useSavedWorkflowLauncher.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/useSavedWorkflowPromote.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/useSavedWorkflowRunOpeners.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/useSessionDebug.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/useSessionOpenArmsTelemetry.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/useSessionSubagents.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/useSessionSubscriptionErrorTelemetry.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/useSettingServiceAutoResolution.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/useSettingServiceEnvironmentIsolation.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/useSkills.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/useSlashCommands.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/useSourceServerManagementSnapshot.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/useStartPlanRecommendation.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/useSystemService.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/useTabPersistence.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/useTaskListItemContextActions.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/useTelemetry.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/useTheme.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/useUiPluginRecommendations.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/useUsageEntitlement.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/useV4SessionQuotaBannerDismissal.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/useVulnerabilityReportUrl.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/useWebRemoteControlTaskOpen.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/useWorkflowRunJournalSummaries.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/useWorkspaceActiveTaskState.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/useWorkspaceHomePath.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/useWorkspaceHookInlineTrustAuthority.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/useWorkspaceMainViewSettingsExit.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/useWorkspaceModelSelectionView.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/useWorkspaceProviderConfigFile.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/useWorkspaceServices.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/useWorkspaceTaskNavigation.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/useDroraTaskService.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/useDroraTasksMerge.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/userActionTelemetry.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/userActionTraceCatalog.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/v4AssistantFeedback.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/v4AssistantPreviewCards.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/v4AssistantWorkRenderItems.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/v4AttachmentUploadTransaction.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/v4BotTopicPreparation.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/v4CodeCommentComposer.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/v4CommandFactoryIdentity.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/v4ComposerAutoFocus.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/v4ComposerConfigPickerState.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/v4ComposerModeControls.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/v4ComposerSendFunnelTelemetry.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/v4ComposerToolbarRecovery.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/v4ConversationBackgroundWorkTrigger.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/v4ConversationComposerAttachmentProgress.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/v4ConversationComposerErrorBanner.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/v4ConversationComposerPromptHistory.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/v4ConversationDraftSuggestedPrompts.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/v4ConversationDraftSuggestedPromptsContainer.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/v4ConversationFileSummaryPanel.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/v4ConversationFindHighlightDom.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/v4ConversationFindIndex.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/v4ConversationGoalSummaryModel.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/v4ConversationHeader.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/v4ConversationHookDetailsAction.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/v4ConversationLatestEditableUserRow.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/v4ConversationQueuePanel.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/v4ConversationRemoteReadiness.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/v4ConversationRowViewTimelineMarker.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/v4ConversationRowViewUserEdit.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/v4ConversationRuntimeRecycleSelfHeal.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/v4ConversationStatusPanel.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/v4ConversationStatusPanelGitReview.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/v4ConversationStatusPanelModel.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/v4ConversationTelemetrySupervisor.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/v4ConversationTimelineLiveTail.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/v4ConversationTimelineScrollMemory.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/v4ConversationTimelineSessionSwitchScrollRestoreRepro.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/v4ConversationTurnGroup.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/v4ConversationTurnNavigator.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/v4ConversationTurnRenderUnits.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/v4ConversationUserInputBody.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/v4ConversationUserInputContent.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/v4ConversationUserInputEpilogue.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/v4DraftModelReadinessGate.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/v4DraftRuntimeRebuildGate.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/v4DraftSessionPrewarm.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/v4DraftWorkspaceDefaults.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/v4InteractionDialogs.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/v4MessageTimeLabel.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/v4ModelTriggerDisplay.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/v4OnlineModelFallback.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/v4PaneLayoutStore.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/v4PendingCommandRecoveryBanner.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/v4PendingCommandRegistry.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/v4PendingGuideList.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/v4PendingGuideProjection.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/v4PendingInteractionAdapter.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/v4PlanInteractionAcknowledgement.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/v4PromptScrollFocusPolicy.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/v4QueueEditExtraction.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/v4ResyncNotOwnedEvictionRace.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/v4SessionConfigTaskCache.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/v4SessionDataLayer.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/v4SessionPaneComposerContinuity.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/v4SessionPaneEditUserQuery.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/v4SessionPaneErrorBanner.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/v4SessionPaneFollowupModeSettingsSync.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/v4SessionPaneLayoutParity.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/v4SessionPaneModelSwitchRecovery.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/v4SessionPaneProviderFactSource.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/v4SessionPaneReadOnly.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/v4SessionQuotaBannerState.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/v4SessionSubscriptionErrorPanel.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/v4SlashCommands.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/v4TimelineRowHeightCache.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/v4TimelineScrollAnchor.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/v4ToolCallRowAdapter.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/v4TopicInputMessages.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/v4WebElementContextAttachment.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/v4WorkbenchPaneActiveDim.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/v4WorkspaceDraftDragDrop.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/v4WorkspaceDraftPaneCreateSession.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/v4WorkspacePaneActiveSync.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/v4WorkspaceStatusPanelWiring.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/webElementContext.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/webFetchPresentation.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/webRemoteControlAuthSync.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/webRemoteControlDeviceHeader.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/webRemoteControlDialogLayout.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/webRemoteControlLoginEntry.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/webRemoteControlMobileShell.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/webRemoteControlRendererActions.test.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/ui/test/webRemoteControlTaskViewReporter.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/webRemoteControlTriggerPresentation.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/webRemoteControlWorkspaceSync.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/weekendHeroResource.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/windowControllerTaskListRegistry.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/windowsCaptionMenuButton.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/windowsFileLinkEscapeRemarkPlugin.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/workbenchDragDrop.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/workbenchGroupStore.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/workbenchPointerDragDrop.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/workbenchPointerPositionTracker.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/workbenchSessionPlacement.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/workflowActorSessionSidePane.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/workflowAgentFace.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/workflowAgentPill.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/workflowArtifactPill.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/workflowArtifactPresets.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/workflowArtifactPresetsRender.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/workflowArtifactRow.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/workflowArtifactSidePane.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/workflowArtifactTilePreview.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/workflowAskSettings.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/workflowAvatarAllocation.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/workflowCachedSettleAttribution.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/workflowCompletionCard.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/workflowCompletionLive.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/workflowDraftJoin.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/workflowDraftScan.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/workflowEscalationToolCards.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/workflowFillFrames.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/workflowHoleSurfaces.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/workflowLaneName.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/workflowMoreRow.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/workflowNotificationArtifactChips.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/workflowNotificationHoleRow.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/workflowNotificationToolRow.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/workflowObservationToolCards.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/workflowParticipantModel.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/workflowPermissionBlock.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/workflowPhaseModel.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/workflowRoll.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/workflowRosterModel.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/workflowRosterParts.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/workflowRunArtifactHooks.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/workflowRunArtifactsSection.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/workflowRunCardJoin.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/workflowRunCardJoinFillGraph.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/workflowRunDigest.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/workflowRunDirectoryModel.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/workflowRunDirectorySidePane.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/workflowRunLine.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/workflowRunOverlay.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/workflowRunPanel.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/workflowRunSave.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/workflowRunSettings.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/workflowRunSettingsPopover.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/workflowRunSidePane.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/workflowRunSpine.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/workflowRunThrottle.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/workflowRunWorkspaceHooks.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/workflowSaveControls.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/workflowSnippetPresentation.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/workflowSubagentModelLabel.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/workflowTimelineArcTerminals.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/workflowTimelineBands.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/workflowTimelineCost.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/workflowTimelineGrowth.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/workflowTimelineHoles.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/workflowTimelineLedge.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/workflowTimelineModel.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/workflowTimelineStreams.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/workflowTimelineTracks.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/workflowTimelineViewport.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/workflowToolSummary.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/workflowTurnCompletion.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/workflowTurnDigests.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/workflowTypewriter.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/workflowWorkspaceLogbook.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/workflowWorkspaceSidePane.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/workflowWorkspaceTranscript.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/workspaceCatalogContextStores.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/workspaceConnectionRegistry.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/workspaceContextPath.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/workspaceDraftProvider.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/workspaceDragOverlay.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/workspaceEditorSelection.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/workspaceFileDrag.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/workspaceFileSearch.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/workspaceFileSearchFilterBackend.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/workspaceFileSearchSection.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/workspaceFileTree.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/workspaceFileTreeData.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/workspaceGroupedTaskPermissionTag.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/workspaceGroupedTasksVirtualization.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/workspaceHeader.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/workspaceHeaderActionSection.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/workspaceHeaderTitleSection.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/workspaceHelpMenuButton.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/workspaceHookInlineTrust.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/workspaceHookPendingBanner.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/workspaceHookReviewStore.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/workspaceHookTrustNotice.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/workspaceHookTrustState.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/workspaceLastActivity.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/workspaceNavigationHistory.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/workspaceOpenInEditorTarget.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/workspacePathNavigation.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/workspacePluginPreview.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/workspacePrepareReason.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/workspacePurposeSection.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/workspaceRpcAvailability.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/workspaceServiceResolver.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/workspaceSessionReloadPlan.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/workspaceSessionsIndexSubscriptionSet.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/workspaceShellRemoteMobileLayout.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/workspaceShellWindowChrome.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/workspaceSidePane.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/workspaceSidebarFooterUsageSummaryEntitlement.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/workspaceSidebarFooterWebRemoteControlTooltip.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/workspaceSidebarRemoteProjectDetailsFocus.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/workspaceSidebarResizeState.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/workspaceSidebarWebRemoteMobileLayout.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/workspaceStartupRpcEffects.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/workspaceVisibleCommand.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/workspaceWebRemoteControlTrigger.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/workspaceWebRemoteControlTriggerTelemetry.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/wslUncWorkspace.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/droraCustomModelValue.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/droraDraftSkillInvalidation.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/droraFileCitation.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/droraJwtInvalidRestartMarker.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/droraProviderPreference.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/droraSessionEventOrder.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/droraSessionProjection.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/droraSessionRestore.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/ui/test/droraSessionStore.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/droraTaskUsageFallback.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/droraTimelineRuntime.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/test/droraUiError.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/ui/vitest.config.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/web/src/auth/browserOAuthCredentialRepo.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/web/src/auth/webAuthService.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/web/src/main.tsx",
+   "action": "text-conflict",
+   "conflicts": 1
+  },
+  {
+   "path": "packages/web/src/platform/CONTRACT.md",
+   "action": "add"
+  },
+  {
+   "path": "packages/web/src/platform/contract.example.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/web/src/platform/contract.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/web/src/platform/index.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/web/src/platform/module.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/web/src/platform/saveBrowserFile.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/web/src/web-remote-control/CONTRACT.md",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/web/src/web-remote-control/adapters/webRemoteControlDeviceClient.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/web/src/web-remote-control/adapters/webRemoteControlHttpSignal.ts",
+   "action": "add"
+  },
+  {
+   "path": "packages/web/src/web-remote-control/adapters/webRemoteControlTransport.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/web/src/web-remote-control/adapters/webRemoteControlV2Token.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/web/src/web-remote-control/app/webRemoteControlBridgeRecovery.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/web/src/web-remote-control/app/webRemoteControlEntry.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/web/src/web-remote-control/app/webRemoteControlWorkspaceBridgeSession.ts",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/web/src/web-remote-control/contract.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/web/test/browserOAuthCredentialRepo.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/web/test/communityUrl.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/web/test/conversationShareLandingPage.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/web/test/conversationSharePreviewClient.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/web/test/conversationShareRoute.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/web/test/e2e/manual-review/pending/remote-abort-api-compat.mjs",
+   "action": "add"
+  },
+  {
+   "path": "packages/web/test/e2e/manual-review/pending/remote-device-switch.helpers.mjs",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/web/test/e2e/manual-review/pending/remote-device-switch.mjs",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/web/test/e2e/manual-review/pending/remote-large-rpc.mjs",
+   "action": "add"
+  },
+  {
+   "path": "packages/web/test/e2e/manual-review/pending/remote-login-v2.helpers.mjs",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/web/test/e2e/manual-review/pending/remote-login-v2.mjs",
+   "action": "text-clean-needs-semantic-review",
+   "conflicts": 0
+  },
+  {
+   "path": "packages/web/test/e2e/manual-review/pending/remote-submit-lifecycle.mjs",
+   "action": "add"
+  },
+  {
+   "path": "packages/web/test/e2e/manual-review/pending/share-oauth-callback.mjs",
+   "action": "take-theirs"
+  },
+  {
+   "path": "packages/web/test/externalRelayFrameGapRecovery.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/web/test/homeOnlyWebRemoteControlServices.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/web/test/oauthStateCodec.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/web/test/shareHeaderLayout.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/web/test/webAuthService.test.ts",
+   "action": "keep-ours"
+  },
+  {
+   "path": "packages/web/test/webLoginPage.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/web/test/webOAuthCallbackEntry.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/web/test/webRemoteControlAssistantCodeCommentCapability.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/web/test/webRemoteControlBootstrapShell.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/web/test/webRemoteControlBrand.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/web/test/webRemoteControlBridgeRecovery.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/web/test/webRemoteControlConnectingScreen.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/web/test/webRemoteControlDeviceClient.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/web/test/webRemoteControlDeviceInfo.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/web/test/webRemoteControlDeviceListPage.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/web/test/webRemoteControlEntry.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/web/test/webRemoteControlFailureScreen.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/web/test/webRemoteControlKnownDevices.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/web/test/webRemoteControlLifecycle.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/web/test/webRemoteControlRoute.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/web/test/webRemoteControlSwitchAccount.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/web/test/webRemoteControlTaskRead.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/web/test/webRemoteControlTaskViewPublisher.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/web/test/webRemoteControlThemeSeed.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/web/test/webRemoteControlTransport.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/web/test/webRemoteControlTransportV2.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/web/test/webRemoteControlV2Token.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/web/test/webRemoteControlVersion.test.ts",
+   "action": "delete"
+  },
+  {
+   "path": "packages/web/test/webRemoteControlWorkspaceBridgeSession.test.ts",
+   "action": "delete"
+  }
+ ],
+ "skipped": [],
+ "conflicts": [
+  {
+   "path": "packages/ui/package.json",
+   "hunks": 1
+  },
+  {
+   "path": "packages/ui/src/SettingsPage.tsx",
+   "hunks": 2
+  },
+  {
+   "path": "packages/ui/src/app-shell/WorkspaceShellLayout.tsx",
+   "hunks": 3
+  },
+  {
+   "path": "packages/ui/src/lib/chatPlaceholder.ts",
+   "hunks": 1
+  },
+  {
+   "path": "packages/ui/src/project-sidebar/ProjectSidebarNavigation.tsx",
+   "hunks": 1
+  },
+  {
+   "path": "packages/ui/src/project-sidebar/module.ts",
+   "hunks": 1
+  },
+  {
+   "path": "packages/ui/src/prompt-editor/ChatPromptEditor.tsx",
+   "hunks": 1
+  },
+  {
+   "path": "packages/ui/src/settings/settingsPageConfig.ts",
+   "hunks": 1
+  },
+  {
+   "path": "packages/ui/src/store/mcpStore.ts",
+   "hunks": 2
+  },
+  {
+   "path": "packages/ui/src/styles.css",
+   "hunks": 1
+  },
+  {
+   "path": "packages/ui/src/v4/ConversationComposer.tsx",
+   "hunks": 6
+  },
+  {
+   "path": "packages/ui/src/v4/ConversationTimeline.tsx",
+   "hunks": 4
+  },
+  {
+   "path": "packages/ui/src/v4/ConversationTurnNavigator.tsx",
+   "hunks": 3
+  },
+  {
+   "path": "packages/ui/src/v4/SessionPane.tsx",
+   "hunks": 4
+  },
+  {
+   "path": "packages/ui/src/v4/conversationFindHighlightDom.ts",
+   "hunks": 1
+  },
+  {
+   "path": "packages/ui/src/v4/conversationFindIndex.ts",
+   "hunks": 2
+  },
+  {
+   "path": "packages/ui/src/v4/conversationTurnNavigatorHelpers.ts",
+   "hunks": 1
+  },
+  {
+   "path": "packages/ui/src/v4/useConversationTimelineFind.ts",
+   "hunks": 2
+  },
+  {
+   "path": "packages/web/src/main.tsx",
+   "hunks": 1
+  }
+ ],
+ "semanticReview": [
+  "packages/ui/src/App.tsx",
+  "packages/ui/src/LexicalChatInput.tsx",
+  "packages/ui/src/Root.tsx",
+  "packages/ui/src/TaskListItem.tsx",
+  "packages/ui/src/WorkspaceHeaderSections.tsx",
+  "packages/ui/src/app-shell/AnimatedSidePanePanel.tsx",
+  "packages/ui/src/app-shell/SidePaneTabTrigger.tsx",
+  "packages/ui/src/app-shell/types.ts",
+  "packages/ui/src/chat-input-toolbar/display.tsx",
+  "packages/ui/src/components/ai-elements/message.tsx",
+  "packages/ui/src/highspeed/highspeedTurnStore.ts",
+  "packages/ui/src/hooks/useAppPanels.ts",
+  "packages/ui/src/i18n/locales/en-US.ts",
+  "packages/ui/src/i18n/locales/zh-CN.ts",
+  "packages/ui/src/index.ts",
+  "packages/ui/src/lib/settingsNavigation.ts",
+  "packages/ui/src/lib/droraSessionProjection.ts",
+  "packages/ui/src/mentions/mentionMarkdown.ts",
+  "packages/ui/src/project-sidebar/ProjectNodeContent.tsx",
+  "packages/ui/src/project-sidebar/contract.ts",
+  "packages/ui/src/project-sidebar/grouped/task-row.tsx",
+  "packages/ui/src/root/reconnectRemoteWorkspaceHistoryEntry.ts",
+  "packages/ui/src/root/useRootPlatformEffects.ts",
+  "packages/ui/src/settingsPageHelpers.tsx",
+  "packages/ui/src/v4/ConversationHeader.tsx",
+  "packages/ui/src/v4/ConversationRowView.tsx",
+  "packages/ui/src/v4/ConversationTurnGroup.tsx",
+  "packages/ui/src/v4/WorkspaceHookPendingBanner.tsx",
+  "packages/ui/src/v4/composer/composerPromptContexts.ts",
+  "packages/ui/src/v4/composer/toolbarShortcuts.ts",
+  "packages/ui/src/v4/conversationLayout.ts",
+  "packages/ui/src/v4/pluginReferenceIconContext.tsx",
+  "packages/ui/src/web-remote-control/WebRemoteControlDialog.tsx",
+  "packages/ui/src/workspace-file-tree/WorkspaceFileTreeList.tsx",
+  "packages/web/test/e2e/manual-review/pending/remote-login-v2.mjs"
+ ],
+ "driftBlocked": [],
+ "decisionRequired": [],
+ "errors": []
+}

@@ -19,12 +19,13 @@ import {
   collectDroraBackgroundTaskNotificationsByToolUseId,
   mergeDroraBackgroundTaskControlItems,
   parseDroraBackgroundTaskControlItems,
-  parseDroraBackgroundTaskNotificationText,
+  parseDroraBackgroundTaskNotifications,
   parseModelPickerValue as parseSharedModelSelection,
   formatModelPickerValue as formatSharedModelSelection,
   resolveDroraVisibleSessionTitle,
   textFromDroraMessageParts,
   DRORA_AGENT_PROVIDER,
+  droraBackgroundTaskNotificationFailureText,
   droraBackgroundTaskNotificationToolUpdateStatus,
   appendDroraStreamingToolInputDelta,
   buildDroraStreamingToolInputPreview,
@@ -851,14 +852,15 @@ export function droraSessionEventToDroraStreamEvents(params: {
       ...(event.turnId ? { turnId: event.turnId } : {}),
       startedAt: event.timestamp,
     };
-    const taskNotificationToolUpdate = backgroundTaskNotificationToolUpdateFromInput({
+    const taskNotificationToolUpdates = backgroundTaskNotificationToolUpdatesFromInput({
       input: stringValue(payload.input),
+      originMeta: payload.originMeta,
       taskId,
       traceId,
       inputId: eventInputId,
     });
-    if (taskNotificationToolUpdate) {
-      return [runStartedEvent, taskNotificationToolUpdate];
+    if (taskNotificationToolUpdates.length > 0) {
+      return [runStartedEvent, ...taskNotificationToolUpdates];
     }
     if (
       stringValue(payload.inputSource) === "goal-continuation" &&
@@ -1284,35 +1286,37 @@ export function droraUserInputResponseToDroraStreamEvent(
   };
 }
 
-function backgroundTaskNotificationToolUpdateFromInput(params: {
+function backgroundTaskNotificationToolUpdatesFromInput(params: {
   input: string | undefined;
   inputId: InputId | undefined;
+  originMeta: unknown;
   taskId: string;
   traceId: TraceId;
-}): Extract<DroraStreamEvent, { type: "tool_call_update" }> | null {
-  const parsed = parseDroraBackgroundTaskNotificationText(params.input);
-  if (!parsed) {
-    return null;
-  }
-  const status = droraBackgroundTaskNotificationToolUpdateStatus(parsed.notification.status);
-  return {
-    type: "tool_call_update",
-    taskId: params.taskId,
-    traceId: params.traceId,
-    ...(params.inputId ? { inputId: params.inputId } : {}),
-    toolId: parsed.toolUseId,
-    status,
-    content: parsed.notification.result ?? parsed.notification.summary,
-    // 修复原因：ToolLayout 的既有失败 hover 只读取 toolCall.error；notification
-    // 原先只更新 status/raw，导致“执行失败”没有可展示的详情。
-    ...(status === "failed" && parsed.notification.error
-      ? { error: parsed.notification.error }
-      : {}),
-    raw: attachDroraBackgroundTaskNotificationToRaw(
-      { toolCallId: parsed.toolUseId },
-      parsed.notification,
-    ),
-  };
+}): Extract<DroraStreamEvent, { type: "tool_call_update" }>[] {
+  // 终态与失败原文优先取本轮 originMeta 的结构化结果，不解析 summary 文本。
+  // 合并轮的每条通知各自更新自己的工具。
+  return parseDroraBackgroundTaskNotifications(params.input, params.originMeta).map((parsed) => {
+    const status = droraBackgroundTaskNotificationToolUpdateStatus(parsed.notification.status);
+    return {
+      type: "tool_call_update",
+      taskId: params.taskId,
+      traceId: params.traceId,
+      ...(params.inputId ? { inputId: params.inputId } : {}),
+      toolId: parsed.toolUseId,
+      status,
+      content: parsed.notification.result ?? parsed.notification.summary,
+      // 修复原因：ToolLayout 的既有失败 hover 只读取 toolCall.error；notification
+      // 原先只更新 status/raw，导致“执行失败”没有可展示的详情。
+      // 修复原因：合并轮没有结构化结果，通知里也没有 <error>，失败详情原来是空的。
+      ...(status === "failed"
+        ? { error: droraBackgroundTaskNotificationFailureText(parsed.notification) }
+        : {}),
+      raw: attachDroraBackgroundTaskNotificationToRaw(
+        { toolCallId: parsed.toolUseId },
+        parsed.notification,
+      ),
+    };
+  });
 }
 
 function droraMessageToDroraPersistedMessage(
@@ -1791,7 +1795,9 @@ function mapToolPart(
       status: notificationFailed ? "failed" : "completed",
       input: state.input,
       output: state.output,
-      ...(notificationFailed && taskNotification?.error ? { error: taskNotification.error } : {}),
+      ...(notificationFailed && taskNotification
+        ? { error: droraBackgroundTaskNotificationFailureText(taskNotification) }
+        : {}),
       raw,
     };
   }

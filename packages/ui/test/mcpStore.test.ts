@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { setMcpStoreDirectoryService, setMcpStorePlatform, useMcpStore } from "@/store/mcpStore.js";
+import { setMcpStorePlatform, useMcpStore } from "@/store/mcpStore.js";
 import { DEFAULT_MCP_CONFIG, MCP_CONFIG_KEY } from "@/store/mcpStoreHelpers.js";
 import { logger } from "@/logger.js";
 
@@ -19,7 +19,8 @@ function createLocalStorageStub(initial: Record<string, string> = {}) {
 describe("mcpStore", () => {
   beforeEach(() => {
     vi.unstubAllGlobals();
-    setMcpStoreDirectoryService(null);
+    // v3.17.1 合并后目录服务不再是模块级 setter，而是随目标一起绑定的 store 字段
+    //（currentDirectoryService，由 setCurrentProjectPath / ensureLoadedForWorkspace 写入）。
     setMcpStorePlatform(null);
     useMcpStore.setState((state) => ({
       ...state,
@@ -29,6 +30,8 @@ describe("mcpStore", () => {
       statusSnapshots: {},
       currentProjectPath: "",
       currentWorkspaceIdentity: undefined,
+      currentAuthorityKey: undefined,
+      currentDirectoryService: null,
       enabledStates: {},
       deletedPreloadMcpServers: new Set(),
       isConfigLoaded: false,
@@ -333,8 +336,9 @@ describe("mcpStore", () => {
       })),
       saveMcpToUserDirectory: vi.fn(async () => {}),
     };
-    setMcpStoreDirectoryService(directoryService);
-
+    // 本地目标（无 identity、无 authority）即使带上目录服务，也必须走 platform
+    // 路径完成 legacy common MCP 迁移；合并后服务只作为 ensure 的入参传入即可，
+    // resolveTargetDirectoryService 对本地目标固定返回 null。
     await useMcpStore.getState().ensureLoadedForWorkspace("/local/workspace", directoryService);
 
     expect(directoryService.loadMcpFromUserDirectory).not.toHaveBeenCalled();

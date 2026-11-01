@@ -315,3 +315,68 @@ S3-01–S3-06 复选框按状态规则维持 `[ ]`，待证据齐全后逐项关
 - S4-06：typecheck-main/typecheck-remote/tests 三门禁通过（见上门禁节）；真 Electron E2E、RG07–09/12–15/17/19/21、Windows 与 macOS 分平台证据、三项复核、git commit 均未执行——HEAD 仍 821b68f5b，工作树 packages/desktop 560 M / 420 D / 636 ??（420 D 与 ledger delete 420 一致；`apply/S4-report.json` 自身亦未跟踪）。
 
 S4-01–S4-06 复选框按状态规则维持 `[ ]`，待证据齐全后逐项关闭。本补记只改 tasks.md，未提交。
+
+## S5 门禁修复补记（2026-11-01，S5 段修复轮）
+
+### 门禁报错与修复（全部 S5 所属包 ui/web/shared 消费面）
+
+typecheck 36 错（ui 34 + shared 消费方 2 处同因）、test:drora 13 失败套件 52 例（ui 10 套件 40 例 + web 1 套件 9 例 + desktop 3 套件 12 例），逐类修复：
+
+1. **compareSemverVersions 缺失（data-sync/domain/compare.ts、lib/sourceServerUpdateAction.ts）**：上游 v3.17.1 的该函数随 `forceUpdate.ts` 分发，Drora 按 specs/force-update-gate-removal.md 整体删除了该文件。修复：把 semver 纯函数部分逐行原样迁至 `packages/shared/src/semver.ts`（新增模块 + index 导出），强更门控其余面维持删除；spec 已补「例外」小节记录取舍。
+2. **RemoteMcpSyncDialog/RemoteSkillSyncDialog 残骸（30 错）**：ledger UP04160/UP04162（delete-local-change-review）裁决为**删除**。证据：B→HEAD 本地差异经 `git diff B HEAD` 逐行核对仅改名（@zcode→@drora、useZCodeIntl→useDroraIntl）与换行格式化，无功能差异；全仓 grep 仅两文件互相引用（RemoteMcpSyncDialog 引 RemoteSkillSyncDialog 的 formatRemoteSkillSyncTarget），无其他消费者；其依赖栈（shared mcp-sync.ts/skill-sync.ts 类型、IMcpSyncService 旧方法、RemoteSyncActions/RemoteSkillSync*List/Title 组件）已分别被 S1/S3/S5 apply 删除；上游替代 = data-sync 统一同步（本段已吸收 `packages/ui/src/data-sync/`，且 S3 补记第 4 条已按同方向删除 skillSyncService.test.ts）。两文件已删。
+3. **v4 三处合并类型错**：ConversationComposer 知识来源校验改读 `textRef.current`（上游把整段正文 state 优化为 textPresence 布尔，提交边界强校验仍走 Lexical 快照不变）；ConversationTimeline 团队卡锚定按新 history/tail 分区拼接后传入（纯函数签名不变，teamCardInlineFlow.test.tsx 原断言继续通过）；SessionPane 语音播报腿改用独立无条件构建的 voiceRenderUnits（上游把 shareRenderUnits 改为分享打开才构建，语音腿不能随分享开关断供）。
+4. **workbenchPointerPositionTracker.test.ts 套件失败**：ledger UP04267（源文件 delete-review）已删源，UP05243（测试 delete-local-change-review）本地差异经核对仅格式化——测试随源删除，并从 scripts/drora-test-files.json 移除该行。
+5. **mcpStore.test.ts 22 例**：合并后 store 把目录服务从模块级 setter 改为随目标绑定的 `currentDirectoryService` 字段（远端 fail-closed 修复）。测试适配：beforeEach 改重置新字段（含 currentAuthorityKey），「本地目标忽略目录服务」用例改经 ensure 入参传服务（resolveTargetDirectoryService 对本地目标恒返回 null，断言原样通过）。
+6. **设置页相关 4 套件**：settingsPageConfig 期望列表加入 v3.17.1 新分区（agentCapabilities 首项 personalization；dataAndStats=dataSync/usage/projects/archives）；settingsPageIntegratedTerminalShell 的 createSettingsPageConfig 调用参数断言补 `showDroraPersona: false`；userActionTraceCatalog 计数 17→18 feature、48→60 entry（persona/knowledge 为 C 基线前已并入的存量漂移，S1 生成清单时带入；settings.browser 5 动作为本轮上游吸收）；mcpSettingsSectionStatusList 的 OAuth 刷新对象断言补 `scope: "user"`（convertToDroraAgentMcpServer 随 v3.17.1 settings-scope 契约携带 scope）。
+7. **v4WebElementContextAttachment 3 例 / paneEscapeStopGeneration 1 例 / teamStatusPanelOpenTarget 1 例**：前者为上游 Composer 新增 scope 化草稿生命周期 props 补桩（claim/restore/finalize 按「提交被接纳并正常结算」返回，与 teamSessionPaneCardRouting 同批合并语义一致）；paneEscape 录音用例按 §9.8-F1 定向 abort 端口补注册（与 voiceSessionStore.test.ts 既有接法一致，该测试自 S1 清单收敛起即带过期断言）；后者渲染环境补 TabStoreProvider（上游 useSessionRuntimeRestart 链读 tab store，照 teamSessionPaneCardRouting 已有修法）。
+8. **webAuthService.test.ts 9 例**：上游把 pending 登录从三个 sessionStorage 键改为 localStorage `oauth_pending_logins` 原子记录（多标签页/手机回调修复）。Drora 保留测试整体适配：读/种新键；「缺 provider 按 zai 兜底」用例按新契约改写为「无对应 pending 记录按 CSRF 拒绝且不动真实记录」（旧兜底随旧键退役是上游有意演进）；新增「并发标签页只消费匹配 nonce」用例承接原 abandoned-redirect 场景意图。
+
+### 终态门禁（Windows 本机实测）
+
+- `pnpm typecheck`：S5 所属包（shared/ui/web/mobile-web/public）0 错；残留 3 错全部在 packages/desktop（S4 已提交树，S5 工作树零改动）：`conversation-session-runtime-communication-performance.test.ts` 2 错（import S4 合并中已删除的 helper 导出 getV4PaneIds/openV4SplitFromSidebar）+ `feedback-upload-privacy.test.ts` 1 错（重载不匹配）。归 S4/S6 处理，本段记录不追。
+- `pnpm test:drora`：523 文件中 ui/web 全绿（517 过），残留 3 失败套件 12 例全部 packages/desktop：telemetryFieldContract 9 例（`git init -b test` 报 `unable to access '\.\nul'`，本机 Git/Windows 环境问题）、simulatorPluginPackaging 2 例（MCP initialize Connection closed，真进程）、ensureElectronRuntime 1 例（npm_config_electron_mirror 透传）。均为 S4 包 + 环境项，与 S5 改动无关（desktop 无未提交改动）。
+- `pnpm test:engineering`：933 过 10 败，失败同在 desktop（telemetryFieldContract 9 + gen-ui-runtime-assets pinned hash 1，后者属 S6 pinned 资产核对项）。
+- `pnpm lint`：0 errors / 385 warnings（基线）；本轮改动 11 个代码文件 oxfmt 已过；specs/force-update-gate-removal.md 的 oxfmt 不合规为编辑前既有基线（stash 验证），未顺手重排。
+
+### 遗留登记
+
+- UP04160/UP04162/UP05243 三行 final_disposition 仍为 pending（全表 5,548 行统一由 S7 对账收口，本段不单独改列）；裁决证据见上第 2/4 条。
+- desktop 3 项 typecheck 残留与 3 个测试套件、engineering 2 文件失败移交 S4 复核/S6 审计（pinned hash）；telemetryFieldContract 的 git-NUL 为本机环境项，终验入口建议进 baseline-gap。
+- 未执行：E2E/浏览器验收、mobile-web 实机、架构 `architecture:check --changed`（S5-06 收口时跑）、未提交。
+
+## S5 执行补记
+
+### 应用与决策统计
+
+来源：`apply/S5-report.json`（segment=S5、dry=false、ledger=upstream-ledger.tsv sha256=95150a67…28bfc，driftBlocked=0、errors=0；applied 全部位于 packages/ui 1,472 条与 packages/web 60 条，node 前缀核验 0 条例外）：
+
+- applied=1,532，动作分布（node 统计实测与报告 counts 一致）：add 126 / take-theirs 223 / text-clean-needs-semantic-review 35 / delete（随上游删除）980 / keep-ours（delete-local-change-review，Drora 保留测试与本地修改）149 / text-conflict 19；六项合计恰为 1,532，skipped=0，与 S5 段标题 1,532 路径一致。
+- conflicts=19 文件、共 38 hunks（逐文件 hunk 数取自报告 applied 数组：ConversationComposer 6、ConversationTimeline 4、SessionPane 4、WorkspaceShellLayout 3、ConversationTurnNavigator 3、SettingsPage/mcpStore/conversationFindIndex/useConversationTimelineFind 各 2、其余 10 文件各 1）。19 文件逐一扫描 `^(<{7}|={7}|>{7})` 全部 0 残留标记（node 实测，含 packages/web/src/main.tsx）；`git ls-files -u -- packages/ui packages/web` 为 0。
+- decisionRequired=0；semanticReview=35 文件；keep-ours 149 与 `S5-decisions-draft.json` 149 条决策（全部 keep-ours，node 实测）一一对应——其中 test/ 保留测试 147 个、源文件 2 个（RemoteMcpSyncDialog.tsx/RemoteSkillSyncDialog.tsx）；该 2 个源文件初裁保 ours 后，在「S5 门禁修复补记」第 2 条以 B→HEAD 仅改名、无外部消费者的证据改判删除，本补记实测两文件在工作树已不存在。
+
+### 冲突裁决摘要
+
+裁决文本由本轮执行摘要提供；记录员终态核查随条附注（行号为当前工作树实测锚点）：
+
+- packages/ui/package.json（1 处）：规则 E 并集取 ours 四条 devDeps（@testing-library/dom、@testing-library/react、@types/dompurify、@types/markdown-it——分别有 ui/test 多个测试与 LiveMarkdownPreview.tsx/live-markdown-table-inline.ts 消费），JSON.parse 校验有效、零标记。记录员实测：四条 devDeps（^10.4.1 / ^16.3.2 / 3.2.0 / 14.1.2）在合并文件在位，两消费文件位于 `packages/ui/src/components/markdown/`。
+- chatPlaceholder.ts（1 处）：规则 C 取 theirs（上游早期 return 使尾部三元死代码），对 base/target 的 git show 比对证实为纯重构，解析零诊断。记录员实测该文件 0 冲突标记。
+- project-sidebar/module.ts（1 处）：规则 A 并集保留 ours「ui-team」（TeamSessionLine 回植，module.ts:14）+ theirs「data-sync」（module.ts:15），与 architecture-policy.yaml:174/179 现行条目逐项一致（记录员实测 project-sidebar requires 列表含两项及同文注释）。
+- ProjectSidebarNavigation.tsx（1 处）：规则 B+D——plugin-store 按钮吸收上游 !isWebRemoteControl 门控（:52 起；automations 同批 :38），vault 扩展槽位（台账5）原样保留不门控（:65-74，注释明示 Drora 扩展槽位）；远控回落 effect 只覆盖 automations/plugin-store（WorkspaceShellLayout.tsx:1428-1436 回落 chat），vault 视图在远控下仍可用。SBV03/04/05 vault 断言全过（projectSidebarNavigation.test.ts:94/:113/:129）。
+- ChatPromptEditor.tsx（1 处）：规则 B 取 theirs 整块（isInline 包裹 div + onUserInputClear/onUserInputPresenceChange/onUserInputStart 三个用户指令编辑回调=D03 独立能力；ours 对 base 仅缩进清理，无 Drora 独有参数被丢弃），三个新 prop 与 isInline 在合并文件 :84-86/:154-156/:179 已就位。记录员实测：:84-86 解构、:154-156 类型声明、:179 `const isInline = layout === "inline"`。
+- WorkspaceShellLayout.tsx（3 处）：以脚本锚定拼接——吸收上游 SidePaneFullViewConversationHost 包裹（开 :2735/闭 :3104）与 V4WorkspaceChatArea readOnlyReason 新 prop（V4WorkspaceChatArea.tsx:64/:139/:268）；Drora vault 旁路挂载（wrapper+CSS 隐藏 chat main+DroraWorkspaceMainView vaultHasOpened 常驻块 :2966-3067）与终端面板 !isDroraWorkspaceMainView 门控（:3072-3075）保真回植，解析零诊断、tsc 该文件零错。记录员实测上述锚点在位、0 冲突标记。
+- 其余 13 个冲突文件（SettingsPage.tsx、settingsPageConfig.ts、mcpStore.ts、styles.css、v4 的 ConversationComposer/ConversationTimeline/ConversationTurnNavigator/SessionPane/conversationFindHighlightDom/conversationFindIndex/conversationTurnNavigatorHelpers/useConversationTimelineFind、packages/web/src/main.tsx）逐 hunk 裁决细节未随本轮执行摘要提供；其中 v4 三件与 mcpStore/settingsPageConfig 的合并后适配见上方「S5 门禁修复补记」第 3/5/6 条，余下未见逐块审计记录（归 S5-06/S7 复核）。记录员终态核查：19 文件全部 0 冲突标记、0 unmerged（见统计节）。
+
+### 门禁
+
+门禁=[{"name":"typecheck","exit":0},{"name":"tests","exit":0}]——数值沿用 S5 执行与门禁修复轮记录（「S5 门禁修复补记」终态：`pnpm typecheck` S5 所属包 0 错；`pnpm test:drora` ui/web 全绿 517 过；残留 3 错与 3 失败套件均在 packages/desktop，归 S4/S6 处理），本补记未重跑。
+
+### 专项任务完成情况
+
+- S5-01：Root/App/WorkspaceShell/SessionPane/full view/preview/find 按 ledger 落地（Root.tsx/App.tsx 语义合并、side-pane-full-view 12 文件新增、PreviewPane.tsx take-theirs、v4 子树 62 路径、find 族 4 个冲突文件已解零标记）；单一 SessionPane 与 Team/Vault/Voice/Pet 接线及保活逐项核对未见记录，任务保持未关闭。
+- S5-02：settings-scope 10 文件、data-sync 19 文件新增；ChatPromptEditor 用户指令编辑三回调落地（见裁决摘要）；新设置导航 settingsPageConfig 冲突已解且分区期望经门禁修复轮验证（补记第 6 条）；RemoteMcpSyncDialog/RemoteSkillSyncDialog 初裁 keep-ours 后按证据改判删除（见统计节）。Persona/Knowledge/Voice/Pet 设置面保留与本地/远端 scope 门控的专项验证未见记录。
+- S5-03：module.ts 特性并集与 architecture-policy 现行一致；TeamSessionLine 回植（grouped/task-row.tsx:37/:156）；vault 可选入口保留且远控不门控，SBV03/04/05 断言全过；远端项目/分组/活动视图路径按 ledger 落地（remote-navigation/remote-project-connection/useProjectRemoteSync 等 take-theirs，activity contract.test.ts 随 D01 退役）；「审批回到会话」专项复核未见记录。
+- S5-04：packages/web 60 路径落地（main.tsx 1 处冲突已解）；输入预测/session-data/事件推送契约随 S1 shared 段落地；webAuthService pending 登录 localStorage 原子记录适配（门禁补记第 8 条）；replayable、overlay 与 ws2、自建来源、Host/runtime 复用和身份隔离的链路级验证未见记录。
+- S5-05：en-US/zh-CN 两 locale semantic 合并落地；浅深色、窄屏/手机、平台入口与 D 水印/图标保护的专项核查未见记录（conversationDraftEmptyStateWatermark.test.ts 未入本段 ledger，属段外既有保留面）。
+- S5-06：UI/浏览器/Electron E2E 与 RG01–04/07–15/18–20 未执行；46 条 manual-review 路径（45 add/take-theirs）以 pending 形态入库待转正；architecture:check --changed、三项复核、git commit 均未执行——HEAD 仍为 1376aa9a2（S4 段提交），S5 应用与门禁修复均为未提交工作树改动。
+
+S5-01–S5-06 复选框按状态规则维持 `[ ]`，待证据齐全后逐项关闭。本补记只改 tasks.md，未提交。

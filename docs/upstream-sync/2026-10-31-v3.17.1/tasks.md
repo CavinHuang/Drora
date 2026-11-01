@@ -439,3 +439,17 @@ S6-01–S6-06 复选框按状态规则维持 `[ ]`，待证据齐全后逐项关
 - S8-04 进行中：首轮 checks 4 过/6 败/6 pending。完成度审查（独立子代理 2026-11-01）发现未登记回归：UP05372 删除 ui/vitest.config.ts 使 ci.yml:54 的 knowledgeReviewView 调用断链（且该 .tsx 不在任何执行清单，全通道失执行）——本批修复：4 个 ui/test 孤儿 .tsx（knowledgeReviewView+3 个 team）注册进 drora 清单（527 条）、ci.yml 改根级 --project drora 调用（本地 6 用例过）。chromedriver ENOENT×4（Electron 41→44 升级关联，新 run 观察定性）与 Windows pnpm 安装 ENOENT×1（环境竞争类）待新 run。
 - S8-05/06 待 PR 合并后执行（S8-06 将对 4 个领先 feature 分支做升级后兼容预演并登记）。
 - UP05433-36（zcode-cua 0.6.3 冻结 + windowsCuaHelperHostSupport 临时声明）：维持 S6-01 登记态，随下次 CUA 升级专项核销。
+
+## S8-06 分支兼容预演 + R6 回归修复（2026-11-01）
+
+### S8-06 兼容预演（只读，merge-tree 权威冲突清单）
+- feat/agents-team（中）：2 冲突（team 快照/spec §9）——分支改动已被 main 吸收并被 v3.17.1 census 24→17 取代，取 HEAD 即解；增量仅 1 份审计文档。
+- feat/vaultview-w10-gui-e2e（高）：21 冲突（5 个 v3.17.1 直接撞区，ConversationComposer 重写级）；但 evidenceRefs 契约形状全匹配、composer 接线锚点全存活、9 个新文件干净落地——建议在 HEAD 版 Composer/SessionPane 上重放 W09 接线，W08 需按 HEAD 版 permission/service 重新生成 diff（mode.plan.mcp 洞已被 main 自行消除）。
+- feat/virtual-pet-management（高）：14 冲突含 4 个 delete 类硬冲突——猫娘图集三件套已被 main 归档删除（f71ec56fe 修复失效）、0bd6aa181 冗余；仅 cherry-pick 28abdc405（管理中心）并适配 desktopPet.ts（main +164 行演进）。
+- fix/d-g20-1-and-cleanups（中）：10 冲突（office 对齐双侧同向、manifest 字节一致）——office-runtime/voice spec 取 HEAD；cua 0.6.5 资产为独有增量干净落地，client 脚本以 HEAD 功能改动为底叠加 0.6.5 注释对齐。
+结论：无一分支可直接 merge，各有明确处置路径；不阻塞本 PR。
+
+### R6 源清单守卫回归修复（PF13，本地真 Electron A/B 验证）
+根因：S5 合并把 composer 正文 state 优化为 textPresence 布尔对（仅空↔非空翻转才 setState），适配时守卫 knowledgeSourceMismatch 改为渲染期读 textRef——非空→非空的草稿编辑不再触发重渲染，守卫值冻结，mismatch 告警与发送禁用永不出现（G26 失败，G27 为级联）。
+修复（ConversationComposer.tsx +39/-5）：守卫状态化，updateText（全仓唯一文本汇聚点）内同步复验 + 渲染期 reconcile 双路径维护，ref 去重仅翻转 setState——保持上游「按键不重渲染」性能意图；提交边界 Lexical 快照强校验未动。
+验证：带修复 R6 3 用例全过；暂存修复后逐字复现 CI 两失败（因果坐实）；ui/desktop typecheck 过、lint 0 error。

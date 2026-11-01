@@ -205,6 +205,7 @@ import {
   isKnowledgeAgentHandoffEvent,
   requestKnowledgeCitationOpen,
   setConversationSelectionReferenceScope,
+  type ConversationSelectionReference,
 } from "@/lib/conversationSelectionReference.js";
 import { ConversationBackgroundWorkTrigger } from "@/v4/composer/ConversationBackgroundWorkTrigger.js";
 import { V4ComposerCuaEntry } from "@/v4/composer/V4ComposerCuaEntry.js";
@@ -779,6 +780,13 @@ function ConversationComposerImpl({
   const [sendTooltipOpen, setSendTooltipOpen] = useState(false);
   // submit 经 ref 读取最新文本/pending，避免回调随每次输入变更引用。
   const textRef = useRef("");
+  // R6 来源清单守卫（PF13，specs/agent-write-safety.md）：mismatch 布尔由 updateText
+  // （文本汇聚点）与渲染期 reconcile（引用 chip 增删）两条路径共同维护；ref 去重，
+  // 只在结果翻转时 setState，与 reloadText 同款窄派生布尔模式。
+  const [knowledgeSourceMismatch, setKnowledgeSourceMismatch] = useState(false);
+  const knowledgeSourceMismatchRef = useRef(false);
+  // updateText 在事件/命令期执行时读不到 hook 返回值，经该 ref 取最新可信引用。
+  const conversationSelectionReferencesRef = useRef<readonly ConversationSelectionReference[]>([]);
   const contentRevisionRef = useRef(0);
   const pendingRef = useRef(false);
   const uiStore = useContext(StoreContext);
@@ -812,9 +820,26 @@ function ConversationComposerImpl({
   // 40px 编辑区并覆盖工具栏。手机端改用短文案并限制两行；桌面端继续保留完整提示。
   const compactMobilePlaceholder = isWebRemoteControl && isMobileTextInputViewport;
   const sendShortcut = resolveChatEnterShortcut({ enterSubmits });
+  // 根因修复（R6 G26 回归，v3.16.1→v3.17.1 合并）：上游把整段正文 state 换成
+  // textPresence 布尔（避免每次按键重渲染）后，编辑草稿不再触发任何重渲染，原先
+  // 仅在渲染期从 textRef 计算的 mismatch 会冻结在上一次渲染的值——删除/篡改来源
+  // 行后告警与发送禁用永不出现。守卫布尔改在 updateText（全仓唯一文本汇聚点：
+  // 键入/handoff/草稿恢复/外部插入均经此）内同步复验，且只在结果翻转时 setState；
+  // 引用 chip 增删仍由渲染期 reconcile（见 knowledgeSourceMismatch 计算处）兜底。
+  // 保持上游「按键不重渲染」的性能意图：校验是 O(草稿行数) 字符串比对，不翻转不渲染。
+  const revalidateKnowledgeSourceManifest = useCallback((text: string) => {
+    const mismatch =
+      validateKnowledgeSourceManifest(text, conversationSelectionReferencesRef.current) ===
+      "mismatch";
+    if (knowledgeSourceMismatchRef.current !== mismatch) {
+      knowledgeSourceMismatchRef.current = mismatch;
+      setKnowledgeSourceMismatch(mismatch);
+    }
+  }, []);
   const updateText = useCallback(
     (next: string) => {
       textRef.current = next;
+      revalidateKnowledgeSourceManifest(next);
       const reload = next.trim() === "/reload";
       if (reloadTextRef.current !== reload) {
         reloadTextRef.current = reload;
@@ -833,7 +858,7 @@ function ConversationComposerImpl({
       }
       onTextChange?.(next);
     },
-    [onTextChange, workspaceIdentity, workspacePath],
+    [onTextChange, revalidateKnowledgeSourceManifest, workspaceIdentity, workspacePath],
   );
 
   const initialization = snapshot?.runtimeInitialization;
@@ -981,6 +1006,8 @@ function ConversationComposerImpl({
     draftScopeKey: rootDraftScopeKey,
   });
   const hasConversationSelectionReferences = conversationSelectionReferences.length > 0;
+  // updateText 在事件/命令期执行时经该 ref 读最新可信引用；渲染期同步（snapshotRef 同款）。
+  conversationSelectionReferencesRef.current = conversationSelectionReferences;
   const openKnowledgeCitation = useCallback(
     async (receiptId: string): Promise<void> => {
       if (!sessionId) return;
@@ -1503,12 +1530,19 @@ function ConversationComposerImpl({
   const modifiedEnterReversesDelivery = modifiedEnterSubmits && canStop;
   const hasText = textPresence.trimmed;
   // 上游 v3.17.1 把整段正文 state 换成 textPresence 布尔（避免每次按键重渲染）；
-  // Drora 的知识来源清单校验需要实际正文，改读 updateText 同步维护的 textRef。
-  // 渲染时机由 textPresence 变化触发（空↔非空），逐键文本变化不改写本横幅的判定输入；
-  // 提交边界的强校验在下方用 Lexical 快照独立执行，不依赖此处。
-  const knowledgeSourceMismatch =
+  // Drora 的知识来源清单校验需要实际正文。textPresence 只在「空↔非空」时变化，
+  // 篡改/删除来源行这类「非空→非空」编辑不触发重渲染，因此守卫布尔的翻转主体在
+  // updateText（见 revalidateKnowledgeSourceManifest）；此处渲染期 reconcile 只覆盖
+  // 「引用 chip 增删」这类必然重渲染的输入变化（此时 textRef 已是最新），与
+  // configPickerState 同款渲染期调整模式。提交边界的强校验在下方用 Lexical 快照
+  // 独立执行，不依赖此处。
+  const knowledgeSourceMismatchExpected =
     validateKnowledgeSourceManifest(textRef.current, conversationSelectionReferences) ===
     "mismatch";
+  if (knowledgeSourceMismatchRef.current !== knowledgeSourceMismatchExpected) {
+    knowledgeSourceMismatchRef.current = knowledgeSourceMismatchExpected;
+    setKnowledgeSourceMismatch(knowledgeSourceMismatchExpected);
+  }
   const hasDraftToSubmit =
     hasText ||
     hasAttachments ||

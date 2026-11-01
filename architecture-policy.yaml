@@ -1776,3 +1776,15 @@ exceptions:
     paths:
       - packages/zcode-cua/src/**
     reason: The whole drora-cua producer package (broker, native adapters, tools) entered the repo after the gate timestamp as pre-existing code moved from a separate repository; adopting its internal layers needs a dedicated CONTRACT pass (it has known internal cycles by design), not a mechanical split in this branch.
+  # —— v3.17.1 集成（specs/upstream-v3.17.1-migration.md D07）：快照重生成后仅存的两个
+  #    非上游路径候选；其余 24 条 unmanaged-new-file 由 upstream-snapshot 按 U2 转换树重生成准入。
+  - id: shared-semver-relocation-unmanaged-file
+    rule: unmanaged-new-file
+    paths:
+      - packages/shared/src/semver.ts
+    reason: 上游 v3.17.1 把 compareSemverVersions 放在 shared 的 forceUpdate.ts；Drora 按 specs/force-update-gate-removal.md 删除强更门控（连带 forceUpdate.ts），为 v3.17.1 data-sync compare.ts 与 source-server 生命周期最低版本判断保留该纯函数，实现逐行原样迁出到独立模块（文件头有来源说明）。非上游路径，不经 upstream-snapshot 洗白；接管整个 shared 包不在本批范围。
+  - id: cli-bootstrap-vitest-config-unmanaged-file
+    rule: unmanaged-new-file
+    paths:
+      - apps/drora-cli/packages/bootstrap/vitest.config.ts
+    reason: bootstrap 包级 vitest 配置只放宽真实 App/Protocol/SQLite 用例的测试超时预算（20s），不含任何运行时逻辑（照 opensource-cua-test-project-config 先例）；接管整个未受管 drora-cli bootstrap 目录不在本批范围。

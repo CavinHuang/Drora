@@ -24,7 +24,7 @@
 | 未使用依赖与导出 | `pnpm knip`                                               |
 | 导出引用查询     | `pnpm dep:refs --list-exports <file>`                     |
 
-App 业务单测已退役，不新增或恢复 App 业务单测 test/spec 或 `contract.test.ts`；保留 CLI、CUA、E2E、浏览器验收和工程门禁测试。工程 Vitest 使用 `pnpm test:engineering <文件>`，push 自动运行 `pnpm test:engineering:affected --scope push`，CLI/CUA 使用各包独立入口，不默认全量。范围见 [测试规格](docs/testing/unit-test-quality.md)，推送合同见 [pre-push 说明](docs/testing/pre-push-hook.md)。
+App 业务单测已退役，不新增或恢复 App 业务单测 test/spec 或 `contract.test.ts`；保留 CLI、CUA、E2E、浏览器验收和工程门禁测试。工程 Vitest 为 engineering+drora 双显式清单：`pnpm test:engineering <文件>`（上游工程链，清单 `scripts/engineering-test-files.json`）与 `pnpm test:drora`（自研回归，清单 `scripts/drora-test-files.json`，串行隔离组走 `pnpm exec vitest run --project drora-fork-isolated`）；push 自动运行 `pnpm test:engineering:affected --scope push`（仅选择 engineering 项目），CLI/CUA 使用各包独立入口（node:test 保留集 `pnpm test:unit:node`、CLI 全包 `pnpm test:upstream-cli`），不默认全量。范围见 [测试规格](docs/testing/unit-test-quality.md)，推送合同见 [pre-push 说明](docs/testing/pre-push-hook.md)。
 
 测试入口以目标包当前的 `package.json` 和实际测试文件为准，不假定存在统一的单测或 E2E 命令。
 

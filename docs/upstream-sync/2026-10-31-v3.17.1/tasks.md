@@ -380,3 +380,46 @@ typecheck 36 错（ui 34 + shared 消费方 2 处同因）、test:drora 13 失�
 - S5-06：UI/浏览器/Electron E2E 与 RG01–04/07–15/18–20 未执行；46 条 manual-review 路径（45 add/take-theirs）以 pending 形态入库待转正；architecture:check --changed、三项复核、git commit 均未执行——HEAD 仍为 1376aa9a2（S4 段提交），S5 应用与门禁修复均为未提交工作树改动。
 
 S5-01–S5-06 复选框按状态规则维持 `[ ]`，待证据齐全后逐项关闭。本补记只改 tasks.md，未提交。
+
+## S6 执行补记
+
+### 应用与决策统计
+
+来源：`apply/S6-report.json`（segment=S6、dry=false、ledger=upstream-ledger.tsv sha256=95150a67…28bfc；errors=0、skipped=0）：
+
+- applied=427（node 实测 applied 数组），动作分布：add 110 / take-theirs 173 / text-clean-needs-semantic-review 77 / text-conflict 47 / delete（随上游删除）3 / keep-ours 17。报告 counts 块（ledger 侧分布）add 121 / take-upstream 175 / text-clean 77 / text-conflict 47 / delete-review 8 / delete-local-change-review 4 / zone-decision 13 / already-present 1，合计 446＝S6 段标题路径数。
+- conflicts=47 文件、共 201 hunks（node 对报告 conflicts 数组求和；单文件最多 scripts/architecture/upstream-snapshot.json 127 hunks）。
+- decisionRequired=0。`S6-decisions-draft.json` 18 条预决策全 keep-ours（browser-use 旧名 spec×2、onboarding-telemetry、旧 coverage matrix、zcode-cua×6、third-party×7、旧 affected-unit-tests/scope.mjs），其中 17 条落地为 applied keep-ours，scope.mjs 行因 S6pre 已删除走 driftBlocked。
+- driftBlocked=19：与 `S6pre-report.json` applied=15 逐路径重合（engineering-tests 工具族与旧 affected-unit-tests 族删除，S1 已提前落地），余 4＝native-search-tools-config.mjs / prepare-native-search-tools.mjs（S4 段 root 级配套）与 patches/×2（已在树）——预期漂移非本轮错误；427+19=446。
+- semanticReview=77 文件（与 counts text-clean 77 一致）。
+
+### 冲突裁决摘要
+
+六文件裁决由本轮执行摘要提供（即报告 conflicts 数组前六项，合计 7 hunks）；记录员终态核查：47 个冲突文件逐一 `grep -cE '^(<{7} |>{7} |\|{7} |={7}$)'` 全部为 0，`git ls-files -u`=0。
+
+- rule-catalog.md（1 处）：规则 C 取 theirs——ours 与 theirs 仅一行尾随空格宽度差（执行摘要：字节级脚本比对证实）；记录员实测工作树与 `refs/usync/v3171/target` blob CRLF 归一后逐字节一致。
+- drora-feature-graph.yaml（2 处）：规则 A 并集（ours persona 节点/边 4+6 条保留 + theirs shared-task-cli/gen-ui/tool-search 新增）；记录员实测：node js-yaml 解析通过，419 节点 id 全唯一、811 边按 (from,to,type) 全唯一；persona 4 节点（capability.persona / evidence.persona-design / surface.persona-settings-planned / state.persona-authority-planned）与 6 条 persona 边保留；全文件 vs HEAD +6 节点（shared-task-cli 1、gen-ui 3、tool-search-card 1、session-owned-shutdown 1）/+13 边/0 删除（执行摘要 theirs「节点 4 个」对应 shared-task-cli+gen-ui 子集，tool-search-card 与 session-owned-shutdown 为冲突区外 theirs 增量）。
+- r3-source-server-remote-open-issues.md（1 处）：总览表保 ours 对齐格式并追加 theirs 新增 R3-ISSUE-031/032/033 三行（详情小节在冲突区外已存在，剩余工作节亦已引用）；记录员实测表格行 :69-71、详情小节 :470/:478/:486 均在位。
+- 07-14 resize spec 与 07-31 popup spec（各 1 处）：上游文档改名 browser-use-codex-parity-*→browser-use-*，规则 C 取 theirs；记录员实测新旧文件均在库（2026-07-10/07-12 spec 旧新两版 + 两份 coverage matrix 共 6 文件），BCP-218/219/223 在新矩阵 docs/testing/browser-use-coverage-matrix.md 各 2 处命中。
+- affected-unit-test-baseline.md（1 处）：取 theirs（App affected 已退役 + default-branch.mjs 链，与 scripts/architecture/default-branch.mjs:2-5 实测一致）并补 Drora N2 段（指向 scripts/engineering-tests/scope.mjs:33-43 实测的 origin/staging→drora/main 回退）；记录员实测 :3「App affected 单测入口已退役」、:4 引用 default-branch.mjs、N2 段 :7-10 在位。
+- 其余 41 个冲突文件（194 hunks，含 upstream-snapshot.json 127 hunks）：裁决细节未随本轮执行摘要提供；记录员终态核查全部 0 残留标记、upstream-snapshot.json JSON.parse 通过（逐块语义复核归 S6-04/S7）。
+
+段内手工并集（不在 S6-report applied 数组内）：
+
+- THIRD-PARTY-NOTICES.md：保 ours 并入上游新增 12 个 npm 条目。记录员集合级实测（HEAD/target/工作树三方比对）：npm 条目 1219→1231（＝target 1173 ∪ ours 独有：target 新增 12 条全并入、ours 独有 58 条全保留、keyv 条目在位）、Notice 块 950→952、「Source evidence limitations」15→16 条（新增 @electron-internal/extract-zip@1.0.5）；「Modified npm packages」+2 条（:2559/:2561，patches/@aiden0z__pptx-renderer@1.2.4.patch 与 patches/@extend-ai__react-xlsx@0.16.0.patch 实存于 patches/）。执行摘要的逐包 ref 行数 ours≥target 核对记录员未逐包复算。
+- retired-app-unit-evidence：lib 新增 loadRetainedTestFiles（scripts/lib/retired-app-unit-evidence.mjs:62，engineering+drora+isolated 三清单 ∪ node:test 发现集）；test 新增 Drora 保留面断言（scripts/test/retired-app-unit-evidence.test.mjs:88-130：drora 清单样本 :91、remoteFrame node:test 样本 :107 可被发现、6 个上游退役文件 existsSync=false 且不被保留面吸收 :118-124）。记录员实测 `node --test scripts/test/retired-app-unit-evidence.test.mjs`：7 测试 7 过 0 失败（Windows 本机，Node v24.1.0）。
+
+### 门禁
+
+门禁=[{"name":"eng-tools","exit":0},{"name":"architecture","exit":0},{"name":"lint","exit":0}]——数值由本轮 S6 执行摘要提供，本补记未重跑；记录员另行实测 node --test retired-app-unit-evidence 7/7（见上）。
+
+### 专项任务完成情况
+
+- S6-01：zcode-cua 6 文件 zone-decision keep-ours（package.json 实测仍 0.6.3）；**S3 遗留回切项 UP05433–UP05436 未核销**——broker.js/broker.d.ts 无 HELPER_GHOST_CURSOR_OVERLAY_ARG 导出，services/src/cua-permission-broker/windowsCuaHelperHostSupport.ts:14-21 临时本地声明仍在；原版 bundle 逐字审计证据仍缺（P1-10 blocked）。任务保持未关闭。
+- S6-02：engineering/affected/architecture 工具族按 D01/D07 落地（S6pre 15 行 + 本段 applied：default-branch.mjs 新增、adopt/context/git-base/index take-theirs、run-lint-staged-vitest.mjs 删除等）；显式基线 C..候选与自研 owner/规则/例外的专项复核记录未见。
+- S6-03：retired-app-unit-evidence lib+test 按 Drora 保留面适配并 7/7 通过（见上）；全部待删除测试/资源的消费者与替代证据逐项审计未见完整记录。
+- S6-04：feature graph 合并并解析验证（见裁决摘要）；catalog/matrix 族冲突全部零标记；矩阵与真实文件/runner 统一、retired/missing 移除证据的逐项审计未见记录。
+- S6-05：THIRD-PARTY-NOTICES 并集与 limitations 落地（实测见上）；AGENTS.md 已含 D01 engineering+drora 双清单与 App 单测退役口径（工作区实测）；技能/治理文档 take-theirs 落地；未运行全仓 fmt sweep。
+- S6-06：eng-tools/architecture/lint 三门禁过（执行摘要数值）；RG21–24、原版 parity（P1-10 blocked）、三项复核与 git commit 均未执行——HEAD 仍 40f36cc09（S5 段提交），S6 应用为未提交工作区改动。
+
+S6-01–S6-06 复选框按状态规则维持 `[ ]`，待证据齐全后逐项关闭。本补记只改 tasks.md，未提交。

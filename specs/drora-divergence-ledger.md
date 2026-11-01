@@ -8,16 +8,17 @@
 
 编号对照：审计报告的 F 编号与修复工单的 F 编号是两套体系（如工单 F2=审计 F7、工单 F12=审计 F1），代码注释引用的「分派单 Fx」均指工单侧编号。本台账各条同时标注两套：
 
-| 工单侧 | 审计侧 | 条目                           |
-| ------ | ------ | ------------------------------ |
-| F12    | F1     | 台账 1 CLI 版本策略            |
-| F13    | F5     | 台账 2 任务模式投影            |
-| F14    | F6     | 台账 3 pnpm-lock 插件 importer |
-| F15    | F14    | 台账 4 oxlint 覆盖面           |
-| F2     | F7     | 台账 5 vault 侧栏入口回植      |
-| F1     | F3     | 台账 6 appId 豁免转换形态      |
-| —      | F16    | 台账 7 oxfmt markdown 篡改缺陷 |
-| —      | —      | 台账 8 affected 首推基线回退   |
+| 工单侧 | 审计侧 | 条目                               |
+| ------ | ------ | ---------------------------------- |
+| F12    | F1     | 台账 1 CLI 版本策略                |
+| F13    | F5     | 台账 2 任务模式投影                |
+| F14    | F6     | 台账 3 pnpm-lock 插件 importer     |
+| F15    | F14    | 台账 4 oxlint 覆盖面               |
+| F2     | F7     | 台账 5 vault 侧栏入口回植          |
+| F1     | F3     | 台账 6 appId 豁免转换形态          |
+| —      | F16    | 台账 7 oxfmt markdown 篡改缺陷     |
+| —      | —      | 台账 8 affected 首推基线回退       |
+| —      | —      | 台账 10 工程测试首推基线回退（N2） |
 
 ## 台账 1：CLI 版本策略——drora-cli 恒保 0.0.1 独立发版（工单 F12 / 审计 F1）
 
@@ -76,6 +77,8 @@
 
 ## 台账 8：affected 首推基线 staging→origin/main 回退（提交 337b00b5）
 
+> 2026-11-01 注：本条登记的旧链 `scripts/affected-unit-tests/scope.mjs` 已随上游 v3.17.1 改名退役（ledger UP05497）；回退目标字面 `origin/main` 在新链中修正为 `drora/main`，见台账 10（N2）。本条保留作历史依据，不再单独维护。
+
 - **上游行为**：官方 ZCode 仓库存在 staging 集成分支，affected 单测的首次推送基线取 `origin/staging` 与 HEAD 的 merge-base；基线缺失即严格报错。
 - **本仓行为**：本仓无 staging 集成分支（PR 直合 main），`firstPushBase` 在 `origin/staging` 为祖先时用之、否则回退 `origin/main`（`scripts/affected-unit-tests/scope.mjs:31-40`），不猜测其他分支、保持「无基线严格报错」语义。
 - **依据**：提交 `337b00b5`（「fix(upstream): affected 首推基线回退 origin/main——本仓无 staging 集成分支」）；`scripts/affected-unit-tests/scope.mjs:33-35` 注释；`docs/testing/pre-push-hook.md`（受影响单测范围与输出合同）。
@@ -87,6 +90,13 @@
 - **本仓行为**：新增设置键 `webRemoteControlRelayOrigin`（生产可写，无 DRORA_ENV 门禁）+ 远控弹窗内「官方/自建」切换区（`packages/ui/src/web-remote-control/WebRemoteControlRelaySourceSection.tsx`），仅覆盖远控三 URL 面，全局 endpoint 链不动；解析链 `resolveWebRemoteControlEndpointOrigin`（`packages/shared/src/droraEndpoint.ts`）。配套把手机页同源 WS 推导从 `/ws`（旧 v1 自建 relay 路径）改为 `/api/v1/remote/ws2`（`packages/web/src/drora-extensions/remoteEndpoint.ts`）。设计全文见 `specs/relay-v2-server.md` §8.7。
 - **依据**：`specs/relay-v2-server.md` §8.7（2026-10-31 新增，解冻同文 §8.4 边界决策 3「产品化入口明确不做」）；`specs/drora-divergence-ledger.md` 台账 9（本条）。
 - **下次同步注意**：上游若在 `webRemoteControlManager`/`desktop/src/main/index.ts` 的 `getEndpointUrls` 装配、`droraEndpoint.ts`、`validationAppSettings.ts`、`WebRemoteControlDialog` 相关区域改动，需甄别是否冲掉本特性的接线点（getEndpointUrls 的设置键读取、schema 两处登记、弹窗配置区嵌入）；上游若官方实现了自有 relay 切换面，评估迁移到官方契约后回退本条。手机页 `remoteEndpoint.ts` 的 ws2 推导为本仓 drora-extensions 独有文件，上游同步天然无冲突。
+
+## 台账 10：工程测试首推基线 staging→drora/main 回退（v3.17.1 N2，2026-11-01 登记）
+
+- **上游行为**：上游 v3.17.1 把 affected 单测链改造为 `run-affected-engineering-tests.mjs` + `scripts/engineering-tests/scope.mjs`，首次推送基线硬性要求 `origin/staging`（上游 CI 约定的集成分支）；基线缺失即严格报错。
+- **本仓行为**：本仓无 staging 集成分支（PR 直合 main），且 `origin` 指向上游官方仓 zai-org——`origin/main` 是**上游 main**，不是本仓产品 main。`firstPushBase` 在 `origin/staging` 存在且为 HEAD 祖先时用之，否则回退 `drora/main`（产品远端；`scripts/engineering-tests/scope.mjs:33-43`），不猜测其他分支、保持「无基线严格报错」语义。若照抄台账 8 的 `origin/main` 字面回退，merge-base 会退回上一上游锚点导致全量误选（即 pre-push 历史崩溃模式）。
+- **依据**：`scripts/engineering-tests/scope.mjs:33-43`（`firstPushBase` 实现与注释，自引「divergence 台账 8 / v3.17.1 N2」）；`docs/upstream-sync/2026-10-31-v3.17.1/tasks.md` S1 执行补记 N2 段（旧 `affected-unit-tests/scope.mjs` 随 UP05497 删除，本仓改动=台账 8 staging 回退，由本条在新链承继并修正回退目标）；`docs/ci/affected-unit-test-baseline.md`、`docs/testing/pre-push-hook.md`（N2 口径已同步）。
+- **下次同步注意**：上游再动 `engineering-tests/scope.mjs` 的基线解析时，`drora/main` 回退必须保留（或在本仓引入 staging 类集成分支后按台账 8 的注意项整体重审）；不得把回退目标改回 `origin/main`，也不得引入对 `origin/*`（=zai-org）引用的静默依赖。
 
 ## 待甄别（非既定分歧，下轮同步前需核实）
 

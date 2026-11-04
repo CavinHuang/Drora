@@ -1108,7 +1108,6 @@ app
   .then(() => powerMonitor.on("resume", () => void webRemoteControlManager.refreshNotifications()));
 app.on("will-quit", () => webRemoteControlManager.disposeNotifications());
 
-
 function resolveExternalWorkspaceConfirmationCopy() {
   const effectiveLocale =
     currentApplicationLocale === DEFAULT_LOCALE && app.isReady()

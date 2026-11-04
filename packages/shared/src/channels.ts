@@ -217,6 +217,8 @@ export const ServiceChannels = {
   KnowledgeIndex: "knowledge-index",
   /** Knowledge 检索服务（host 常驻；本地词法/语义召回与 run 生命周期） */
   KnowledgeQuery: "knowledge-query",
+  /** Drora Mate 个人助理工单服务（host 常驻；specs/drora-personal-assistant.md 台账 16） */
+  AssistantTickets: "assistant-tickets",
   /** Knowledge 审核写入服务（W06；L2 治理写唯一入口：Proposal→批准→账本→门面 CAS） */
   KnowledgeReview: "knowledge-review",
   /** 模型能力档案服务（specs/model-capabilities.md §4；~/.drora/v2/model_capabilities.json 唯一所有者） */

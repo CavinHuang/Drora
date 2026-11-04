@@ -11,6 +11,8 @@ export * from "./contracts/voice.js";
 export * from "./contracts/persona.js";
 // 模型能力档案契约（specs/model-capabilities.md §3；批次一新增，仅追加）。
 export * from "./contracts/modelCapabilities.js";
+// Drora Mate 个人助理工单契约（specs/drora-personal-assistant.md 台账 16；仅追加）。
+export * from "./contracts/assistant.js";
 
 export type {
   FileBinaryPreview,

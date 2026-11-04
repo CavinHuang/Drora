@@ -496,3 +496,18 @@ export type {
   GroupNode,
   MoveGroupNode,
 } from "#src/task-groups/contract.js";
+
+// Drora Mate 工单服务 — IAssistantTicketService is both a type and value (descriptor)。
+// 快照/视图类型 type-only re-export（UI 信任推送不做二次运行时校验，01 详设 §1.2；
+// :187-190 红线：工厂不进根 barrel，经 services/node 装配）。
+export { IAssistantTicketService } from "./assistant-tickets/assistantTickets.js";
+export type {
+  AssistantSnapshot,
+  AssistantTriggerView,
+  AssistantDecisionView,
+  AssistantTicketView,
+  AssistantConfigView,
+  AssistantTrustView,
+  AssistantResult,
+  AssistantServiceError,
+} from "./assistant-tickets/assistantTickets.js";

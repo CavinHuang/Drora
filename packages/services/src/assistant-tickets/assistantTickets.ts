@@ -1,0 +1,155 @@
+/**
+ * Drora Mate 工单服务接口（specs/drora-personal-assistant.md §5；
+ * docs/mate-implementation-plan-2026-11-04/01-p1-detailed-design.md §1.3）。
+ *
+ * 本文件 browser-safe：只放接口 + descriptor（工厂在 assistantTicketsService.ts，
+ * 经 services/node.ts 装配——index.ts:187-190 红线：根 barrel 只导出 descriptor 与类型）。
+ */
+
+import { ServiceChannels } from "@drora/shared";
+import { createServiceDescriptor } from "../descriptors.js";
+import {
+  ASSISTANT_MODES,
+  ASSISTANT_PERMISSION_TIERS,
+  type AssistantErrorCode,
+  type AssistantMode,
+  type AssistantPermissionTier,
+  type AssistantStrength,
+} from "@drora/shared";
+
+// ---------------------------------------------------------------------------
+// 快照形状（onDidChange 推送；01 §1.2——zod schema 在 service 侧 parse，UI type-only）
+// ---------------------------------------------------------------------------
+
+export interface AssistantTriggerView {
+  readonly id: string;
+  readonly sourceKind: string;
+  readonly strength: AssistantStrength;
+  readonly identity: string;
+  readonly text: string;
+  readonly atMs: number;
+}
+
+export interface AssistantDecisionView {
+  readonly id: number;
+  readonly triggerId: string;
+  readonly strength: AssistantStrength;
+  readonly mode: AssistantMode;
+  readonly outcome: string;
+  readonly decidedBy: "gate" | "user";
+  readonly decidedMs: number;
+  /** 决策卡可用：对应的 trigger 正文预览（verbatim 首行截断）。 */
+  readonly triggerText: string;
+}
+
+export interface AssistantTicketView {
+  readonly id: string;
+  readonly brief: string;
+  readonly status: string;
+  readonly permissionTier: AssistantPermissionTier;
+  readonly usage: { readonly inputTokens: number; readonly outputTokens: number };
+  readonly outputSummary: string | null;
+  readonly failReason: string | null;
+  readonly targetWorkspaceIdentity: string | null;
+  readonly sessionId: string | null;
+  readonly updatedAtMs: number;
+}
+
+export interface AssistantConfigView {
+  readonly mode: AssistantMode;
+  readonly allowlist: readonly string[];
+  readonly budgetMaxActivePerWorkspace: number;
+}
+
+export interface AssistantTrustView {
+  readonly wouldAcceptCount: number;
+  readonly releaseCount: number;
+}
+
+export interface AssistantSnapshot {
+  readonly version: 1;
+  readonly mode: AssistantMode;
+  readonly allowlist: readonly string[];
+  readonly budget: { readonly maxActivePerWorkspace: number };
+  readonly trust: AssistantTrustView;
+  readonly triggers: readonly AssistantTriggerView[];
+  readonly decisions: readonly AssistantDecisionView[];
+  readonly tickets: readonly AssistantTicketView[];
+  readonly updatedAtMs: number;
+}
+
+// ---------------------------------------------------------------------------
+// 服务失败臂（封闭错误码；正文入 fail_reason 不进错误码——照 PersonaManagementResult）
+// ---------------------------------------------------------------------------
+
+export type AssistantServiceError = { readonly code: AssistantErrorCode; readonly reason?: string };
+
+export type AssistantResult<T> =
+  | { readonly ok: true; readonly value: T }
+  | { readonly ok: false; readonly error: AssistantServiceError };
+
+// ---------------------------------------------------------------------------
+// 接口
+// ---------------------------------------------------------------------------
+
+export interface IAssistantTicketService {
+  /**
+   * 记录一次本地触发并跑准入门（纯函数判定；单一写者事务内同写 trigger+decision）。
+   * P1 仅 local Source：strength 由 UI 双按钮模拟（explicit=点名 / inferred=未指名），
+   * P3 起由真实 Source 判定（mention && allowlist）。
+   * off 模式：只记 trigger+decision（outcome=ignored），零执行。
+   */
+  recordTrigger(input: {
+    text: string;
+    simulated: AssistantStrength;
+    targetWorkspaceIdentity?: string;
+  }): Promise<AssistantResult<{ triggerId: string; outcome: string }>>;
+
+  /**
+   * 决策卡人工放行（explicit×observe 路径；P1 Mode A 直派）。
+   * briefAppendix 追加段拼在 verbatim 原文之后（原文永不改写）；
+   * permissionTier 缺省取 build；同 decision 重复放行幂等返回首次 ticketId。
+   */
+  approveDecision(input: {
+    decisionId: number;
+    briefAppendix?: string;
+    permissionTier?: Exclude<AssistantPermissionTier, typeof ASSISTANT_PERMISSION_TIERS.yolo>;
+    targetWorkspaceIdentity?: string;
+  }): Promise<AssistantResult<{ ticketId: string; sessionId: string }>>;
+
+  /** 忽略决策卡（N）：decision 记 rejected，trigger 保留。 */
+  ignoreDecision(input: { decisionId: number }): Promise<AssistantResult<{ ok: true }>>;
+
+  /** Mandate 变更途径之二：用户 stop（工单未终态时终止；spec §5 三途径）。 */
+  stopMandate(input: { ticketId: string }): Promise<AssistantResult<{ ok: true }>>;
+
+  /** 忽略观察记录（would-accept 行 N）：decision 补 ignored。 */
+  dismissObservation(input: { triggerId: string }): Promise<AssistantResult<{ ok: true }>>;
+
+  /** Mandate 变更途径之三：校验失败撤销（仅服务内部/测试路径调用）。 */
+  revokeMandate(input: {
+    ticketId: string;
+    reason: string;
+  }): Promise<AssistantResult<{ ok: true }>>;
+
+  setMode(mode: AssistantMode): Promise<AssistantResult<{ ok: true }>>;
+  setAllowlist(identities: readonly string[]): Promise<AssistantResult<{ ok: true }>>;
+  getConfig(): Promise<AssistantResult<AssistantConfigView>>;
+
+  /** 全量快照（拉取一次；后续经 onDidChange 推送）。 */
+  getSnapshot(): Promise<AssistantSnapshot>;
+
+  /**
+   * 快照推送订阅。返回 disposable 对象（非裸函数）——ProxyChannel.toService 对 on*
+   * 属性返回 channel.listen 订阅语义（proxy-channel.ts:126-133，照 IModelCapabilitiesService
+   * 先例）；UI 端 unsubscribe=subscription.dispose()。
+   */
+  onDidChange(listener: (snapshot: AssistantSnapshot) => void): { dispose(): void };
+}
+
+export const IAssistantTicketService = createServiceDescriptor<IAssistantTicketService>(
+  ServiceChannels.AssistantTickets,
+);
+
+/** 供 accessor/client 类型引用的 re-export（防 import 面散落）。 */
+export { ASSISTANT_MODES, ASSISTANT_PERMISSION_TIERS };

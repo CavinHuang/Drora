@@ -52,6 +52,7 @@ import type { IKnowledgeIndexService } from "./knowledge/knowledgeIndex.js";
 import type { IKnowledgeQueryService } from "./knowledge/knowledgeQuery.js";
 import type { IKnowledgeReviewService } from "./knowledge/review/reviewService.js";
 import type { IModelCapabilitiesService } from "./model-capabilities/index.js";
+import type { IAssistantTicketService } from "./assistant-tickets/assistantTickets.js";
 import type { ISettingsSyncService } from "./settings-sync/settingsSync.js";
 import type { IFeedbackService } from "./feedback/feedback.js";
 import type { IPromptAttachmentTransferService } from "./prompt-attachment-transfer/promptAttachmentTransfer.js";
@@ -141,6 +142,8 @@ export interface IServiceAccessor {
   readonly knowledgeReviewService?: IKnowledgeReviewService;
   /** 模型能力档案（specs/model-capabilities.md §4 唯一所有者；desktop 本地 Host 注册，故可选）。 */
   readonly modelCapabilitiesService?: IModelCapabilitiesService;
+  /** Drora Mate 工单服务（specs/drora-personal-assistant.md；host-local 能力，故可选）。 */
+  readonly assistantTicketService?: IAssistantTicketService;
   readonly settingsSyncService: ISettingsSyncService;
   readonly feedbackService: IFeedbackService;
   readonly promptAttachmentTransferService: IPromptAttachmentTransferService;

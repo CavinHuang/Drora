@@ -34,7 +34,8 @@ import { createGenUiService } from "./gen-ui/node.js";
 // Node.js service implementations — NOT safe to import in browser code
 import { randomBytes } from "node:crypto";
 import { readFileSync } from "node:fs";
-import { homedir } from "node:os";
+import { homedir, hostname } from "node:os";
+import { getAppConfigDir, getConversationWorkspaceDir } from "./paths.js";
 import { join } from "node:path";
 import {
   createNodeProviderRuntimePathEnv,
@@ -641,6 +642,15 @@ import { createSubagentsService } from "./subagents/subagentsService.js";
 import { createCommandsService } from "./commands/commandsService.js";
 import { createHooksService } from "./hooks/hooksService.js";
 import { createMemoryService } from "./memory/memoryService.js";
+// Drora Mate 工单服务（specs/drora-personal-assistant.md；台账 16——自研新模块装配）。
+import {
+  openAssistantDatabase,
+  resolveAssistantDatabasePath,
+} from "./assistant-tickets/assistantDatabase.js";
+import { setAssistantDispatchPort } from "./assistant-tickets/assistantTicketsService.js";
+import { createAssistantTicketsService } from "./assistant-tickets/assistantTicketsService.js";
+import { IAssistantTicketService } from "./assistant-tickets/assistantTickets.js";
+import { createHostCommandEnvelope } from "./drora-agent/droraV4HostCommand.js";
 
 import { createSettingsSyncService } from "./settings-sync/settingsSyncService.js";
 import {
@@ -3324,6 +3334,77 @@ export function createLocalServices(options: {
   if (options?.modelCapabilitiesService) {
     services.register(IModelCapabilitiesService, options.modelCapabilitiesService);
   }
+
+  // Drora Mate 工单服务（台账 16）：host-local 能力，无条件注册（未触发时零行为）。
+  // 库连接惰性（assistantDatabase 内部首次访问才建文件），环境问题不炸启动。
+  // 派发端口（P1 Mode A）：v4 通道接线——createSession/sendText 走 droraAgentService
+  // 的 sendConversationCommandV4（对齐 droraTaskServiceAdapter 形态；permissionTier
+  // 载体=config.mode，payload.permissionScope 是 z.literal("session") 不承载权限档）。
+  const assistantDbPath = resolveAssistantDatabasePath(getAppConfigDir());
+  const assistantDatabase = openAssistantDatabase(assistantDbPath);
+  const assistantTicketService = createAssistantTicketsService({
+    databasePath: assistantDbPath,
+    // P1 local Source 触发者：宿主机名（与 workspace 默认身份同源级；P3 Source 接入时
+    // 由名单映射替换为真实 user identity）。
+    localIdentity: `local@${hostname()}`,
+  });
+  setAssistantDispatchPort(
+    async (request: {
+      ticketId: string;
+      brief: string;
+      targetWorkspaceIdentity: string;
+      permissionTier: "build" | "guarded";
+    }) => {
+      try {
+        const workspacePath = getConversationWorkspaceDir();
+        const workspaceId = request.targetWorkspaceIdentity || workspacePath;
+        const createAck = await droraAgentService.sendConversationCommandV4({
+          workspacePath,
+          workspaceIdentity: request.targetWorkspaceIdentity || undefined,
+          envelope: createHostCommandEnvelope({
+            type: "createSession",
+            sessionId: null,
+            payload: {
+              workspaceId,
+              config: { mode: request.permissionTier },
+            },
+          }),
+        });
+        if (createAck.result?.type !== "createSession" || !createAck.result.sessionId) {
+          return {
+            ok: false as const,
+            error: {
+              code: "mate.dispatch.rejected" as const,
+              reason: `createSession ACK 异常：${JSON.stringify(createAck.result ?? null).slice(0, 200)}`,
+            },
+          };
+        }
+        const sessionId = createAck.result.sessionId;
+        await droraAgentService.sendConversationCommandV4({
+          workspacePath,
+          workspaceIdentity: request.targetWorkspaceIdentity || undefined,
+          envelope: createHostCommandEnvelope({
+            type: "sendText",
+            payload: { text: request.brief, heldQueueDisposition: "keepQueueAndSend" },
+            sessionId,
+            commandId: request.ticketId,
+            clientId: "drora-mate",
+          }),
+        });
+        return { ok: true as const, value: { ticketId: request.ticketId, sessionId } };
+      } catch (error) {
+        return {
+          ok: false as const,
+          error: {
+            code: "mate.dispatch.rejected" as const,
+            reason: error instanceof Error ? error.message : String(error),
+          },
+        };
+      }
+    },
+  );
+  services.register(IAssistantTicketService, assistantTicketService);
+  sqliteReposToClose.push({ close: () => assistantDatabase.close() });
 
   // 即使初始配置关闭也必须登记 lifecycle disposer：terminal fence 需要早于任意延迟 setting/acquire
   // 恢复，不能把"当前还没有 Helper"误当成"不需要生命周期所有者"。dispose 时串行 stop host。

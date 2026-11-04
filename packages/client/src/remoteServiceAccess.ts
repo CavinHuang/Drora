@@ -49,6 +49,7 @@ import {
   IPluginManagementService,
   ISubagentsService,
   IModelCapabilitiesService,
+  IAssistantTicketService,
   ICommandsService,
   IHooksService,
   IMemoryService,
@@ -115,6 +116,9 @@ export class RemoteServiceAccess implements IServiceAccessor {
   // 五个能力条目恒「不可用」、语音 asr/tts 档案消费恒缺省（同 obsidianVaultService
   // 曾因合并丢失的事故形态，见上方 eff2ee71 注释）。
   readonly modelCapabilitiesService?: IModelCapabilitiesService;
+  /** Drora Mate 工单服务（specs/drora-personal-assistant.md）：仅桌面本地 Host 注册，
+   *  同 modelCapabilities 走 options 显式能力门控（远端/stdio Host 不注册该 channel）。 */
+  readonly assistantTicketService?: IAssistantTicketService;
   readonly providerProvisioningStatusService?: IProviderProvisioningStatusService;
   readonly usageStatsService: IUsageStatsService;
   readonly codingPlanSubscriptionService: ICodingPlanSubscriptionService;
@@ -161,6 +165,7 @@ export class RemoteServiceAccess implements IServiceAccessor {
       sourceServerManagementService?: boolean;
       deviceSyncStateService?: boolean;
       modelCapabilitiesService?: boolean;
+      assistantTicketService?: boolean;
       windowProjectDirectory?: boolean;
     } = {},
   ) {
@@ -284,6 +289,12 @@ export class RemoteServiceAccess implements IServiceAccessor {
     this.modelCapabilitiesService = options.modelCapabilitiesService
       ? ProxyChannel.toService<IModelCapabilitiesService>(
           channelClient.getChannel(IModelCapabilitiesService.channelName),
+        )
+      : undefined;
+    // Drora Mate 工单服务：与 modelCapabilities 同形的显式能力门控（仅桌面本地 Host 注册）。
+    this.assistantTicketService = options.assistantTicketService
+      ? ProxyChannel.toService<IAssistantTicketService>(
+          channelClient.getChannel(IAssistantTicketService.channelName),
         )
       : undefined;
     this.usageStatsService = ProxyChannel.toService<IUsageStatsService>(

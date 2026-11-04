@@ -172,6 +172,7 @@
   "packages/server/test/tsupConfig.test.ts",
   "packages/services/src/drora-agent/resident-rows-range/contract.test.ts",
   "packages/services/src/gen-ui/contract.test.ts",
+  "packages/services/test/assistantTicketsService.test.ts",
   "packages/services/test/inputPredictionSwitch.test.ts",
   "packages/services/test/knowledgeJevAdapter.test.ts",
   "packages/services/test/knowledgeJevAssembly.test.ts",

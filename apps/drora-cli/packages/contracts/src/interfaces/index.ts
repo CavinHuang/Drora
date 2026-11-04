@@ -23,6 +23,9 @@ export * from "./dynamic-workflow-snippet.port.js";
 export * from "./model-catalog.port.js";
 export * from "./automation.port.js";
 export * from "./vault-search.port.js";
+// agent 内置文生图端口（specs/model-capabilities.md §6）：名字常量与端口结果 schema
+// 被 core 工具注册与 bootstrap 端口实现读走，漏掉这行两端拿不到类型。
+export * from "./image-generation.port.js";
 export * from "./mcp.port.js";
 export * from "./browser-control.port.js";
 export * from "./shared.js";

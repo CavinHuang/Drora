@@ -7,7 +7,7 @@ import type { McpToolUiDescriptor } from "@drora/shared/mcp-apps";
 // ============================================================
 // Tool Types - Core tool types for registry and executor
 // ============================================================
-import type { CollaborationMode, AutomationPort, BrowserControlPort, CoordinatorResponsePort, DynamicWorkflowRunPort, DynamicWorkflowSnippetPort, OffPeakPort, VaultSearchPort, EmbeddedSearchBackend, ExecutionPort, ExecutionShellSelection, FileSystemPort, HttpClientPort, ImageProcessorPort, JsonSchema, Model, ModelCatalogPort, ModelContentProtection, ModelMessageContent, ModelToolSideEffectScope, TopicResourcePort, PdfDocumentPort, PermissionBrokerReasonSource, PermissionCapabilityGroup, PermissionRuleBehavior, PermissionRuleValue, PermissionUpdate, ProviderNativeToolSpec, RiskLevel, SessionEvent, SessionId, SessionModePort, SessionStorePort, SkillPort, SkillTelemetryMetadata, SubagentPort, SubagentRunOptions, ToolArtifactStorePort, ToolCancellationPolicy, ToolContractDeclaration, ToolExecutionMode, ToolExecutionSpanWriter, ToolExecutionTelemetry, ToolResultBudgetStrategy, ToolResultDisplayPayload, ToolTimeoutPolicy, TraceContext, TraceId, TurnId, WorkflowEscalatePort, WorkflowPort, WorkflowSubmitPort } from "@drora/contracts";
+import type { CollaborationMode, AutomationPort, BrowserControlPort, CoordinatorResponsePort, DynamicWorkflowRunPort, DynamicWorkflowSnippetPort, OffPeakPort, VaultSearchPort, EmbeddedSearchBackend, ExecutionPort, ExecutionShellSelection, FileSystemPort, HttpClientPort, ImageGenerationPort, ImageProcessorPort, JsonSchema, Model, ModelCatalogPort, ModelContentProtection, ModelMessageContent, ModelToolSideEffectScope, TopicResourcePort, PdfDocumentPort, PermissionBrokerReasonSource, PermissionCapabilityGroup, PermissionRuleBehavior, PermissionRuleValue, PermissionUpdate, ProviderNativeToolSpec, RiskLevel, SessionEvent, SessionId, SessionModePort, SessionStorePort, SkillPort, SkillTelemetryMetadata, SubagentPort, SubagentRunOptions, ToolArtifactStorePort, ToolCancellationPolicy, ToolContractDeclaration, ToolExecutionMode, ToolExecutionSpanWriter, ToolExecutionTelemetry, ToolResultBudgetStrategy, ToolResultDisplayPayload, ToolTimeoutPolicy, TraceContext, TraceId, TurnId, WorkflowEscalatePort, WorkflowPort, WorkflowSubmitPort } from "@drora/contracts";
 import type { RuntimeTaskRegistry } from "../runtime-task/registry.js";
 import type { SystemReminderSource } from "../system-reminder/source.js";
 import type {
@@ -132,6 +132,11 @@ export interface ToolExecutionContext {
   automationPort?: AutomationPort;
   /** agent 只读 vault 检索端口（obsidian-knowledge.md §5f）；缺席则 VaultSearch 不注册。 */
   vaultSearchPort?: VaultSearchPort;
+  /**
+   * agent 内置文生图端口（specs/model-capabilities.md §6）。端口恒注入（不做注册门）：
+   * 可用性由端口错误语义统一表达（缺席/-32601/档案未启用 → ConfigurationError）。
+   */
+  imageGenerationPort?: ImageGenerationPort;
   offPeakPort?: OffPeakPort;
   topicResourcePort?: TopicResourcePort;
   sessionStore?: SessionStorePort;

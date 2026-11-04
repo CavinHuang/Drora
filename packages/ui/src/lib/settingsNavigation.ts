@@ -16,7 +16,6 @@ export type SettingsSectionId =
   // Drora 人格资料管理（specs/drora-persona-system.md §10）：入口由
   // hello.capabilities.personaControlV1 + 本地桌面连接动态门控，不是常驻分区。
   | "drora"
-  | "knowledge"
   | "plugin"
   | "mcp"
   | "skill"
@@ -45,6 +44,8 @@ const SETTINGS_SECTION_INTENT_KEY = "drora-settings-section-intent",
 const SETTINGS_SOURCE_SERVER_ID_INTENT_KEY = "drora-settings-source-server-id-intent";
 const SETTINGS_SOURCE_SERVER_DETAILS_INTENT_KEY = "drora-settings-source-server-details-intent";
 const SETTINGS_MODEL_PROVIDER_ID_INTENT_KEY = "drora-settings-model-provider-id-intent";
+const SETTINGS_MODEL_CAPABILITY_PURPOSE_INTENT_KEY =
+  "drora-settings-model-capability-purpose-intent";
 const SETTINGS_SECTION_INTENT_EVENT = "drora:settings-section-intent",
   SETTINGS_LAST_SECTION_STORAGE_KEY = "drora-settings-last-section";
 const HIDDEN_SETTINGS_SECTIONS = new Set<SettingsSectionId>([
@@ -65,12 +66,20 @@ export interface SettingsSectionIntentEventDetail {
   pluginScopeKey?: string;
   usageTab?: SettingsUsageTabTarget;
   modelProviderId?: string;
+  /** 模型能力条目深链（specs/model-capabilities.md §12 F-5）：直达五条目之一。 */
+  modelCapabilityPurpose?: string;
   sourceServerId?: string;
   sourceServerDetails?: boolean;
 }
 
+/**
+ * 模型设置页深链目标：供应商（providerId）或模型能力条目（capabilityPurpose）
+ * 二选一。capabilityPurpose 取值 = shared 的 ModelCapabilityPurpose（"decision-jev"
+ * 等），由 ModelProviderSection 校验后拼 `capability:` 导航节点 key。
+ */
 export interface SettingsModelProviderTarget {
-  providerId: string;
+  providerId?: string;
+  capabilityPurpose?: string;
 }
 
 function isSettingsSectionId(value: string): value is SettingsSectionId {
@@ -84,7 +93,6 @@ function isSettingsSectionId(value: string): value is SettingsSectionId {
     value === "dataSync" ||
     value === "personalization" ||
     value === "memory" ||
-    value === "knowledge" ||
     value === "plugin" ||
     value === "mcp" ||
     value === "skill" ||
@@ -241,6 +249,7 @@ export function setPendingSettingsSectionIntent(
     pluginOrigin?: SettingsPluginNavigationOrigin;
     pluginScopeKey?: string;
     modelProviderId?: string;
+    modelCapabilityPurpose?: string;
     sourceServerId?: string;
     sourceServerDetails?: boolean;
     usageTab?: SettingsUsageTabTarget;
@@ -293,6 +302,15 @@ export function setPendingSettingsSectionIntent(
     } else {
       window.sessionStorage.removeItem(SETTINGS_MODEL_PROVIDER_ID_INTENT_KEY);
     }
+    const normalizedCapabilityPurpose = options.modelCapabilityPurpose?.trim();
+    if (normalizedCapabilityPurpose) {
+      window.sessionStorage.setItem(
+        SETTINGS_MODEL_CAPABILITY_PURPOSE_INTENT_KEY,
+        normalizedCapabilityPurpose,
+      );
+    } else {
+      window.sessionStorage.removeItem(SETTINGS_MODEL_CAPABILITY_PURPOSE_INTENT_KEY);
+    }
   } catch {
     // 忽略浏览器存储异常，不影响主流程。
   }
@@ -308,6 +326,7 @@ export function setPendingSettingsSectionIntent(
         pluginScopeKey: options.pluginScopeKey?.trim() || undefined,
         usageTab: options.usageTab,
         modelProviderId: options.modelProviderId,
+        modelCapabilityPurpose: options.modelCapabilityPurpose?.trim() || undefined,
         ...(section === "remoteDevices" && options.sourceServerId?.trim()
           ? {
               sourceServerId: options.sourceServerId.trim(),
@@ -330,6 +349,7 @@ function clearPendingSettingsSectionIntent(): void {
     window.sessionStorage.removeItem(SETTINGS_SOURCE_SERVER_DETAILS_INTENT_KEY);
     window.sessionStorage.removeItem(SETTINGS_USAGE_TAB_INTENT_KEY);
     window.sessionStorage.removeItem(SETTINGS_MODEL_PROVIDER_ID_INTENT_KEY);
+    window.sessionStorage.removeItem(SETTINGS_MODEL_CAPABILITY_PURPOSE_INTENT_KEY);
     window.sessionStorage.removeItem(SETTINGS_PLUGIN_TAB_INTENT_KEY);
     window.sessionStorage.removeItem(SETTINGS_PLUGIN_ORIGIN_INTENT_KEY);
     window.sessionStorage.removeItem(SETTINGS_PLUGIN_SCOPE_KEY_INTENT_KEY);
@@ -449,7 +469,16 @@ export function consumePendingSettingsModelProviderTarget():
 
   try {
     const providerId = window.sessionStorage.getItem(SETTINGS_MODEL_PROVIDER_ID_INTENT_KEY);
+    const capabilityPurpose = window.sessionStorage.getItem(
+      SETTINGS_MODEL_CAPABILITY_PURPOSE_INTENT_KEY,
+    );
     window.sessionStorage.removeItem(SETTINGS_MODEL_PROVIDER_ID_INTENT_KEY);
+    window.sessionStorage.removeItem(SETTINGS_MODEL_CAPABILITY_PURPOSE_INTENT_KEY);
+    // capability 深链优先：jevOff 横幅等运行时入口要直达「模型能力→知识评分」条目，
+    // 与供应商深链互斥（同一时刻只锚定一个目标，避免两个键残留互相覆盖）。
+    if (capabilityPurpose?.trim()) {
+      return { capabilityPurpose: capabilityPurpose.trim() };
+    }
     if (!providerId?.trim()) {
       return undefined;
     }

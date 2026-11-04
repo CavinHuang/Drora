@@ -1,10 +1,12 @@
 /**
  * 播报角色（persona）v1 builtin 目录（specs/voice-agent-integration.md §9.7.8）。
  *
- * 机制（冻结）：4 个 builtin 预设 + 「自定义」派生档；选择角色 = 一次 patch 物化写
- * 四个底层键（音色/云音色/语速/播报语言）；`voicePersonaId` 仅作设置面显示当前选择，
- * 运行时零读路径（消费链只读四个底层键）；双引擎双轨音色（systemVoiceHint →
- * voiceAnnouncementVoice、cloudVoice → voiceTtsVendorVoice）；角色不影响打断词表。
+ * 机制（冻结；模型能力收敛后双存储形态）：4 个 builtin 预设 + 「自定义」派生档；
+ * 选择角色 = 成对物化写——appSettings 四行为键（音色/语速/播报语言 + voicePersonaId）
+ * + 模型能力档案 tts.voice（云音色，specs/model-capabilities.md §5.2）；
+ * `voicePersonaId` 仅作设置面显示当前选择，运行时零读路径（消费链只读底层键）；
+ * 双引擎双轨音色（systemVoiceHint → voiceAnnouncementVoice、cloudVoice → 档案
+ * tts.voice）；角色不影响打断词表。
  *
  * 目录内容（建议，待拍板——spec §9.7.8-2）：rate/lang 按 spec 建议落值；systemVoiceHint
  * /cloudVoice 现均为空串 = 自动（system=系统默认音色、cloud=厂商默认音色）——系统音色
@@ -78,27 +80,34 @@ export function findVoicePersonaPreset(id: string | null | undefined): VoicePers
 }
 
 /**
- * 物化 patch 组装（§9.7.8-3 / V7-a）：点选 builtin P → 单次 updateSettings 五键
- * （原子 patch，照 handleAcknowledge 多键 patch 先例）；空串原样物化（= 自动）。
+ * 行为偏好物化 patch（§9.7.8-3 / V7-a；appSettings 四键）：点选 builtin P 时与
+ * buildVoicePersonaCapabilityPatch（档案 tts.voice）成对调用；空串原样物化（= 自动）。
  * 空串清写即「重置该轨为自动」——「自定义」不清底层键由不调用本函数保证（派生档不可点选）。
+ *
+ * 模型能力收敛（specs/model-capabilities.md §3.3/§5.2，批次二）：云音色
+ * voiceTtsVendorVoice 旧键删除，cloud 轨物化迁至模型能力档案 tts.voice
+ * （buildVoicePersonaCapabilityPatch）；本 patch 只写 appSettings 行为偏好键。
  */
-export function buildVoicePersonaPatch(
-  preset: VoicePersonaPreset,
-): {
+export function buildVoicePersonaPatch(preset: VoicePersonaPreset): {
   voicePersonaId: string;
   voiceAnnouncementVoice: string;
-  voiceTtsVendorVoice: string;
   voiceAnnouncementRate: number;
   voiceAnnouncementLang: string;
 } {
   return {
     voicePersonaId: preset.id,
-    // 双引擎双轨各写各键（§9.7.8-5）：切引擎即换轨读，无需重选角色。
+    // system 轨音色留 appSettings（行为偏好）；cloud 轨见 capability patch。
     voiceAnnouncementVoice: preset.systemVoiceHint,
-    voiceTtsVendorVoice: preset.cloudVoice,
     voiceAnnouncementRate: preset.rate,
     voiceAnnouncementLang: preset.lang,
   };
+}
+
+/** cloud 轨物化 patch（模型能力档案 tts.voice；与 buildVoicePersonaPatch 成对调用）。 */
+export function buildVoicePersonaCapabilityPatch(preset: VoicePersonaPreset): {
+  tts: { voice: string };
+} {
+  return { tts: { voice: preset.cloudVoice } };
 }
 
 /** 显示派生结果：id = 命中 builtin id 或「自定义」哨兵；preset 仅命中时非空。@lintignore */
@@ -111,16 +120,22 @@ export interface VoicePersonaSelection {
  * 「自定义」派生判定（§9.7.8-4 / V7-c）：voicePersonaId 命中 builtin 且四底层键与该
  * preset 物化值逐项相等 → 显示该 preset；否则（未选/未知 id/任一键发散）→ 「自定义」。
  * 只读不写——发散不回写 voicePersonaId（各底层键控件保持 persona 无感知，零耦合）。
+ *
+ * 云音色腿读模型能力档案 tts.voice（specs/model-capabilities.md §5.2，经
+ * useModelCapabilities 注入；AppSettings 旧键已删除）。
  */
 export function resolveVoicePersonaSelection(
-  settings: Pick<
-    AppSettings,
-    | "voicePersonaId"
-    | "voiceAnnouncementVoice"
-    | "voiceTtsVendorVoice"
-    | "voiceAnnouncementRate"
-    | "voiceAnnouncementLang"
-  > | null | undefined,
+  settings:
+    | Pick<
+        AppSettings,
+        | "voicePersonaId"
+        | "voiceAnnouncementVoice"
+        | "voiceAnnouncementRate"
+        | "voiceAnnouncementLang"
+      >
+    | null
+    | undefined,
+  ttsVendorVoice: string | null | undefined,
 ): VoicePersonaSelection {
   const preset = findVoicePersonaPreset(settings?.voicePersonaId);
   if (!preset) {
@@ -129,7 +144,7 @@ export function resolveVoicePersonaSelection(
   const materialized = buildVoicePersonaPatch(preset);
   const diverged =
     (settings?.voiceAnnouncementVoice ?? "") !== materialized.voiceAnnouncementVoice ||
-    (settings?.voiceTtsVendorVoice ?? "") !== materialized.voiceTtsVendorVoice ||
+    (ttsVendorVoice ?? "") !== preset.cloudVoice ||
     (settings?.voiceAnnouncementRate ?? 1) !== materialized.voiceAnnouncementRate ||
     (settings?.voiceAnnouncementLang ?? "") !== materialized.voiceAnnouncementLang;
   if (diverged) {

@@ -4,6 +4,11 @@
  * 静态清单驱动 voiceI18n.test.ts 三断言守护（双语键集一致 / 消费键存在非空 / 占位符
  * 同构）。Phase 1a 只列本批消费的键；Phase 1b/2 键（voice.ann.stop.aria、voice.brief.*、
  * voice.interrupt.hint）随各自批次补录。
+ *
+ * 模型能力收敛（specs/model-capabilities.md §5.2，批次二）：引擎/厂商档键
+ *（asr.engine.*、tts.engine.*、vendor.*）迁至 settings.modelCapability.*（设置页
+ * 「模型能力」分组表单消费，清单见 ModelCapabilityDetail.test.tsx 与 locales），
+ * 本清单随之收窄为行为偏好与运行时消费键。
  */
 
 export const VOICE_ENTRY_I18N_KEYS = [
@@ -45,21 +50,11 @@ export const VOICE_SETTINGS_I18N_KEYS = [
   "voice.settings.dictation.lang.auto",
   "voice.settings.dictation.lang.zh",
   "voice.settings.dictation.lang.en",
-  "voice.settings.asr.engine.label",
-  "voice.settings.asr.engine.webSpeech",
-  "voice.settings.asr.engine.remote",
   "voice.settings.announcement.enable.label",
   "voice.settings.announcement.enable.description",
   "voice.settings.announcement.voice.label",
   "voice.brief.prefix",
   "voice.brief.truncated",
-  "voice.settings.tts.engine.label",
-  "voice.settings.tts.engine.system",
-  "voice.settings.tts.engine.cloud",
-  "voice.settings.vendor.ttsModel.label",
-  "voice.settings.vendor.ttsModel.placeholder",
-  "voice.settings.vendor.ttsVoice.label",
-  "voice.settings.vendor.ttsVoice.placeholder",
   "voice.settings.announcement.voice.default",
   "voice.settings.announcement.voice.loading",
   "voice.settings.announcement.voice.preview",
@@ -86,15 +81,6 @@ export const VOICE_SETTINGS_I18N_KEYS = [
   "voice.settings.privacy.persistence",
   "voice.settings.privacy.mic",
   "voice.settings.privacy.acknowledge",
-  "voice.settings.vendor.baseUrl.label",
-  "voice.settings.vendor.baseUrl.placeholder",
-  "voice.settings.vendor.baseUrl.insecureWarning",
-  "voice.settings.vendor.baseUrl.unparseableWarning",
-  "voice.settings.vendor.asrModel.label",
-  "voice.settings.vendor.asrModel.placeholder",
-  "voice.settings.vendor.apiKey.label",
-  "voice.settings.vendor.apiKey.placeholder",
-  "voice.settings.vendor.dataHandler",
 ] as const;
 
 export const VOICE_SOURCE_I18N_KEYS = ["voice.source.fromVoice"] as const;

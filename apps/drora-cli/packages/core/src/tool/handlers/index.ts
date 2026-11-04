@@ -49,6 +49,7 @@ import {
 } from "./cron.js";
 import { offPeakCreateToolEntry, offPeakListToolEntry } from "./off-peak.js";
 import { vaultSearchToolEntry } from "./vault-search.js";
+import { generateImageToolEntry } from "./generate-image.js";
 import {
   createEnterPlanModeToolEntry,
   enterPlanModeToolEntry,
@@ -103,6 +104,11 @@ export const builtInTools: ToolEntry[] = [
   // agent 只读 vault 检索（obsidian-knowledge.md §5f）：host 注入 VaultSearchPort 才注册，
   // 与 automationPort 同一门式——端口缺席时不产生指向不存在能力的工具面。
   vaultSearchToolEntry,
+  // agent 内置文生图（specs/model-capabilities.md §6.2）：**恒注入、不做 include 布尔门**
+  // （与 VaultSearch 的有意分歧）：能力发现本身是产品需求——create-pet 等技能按「真实
+  // schema 注册」判定可用性，未配置环境由结构化 ConfigurationError（含设置页指引）表达，
+  // 不靠工具缺席隐藏。
+  generateImageToolEntry,
   enterPlanModeToolEntry,
   exitPlanModeToolEntry,
   askUserQuestionToolEntry,

@@ -163,6 +163,7 @@ import {
   droraProtocolEmptyResultSchema,
   droraProtocolMethods,
   droraKnowledgeSearchParamsSchema,
+  droraModelCapabilityGenerateImageParamsSchema,
   droraProtocolNotifications,
   droraMcpTelemetryEventSchema,
   droraMcpResourceSamplesSchema,
@@ -212,6 +213,7 @@ import {
   type DroraTaskMode,
 } from "@drora/shared";
 import type { IKnowledgeQueryService } from "#src/knowledge/knowledgeQuery.js";
+import type { ImageGenerationResult } from "#src/model-capabilities/index.js";
 import { toVaultSearchProtocolResult } from "#src/knowledge/vaultSearchProtocol.js";
 import { createServiceLogger } from "#src/logger/serviceLogger.js";
 import { createOfficialMcpIssuanceAudit } from "#src/official-mcp/officialMcpIssuanceAudit.js";
@@ -1132,6 +1134,14 @@ interface CreateDroraAgentServiceBaseOptions extends Omit<
    * knowledgeServices 在 createLocalServices 内晚于本服务构造，只在请求期解引用。
    */
   knowledgeQuerySource?: () => Pick<IKnowledgeQueryService, "createRun" | "search"> | null;
+  /**
+   * agent 内置文生图入口（specs/model-capabilities.md §6）：返回 null = 本 host 无
+   * 画图服务（未注入档案服务/远程降级），modelCapability/generateImage 分发回 -32601，
+   * CLI 翻译为固定不可用文案（照 knowledge/search 的 thunk 解引用模式）。
+   */
+  imageGenerationSource?: () => {
+    generate(request: { prompt: string; size?: string }): Promise<ImageGenerationResult>;
+  } | null;
   accountProviderConfigSource?: ProviderSource<AccountProviderConfigSnapshot>;
   /**
    * Start Plan 人机验证凭证采集（阿里云 WAF 3007 的解法，见 specs/start-plan-captcha-verification.md）。
@@ -3570,6 +3580,46 @@ export function createDroraAgentService(
               });
               const finished = await knowledgeQuery.search({ runId: run.runId });
               await client.respond(request.id, toVaultSearchProtocolResult(finished));
+            } catch (error) {
+              await client.respondError(request.id, {
+                code: -32603,
+                message: error instanceof Error ? error.message : String(error),
+              });
+            }
+          })();
+          return;
+        }
+
+        // agent 内置文生图（specs/model-capabilities.md §6）：分发到进程内模型能力档案
+        // 画图服务（出站与凭据解密全部留在 host，凭据零出 host）。无画图服务的 host
+        // 回 -32601（与旧 host method-not-found 同码，CLI 端口统一翻译为不可用文案）；
+        // 入参校验失败 -32602；服务异常 -32603 透传消息。业务失败是结构化 ok:false
+        // 结果（照 testJevConnection 风格），不占错误通道。
+        if (request.method === droraProtocolMethods.modelCapabilityGenerateImage) {
+          const parsed = droraModelCapabilityGenerateImageParamsSchema.safeParse(
+            request.params ?? {},
+          );
+          if (!parsed.success) {
+            void client.respondError(request.id, {
+              code: -32602,
+              message: "Invalid image generation params",
+              data: parsed.error.flatten(),
+            });
+            return;
+          }
+          void (async () => {
+            try {
+              const imageGeneration = options?.imageGenerationSource?.();
+              if (!imageGeneration) {
+                await client.respondError(request.id, {
+                  code: -32601,
+                  message:
+                    "Image generation is unavailable on this host (no model capabilities service).",
+                });
+                return;
+              }
+              const result = await imageGeneration.generate(parsed.data);
+              await client.respond(request.id, result);
             } catch (error) {
               await client.respondError(request.id, {
                 code: -32603,

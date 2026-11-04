@@ -3,6 +3,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "zustand";
 import { marketingNavigation, finishMarketingNavigation } from "@/lib/marketingNavigation.js";
 import {
+  createCapabilityNodeKey,
+  MODEL_CAPABILITY_NAV_PURPOSES,
+} from "./model-capabilities/capabilityNav.js";
+import {
   getProviderFormApiKey,
   type ProviderSettingsFormProvider,
 } from "@/lib/providerSettingsFormTypes.js";
@@ -293,12 +297,24 @@ export function ModelProviderSection({
   }, [providerSettingsView]);
   const providerConnectionRefreshSignal = providerSettingsView?.revision;
   const [initialModelProviderTarget] = useState(() => consumePendingSettingsModelProviderTarget());
-  const [invalidProviderTarget, setInvalidProviderTarget] = useState(() =>
-    Boolean(
-      initialModelProviderTarget && !resolveCodingPlanIntentProviderId(initialModelProviderTarget),
-    ),
-  );
+  const [invalidProviderTarget, setInvalidProviderTarget] = useState(() => {
+    const target = initialModelProviderTarget;
+    if (!target) return false;
+    if (target.capabilityPurpose) {
+      return !MODEL_CAPABILITY_NAV_PURPOSES.some(
+        (candidate) => candidate === target.capabilityPurpose,
+      );
+    }
+    return !resolveCodingPlanIntentProviderId(target);
+  });
   const [selectedNodeKey, setSelectedNodeKey] = useState<string | null>(() => {
+    const target = initialModelProviderTarget;
+    const purpose = target?.capabilityPurpose
+      ? MODEL_CAPABILITY_NAV_PURPOSES.find((candidate) => candidate === target.capabilityPurpose)
+      : undefined;
+    if (purpose) {
+      return createCapabilityNodeKey(purpose);
+    }
     const providerId = resolveCodingPlanIntentProviderId(initialModelProviderTarget);
     return providerId ? resolveProviderFamilySideNodeKey(providerId) : null;
   });
@@ -332,6 +348,26 @@ export function ModelProviderSection({
   const applyModelProviderTarget = useCallback(
     (target: SettingsModelProviderTarget | undefined) => {
       if (!target) return false;
+      // capability 深链优先于供应商深链（specs/model-capabilities.md §12 F-5）：
+      // jevOff 横幅等运行时入口直达「模型能力」五条目之一；非法 purpose 走与
+      // 未知供应商同款的 invalid 提示，不静默吞导航指令。
+      if (target.capabilityPurpose) {
+        const purpose = MODEL_CAPABILITY_NAV_PURPOSES.find(
+          (candidate) => candidate === target.capabilityPurpose,
+        );
+        if (!purpose) {
+          logger.warn("[ModelProviderSection] 无法打开目标模型能力条目", {
+            capabilityPurpose: target.capabilityPurpose,
+          });
+          setInvalidProviderTarget(true);
+          setTemplatePickerOpen(false);
+          return true;
+        }
+        setInvalidProviderTarget(false);
+        setTemplatePickerOpen(false);
+        setSelectedNodeKey(createCapabilityNodeKey(purpose));
+        return true;
+      }
       const providerId = resolveCodingPlanIntentProviderId(target);
       if (!providerId) {
         // 未知 ID 不能只静默忽略：pending 指令不消费的话，外部输入错误会困住导航。
@@ -366,11 +402,13 @@ export function ModelProviderSection({
           return;
         }
         applyModelProviderTarget(
-          detail?.modelProviderId
-            ? {
-                providerId: detail.modelProviderId,
-              }
-            : undefined,
+          detail?.modelCapabilityPurpose
+            ? { capabilityPurpose: detail.modelCapabilityPurpose }
+            : detail?.modelProviderId
+              ? {
+                  providerId: detail.modelProviderId,
+                }
+              : undefined,
         );
       }),
     [applyModelProviderTarget],

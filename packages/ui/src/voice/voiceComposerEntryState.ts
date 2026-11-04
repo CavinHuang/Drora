@@ -53,19 +53,24 @@ export function resolveVoiceAnnouncementLang(
  * §6.1 键 3/4 + §9.7.3 vendorVoice：播报音色（system 轨，空 = 系统默认）、语速
  * （缺省 1，范围 0.5–2.0）与云厂商音色 id（cloud 轨，空 = 厂商默认）。双轨同键面
  * 返回，由 speak 路由后的适配器各取各轨（引擎判定单点在 wiring，不在 reader 复刻）。
+ *
+ * 模型能力收敛（specs/model-capabilities.md §3.3/§5.2，批次二）：云音色随语音厂商档
+ * 迁入模型能力档案 tts.voice（capabilities 面），不再读 AppSettings voiceTtsVendorVoice
+ *（旧键删除）；ttsVendorVoice 参数由调用方经 useModelCapabilities 注入。
  */
 export function resolveVoiceAnnouncementVoiceConfig(
-  settings: Pick<
-    AppSettings,
-    "voiceAnnouncementVoice" | "voiceAnnouncementRate" | "voiceTtsVendorVoice"
-  > | null | undefined,
+  settings:
+    | Pick<AppSettings, "voiceAnnouncementVoice" | "voiceAnnouncementRate">
+    | null
+    | undefined,
+  ttsVendorVoice: string | null | undefined,
 ): {
   voice?: string;
   vendorVoice?: string;
   rate: number;
 } {
   const voice = settings?.voiceAnnouncementVoice?.trim() ?? "";
-  const vendorVoice = settings?.voiceTtsVendorVoice?.trim() ?? "";
+  const vendorVoice = ttsVendorVoice?.trim() ?? "";
   const rate = settings?.voiceAnnouncementRate;
   return {
     ...(voice.length > 0 ? { voice } : {}),

@@ -1,4 +1,6 @@
 import {
+  TID_MODEL_CAPABILITY_API_KEY_SAVE_BUTTON,
+  TID_MODEL_CAPABILITY_NAV_ITEM,
   TID_SETTINGS_BACK_BUTTON,
   TID_SETTINGS_PAGE,
   TID_SETTINGS_SECTION_NAV,
@@ -135,20 +137,28 @@ async function configureVoice(remote = false) {
     if (await dialog.isDisplayed()) await clickTestIdByDom("voice-privacy-acknowledge");
   }
   if (remote) {
+    // 模型能力收敛（specs/model-capabilities.md §5.2）：ASR 引擎/厂商档配置迁入
+    // 模型设置页「模型能力 → 语音识别」条目（档案唯一所有者）；先切 remote 引擎
+    //（字段随 engine=remote 显隐），再填 baseUrl（onBlur 落档）/模型/API Key。
+    await clickTestIdByDom(testId(TID_SETTINGS_SECTION_NAV, "modelProvider"));
+    await clickTestIdByDom(testId(TID_MODEL_CAPABILITY_NAV_ITEM, "capability:asr"));
+    await clickTestIdByDom("model-capability-engine-select-asr");
+    const option = await $('[role="option"][data-state="unchecked"]:not([data-disabled])');
+    // 此 Select 只有 webSpeech/remote 两项，当前 webSpeech 已选中，未选项即 remote。
+    await option.waitForDisplayed();
+    await option.click();
     for (const [id, value] of [
-      ["voice-vendor-base-url", "https://voice.example.test/v1"],
-      ["voice-vendor-asr-model", "synthetic-asr"],
-      ["voice-vendor-api-key", "synthetic-not-a-real-key"],
+      ["model-capability-base-url-input-asr", "https://voice.example.test/v1"],
+      ["model-capability-model-input-asr", "synthetic-asr"],
     ] as const) {
       const input = await $(`[data-testid="${id}"]`);
       await input.setValue(value);
       await browser.keys("Tab");
     }
-    await clickTestIdByDom("voice-asr-engine");
-    const option = await $('[role="option"][data-state="unchecked"]:not([data-disabled])');
-    // 此 Select 只有 webSpeech/remote 两项，当前 webSpeech 已选中，未选项即 remote。
-    await option.waitForDisplayed();
-    await option.click();
+    const apiKeyInput = await $('[data-testid="model-capability-api-key-input"]');
+    await apiKeyInput.setValue("synthetic-not-a-real-key");
+    await clickTestIdByDom(TID_MODEL_CAPABILITY_API_KEY_SAVE_BUTTON);
+    // 配置完成仍在设置页内；由函数尾部统一的返回按钮退出设置页。
   }
   await clickTestIdByDom(TID_SETTINGS_BACK_BUTTON);
   await $('[data-testid="v4-composer-voice-entry"]').waitForDisplayed({ timeout: 15000 });

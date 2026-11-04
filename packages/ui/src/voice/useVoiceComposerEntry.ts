@@ -1,16 +1,18 @@
 /**
  * 语音听写 composer 入口 hook（照 useCuaComposerEntry 三段式先例）。
  *
- * 只做数据汇聚：settings（appSettings 八键）× 平台形态 × locale × Web Speech 能力探测
- * → voiceComposerEntryState 纯函数；录音运行时全部在 useVoiceDictation，本 hook 不复制
+ * 只做数据汇聚：settings（appSettings 行为偏好键）× 模型能力档案（asr 引擎/厂商档，
+ * useModelCapabilities）× 平台形态 × locale × Web Speech 能力探测 →
+ * voiceComposerEntryState 纯函数；录音运行时全部在 useVoiceDictation，本 hook 不复制
  * 任何状态机分支。FD-5 的两入口共用 reader 守卫也在这里消费（isVoicePrivacyAcknowledged）。
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
-import { VOICE_VENDOR_CREDENTIAL_KEY } from "@drora/shared";
+import { modelCapabilityCredentialKey } from "@drora/shared";
 import { useDroraIntl } from "@/i18n/IntlProvider.js";
 import { useServices } from "@/hooks/useServices.js";
 import { useSettings } from "@/hooks/useSettingService.js";
+import { useModelCapabilities } from "@/hooks/useModelCapabilities.js";
 import {
   isVoiceComposerEntryVisibleInSettings,
   isVoicePrivacyAcknowledged,
@@ -56,6 +58,13 @@ export function useVoiceComposerEntry({
   const { intl, locale } = useDroraIntl();
   const services = useServices();
   const { settings, update: updateSettings } = useSettings();
+  // ASR 引擎/厂商档数据源切模型能力档案（specs/model-capabilities.md §4/§5.2）：
+  // settings 只剩行为偏好（入口显隐/听写语言/披露确认）；引擎选择读档案 asr 条目，
+  // 凭据读 model-capabilities:asr:api-key（旧 voice:vendor:api-key 已迁移删除）。
+  // 档案服务缺席（远端 workspace 等）→ capabilities=null → engine 缺省 webSpeech，
+  // 回退树语义不变（MC-10）。
+  const { capabilities } = useModelCapabilities();
+  const asrCapability = capabilities?.asr ?? null;
   const [privacyDialogOpen, setPrivacyDialogOpen] = useState(false);
   // 能力探测一次即可：window.SpeechRecognition 的存在性在会话生命周期内不会翻转；
   // 缺席（Firefox/iOS Safari）即不出入口（§6.1 能力探测，不写 UA 分支）。
@@ -64,9 +73,9 @@ export function useVoiceComposerEntry({
   useEffect(() => {
     let active = true;
     setVendorCredentialReady(false);
-    if (settings?.voiceAsrEngine !== "remote") return;
+    if (asrCapability?.engine !== "remote") return;
     void services.credentialService
-      ?.load(VOICE_VENDOR_CREDENTIAL_KEY)
+      ?.load(modelCapabilityCredentialKey.asr)
       .then((key) => {
         if (active) setVendorCredentialReady(Boolean(key?.trim()));
       })
@@ -76,17 +85,17 @@ export function useVoiceComposerEntry({
     };
   }, [
     services.credentialService,
-    settings?.voiceAsrEngine,
-    settings?.voiceVendorBaseUrl,
-    settings?.voiceAsrVendorModel,
+    asrCapability?.engine,
+    asrCapability?.baseUrl,
+    asrCapability?.modelId,
   ]);
   // F6：只在完整 remote 档+独立媒体能力均成立时选 remote，入口与起录同一解析规则。
   const asrSupported =
     resolveAsrEngineChoice({
-      engine: settings?.voiceAsrEngine ?? "webSpeech",
+      engine: asrCapability?.engine ?? "webSpeech",
       vendorConfigComplete: isVoiceVendorConfigComplete({
-        baseUrl: settings?.voiceVendorBaseUrl,
-        model: settings?.voiceAsrVendorModel,
+        baseUrl: asrCapability?.baseUrl,
+        model: asrCapability?.modelId,
         apiKey: vendorCredentialReady ? "available" : "",
       }),
       remoteSupported: isRemoteAsrSupported(),
@@ -123,10 +132,10 @@ export function useVoiceComposerEntry({
     });
   }, [updateSettings]);
 
-  // §9.6.6 引擎选型输入：settings 引擎/厂商档 + 凭据服务 apiKey（异步）。
+  // §9.6.6 引擎选型输入：档案 asr 引擎/厂商档 + 凭据服务 apiKey（异步，新键）。
   const getVendorApiKey = useCallback(
     () =>
-      services.credentialService?.load(VOICE_VENDOR_CREDENTIAL_KEY).catch(() => null) ??
+      services.credentialService?.load(modelCapabilityCredentialKey.asr).catch(() => null) ??
       Promise.resolve(null),
     [services.credentialService],
   );
@@ -136,10 +145,10 @@ export function useVoiceComposerEntry({
     workspaceIdentity,
     lang: dictationLang,
     requestStart,
-    asrEngine: settings?.voiceAsrEngine ?? "webSpeech",
+    asrEngine: asrCapability?.engine ?? "webSpeech",
     vendor: {
-      baseUrl: settings?.voiceVendorBaseUrl ?? "",
-      model: settings?.voiceAsrVendorModel ?? "",
+      baseUrl: asrCapability?.baseUrl ?? "",
+      model: asrCapability?.modelId ?? "",
     },
     getVendorApiKey,
     // §9.9.3-M9：入口可见性（voiceComposerEntryState 纯函数收口的唯一判定源）——

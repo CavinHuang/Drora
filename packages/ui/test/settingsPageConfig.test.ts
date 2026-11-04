@@ -131,6 +131,17 @@ describe("settingsPageConfig", () => {
     ).toBe(false);
   });
 
+  it("knowledge 分区已随模型能力收敛删除（specs/model-capabilities.md §5.2，桌面/Web 均无）", async () => {
+    const { createSettingsPageConfig } = await loadSettingsPageConfig("test");
+    for (const options of [{}, { isMacDesktop: true }] as const) {
+      const { settingsSections } = createSettingsPageConfig(options);
+      expect(settingsSections.some((section) => section.id === "knowledge")).toBe(false);
+    }
+    // voice 分区保留（瘦身为纯行为偏好，spec §0 澄清）。
+    const { settingsSections } = createSettingsPageConfig({});
+    expect(settingsSections.some((section) => section.id === "voice")).toBe(true);
+  });
+
   it("不可见的电脑控制落点回退到 general", async () => {
     const { createSettingsPageConfig, resolveSettingsSectionForPlatform } =
       await loadSettingsPageConfig("test");

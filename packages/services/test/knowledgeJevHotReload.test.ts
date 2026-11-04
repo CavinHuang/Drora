@@ -1,24 +1,28 @@
 /**
- * Jev 配置热生效 E2E（spec §5d.10 配置热生效）。
+ * Jev 配置热生效 E2E（spec §5d.10 配置热生效；数据源 = 模型能力档案快照，
+ * specs/model-capabilities.md §9 批次一 / MC-3）。
  *
- * 断言：configSource 装配下，变更配置源返回值（换端点到另一本地服务）+ refresh
+ * 断言：configSource 装配下，变更档案快照（换端点到另一本地服务）+ refresh
  * RPC 后，**下一次检索的 Jev 出站打到新端点**——全程无需重建服务/重启。缓存随
  * 配置签名变更清空（旧端点评分不串味）。
- * 运行：node --import tsx --test packages/services/test/knowledgeJevHotReload.test.ts
  */
 import assert from "node:assert/strict";
 import { createServer, type Server } from "node:http";
 import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import test from "node:test";
+import { it } from "vitest";
 import { setDataBaseDir } from "../src/paths.js";
 import { configureVaultAt } from "../src/obsidian-vault/config.js";
 import {
   createKnowledgeServices,
   type KnowledgeServices,
 } from "../src/knowledge/knowledgeServices.js";
-import type { KnowledgeJevAssembly } from "../src/knowledge/decision/jevAssembly.js";
+import {
+  resolveKnowledgeJevAssembly,
+  type KnowledgeJevAssembly,
+} from "../src/knowledge/decision/jevAssembly.js";
+import type { ModelCapabilities } from "@drora/shared";
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -71,21 +75,33 @@ function startJevStub(
   });
 }
 
-test("配置热生效：换端点 + refresh RPC 后下一次检索打到新端点（免重启）", async () => {
+it("配置热生效：换档案端点 + refresh RPC 后下一次检索打到新端点（免重启）", async () => {
   const root = await mkdtemp(join(tmpdir(), "drora-jev-hot-"));
   setDataBaseDir(root);
   const stubA = await startJevStub("A");
   const stubB = await startJevStub("B");
-  let current: KnowledgeJevAssembly | null = {
-    provider: "typesafe",
-    apiKey: "sk-hot-test",
-    baseUrl: `http://127.0.0.1:${stubA.port}`,
+  // MC-3 改数据源：可变的是「模型能力档案快照」（UI 写 update 后 configSource 读到的新值），
+  // 装配经真实 resolveKnowledgeJevAssembly 从快照 + 凭据解析——与生产 knowledgeHost 同路径。
+  let snapshotCapabilities: Pick<ModelCapabilities, "decision-jev"> = {
+    "decision-jev": {
+      enabled: true,
+      providerKind: "typesafe",
+      baseUrl: `http://127.0.0.1:${stubA.port}`,
+      modelId: "",
+    },
+  };
+  const fakeCredentials = {
+    load: async () => "sk-hot-test",
   };
 
   const services: KnowledgeServices = createKnowledgeServices({
     databasePath: join(root, "knowledge", "knowledge-index.sqlite"),
     pluginDataDir: join(root, "plugin-data"),
-    knowledgeJevConfigSource: async () => current,
+    knowledgeJevConfigSource: async (): Promise<KnowledgeJevAssembly | null> =>
+      resolveKnowledgeJevAssembly({
+        modelCapabilities: snapshotCapabilities,
+        credentialService: fakeCredentials,
+      }),
     leaseTtlMs: 4000,
     heartbeatIntervalMs: 300,
   });
@@ -122,11 +138,12 @@ test("配置热生效：换端点 + refresh RPC 后下一次检索打到新端�
     assert.equal(stubA.hits() > 0, true, "端点 A 应收到出站");
     const hitsAAfterFirst = stubA.hits();
 
-    // 换端点 B + refresh RPC（UI 写配置后的确定性即时路径）→ 下一次检索打到 B。
-    current = {
-      provider: "typesafe",
-      apiKey: "sk-hot-test",
-      baseUrl: `http://127.0.0.1:${stubB.port}`,
+    // 档案换端点 B + refresh RPC（UI 写 update 后的确定性即时路径）→ 下一次检索打到 B。
+    snapshotCapabilities = {
+      "decision-jev": {
+        ...snapshotCapabilities["decision-jev"],
+        baseUrl: `http://127.0.0.1:${stubB.port}`,
+      },
     };
     const refreshed = await services.indexService.refreshDecisionConfig();
     assert.equal(refreshed.refreshed, true);

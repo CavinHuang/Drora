@@ -8,6 +8,7 @@ import {
   DRORA_ENV,
   ZAI_PROVIDER_ID,
   type BuiltinModelProviderId,
+  type ModelCapabilityPurpose,
   type UsageQuotaLimit,
   type UsageEntitlementSubscriptionDetail,
   type UsageEntitlementSnapshot,
@@ -218,9 +219,16 @@ export type ModelProviderNavItem =
       label: string;
       provider: ProviderSettingsFormProvider;
       statusActive: boolean;
+    }
+  | {
+      /** 「模型能力」条目（specs/model-capabilities.md §5.1）：固定五类、固定顺序，不参与 dnd。 */
+      key: string;
+      type: "capability";
+      purpose: ModelCapabilityPurpose;
+      label: string;
     };
 
-export type ModelProviderNavGroupId = "preset" | "custom";
+export type ModelProviderNavGroupId = "preset" | "custom" | "capabilities";
 
 export interface ModelProviderNavGroup {
   id: ModelProviderNavGroupId;

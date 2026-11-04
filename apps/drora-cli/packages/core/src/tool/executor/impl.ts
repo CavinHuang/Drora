@@ -62,6 +62,9 @@ export class ToolExecutorImpl implements ToolExecutor {
       workflowEscalatePort: options.workflowEscalatePort,
       artifactStore: options.artifactStore,
       automationPort: options.automationPort,
+      // agent 内置文生图端口（specs/model-capabilities.md §6）：恒注入传递
+      // （不做注册门）；漏拷会让 handler 永远拿到缺席端口。
+      imageGenerationPort: options.imageGenerationPort,
       offPeakPort: options.offPeakPort,
       topicResourcePort: options.topicResourcePort,
       sessionStore: options.sessionStore,

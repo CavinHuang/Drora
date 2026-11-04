@@ -61,26 +61,38 @@ vi.mock("./speechSynthesisTtsAdapter.js", () => ({
   createSpeechSynthesisTtsAdapter: () => fakeTts,
 }));
 
-const { settingsState, cloudTtsState, stableServices } = vi.hoisted(() => {
+const { settingsState, ttsCapabilityState, cloudTtsState, stableServices } = vi.hoisted(() => {
   const settingsState = {
     current: {
       voiceAnnouncementEnabled: true,
       voiceAnnouncementVoice: "",
       voiceAnnouncementRate: 1,
-      voiceTtsEngine: "system" as "system" | "cloud",
-      voiceVendorBaseUrl: "",
-      voiceTtsVendorModel: "",
       voiceToolBriefEnabled: false,
     } as {
       voiceAnnouncementEnabled: boolean;
       voiceAnnouncementVoice: string;
       voiceAnnouncementRate: number;
-      voiceTtsEngine: "system" | "cloud";
-      voiceVendorBaseUrl: string;
-      voiceTtsVendorModel: string;
       voiceToolBriefEnabled: boolean;
     },
   };
+  // 模型能力档案 tts 条目（specs/model-capabilities.md §5.2：引擎/厂商档数据源；
+  // 旧 AppSettings voiceTtsEngine/voiceVendorBaseUrl/voiceTtsVendorModel 已删除）。
+  // 用例内经 setTtsCapability 就地变更（service.get 返回引用，模拟档案写入后
+  // onDidChange 到达的新快照；rerender 触发 hook 重渲染即重算引擎签名）。
+  const ttsCapability = {
+    engine: "system" as "system" | "cloud",
+    baseUrl: "",
+    modelId: "",
+    voice: "",
+  };
+  const setTtsCapability = (patch: Partial<typeof ttsCapability>) => {
+    Object.assign(ttsCapability, patch);
+  };
+  const asrCapability = { engine: "webSpeech" as "webSpeech" | "remote", baseUrl: "", modelId: "" };
+  const setAsrCapability = (patch: Partial<typeof asrCapability>) => {
+    Object.assign(asrCapability, patch);
+  };
+  const ttsCapabilityState = { current: ttsCapability, setTtsCapability, setAsrCapability };
   class FakeHandle {
     constructor(readonly utteranceId: string) {}
   }
@@ -136,8 +148,29 @@ const { settingsState, cloudTtsState, stableServices } = vi.hoisted(() => {
       save: async () => undefined,
       delete: async () => undefined,
     },
+    modelCapabilitiesService: {
+      get: async () => ({
+        schemaVersion: 1,
+        capabilities: {
+          "decision-jev": { enabled: false, providerKind: "typesafe", baseUrl: "", modelId: "" },
+          embedding: {
+            enabled: false,
+            mode: "local",
+            localModelId: "local-bge-small-zh-v1.5-int8",
+          },
+          asr: asrCapability,
+          tts: ttsCapability,
+          "image-generation": { enabled: false, baseUrl: "", modelId: "" },
+        },
+        migratedFromLegacySettings: true,
+      }),
+      update: async () => {
+        throw new Error("not used in wiring test");
+      },
+      onDidChange: () => ({ dispose: () => undefined }),
+    },
   };
-  return { settingsState, cloudTtsState, stableServices };
+  return { settingsState, ttsCapabilityState, cloudTtsState, stableServices };
 });
 
 vi.mock("./cloudTtsAdapter.js", async (importOriginal) => {
@@ -156,6 +189,7 @@ vi.mock("./cloudTtsAdapter.js", async (importOriginal) => {
 
 vi.mock("@/hooks/useServices.js", () => ({
   useServices: () => stableServices,
+  useOptionalServices: () => stableServices,
 }));
 
 vi.mock("@/hooks/useSettingService.js", () => ({
@@ -239,18 +273,30 @@ async function mountAnnouncement(params?: {
   /** §9.9.3-M11：远控壳门控（缺省 false = 桌面行为）。 */
   isWebRemoteControl?: boolean;
 }) {
+  // units 延迟投递：模型能力档案经 useModelCapabilities 异步首载（服务契约 get 为
+  // Promise）；先以空 units 挂载并 flush（档案快照就绪），再投递真实 units 触发轮尾
+  // 消费 effect——对齐生产稳态（快照先于首个轮尾到达），避免首句引擎解析读到
+  // 未加载态（specs/model-capabilities.md §4 fail-closed 语义）。
+  const deliveredUnits = { current: [] as unknown[] };
+  const deliveredPending = { current: [] as unknown[] };
   const harness = renderHook(() =>
     useVoiceAnnouncement({
       focused: params?.focused ?? true,
       sessionId: params?.sessionId ?? "sess-1",
       workspacePath: "/ws",
-      units: (params?.units ?? []) as never,
-      pendingInteractions: params?.pendingInteractions as never,
+      units: deliveredUnits.current as never,
+      pendingInteractions: deliveredPending.current as never,
       requestTaskStop: params?.requestTaskStop ?? (() => undefined),
       isWebRemoteControl: params?.isWebRemoteControl ?? false,
     }),
   );
   // claim acquire→startSpeaking 是异步链：flush 微任务保证断言前状态迁移完成。
+  await vi.advanceTimersByTimeAsync(0);
+  // units 与 pending 同轮投递：权限段与轮尾的相对次序（FD-3）保持在同一渲染 pass
+  // 内判定（hook effect 声明序：轮尾先消费、权限段以优先级插队），与原挂载语义一致。
+  deliveredUnits.current = params?.units ?? [];
+  deliveredPending.current = params?.pendingInteractions ?? [];
+  harness.rerender();
   await vi.advanceTimersByTimeAsync(0);
   return harness;
 }
@@ -267,11 +313,10 @@ beforeEach(() => {
     voiceAnnouncementEnabled: true,
     voiceAnnouncementVoice: "",
     voiceAnnouncementRate: 1,
-    voiceTtsEngine: "system",
-    voiceVendorBaseUrl: "",
-    voiceTtsVendorModel: "",
     voiceToolBriefEnabled: false,
   };
+  ttsCapabilityState.setTtsCapability({ engine: "system", baseUrl: "", modelId: "", voice: "" });
+  ttsCapabilityState.setAsrCapability({ engine: "webSpeech", baseUrl: "", modelId: "" });
 });
 
 afterEach(() => {
@@ -392,19 +437,18 @@ describe("useVoiceAnnouncement wiring", () => {
     // 连续失败信号由 cloudTtsAdapter fire（单测见 cloudTtsAdapter.test）；本用例验证
     // wiring 的回落开关：回落标记生效后 speak 走 speechSynthesis。
     // cloudTtsAdapter 在 wiring 层未 mock——settings engine=system 即走 synth（等价断言）。
-    settingsState.current = { ...settingsState.current, voiceTtsEngine: "system" };
+    ttsCapabilityState.setTtsCapability({ engine: "system" });
     const harness = await mountAnnouncement({ units: [makeUnit("t1", ["第一句。"])] });
     expect(fakeTts.spoken).toEqual(["第一句。"]);
     expect(harness.result.current.indicatorPhase).toBe("speaking");
   });
 
   it("routes cloud engine speech and falls back to speechSynthesis on consecutive failures (§9.6.5-3)", async () => {
-    settingsState.current = {
-      ...settingsState.current,
-      voiceTtsEngine: "cloud",
-      voiceVendorBaseUrl: "https://api.siliconflow.cn/v1",
-      voiceTtsVendorModel: "CosyVoice2-0.5B",
-    };
+    ttsCapabilityState.setTtsCapability({
+      engine: "cloud",
+      baseUrl: "https://api.siliconflow.cn/v1",
+      modelId: "CosyVoice2-0.5B",
+    });
     const harness = await mountAnnouncement({ units: [makeUnit("t1", ["第一句。"])] });
     await vi.advanceTimersByTimeAsync(0);
     // cloud 引擎播报：synth fake 零调用。
@@ -419,7 +463,7 @@ describe("useVoiceAnnouncement wiring", () => {
     expect(useVoiceSessionStore.getState().announcement.claimHeld).toBe(false);
 
     // 回落后下一轮尾走 speechSynthesis。
-    settingsState.current = { ...settingsState.current, voiceTtsEngine: "system" };
+    ttsCapabilityState.setTtsCapability({ engine: "system" });
     harness.rerender();
     harness.result.current.planner.consumeTurnTail({ turnId: "t2", text: "回落后句。" });
     await vi.advanceTimersByTimeAsync(0);
@@ -428,12 +472,11 @@ describe("useVoiceAnnouncement wiring", () => {
   });
 
   it("recovers cloud engine at the next resolution point after settings change (§9.6.5-3 至下一解析点恢复)", async () => {
-    settingsState.current = {
-      ...settingsState.current,
-      voiceTtsEngine: "cloud",
-      voiceVendorBaseUrl: "https://api.siliconflow.cn/v1",
-      voiceTtsVendorModel: "CosyVoice2-0.5B",
-    };
+    ttsCapabilityState.setTtsCapability({
+      engine: "cloud",
+      baseUrl: "https://api.siliconflow.cn/v1",
+      modelId: "CosyVoice2-0.5B",
+    });
     const harness = await mountAnnouncement({ units: [makeUnit("t1", ["第一句。"])] });
     await vi.advanceTimersByTimeAsync(0);
     cloudTtsState.fireConsecutiveFailures();
@@ -441,10 +484,7 @@ describe("useVoiceAnnouncement wiring", () => {
     expect(harness.result.current.indicatorPhase).toBe("annIdle");
 
     // 用户修复厂商档（同引擎、baseUrl 变更 = 签名变化）→ 下一解析点恢复 cloud。
-    settingsState.current = {
-      ...settingsState.current,
-      voiceVendorBaseUrl: "https://recovered.gateway/v1",
-    };
+    ttsCapabilityState.setTtsCapability({ baseUrl: "https://recovered.gateway/v1" });
     harness.rerender();
     harness.result.current.planner.consumeTurnTail({ turnId: "t2", text: "恢复后句。" });
     await vi.advanceTimersByTimeAsync(0);
@@ -531,12 +571,11 @@ describe("useVoiceAnnouncement wiring", () => {
   });
 
   it("credential pending: 凭据未加载时 cloud 引擎首句解析 system，加载完成后下一句起走 cloud（§9.9.3-M10）", async () => {
-    settingsState.current = {
-      ...settingsState.current,
-      voiceTtsEngine: "cloud",
-      voiceVendorBaseUrl: "https://api.siliconflow.cn/v1",
-      voiceTtsVendorModel: "CosyVoice2-0.5B",
-    };
+    ttsCapabilityState.setTtsCapability({
+      engine: "cloud",
+      baseUrl: "https://api.siliconflow.cn/v1",
+      modelId: "CosyVoice2-0.5B",
+    });
     // 凭据未加载：load 挂起不 resolve（null=未加载占位场景）。
     let resolveCredential!: (key: string | null) => void;
     stableServices.credentialService.load = () =>
@@ -569,12 +608,11 @@ describe("useVoiceAnnouncement wiring", () => {
   });
 
   it("credential 空串：持续 system、零 cloud 管线调用（§9.9.3-M10 零回落计数）", async () => {
-    settingsState.current = {
-      ...settingsState.current,
-      voiceTtsEngine: "cloud",
-      voiceVendorBaseUrl: "https://api.siliconflow.cn/v1",
-      voiceTtsVendorModel: "CosyVoice2-0.5B",
-    };
+    ttsCapabilityState.setTtsCapability({
+      engine: "cloud",
+      baseUrl: "https://api.siliconflow.cn/v1",
+      modelId: "CosyVoice2-0.5B",
+    });
     // 加载完成但为空串 = 确认缺失：判档不完整，不标 pending、零 cloud speak
     //（连败计数构造性为零——未加载/缺失期根本不进 cloud 管线）。
     stableServices.credentialService.load = async () => "";
@@ -616,12 +654,11 @@ describe("useVoiceAnnouncement wiring", () => {
 
 describe("§9.9.4-L13 cloudFallback 恢复签名纳入凭据指纹", () => {
   it("回落置位后用户补凭据（load null→非空）→ 清回落标记且下一句走 cloud，日志零凭据原文", async () => {
-    settingsState.current = {
-      ...settingsState.current,
-      voiceTtsEngine: "cloud",
-      voiceVendorBaseUrl: "https://api.siliconflow.cn/v1",
-      voiceTtsVendorModel: "CosyVoice2-0.5B",
-    };
+    ttsCapabilityState.setTtsCapability({
+      engine: "cloud",
+      baseUrl: "https://api.siliconflow.cn/v1",
+      modelId: "CosyVoice2-0.5B",
+    });
     // 凭据未加载（load 挂起，null=未加载占位）。
     let resolveCredential!: (key: string | null) => void;
     stableServices.credentialService.load = () =>
@@ -675,9 +712,12 @@ it("§9.8 regression: remote ASR entry must work without SpeechRecognition", asy
   Object.assign(settingsState.current, {
     voiceComposerEntryHidden: false,
     voicePrivacyDisclosureAcknowledged: true,
-    voiceAsrEngine: "remote",
-    voiceVendorBaseUrl: "https://voice.example.test/v1",
-    voiceAsrVendorModel: "asr",
+  });
+  // 引擎/厂商档读模型能力档案 asr 条目（specs/model-capabilities.md §5.2，MC-10）。
+  ttsCapabilityState.setAsrCapability({
+    engine: "remote",
+    baseUrl: "https://voice.example.test/v1",
+    modelId: "asr",
   });
   vi.stubGlobal(
     "MediaRecorder",

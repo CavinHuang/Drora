@@ -13,6 +13,7 @@ import {
   type ReactNode,
 } from "react";
 import {
+  normalizeDroraToolName,
   OFFICIAL_CUA_PERMISSION_RULE_TOOL_NAME,
   WORKFLOW_REFINE_PERMISSION_OPTION_ID,
   type DroraPermissionOption,
@@ -260,6 +261,24 @@ function getPermissionDisplayReason(request: DroraPermissionRequest): string | n
     : null;
 
   return inputReason ?? readUserFacingPermissionReason(request.description) ?? rawReason;
+}
+
+/**
+ * 按工具名补充的本地化审批说明（specs/model-capabilities.md §12 修复 F-2）。
+ *
+ * 背景：工具声明的 permission.reason（如 generate_image 的计费说明）在运行时零消费，
+ * 通用 ask 文案又被 NON_USER_FACING_PERMISSION_REASONS 过滤——fallback 弹窗只剩裸
+ * 工具名，用户在批准出站计费操作时得不到任何计费语境。这里按工具名给一句用户语言
+ * 的说明；判定复用 shared 已知工具表（normalizeDroraToolName），不新增字面量出处。
+ */
+function getPermissionToolNotice(
+  intl: ReturnType<typeof useDroraIntl>["intl"],
+  request: DroraPermissionRequest,
+): string | null {
+  if (normalizeDroraToolName(request.kind) === "generate_image") {
+    return intl.formatMessage({ id: "chat.permission.generateImageNotice" });
+  }
+  return null;
 }
 
 function getMcpPermissionToolName(toolCall: TaskChatToolCall): string | null {
@@ -566,6 +585,9 @@ export function PermissionDialog({
     [blockKind, codePreviewSettings, intl, rawFileSummaries, theme, toolCall, workspacePath],
   );
   const displayReason = useMemo(() => getPermissionDisplayReason(request), [request]);
+  // 按工具名补充的计费/出站语境（§12 修复 F-2）：generate_image 一类工具的通用 reason
+  // 被过滤后，fallback 弹窗需要一句用户语言的说明交代「批的是什么性质的操作」。
+  const toolNotice = useMemo(() => getPermissionToolNotice(intl, request), [intl, request]);
   // 工作流确认窗的两项 run 设置（WorkflowPermissionBlock 画，这里只存改过的值与「模型不可用」）。
   const isWorkflowAsk = blockKind === "workflow";
   const workflowSettings = usePermissionWorkflowSettings(request.requestId);
@@ -875,6 +897,12 @@ export function PermissionDialog({
             !shouldUseSaveWorkflowBlock &&
             displayReason ? (
               <p className="text-ui-base leading-5 text-foreground">{displayReason}</p>
+            ) : null}
+            {!shouldUseSwitchModePlaceholder &&
+            !shouldUseWorkflowBlock &&
+            !shouldUseSaveWorkflowBlock &&
+            toolNotice ? (
+              <p className="text-ui-sm leading-5 text-foreground-subtle">{toolNotice}</p>
             ) : null}
             {shouldUseSwitchModePlaceholder ? (
               <div className="flex items-center gap-2 text-ui-base text-foreground">

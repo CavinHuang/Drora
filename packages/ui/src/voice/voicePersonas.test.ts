@@ -2,15 +2,13 @@ import { describe, expect, it } from "vitest";
 import {
   VOICE_PERSONA_CUSTOM_ID,
   VOICE_PERSONA_PRESETS,
+  buildVoicePersonaCapabilityPatch,
   buildVoicePersonaPatch,
   findVoicePersonaPreset,
   resolveVoicePersonaSelection,
   type VoicePersonaPreset,
 } from "./voicePersonas.js";
-import {
-  VOICE_INTERRUPT_WORDS,
-  classifyVoiceDictationFinal,
-} from "./interruptionWords.js";
+import { VOICE_INTERRUPT_WORDS, classifyVoiceDictationFinal } from "./interruptionWords.js";
 
 /**
  * persona v1 目录与纯函数守护（specs/voice-agent-integration.md §9.7.8，V7-a/V7-c/V7-e）：
@@ -41,15 +39,16 @@ describe("VOICE_PERSONA_PRESETS 目录形态", () => {
   });
 });
 
-describe("buildVoicePersonaPatch（V7-a 物化）", () => {
-  it("patch 键集恰为五键且值 === 目录值（空串原样物化）", () => {
+describe("buildVoicePersonaPatch（V7-a 物化；模型能力收敛后双存储形态）", () => {
+  it("appSettings patch 键集恰为四行为键且值 === 目录值（空串原样物化）", () => {
+    // specs/model-capabilities.md §5.2：云音色 voiceTtsVendorVoice 旧键删除，
+    // cloud 轨物化迁至 buildVoicePersonaCapabilityPatch（档案 tts.voice）。
     for (const preset of VOICE_PERSONA_PRESETS) {
       const patch = buildVoicePersonaPatch(preset);
       expect(Object.keys(patch).sort()).toEqual(
         [
           "voicePersonaId",
           "voiceAnnouncementVoice",
-          "voiceTtsVendorVoice",
           "voiceAnnouncementRate",
           "voiceAnnouncementLang",
         ].sort(),
@@ -57,14 +56,21 @@ describe("buildVoicePersonaPatch（V7-a 物化）", () => {
       expect(patch).toEqual({
         voicePersonaId: preset.id,
         voiceAnnouncementVoice: preset.systemVoiceHint,
-        voiceTtsVendorVoice: preset.cloudVoice,
         voiceAnnouncementRate: preset.rate,
         voiceAnnouncementLang: preset.lang,
       });
     }
   });
 
-  it("双引擎双轨映射：systemVoiceHint → voiceAnnouncementVoice、cloudVoice → voiceTtsVendorVoice 各写各键", () => {
+  it("capability patch 恰为档案 tts.voice 一键（cloud 轨）", () => {
+    for (const preset of VOICE_PERSONA_PRESETS) {
+      expect(buildVoicePersonaCapabilityPatch(preset)).toEqual({
+        tts: { voice: preset.cloudVoice },
+      });
+    }
+  });
+
+  it("双引擎双轨映射：systemVoiceHint → voiceAnnouncementVoice、cloudVoice → 档案 tts.voice 各写各存储", () => {
     // builtin 现值均为空串（OQ-9/TV-9 未抓取留自动）——用合成 preset 验证映射方向。
     const synthetic: VoicePersonaPreset = {
       id: "synthetic",
@@ -75,10 +81,11 @@ describe("buildVoicePersonaPatch（V7-a 物化）", () => {
       systemVoiceHint: "Microsoft Huihui",
     };
     const patch = buildVoicePersonaPatch(synthetic);
+    const capabilityPatch = buildVoicePersonaCapabilityPatch(synthetic);
     expect(patch.voiceAnnouncementVoice).toBe("Microsoft Huihui");
-    expect(patch.voiceTtsVendorVoice).toBe("alex");
-    // 两轨互不串写：system 轨键零含厂商 id、cloud 轨键零含系统音色名。
-    expect(patch.voiceTtsVendorVoice).not.toContain("Microsoft");
+    expect(capabilityPatch.tts.voice).toBe("alex");
+    // 两轨互不串写：appSettings patch 零含厂商 id、capability patch 零含系统音色名。
+    expect(capabilityPatch.tts.voice).not.toContain("Microsoft");
     expect(patch.voiceAnnouncementVoice).not.toBe("alex");
   });
 });
@@ -92,53 +99,55 @@ describe("resolveVoicePersonaSelection（V7-c 自定义派生）", () => {
     return {
       voicePersonaId: patch.voicePersonaId,
       voiceAnnouncementVoice: patch.voiceAnnouncementVoice,
-      voiceTtsVendorVoice: patch.voiceTtsVendorVoice,
       voiceAnnouncementRate: patch.voiceAnnouncementRate,
       voiceAnnouncementLang: patch.voiceAnnouncementLang,
     };
   }
 
-  it("四键与 preset 物化值逐项相等 → 显示该 preset", () => {
+  it("四底层键（含档案 tts.voice）与 preset 物化值逐项相等 → 显示该 preset", () => {
     const preset = brisk as VoicePersonaPreset;
-    const selection = resolveVoicePersonaSelection(settingsMatching(preset));
+    const selection = resolveVoicePersonaSelection(
+      settingsMatching(preset),
+      buildVoicePersonaCapabilityPatch(preset).tts.voice,
+    );
     expect(selection.id).toBe("brisk");
     expect(selection.preset?.id).toBe("brisk");
   });
 
-  it("任一底层键发散 → 显示「自定义」（四键逐一验证）", () => {
+  it("任一底层键发散 → 显示「自定义」（appSettings 三键 + 档案 tts.voice 逐一验证）", () => {
     const base = settingsMatching(brisk as VoicePersonaPreset);
-    const divergences = [
-      { ...base, voiceAnnouncementVoice: "Microsoft Huihui" },
-      { ...base, voiceTtsVendorVoice: "alex" },
-      { ...base, voiceAnnouncementRate: 1 },
-      { ...base, voiceAnnouncementLang: "en-US" },
+    const cloudVoice = buildVoicePersonaCapabilityPatch(brisk as VoicePersonaPreset).tts.voice;
+    const divergences: Array<Parameters<typeof resolveVoicePersonaSelection>> = [
+      [{ ...base, voiceAnnouncementVoice: "Microsoft Huihui" }, cloudVoice],
+      [base, "alex"],
+      [{ ...base, voiceAnnouncementRate: 1 }, cloudVoice],
+      [{ ...base, voiceAnnouncementLang: "en-US" }, cloudVoice],
     ];
-    for (const diverged of divergences) {
-      const selection = resolveVoicePersonaSelection(diverged);
+    for (const [settings, ttsVendorVoice] of divergences) {
+      const selection = resolveVoicePersonaSelection(settings, ttsVendorVoice);
       expect(selection.id).toBe(VOICE_PERSONA_CUSTOM_ID);
       expect(selection.preset).toBeNull();
     }
   });
 
   it("未选（空串）/未知 id → 「自定义」；缺省 settings（null）同", () => {
-    expect(resolveVoicePersonaSelection(null).id).toBe(VOICE_PERSONA_CUSTOM_ID);
+    expect(resolveVoicePersonaSelection(null, null).id).toBe(VOICE_PERSONA_CUSTOM_ID);
     const empty = {
       voicePersonaId: "",
       voiceAnnouncementVoice: "",
-      voiceTtsVendorVoice: "",
       voiceAnnouncementRate: 1,
       voiceAnnouncementLang: "",
     };
-    expect(resolveVoicePersonaSelection(empty).id).toBe(VOICE_PERSONA_CUSTOM_ID);
+    expect(resolveVoicePersonaSelection(empty, "").id).toBe(VOICE_PERSONA_CUSTOM_ID);
     expect(
-      resolveVoicePersonaSelection({ ...empty, voicePersonaId: "removed-in-future" }).id,
+      resolveVoicePersonaSelection({ ...empty, voicePersonaId: "removed-in-future" }, "").id,
     ).toBe(VOICE_PERSONA_CUSTOM_ID);
   });
 
   it("派生判定零写路径：发散输入不产生任何副作用（纯函数，voicePersonaId 原样保留在输入）", () => {
     const base = settingsMatching(brisk as VoicePersonaPreset);
     const diverged = { ...base, voiceAnnouncementRate: 2 };
-    resolveVoicePersonaSelection(diverged);
+    resolveVoicePersonaSelection(diverged, "");
     // 不回写：输入对象仍持旧 voicePersonaId（回写与否由消费方 updateSettings 决定，本函数只读）。
     expect(diverged.voicePersonaId).toBe("brisk");
   });

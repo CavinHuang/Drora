@@ -233,6 +233,17 @@ export {
 } from "./knowledge/decision/jevAssembly.js";
 export type { KnowledgeJevAssembly } from "./knowledge/decision/jevAssembly.js";
 import type { KnowledgeEmbeddingPort } from "./knowledge/search/embeddingPort.js";
+// 模型能力档案（specs/model-capabilities.md §4 唯一所有者；desktop 本地 Host 注入）。
+import { IModelCapabilitiesService } from "./model-capabilities/index.js";
+import { createImageGenerationService } from "./model-capabilities/index.js";
+export { IModelCapabilitiesService } from "./model-capabilities/index.js";
+export { createModelCapabilitiesService } from "./model-capabilities/index.js";
+export type { ModelCapabilitiesServiceDependencies } from "./model-capabilities/index.js";
+export { createImageGenerationService } from "./model-capabilities/index.js";
+export type {
+  ImageGenerationResult,
+  ImageGenerationServiceDependencies,
+} from "./model-capabilities/index.js";
 export {
   TYPESAFE_OFFICIAL_BASE_URL,
   createSystemOneHttpTransport,
@@ -1497,6 +1508,19 @@ export function createLocalServices(options: {
    * 纯词法（零出站语义降级，既有语义）。
    */
   knowledgeEmbeddingPort?: KnowledgeEmbeddingPort | null;
+  /**
+   * 本地语义端口动态源（specs/model-capabilities.md §4；obsidian-knowledge.md §5b.9
+   * 配置热生效）：desktop 本地 host 由 assembleDroraKnowledgeHost 按模型能力档案
+   * embedding.enabled 解析注入；refreshDecisionConfig 时按当前开关热切换端口。
+   * 缺省不传 = 语义保持装配期状态（重启语义，兼容旧装配）。
+   */
+  knowledgeSemanticSource?: () => Promise<KnowledgeEmbeddingPort | null>;
+  /**
+   * 模型能力档案服务（specs/model-capabilities.md §4 唯一所有者）：desktop 本地
+   * Host 在异步初始化段构造注入（一次性旧键迁移在首次 get 执行）；未注入的
+   * host（server/stdio/远程）不注册——RPC 面缺席即 UI 不可达，fail-closed。
+   */
+  modelCapabilitiesService?: IModelCapabilitiesService;
 }): ServiceCollection {
   const isDesktopAttachedRemote = options?.serviceAuthorityMode === "desktop-attached-remote";
   // host / remote server 以前直接沿用当前进程环境启动后续服务。
@@ -2472,6 +2496,17 @@ export function createLocalServices(options: {
     hostId: options?.projectStorageHostId ?? "local",
     workspaceIdentity: undefined,
   });
+  // agent 内置文生图（specs/model-capabilities.md §6）：档案服务在场才提供画图源
+  // （未注入 = 本 host 无档案面，协议分发回 -32601 结构化不可用）。服务无状态，
+  // thunk 惰性构造与 knowledgeQuerySource 同款；凭据解密只经本进程共享 credentialService。
+  const modelCapabilitiesServiceOption = options?.modelCapabilitiesService;
+  const agentImageGenerationSource = modelCapabilitiesServiceOption
+    ? () =>
+        createImageGenerationService({
+          modelCapabilities: modelCapabilitiesServiceOption,
+          credentialService,
+        })
+    : undefined;
   const droraAgentService = createDroraAgentService({
     useSharedTaskRuntime: async (target) => {
       if (options?.projectStorageHostId && options.projectStorageHostId !== "local") return false;
@@ -2509,6 +2544,9 @@ export function createLocalServices(options: {
     // agent 只读 vault 检索（obsidian-knowledge.md §5f）：thunk 解引用 knowledgeServices
     // ——它在下方才构造（声明顺序晚于本调用），只在协议请求期被调用，不提前触达。
     knowledgeQuerySource: () => knowledgeServices.queryService,
+    // agent 内置文生图（specs/model-capabilities.md §6）：档案服务在场即接线；
+    // 出站、凭据解密全部留在本 host 进程，CLI 只收图片字节。
+    ...(agentImageGenerationSource ? { imageGenerationSource: agentImageGenerationSource } : {}),
     commandResolver: options?.droraAgentCommandResolver,
     presentationSurface: resolveDroraAgentPresentationSurface({
       runtimeSurface: options?.agentTelemetry?.runtimeSurface,
@@ -2949,6 +2987,11 @@ export function createLocalServices(options: {
     ...(options.knowledgeAutoIndex === true ? { autoIndexEnabled: true } : {}),
     // 本地语义检索（§5b.9）：端口由调用方依据开关预构建；缺省 null = 纯词法。
     ...(options.knowledgeEmbeddingPort ? { embeddingPort: options.knowledgeEmbeddingPort } : {}),
+    // 语义端口动态源（spec §4 热生效）：refreshDecisionConfig 按档案 embedding.enabled
+    // 热切换端口（enabled → lazy 本地端口；disabled → null 纯词法）。
+    ...(options.knowledgeSemanticSource
+      ? { knowledgeSemanticSource: options.knowledgeSemanticSource }
+      : {}),
   });
   sqliteReposToClose.push({ close: () => knowledgeServices.dispose() });
   const services = new ServiceCollection()
@@ -3270,6 +3313,12 @@ export function createLocalServices(options: {
       }),
     )
     .register(IPromptAttachmentTransferService, createLocalPromptAttachmentTransferService());
+
+  // 模型能力档案服务（specs/model-capabilities.md §4）：desktop 本地 Host 构造注入
+  // （同一实例供 knowledge 装配与 RPC 面共用，避免双所有者）；未注入不注册。
+  if (options?.modelCapabilitiesService) {
+    services.register(IModelCapabilitiesService, options.modelCapabilitiesService);
+  }
 
   // 即使初始配置关闭也必须登记 lifecycle disposer：terminal fence 需要早于任意延迟 setting/acquire
   // 恢复，不能把"当前还没有 Helper"误当成"不需要生命周期所有者"。dispose 时串行 stop host。

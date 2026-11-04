@@ -5,10 +5,9 @@
  * （{state, model, questions}，answers.<name>.noul/usage；Bearer 头由默认 HTTP
  * transport 添加，不进请求对象）；错误路径：429/529 短退避、5xx、超时、取消、
  * 非法评分；授权逐调用重查。不发起真实网络请求。
- * 运行：node --import tsx --test packages/services/test/knowledgeJevAdapter.test.ts
  */
 import assert from "node:assert/strict";
-import test from "node:test";
+import { it } from "vitest";
 import {
   createJevAdapter,
   mergedNoulQuestion,
@@ -96,7 +95,7 @@ function grantFor(registry: DecisionConsentRegistry, ids: string[], epoch = 3): 
   }).consentId;
 }
 
-test("P0 合并问题：单条 Noul 问题同时承载相关性 + 直接证据判定", () => {
+it("P0 合并问题：单条 Noul 问题同时承载相关性 + 直接证据判定", () => {
   const question = mergedNoulQuestion("长期记忆");
   assert.equal(question.type, "noul");
   assert.ok(question.instructions.includes("长期记忆"));
@@ -105,7 +104,7 @@ test("P0 合并问题：单条 Noul 问题同时承载相关性 + 直接证据�
   assert.ok(question.criteria.false.includes("仅涉及相似主题"));
 });
 
-test("请求形状：每候选一次出站、model/state/questions 与官方契约一致；响应映射 noul/usage/model", async () => {
+it("请求形状：每候选一次出站、model/state/questions 与官方契约一致；响应映射 noul/usage/model", async () => {
   const registry = new DecisionConsentRegistry();
   const consentId = grantFor(registry, ["a", "b"]);
   const requests: JevTransportRequest[] = [];
@@ -143,7 +142,7 @@ test("请求形状：每候选一次出站、model/state/questions 与官方契�
   assert.equal(result.modelVersion, "jev-1.13.0");
 });
 
-test("429 短退避重试一次后成功；恒 429 → 该候选 http_429 回退", async () => {
+it("429 短退避重试一次后成功；恒 429 → 该候选 http_429 回退", async () => {
   const registry = new DecisionConsentRegistry();
   const consentId = grantFor(registry, ["a"]);
   const statuses: number[] = [];
@@ -175,7 +174,7 @@ test("429 短退避重试一次后成功；恒 429 → 该候选 http_429 回退
   assert.equal(second.outboundCount, 2, "重试一次后放弃（出站共 2 次）");
 });
 
-test("529 过载按 429 同类处理（短退避一次）", async () => {
+it("529 过载按 429 同类处理（短退避一次）", async () => {
   const registry = new DecisionConsentRegistry();
   const consentId = grantFor(registry, ["a"]);
   const statuses: number[] = [];
@@ -192,7 +191,7 @@ test("529 过载按 429 同类处理（短退避一次）", async () => {
   assert.equal(result.outcomes[0]?.fallbackReason, "http_429");
 });
 
-test("5xx / 4xx / 空响应体 / 缺答案 → 回退且不抛异常", async () => {
+it("5xx / 4xx / 空响应体 / 缺答案 → 回退且不抛异常", async () => {
   const registry = new DecisionConsentRegistry();
   const ids = ["a", "b", "c", "d"];
   const consentId = grantFor(registry, ids);
@@ -221,7 +220,7 @@ test("5xx / 4xx / 空响应体 / 缺答案 → 回退且不抛异常", async () 
   assert.ok(reasons.has("provider_error"), "4xx/空体/缺答案 → provider_error");
 });
 
-test("非法评分（NaN/出界/缺类型/非数值）→ invalid_score 回退", async () => {
+it("非法评分（NaN/出界/缺类型/非数值）→ invalid_score 回退", async () => {
   const registry = new DecisionConsentRegistry();
   const ids = ["a", "b", "c", "d"];
   const consentId = grantFor(registry, ids);
@@ -261,7 +260,7 @@ test("非法评分（NaN/出界/缺类型/非数值）→ invalid_score 回退",
   assert.ok(result.outcomes.every((outcome) => outcome.fallbackReason === "invalid_score"));
 });
 
-test("授权逐调用重查：撤销后未开始的候选不出站（fail-closed）", async () => {
+it("授权逐调用重查：撤销后未开始的候选不出站（fail-closed）", async () => {
   const registry = new DecisionConsentRegistry();
   const consentId = grantFor(registry, ["a", "b", "c"]);
   let outbound = 0;
@@ -284,7 +283,7 @@ test("授权逐调用重查：撤销后未开始的候选不出站（fail-closed
   );
 });
 
-test("授权范围不匹配（chunkSha 不在授权集合）→ 不出站", async () => {
+it("授权范围不匹配（chunkSha 不在授权集合）→ 不出站", async () => {
   const registry = new DecisionConsentRegistry();
   const consentId = grantFor(registry, ["a"]);
   let outbound = 0;
@@ -302,7 +301,7 @@ test("授权范围不匹配（chunkSha 不在授权集合）→ 不出站", asyn
   assert.equal(result.outcomes[1]?.fallbackReason, "consent_scope_mismatch");
 });
 
-test("授权过期 → consent_expired，不出站", async () => {
+it("授权过期 → consent_expired，不出站", async () => {
   const registry = new DecisionConsentRegistry();
   const consent = registry.grant({
     providerId: JEV_PROVIDER_ID,
@@ -331,7 +330,7 @@ test("授权过期 → consent_expired，不出站", async () => {
   assert.equal(result.outcomes[0]?.fallbackReason, "consent_expired");
 });
 
-test("无授权（consent=null）→ 全部 consent_missing，零出站", async () => {
+it("无授权（consent=null）→ 全部 consent_missing，零出站", async () => {
   const registry = new DecisionConsentRegistry();
   let outbound = 0;
   const transport: JevTransport = {
@@ -346,7 +345,7 @@ test("无授权（consent=null）→ 全部 consent_missing，零出站", async 
   assert.ok(result.outcomes.every((outcome) => outcome.fallbackReason === "consent_missing"));
 });
 
-test("阶段取消：未发起候选补齐 cancelled 回退；在途调用立即中止", async () => {
+it("阶段取消：未发起候选补齐 cancelled 回退；在途调用立即中止", async () => {
   const registry = new DecisionConsentRegistry();
   const consentId = grantFor(registry, ["a", "b", "c", "d"]);
   const controller = new AbortController();
@@ -385,7 +384,7 @@ test("阶段取消：未发起候选补齐 cancelled 回退；在途调用立即
   assert.ok(result.outcomes.every((outcome) => outcome.fallbackReason === "cancelled"));
 });
 
-test("慢响应超时 → 单候选 timeout 回退，不拖垮阶段", async () => {
+it("慢响应超时 → 单候选 timeout 回退，不拖垮阶段", async () => {
   const registry = new DecisionConsentRegistry();
   const consentId = grantFor(registry, ["a", "b"]);
   const transport: JevTransport = {
@@ -416,7 +415,7 @@ test("慢响应超时 → 单候选 timeout 回退，不拖垮阶段", async () 
   assert.ok(Date.now() - startedAt < 1500, "per-call 超时生效，不等待慢响应");
 });
 
-test("出站候选截断：maxCandidates 之外的候选不进请求池（skippedCount 记录）", async () => {
+it("出站候选截断：maxCandidates 之外的候选不进请求池（skippedCount 记录）", async () => {
   const registry = new DecisionConsentRegistry();
   const consentId = grantFor(registry, ["a", "b", "c"]);
   let requests = 0;
@@ -441,7 +440,7 @@ test("出站候选截断：maxCandidates 之外的候选不进请求池（skippe
   );
 });
 
-test("默认 HTTP transport：对本地假服务器逐字段断言已验证的官方线格式", async () => {
+it("默认 HTTP transport：对本地假服务器逐字段断言已验证的官方线格式", async () => {
   const { createSystemOneHttpTransport } =
     await import("../src/knowledge/decision/jevTransport.js");
   const { createServer } = await import("node:http");
@@ -489,7 +488,7 @@ test("默认 HTTP transport：对本地假服务器逐字段断言已验证的�
   }
 });
 
-test("默认 HTTP transport：缺 API Key 构造即抛错（绝不静默出站）", async () => {
+it("默认 HTTP transport：缺 API Key 构造即抛错（绝不静默出站）", async () => {
   const { createSystemOneHttpTransport } =
     await import("../src/knowledge/decision/jevTransport.js");
   assert.throws(

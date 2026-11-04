@@ -9,6 +9,8 @@ export * from "./desktopPet.js";
 export * from "./contracts/desktopPet.js";
 export * from "./contracts/voice.js";
 export * from "./contracts/persona.js";
+// 模型能力档案契约（specs/model-capabilities.md §3；批次一新增，仅追加）。
+export * from "./contracts/modelCapabilities.js";
 
 export type {
   FileBinaryPreview,
@@ -40,13 +42,6 @@ export type {
 } from "./protocol.js";
 export type { WorkspacePurpose } from "./workspacePurpose.js";
 export { DEFAULT_LOCALE } from "./protocol.js";
-export { KNOWLEDGE_JEV_CREDENTIAL_KEY } from "./knowledge-jev.js";
-export {
-  KNOWLEDGE_JEV_OPENROUTER_CREDENTIAL_KEY,
-  KNOWLEDGE_JEV_AI_GATEWAY_CREDENTIAL_KEY,
-  KNOWLEDGE_JEV_PROVIDERS,
-} from "./knowledge-jev.js";
-export type { KnowledgeJevProvider } from "./knowledge-jev.js";
 export { DRORA_VERSION, DRORA_COMMIT, DRORA_BUILD_TIME } from "./version.js";
 export type { HelloMessage, HelloAckMessage } from "./handshake.js";
 export type { ArmsRumEnv, DroraEnv, DroraProductFlavor } from "./env.js";

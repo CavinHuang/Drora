@@ -86,6 +86,9 @@ export type {
 
 // Knowledge 索引/检索服务（VaultView 2.0 W02/W03/W05）— descriptors + 纯类型，禁止携带实现值。
 export { IKnowledgeIndexService } from "./knowledge/knowledgeIndex.js";
+// 模型能力档案服务（specs/model-capabilities.md §4 唯一所有者）— descriptor + 纯类型，
+// 实现工厂只在 node 侧（modelCapabilitiesService.ts）。
+export { IModelCapabilitiesService } from "./model-capabilities/index.js";
 export type {
   KnowledgeSemanticPortStatus,
   KnowledgeSemanticPortState,

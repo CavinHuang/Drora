@@ -1,14 +1,17 @@
 /**
- * 设置页 voice 分节（specs/voice-agent-integration.md §6.1 / §6.2 / §9.2 / §9.7.2-9.7.6）。
+ * 设置页 voice 分节——纯行为偏好（specs/voice-agent-integration.md §6.1/§6.2/§9.2/§9.7；
+ * specs/model-capabilities.md §0 澄清与 §5.2 瘦身）。
  *
- * 八开关（键名 = VOICE_SETTINGS_KEYS，appSettings 持久化）+ 三条隐私披露 + FD-5 确认门：
- * 任一语音开关的开启动作在 acknowledged=false 时先弹披露，确认后本次开启生效；
- * 取消则开关回落。参数类设置（语言/引擎/音色/语速）不走确认门。
- * 消费读取一律经 voiceComposerEntryState 的 reader 函数收口，本组件只写不读判定。
+ * 模型能力收敛（批次二）：引擎选择与厂商档（ASR/TTS 引擎、baseUrl、模型、云音色、
+ * apiKey）迁入模型设置页「模型能力」分组（asr/tts 条目，模型能力档案唯一所有者）；
+ * 本分区只留行为偏好：播报开关/语言/语速/系统音色预览、听写语言、入口显隐、
+ * persona 显示、工具简报、隐私披露。参数类设置（语言/语速/音色）不走确认门；
+ * 八开关中三开关（入口/播报/简报）开启动作在 acknowledged=false 时先弹披露
+ * （FD-5 确认后本次开启生效，取消回落）。
  *
- * §9.7 增补：system 音色枚举 Select（voiceschanged 异步刷新）+ 试听（仅 system 引擎，
- * §9.7.4 边界）+ 云音色独立输入（§9.7.3）+ 播报语言键（§9.7.5）+ 语速草稿态（§9.7.6）
- * + persona 选择（§9.7.8：物化写底层键，voicePersonaId 仅显示派生）。
+ * 消费读取一律经 voiceComposerEntryState 的 reader 函数收口，本组件只写不读判定；
+ * persona 选择为双存储物化（appSettings 四行为键 + 模型能力档案 tts.voice，
+ * buildVoicePersonaPatch/buildVoicePersonaCapabilityPatch 成对调用）。
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -21,12 +24,9 @@ import {
 import { Switch } from "@/components/ui/switch.js";
 import { Input } from "@/components/ui/input.js";
 import { Button } from "@/components/ui/button.js";
-import { useServices } from "@/hooks/useServices.js";
 import { useDroraIntl } from "@/i18n/IntlProvider.js";
 import { useSettings } from "@/hooks/useSettingService.js";
-import { VOICE_VENDOR_CREDENTIAL_KEY } from "@drora/shared";
-import { isVoiceVendorConfigComplete } from "@/voice/resolveAsrAdapter.js";
-import { validateVoiceVendorBaseUrl } from "@/voice/voiceVendorBaseUrl.js";
+import { useModelCapabilities } from "@/hooks/useModelCapabilities.js";
 import { SettingsGroupCard, SettingsRow } from "@/settings/SettingsPageParts.js";
 import {
   isVoicePrivacyAcknowledged,
@@ -35,6 +35,7 @@ import {
 import { VoicePrivacyDisclosureDialog } from "@/voice/VoicePrivacyDisclosureDialog.js";
 import {
   VOICE_PERSONA_PRESETS,
+  buildVoicePersonaCapabilityPatch,
   buildVoicePersonaPatch,
   findVoicePersonaPreset,
   resolveVoicePersonaSelection,
@@ -58,48 +59,12 @@ type VoiceCapabilityPatch = Partial<{
 export function VoiceSection() {
   const { intl, locale } = useDroraIntl();
   const { settings, update: updateSettings } = useSettings();
-  const { credentialService } = useServices();
-  const [privacyDialogOpen, setPrivacyDialogOpen] = useState(false);
-  // §9.6.2：apiKey 走凭据服务（不进 appSettings/wire）；本地 state 支撑 remote 选项
-  // 启用条件与 password 输入，onBlur 落盘（避免每键 RPC）。
-  const [vendorApiKey, setVendorApiKey] = useState("");
-  const [vendorApiKeyLoaded, setVendorApiKeyLoaded] = useState(false);
-  useEffect(() => {
-    if (vendorApiKeyLoaded || !credentialService) {
-      return;
-    }
-    let cancelled = false;
-    void credentialService
-      .load(VOICE_VENDOR_CREDENTIAL_KEY)
-      .then((value) => {
-        if (!cancelled) {
-          setVendorApiKey(value ?? "");
-          setVendorApiKeyLoaded(true);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setVendorApiKeyLoaded(true);
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [credentialService, vendorApiKeyLoaded]);
-  const persistVendorApiKey = useCallback(
-    (value: string) => {
-      if (!credentialService) {
-        return;
-      }
-      if (value.trim().length === 0) {
-        void credentialService.delete(VOICE_VENDOR_CREDENTIAL_KEY).catch(() => undefined);
-        return;
-      }
-      void credentialService.save(VOICE_VENDOR_CREDENTIAL_KEY, value).catch(() => undefined);
-    },
-    [credentialService],
-  );
+  // 云音色读模型能力档案 tts.voice（persona 显示派生与物化写的 cloud 轨；
+  // 档案服务缺席时该腿按「未配置」处理，显示派生自然落「自定义」）。
+  const { capabilities, update: updateCapabilities } = useModelCapabilities();
+  const ttsVendorVoice = capabilities?.tts.voice ?? "";
   // 待生效的开关补丁：确认后才写入（FD-5「确认后本次开启生效」，取消则回落）。
+  const [privacyDialogOpen, setPrivacyDialogOpen] = useState(false);
   const [pendingPatch, setPendingPatch] = useState<VoiceCapabilityPatch | null>(null);
 
   const acknowledged = isVoicePrivacyAcknowledged(settings);
@@ -132,49 +97,18 @@ export function VoiceSection() {
   }, []);
 
   // 修复轮 F2：读侧语义 = 存储值直接决定入口可用性（hidden === false ⇔ 显示）。
-  // 修复前误写 `!== false`（hidden 语义被当作可见性，默认/显式隐藏全显示），
-  // 与写路径组合成死控件（开关显示态恒等存储值，点击后读回不变）。
   const entryVisible = settings?.voiceComposerEntryHidden === false;
-  const vendorBaseUrl = settings?.voiceVendorBaseUrl ?? "";
-  // S1：baseUrl 草稿 + 明文非法标记（onBlur 校验，阻止写入持久层）。
-  const [vendorBaseUrlDraft, setVendorBaseUrlDraft] = useState(vendorBaseUrl);
-  // 终审 S3：警告按校验 reason 分型——unparseable 不应显示「明文 HTTP」文案。
-  const [baseUrlWarning, setBaseUrlWarning] = useState<"insecure-remote" | "unparseable" | null>(
-    null,
-  );
-  useEffect(() => {
-    // 外部变更（如清除设置）同步草稿。
-    setVendorBaseUrlDraft(settings?.voiceVendorBaseUrl ?? "");
-  }, [settings?.voiceVendorBaseUrl]);
-  const asrVendorModel = settings?.voiceAsrVendorModel ?? "";
-  const vendorRecordComplete = isVoiceVendorConfigComplete({
-    baseUrl: vendorBaseUrl,
-    model: asrVendorModel,
-    apiKey: vendorApiKey,
-  });
-  const asrEngine = settings?.voiceAsrEngine ?? "webSpeech";
-  const ttsEngine = settings?.voiceTtsEngine ?? "system";
-  const ttsVendorModel = settings?.voiceTtsVendorModel ?? "";
-  // §9.6.2-5：TTS 厂商档完整判定（ttsVendorModel + baseUrl + apiKey）。
-  const ttsVendorComplete =
-    isVoiceVendorConfigComplete({
-      baseUrl: vendorBaseUrl,
-      model: ttsVendorModel,
-      apiKey: vendorApiKey,
-    }) && vendorBaseUrl.trim().length > 0;
   const announcementEnabled = settings?.voiceAnnouncementEnabled === true;
   const toolBriefEnabled = settings?.voiceToolBriefEnabled === true;
   const dictationLang = settings?.voiceDictationLang ?? "";
   const announcementVoice = settings?.voiceAnnouncementVoice ?? "";
   const announcementRate = settings?.voiceAnnouncementRate ?? 1;
   // §9.7.5：播报语言键（"" = 自动 = UI locale）；v1 仅 system 引擎生效（cloud 语种
-  // 由厂商模型自判，不承诺跟随——行内 description 如实披露）。
+  // 由厂商模型自判，不承诺跟随——引擎配置面已迁模型设置页「语音合成」条目）。
   const announcementLang = settings?.voiceAnnouncementLang ?? "";
-  // §9.7.3：云音色独立键（厂商音色 id 命名空间；空 = 厂商默认音色）。
-  const ttsVendorVoice = settings?.voiceTtsVendorVoice ?? "";
-  // §9.7.8 persona 显示派生：命中 builtin 且四底层键与物化值逐项相等 → 显示该 preset；
-  // 任一键发散/未选/未知 id → 「自定义」（只读不写，不回写 voicePersonaId）。
-  const personaSelection = resolveVoicePersonaSelection(settings);
+  // §9.7.8 persona 显示派生：命中 builtin 且底层键（含档案 tts.voice）与物化值逐项
+  // 相等 → 显示该 preset；任一键发散/未选/未知 id → 「自定义」（只读不写）。
+  const personaSelection = resolveVoicePersonaSelection(settings, ttsVendorVoice);
 
   // §9.7.2 system 音色枚举目录：getVoices 快照 + voiceschanged 异步刷新（Windows/Chrome
   // 首帧常为空表——设置面列表不阻塞等待，空表仅渲染「自动」+ 禁用加载占位）。
@@ -236,7 +170,7 @@ export function VoiceSection() {
   }, [announcementRate, announcementVoice, intl, locale, previewDisabled, settings]);
 
   // §9.7.6 语速草稿态：onChange 只写本地草稿；onBlur 解析——合法（有限数且 ∈ [0.5, 2]）
-  // → updateSettings 恰一次；非法/越界 → 草稿回退持久值 + 行内警告（照 baseUrl 先例）。
+  // → updateSettings 恰一次；非法/越界 → 草稿回退持久值 + 行内警告。
   const [rateDraft, setRateDraft] = useState(String(announcementRate));
   const [rateWarningVisible, setRateWarningVisible] = useState(false);
   useEffect(() => {
@@ -296,118 +230,6 @@ export function VoiceSection() {
             </Select>
           }
         />
-        <SettingsRow
-          label={intl.formatMessage({ id: "voice.settings.asr.engine.label" })}
-          control={
-            <Select
-              value={asrEngine}
-              onValueChange={(value) => {
-                void updateSettings({
-                  voiceAsrEngine: value === "remote" ? "remote" : "webSpeech",
-                });
-              }}
-            >
-              <SelectTrigger
-                data-testid="voice-asr-engine"
-                className="w-40"
-                aria-label={intl.formatMessage({ id: "voice.settings.asr.engine.label" })}
-              >
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="webSpeech">
-                  {intl.formatMessage({ id: "voice.settings.asr.engine.webSpeech" })}
-                </SelectItem>
-                {/* §9.6.2-5：厂商档完整才可选，消除无实现/无配置的可选态；
-                    已选中后档变不完整 → 运行时回退树（§9.6.6）兜底，选项不回收。 */}
-                <SelectItem value="remote" disabled={!vendorRecordComplete}>
-                  {intl.formatMessage({ id: "voice.settings.asr.engine.remote" })}
-                </SelectItem>
-              </SelectContent>
-            </Select>
-          }
-        />
-        {/* §9.6.2 厂商档分组：baseUrl/model（appSettings 非秘密键）+ apiKey（凭据服务，
-            password 形态照 model-provider-section 先例）；§6.2 披露 1 落地——任一云引擎
-            开启且 baseUrl 非空时渲染为数据处理方（§9.6.2-6 收口，终审 S3）。 */}
-        <SettingsRow
-          label={intl.formatMessage({ id: "voice.settings.vendor.baseUrl.label" })}
-          detail={
-            baseUrlWarning ? (
-              <div
-                className="border-t border-border px-4 py-2 text-ui-base text-warning"
-                data-testid="voice-vendor-base-url-warning"
-              >
-                {intl.formatMessage({
-                  id:
-                    baseUrlWarning === "unparseable"
-                      ? "voice.settings.vendor.baseUrl.unparseableWarning"
-                      : "voice.settings.vendor.baseUrl.insecureWarning",
-                })}
-              </div>
-            ) : null
-          }
-          control={
-            <Input
-              className="w-72"
-              value={vendorBaseUrlDraft}
-              placeholder={intl.formatMessage({ id: "voice.settings.vendor.baseUrl.placeholder" })}
-              aria-label={intl.formatMessage({ id: "voice.settings.vendor.baseUrl.label" })}
-              data-testid="voice-vendor-base-url"
-              onChange={(event) => setVendorBaseUrlDraft(event.target.value)}
-              onBlur={(event) => {
-                // S1 UI 层：明文非本机地址阻止写入（持久化保持上一次合法值）+ 行内警告；
-                // 用户可改输 https 或本机明文地址。
-                const value = event.target.value;
-                const verdict = validateVoiceVendorBaseUrl(value);
-                if (verdict.ok) {
-                  setBaseUrlWarning(null);
-                  void updateSettings({ voiceVendorBaseUrl: value });
-                } else {
-                  setBaseUrlWarning(verdict.reason ?? "insecure-remote");
-                }
-              }}
-            />
-          }
-        />
-        <SettingsRow
-          label={intl.formatMessage({ id: "voice.settings.vendor.asrModel.label" })}
-          control={
-            <Input
-              className="w-72"
-              value={asrVendorModel}
-              placeholder={intl.formatMessage({ id: "voice.settings.vendor.asrModel.placeholder" })}
-              aria-label={intl.formatMessage({ id: "voice.settings.vendor.asrModel.label" })}
-              data-testid="voice-vendor-asr-model"
-              onChange={(event) => {
-                void updateSettings({ voiceAsrVendorModel: event.target.value });
-              }}
-            />
-          }
-        />
-        <SettingsRow
-          label={intl.formatMessage({ id: "voice.settings.vendor.apiKey.label" })}
-          control={
-            <Input
-              className="w-72"
-              type="password"
-              value={vendorApiKey}
-              placeholder={intl.formatMessage({ id: "voice.settings.vendor.apiKey.placeholder" })}
-              aria-label={intl.formatMessage({ id: "voice.settings.vendor.apiKey.label" })}
-              data-testid="voice-vendor-api-key"
-              onChange={(event) => setVendorApiKey(event.target.value)}
-              onBlur={(event) => persistVendorApiKey(event.target.value)}
-            />
-          }
-        />
-        {(asrEngine === "remote" || ttsEngine === "cloud") && vendorBaseUrl.trim().length > 0 ? (
-          <div className="border-t border-border px-4 py-3 text-ui-base leading-6 text-foreground-subtle">
-            {intl.formatMessage(
-              { id: "voice.settings.vendor.dataHandler" },
-              { baseUrl: vendorBaseUrl.trim() },
-            )}
-          </div>
-        ) : null}
       </SettingsGroupCard>
       <SettingsGroupCard>
         <SettingsRow
@@ -423,71 +245,11 @@ export function VoiceSection() {
             />
           }
         />
-        <SettingsRow
-          label={intl.formatMessage({ id: "voice.settings.tts.engine.label" })}
-          control={
-            <Select
-              value={ttsEngine}
-              onValueChange={(value) => {
-                void updateSettings({
-                  voiceTtsEngine: value === "cloud" ? "cloud" : "system",
-                });
-              }}
-            >
-              <SelectTrigger
-                className="w-40"
-                aria-label={intl.formatMessage({ id: "voice.settings.tts.engine.label" })}
-              >
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="system">
-                  {intl.formatMessage({ id: "voice.settings.tts.engine.system" })}
-                </SelectItem>
-                {/* §9.6.2-5：TTS 厂商档完整才可选 cloud（消除无配置的可选态）。 */}
-                <SelectItem value="cloud" disabled={!ttsVendorComplete}>
-                  {intl.formatMessage({ id: "voice.settings.tts.engine.cloud" })}
-                </SelectItem>
-              </SelectContent>
-            </Select>
-          }
-        />
-        <SettingsRow
-          label={intl.formatMessage({ id: "voice.settings.vendor.ttsModel.label" })}
-          control={
-            <Input
-              className="w-72"
-              value={ttsVendorModel}
-              placeholder={intl.formatMessage({ id: "voice.settings.vendor.ttsModel.placeholder" })}
-              aria-label={intl.formatMessage({ id: "voice.settings.vendor.ttsModel.label" })}
-              data-testid="voice-vendor-tts-model"
-              onChange={(event) => {
-                void updateSettings({ voiceTtsVendorModel: event.target.value });
-              }}
-            />
-          }
-        />
-        {/* §9.7.3 云音色独立输入：厂商音色 id 命名空间（与 system 音色键永不互读）；
-            v1 自由文本不校验（厂商音色枚举未抓取——OQ-9，照 ttsVendorModel 同形态）。 */}
-        <SettingsRow
-          label={intl.formatMessage({ id: "voice.settings.vendor.ttsVoice.label" })}
-          control={
-            <Input
-              className="w-72"
-              value={ttsVendorVoice}
-              placeholder={intl.formatMessage({ id: "voice.settings.vendor.ttsVoice.placeholder" })}
-              aria-label={intl.formatMessage({ id: "voice.settings.vendor.ttsVoice.label" })}
-              data-testid="voice-vendor-tts-voice"
-              onChange={(event) => {
-                void updateSettings({ voiceTtsVendorVoice: event.target.value });
-              }}
-            />
-          }
-        />
-        {/* §9.7.8 persona 选择：点选 builtin = 单次 patch 物化写四个底层键（音色/云音色/
-            语速/播报语言 + voicePersonaId）；voicePersonaId 的唯一消费方 = 本 Select 显示
-            派生（运行时零读路径）。「自定义」= 派生档不可点选（不出现在 SelectItem 列表，
-            经 SelectValue 条件 children 显示——radix value 非空时 children 优先渲染）。 */}
+        {/* §9.7.8 persona 选择：点选 builtin = 成对物化写——appSettings 四行为键
+            （buildVoicePersonaPatch）+ 模型能力档案 tts.voice
+            （buildVoicePersonaCapabilityPatch）；voicePersonaId 的唯一消费方 = 本 Select
+            显示派生（运行时零读路径）。「自定义」= 派生档不可点选（不出现在
+            SelectItem 列表，经 SelectValue 条件 children 显示）。 */}
         <SettingsRow
           label={intl.formatMessage({ id: "voice.settings.persona.label" })}
           description={intl.formatMessage({ id: "voice.settings.persona.description" })}
@@ -501,6 +263,9 @@ export function VoiceSection() {
                   return;
                 }
                 void updateSettings(buildVoicePersonaPatch(preset));
+                void updateCapabilities({
+                  capabilities: buildVoicePersonaCapabilityPatch(preset),
+                }).catch(() => undefined);
               }}
             >
               <SelectTrigger

@@ -51,6 +51,7 @@ import type { IObsidianVaultService } from "./obsidian-vault/obsidianVault.js";
 import type { IKnowledgeIndexService } from "./knowledge/knowledgeIndex.js";
 import type { IKnowledgeQueryService } from "./knowledge/knowledgeQuery.js";
 import type { IKnowledgeReviewService } from "./knowledge/review/reviewService.js";
+import type { IModelCapabilitiesService } from "./model-capabilities/index.js";
 import type { ISettingsSyncService } from "./settings-sync/settingsSync.js";
 import type { IFeedbackService } from "./feedback/feedback.js";
 import type { IPromptAttachmentTransferService } from "./prompt-attachment-transfer/promptAttachmentTransfer.js";
@@ -138,6 +139,8 @@ export interface IServiceAccessor {
   readonly knowledgeQueryService?: IKnowledgeQueryService;
   /** Knowledge 审核写入（W06；L2 治理写唯一入口，host-local，故可选）。 */
   readonly knowledgeReviewService?: IKnowledgeReviewService;
+  /** 模型能力档案（specs/model-capabilities.md §4 唯一所有者；desktop 本地 Host 注册，故可选）。 */
+  readonly modelCapabilitiesService?: IModelCapabilitiesService;
   readonly settingsSyncService: ISettingsSyncService;
   readonly feedbackService: IFeedbackService;
   readonly promptAttachmentTransferService: IPromptAttachmentTransferService;

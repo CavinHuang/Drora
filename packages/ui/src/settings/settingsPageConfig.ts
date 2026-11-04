@@ -22,7 +22,6 @@ import {
   HardDrive,
   Keyboard,
   FileSearch,
-  BookOpen,
   Mic,
   RefreshCw,
   User,
@@ -104,14 +103,6 @@ const BASE_SETTINGS_SECTIONS: SettingsSectionDefinition[] = [
     id: "drora",
     icon: Sparkles,
     titleId: "settings.drora.title",
-    groupId: "agentCapabilities",
-  },
-  // 知识问答（VaultView 智能问库）：Jev 出站决策配置；V1 仅桌面本地 Host 装配，
-  // 与 computerUse 同用桌面平台门控（specs/obsidian-knowledge.md §5d.10）。
-  {
-    id: "knowledge",
-    icon: BookOpen,
-    titleId: "settings.knowledge.title",
     groupId: "agentCapabilities",
   },
   {
@@ -241,7 +232,6 @@ const BASE_SETTINGS_SECTIONS: SettingsSectionDefinition[] = [
 export const SETTINGS_SECTIONS = BASE_SETTINGS_SECTIONS.filter(
   (section) =>
     section.id !== "computerUse" &&
-    section.id !== "knowledge" &&
     // Drora 人格入口依赖运行时能力发现（hello personaControlV1），
     // 静态只读导出代表无能力协商的视图，不包含它。
     section.id !== "drora" &&
@@ -263,11 +253,8 @@ export function createSettingsPageConfig({
   showDroraPersona = false,
 }: SettingsPageConfigOptions = {}) {
   const showComputerUse = isDesktop || isMacDesktop || isWindowsDesktop;
-  // 知识问答分区与 computerUse 同一桌面门控：Jev 装配 V1 只在 desktop local host 生效。
-  const showKnowledge = isDesktop || isMacDesktop || isWindowsDesktop;
   const settingsSections = BASE_SETTINGS_SECTIONS.filter((section) => {
     if (section.id === "computerUse" && !showComputerUse) return false;
-    if (section.id === "knowledge" && !showKnowledge) return false;
     // 手机/远端/独立 Web/旧 Host 不广告 personaControlV1：入口不出现，原功能不受影响。
     if (section.id === "drora" && !showDroraPersona) return false;
     return isSettingsSectionEnabled(section.id);

@@ -1,6 +1,17 @@
 import type { ReactNode } from "react";
-import { type BuiltinModelProviderId, type OAuthProviderId } from "@drora/shared";
-import { PackageIcon } from "lucide-react";
+import {
+  type BuiltinModelProviderId,
+  type OAuthProviderId,
+  type ModelCapabilityPurpose,
+} from "@drora/shared";
+import {
+  BookOpenIcon,
+  BrainIcon,
+  ImageIcon,
+  MicIcon,
+  PackageIcon,
+  Volume2Icon,
+} from "lucide-react";
 import { ProviderLogo } from "./ProviderLogo.js";
 import {
   CODING_PLAN_PROVIDER_SPECS,
@@ -36,7 +47,20 @@ export function resolveModelProviderNavLogo(item: ModelProviderNavItem) {
   return "provider" in item ? item.provider?.config.logo : undefined;
 }
 
+/** 「模型能力」五条目的固定图标（specs/model-capabilities.md §5.1；lucide，语义对应 purpose）。 */
+const CAPABILITY_NAV_ICONS: Record<ModelCapabilityPurpose, typeof PackageIcon> = {
+  "decision-jev": BrainIcon,
+  embedding: BookOpenIcon,
+  asr: MicIcon,
+  tts: Volume2Icon,
+  "image-generation": ImageIcon,
+};
+
 export function renderModelProviderNavIcon(item: ModelProviderNavItem): ReactNode {
+  if (item.type === "capability") {
+    const Icon = CAPABILITY_NAV_ICONS[item.purpose];
+    return <Icon className="size-4 shrink-0" aria-hidden="true" />;
+  }
   if ("provider" in item && item.provider) {
     return <ProviderLogo logo={resolveModelProviderNavLogo(item)} className="size-4" />;
   }

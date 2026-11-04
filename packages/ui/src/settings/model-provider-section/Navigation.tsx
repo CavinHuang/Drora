@@ -24,7 +24,11 @@ import {
   resolveModelProviderFamilySpecByProviderId,
   isStartPlanModelProviderId,
 } from "@drora/shared";
-import { TID_MODEL_PROVIDER_NAV_ITEM, testId } from "@drora/shared/test-ids";
+import {
+  TID_MODEL_CAPABILITY_NAV_ITEM,
+  TID_MODEL_PROVIDER_NAV_ITEM,
+  testId,
+} from "@drora/shared/test-ids";
 import { useCallback, useMemo, type KeyboardEvent } from "react";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import type { ModelProviderNavGroup, ModelProviderNavItem } from "./constants.js";
@@ -67,6 +71,10 @@ export function shouldShowModelProviderGroupLoadingIndicator(params: {
   if (params.groupId === "preset") {
     return params.presetLoading;
   }
+  // 「模型能力」分组为固定静态目录（无 provider 异步态），不展示分组 loading。
+  if (params.groupId === "capabilities") {
+    return false;
+  }
   return params.customLoading;
 }
 
@@ -78,6 +86,14 @@ export function resolveModelProviderSideNavLabel(item: ModelProviderNavItem): st
     return "Start Plan";
   }
   return item.label;
+}
+
+/** 能力条目使用独立 testid 前缀（TID_MODEL_CAPABILITY_NAV_ITEM），与供应商条目区分。 */
+function resolveNavItemTestId(item: ModelProviderNavItem): string {
+  return testId(
+    item.type === "capability" ? TID_MODEL_CAPABILITY_NAV_ITEM : TID_MODEL_PROVIDER_NAV_ITEM,
+    item.key,
+  );
 }
 
 function ModelProviderNavigationButton({
@@ -105,7 +121,7 @@ function ModelProviderNavigationButton({
         aria-label={label}
         aria-selected={isSelected}
         data-state={isSelected ? "selected" : "idle"}
-        data-testid={testId(TID_MODEL_PROVIDER_NAV_ITEM, item.key)}
+        data-testid={resolveNavItemTestId(item)}
         onClick={() => {
           if (isLoadingItem) {
             return;
@@ -189,7 +205,7 @@ function SortableModelProviderNavigationButton({
         aria-label={label}
         aria-selected={isSelected}
         data-state={isSelected ? "selected" : "idle"}
-        data-testid={testId(TID_MODEL_PROVIDER_NAV_ITEM, item.key)}
+        data-testid={resolveNavItemTestId(item)}
         onClick={() => onSelectNavItem(item)}
         {...attributes}
         {...listeners}
@@ -401,6 +417,14 @@ export function ModelProviderSectionNavigation({
               </div>
 
               {group.id === "preset" ? (
+                <PresetProviderCardNavigation
+                  group={group}
+                  selectedNodeKey={selectedNodeKey}
+                  onSelectNavItem={onSelectNavItem}
+                />
+              ) : group.id === "capabilities" ? (
+                /* 模型能力分组：固定顺序、不参与 dnd（specs/model-capabilities.md §5.1）；
+                   复用预设分组的固定渲染（普通按钮 + tooltip）。 */
                 <PresetProviderCardNavigation
                   group={group}
                   selectedNodeKey={selectedNodeKey}

@@ -219,6 +219,8 @@ export const ServiceChannels = {
   KnowledgeQuery: "knowledge-query",
   /** Knowledge 审核写入服务（W06；L2 治理写唯一入口：Proposal→批准→账本→门面 CAS） */
   KnowledgeReview: "knowledge-review",
+  /** 模型能力档案服务（specs/model-capabilities.md §4；~/.drora/v2/model_capabilities.json 唯一所有者） */
+  ModelCapabilities: "model-capabilities",
 } as const;
 
 export type ServiceChannelName = (typeof ServiceChannels)[keyof typeof ServiceChannels];

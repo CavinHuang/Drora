@@ -150,6 +150,7 @@ import { buildAppUsageSnapshot, resolveTzOffsetMs } from "./usage-stats-builder.
 import { createProtocolInteractionBroker } from "./interaction-broker.js";
 import { createProtocolAutomationPort } from "./automation-port.js";
 import { createProtocolVaultSearchPort } from "./vault-search-port.js";
+import { createProtocolImageGenerationPort } from "./generate-image-port.js";
 import { createProtocolOffPeakPort } from "./offpeak-port.js";
 import { createProtocolTopicResourcePort } from "./topic-resource-port.js";
 import { createProtocolBrowserControlBroker } from "./browser-control-broker.js";
@@ -3621,6 +3622,10 @@ async function createRecord(
     // agent 只读 vault 检索（obsidian-knowledge.md §5f）：host 无 knowledge 服务时工具
     // 报结构化不可用；端口恒注入（工具注册由 includeVaultSearch 门 + 错误语义双层兜底）。
     vaultSearchPort: createProtocolVaultSearchPort(context),
+    // agent 内置文生图（specs/model-capabilities.md §6.2）：端口恒注入、不做 include 门
+    // （与 VaultSearch 的有意分歧）：可用性由错误语义统一表达——旧 host -32601 翻译为
+    // ConfigurationError，档案未启用/未配置由 host 返回结构化失败。
+    imageGenerationPort: createProtocolImageGenerationPort(context),
     // 只接入 Host 已开放的工具面；缺省不注入。复用现行异步工厂，
     // 不恢复旧 deferred ModelAdapter/Registry overlay，也不改变 Session Selection。
     ...(("offPeakToolEnabled" in params && params.offPeakToolEnabled === true) ||

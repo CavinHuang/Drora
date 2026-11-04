@@ -97,7 +97,6 @@ import { PersonalizationSection } from "@/settings/PersonalizationSection.js";
 import { BrowserSettingsSection } from "@/settings/BrowserSettingsSection.js";
 import { ComputerUseSection } from "@/settings/ComputerUseSection.js";
 import { VoiceSection } from "@/settings/VoiceSection.js";
-import { KnowledgeSettingsSection } from "@/settings/KnowledgeSettingsSection.js";
 import { ShortcutSettingsSection } from "@/settings/ShortcutSettingsSection.js";
 import { MigrationSection } from "@/settings/MigrationSection.js";
 import { SETTINGS_FRAME_CONTENT_CLASSNAME } from "@/settings/SettingsPageParts.js";
@@ -2327,8 +2326,6 @@ export function SettingsPage({
                             />
                           ) : activeSection === "voice" ? (
                             <VoiceSection />
-                          ) : activeSection === "knowledge" ? (
-                            <KnowledgeSettingsSection />
                           ) : null}
                           {activeSection === "general" && isDesktop ? (
                             <DesktopPetSettingsRow

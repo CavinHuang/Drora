@@ -13,19 +13,17 @@ import { useVoiceSessionStore } from "@/store/voiceSessionStore.js";
 
 const { settingsState, stableServices, fakePlatform } = vi.hoisted(() => {
   const settingsState = {
+    // §12 清理：ASR 引擎档已迁入模型能力档案（specs/model-capabilities.md §3.3），
+    // 此处只保留行为偏好键（与 AppSettings 9 键契约对齐）；旧引擎/厂商键从 mock 删除，
+    // 数据源改由下方 modelCapabilitiesService 提供（照 VoiceSection.test 同批姿势）。
     current: {
       voiceComposerEntryHidden: false,
       voiceAnnouncementEnabled: false,
       voiceAnnouncementVoice: "",
       voiceAnnouncementRate: 1,
       voiceDictationLang: "",
-      voiceAsrEngine: "webSpeech" as "webSpeech" | "remote",
       voiceToolBriefEnabled: false,
       voicePrivacyDisclosureAcknowledged: true,
-      voiceVendorBaseUrl: "",
-      voiceAsrVendorModel: "",
-      voiceTtsEngine: "system" as "system" | "cloud",
-      voiceTtsVendorModel: "",
     },
   };
   const stableServices = {
@@ -34,6 +32,23 @@ const { settingsState, stableServices, fakePlatform } = vi.hoisted(() => {
       load: async () => "sk-test-key",
       save: async () => undefined,
       delete: async () => undefined,
+    },
+    modelCapabilitiesService: {
+      get: async () => ({
+        schemaVersion: 1,
+        capabilities: {
+          "decision-jev": { enabled: false, providerKind: "typesafe", baseUrl: "", modelId: "" },
+          embedding: { enabled: false, mode: "local", localModelId: "local-bge-small-zh-v1.5-int8" },
+          asr: { engine: "webSpeech", baseUrl: "", modelId: "" },
+          tts: { engine: "system", baseUrl: "", modelId: "", voice: "" },
+          "image-generation": { enabled: false, baseUrl: "", modelId: "" },
+        },
+        migratedFromLegacySettings: true,
+      }),
+      update: async () => {
+        throw new Error("unexpected update in composer entry test");
+      },
+      onDidChange: () => ({ dispose: () => undefined }),
     },
   };
   const fakePlatform = {};
@@ -153,13 +168,8 @@ beforeEach(() => {
     voiceAnnouncementVoice: "",
     voiceAnnouncementRate: 1,
     voiceDictationLang: "",
-    voiceAsrEngine: "webSpeech",
     voiceToolBriefEnabled: false,
     voicePrivacyDisclosureAcknowledged: true,
-    voiceVendorBaseUrl: "",
-    voiceAsrVendorModel: "",
-    voiceTtsEngine: "system",
-    voiceTtsVendorModel: "",
   });
 });
 

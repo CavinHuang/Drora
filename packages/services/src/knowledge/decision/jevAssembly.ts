@@ -1,5 +1,6 @@
 /**
- * Jev 装配配置解析（specs/obsidian-knowledge.md §5d.10）。
+ * Jev 装配配置解析（specs/obsidian-knowledge.md §5d.10；数据源切换见
+ * specs/model-capabilities.md §9 批次一）。
  *
  * createLocalServices 是同步函数，而开关/凭据读取是异步——预解析必须发生在
  * host 侧已有的异步初始化段，经快照 option 传回装配函数。本模块只提供：
@@ -14,18 +15,18 @@
  * （可覆盖），openrouter / ai-gateway 的 baseURL 由发行方文档/部署方提供、必填
  * （不硬编码未证实公开规范 URL 的端点）。
  *
+ * 数据源（2026-11-04 批次一）：开关/提供商/端点/模型读模型能力档案快照
+ * （model_capabilities.json 唯一所有者 ModelCapabilitiesService），凭据读
+ * modelCapabilityCredentialKey.decisionJev(kind) 新键；旧 AppSettings
+ * knowledgeJev* 键已由档案服务一次性迁移（spec §3.3）。
+ *
  * 安全不变式（ADR #5/#11）：API Key 只从 credentialService 读出、只在 Host 侧
  * 闭包内使用；不进 RPC 面、日志与诊断。
  */
-import {
-  KNOWLEDGE_JEV_AI_GATEWAY_CREDENTIAL_KEY,
-  KNOWLEDGE_JEV_CREDENTIAL_KEY,
-  KNOWLEDGE_JEV_OPENROUTER_CREDENTIAL_KEY,
-} from "@drora/shared";
+import { modelCapabilityCredentialKey, type ModelCapabilities } from "@drora/shared";
 
 import { createCredentialService } from "../../credential/credentialService.js";
 import type { ICredentialService } from "../../credential/credential.js";
-import type { ISettingService } from "../../setting/setting.js";
 import type { KnowledgeDecisionPolicyConfig, KnowledgeDecisionProvider } from "./decisionTypes.js";
 import type { DecisionConsentRegistry } from "./decisionConsent.js";
 import { createJevAdapter } from "./jevAdapter.js";
@@ -43,7 +44,8 @@ export type KnowledgeJevAssembly =
   | { provider: "ai-gateway"; apiKey: string; baseUrl: string; model: string };
 
 export interface ResolveKnowledgeJevAssemblyOptions {
-  settingService: Pick<ISettingService, "get">;
+  /** 模型能力档案快照（或仅 decision-jev 条目；测试可传最小形状）。 */
+  modelCapabilities: Pick<ModelCapabilities, "decision-jev">;
   /** 缺省时自建无状态读取实例（同一加密文件；生产注入与装配共享实例更优，测试注入假实现）。 */
   credentialService?: Pick<ICredentialService, "load">;
 }
@@ -57,29 +59,32 @@ function normalizeBaseURL(raw: string | undefined): string | undefined {
 export async function resolveKnowledgeJevAssembly(
   options: ResolveKnowledgeJevAssemblyOptions,
 ): Promise<KnowledgeJevAssembly | null> {
-  const settings = await options.settingService.get();
-  if (settings.knowledgeJevEnabled !== true) {
+  const decisionJev = options.modelCapabilities["decision-jev"];
+  if (decisionJev.enabled !== true) {
     return null;
   }
   const credentialService = options.credentialService ?? createCredentialService();
   // 远程具名提供商（OpenRouter / AI Gateway）：端点 baseURL 由发行方文档/部署方提供，
   // 与 Key、模型别名同为必填（fail-closed，缺任一即禁用）——不硬编码猜测端点。
-  if (settings.knowledgeJevProvider === "openrouter") {
-    const apiKey = (await credentialService.load(KNOWLEDGE_JEV_OPENROUTER_CREDENTIAL_KEY))?.trim();
-    const model = normalizeBaseURL(settings.knowledgeJevOpenrouterModel);
+  if (decisionJev.providerKind === "openrouter") {
+    const apiKey = (
+      await credentialService.load(modelCapabilityCredentialKey.decisionJev("openrouter"))
+    )?.trim();
+    const model = normalizeBaseURL(decisionJev.modelId);
     if (!apiKey || !model) return null;
     return {
       provider: "openrouter",
       apiKey,
       model,
       // 端点缺省回落内置（openrouter.ai 官方）；自有网关经设置覆盖。
-      baseUrl:
-        normalizeBaseURL(settings.knowledgeJevOpenrouterBaseUrl) ?? OPENROUTER_OFFICIAL_BASE_URL,
+      baseUrl: normalizeBaseURL(decisionJev.baseUrl) ?? OPENROUTER_OFFICIAL_BASE_URL,
     };
   }
-  if (settings.knowledgeJevProvider === "ai-gateway") {
-    const apiKey = (await credentialService.load(KNOWLEDGE_JEV_AI_GATEWAY_CREDENTIAL_KEY))?.trim();
-    const model = normalizeBaseURL(settings.knowledgeJevAiGatewayModel);
+  if (decisionJev.providerKind === "ai-gateway") {
+    const apiKey = (
+      await credentialService.load(modelCapabilityCredentialKey.decisionJev("ai-gateway"))
+    )?.trim();
+    const model = normalizeBaseURL(decisionJev.modelId);
     if (!apiKey || !model) return null;
     return {
       provider: "ai-gateway",
@@ -87,11 +92,12 @@ export async function resolveKnowledgeJevAssembly(
       model,
       // 端点缺省回落内置（Vercel AI Gateway，初值依据见 spec §5d.10 决策记录）；
       // 自有网关部署（Kong/TrueFoundry 等）经设置覆盖。
-      baseUrl:
-        normalizeBaseURL(settings.knowledgeJevAiGatewayBaseUrl) ?? AI_GATEWAY_OFFICIAL_BASE_URL,
+      baseUrl: normalizeBaseURL(decisionJev.baseUrl) ?? AI_GATEWAY_OFFICIAL_BASE_URL,
     };
   }
-  const apiKey = (await credentialService.load(KNOWLEDGE_JEV_CREDENTIAL_KEY))?.trim();
+  const apiKey = (
+    await credentialService.load(modelCapabilityCredentialKey.decisionJev("typesafe"))
+  )?.trim();
   if (!apiKey) {
     // fail-closed：开关开了但凭据缺失，与关闭同语义（K-JEV-8）。
     return null;
@@ -99,7 +105,7 @@ export async function resolveKnowledgeJevAssembly(
   return {
     provider: "typesafe",
     apiKey,
-    baseUrl: normalizeBaseURL(settings.knowledgeJevBaseUrl) ?? TYPESAFE_OFFICIAL_BASE_URL,
+    baseUrl: normalizeBaseURL(decisionJev.baseUrl) ?? TYPESAFE_OFFICIAL_BASE_URL,
   };
 }
 

@@ -3,14 +3,13 @@
  *
  * 断言：2xx+合法答案 → ok（含延迟）；401 → Key 无效文案；装配缺失（开关未开/
  * 必填项缺失）→ 配置未完成提示；探测请求为最小 systemOne 形状。
- * 运行：node --import tsx --test packages/services/test/knowledgeJevConnection.test.ts
  */
 import assert from "node:assert/strict";
 import { createServer, type Server } from "node:http";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import test from "node:test";
+import { it } from "vitest";
 import { setDataBaseDir } from "../src/paths.js";
 import {
   createKnowledgeServices,
@@ -56,7 +55,7 @@ function createServicesWithSource(
   });
 }
 
-test("testJevConnection：2xx+合法答案 → ok（最小 systemOne 探测形状）", async () => {
+it("testJevConnection：2xx+合法答案 → ok（最小 systemOne 探测形状）", async () => {
   const root = await mkdtemp(join(tmpdir(), "drora-jev-conn-"));
   setDataBaseDir(root);
   const stub = await startStub(200, {
@@ -87,7 +86,7 @@ test("testJevConnection：2xx+合法答案 → ok（最小 systemOne 探测形�
   }
 });
 
-test("testJevConnection：401 → 认证失败文案；装配缺失 → 配置未完成提示", async () => {
+it("testJevConnection：401 → 认证失败文案；装配缺失 → 配置未完成提示", async () => {
   const root = await mkdtemp(join(tmpdir(), "drora-jev-conn-401-"));
   setDataBaseDir(root);
   const stub = await startStub(401, { error: "unauthorized" });

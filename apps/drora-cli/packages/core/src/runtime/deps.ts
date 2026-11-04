@@ -119,6 +119,7 @@ export type {
   OffPeakPort,
   TopicResourcePort,
   VaultSearchPort,
+  ImageGenerationPort,
   BackgroundExecutionSnapshot,
   BackgroundTaskCancelResult,
   BackgroundTaskInfo,

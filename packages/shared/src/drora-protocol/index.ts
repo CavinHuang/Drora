@@ -4310,6 +4310,60 @@ export const droraKnowledgeSearchResultSchema = z
   .strict();
 export type DroraKnowledgeSearchProtocolResult = z.infer<typeof droraKnowledgeSearchResultSchema>;
 
+// ---- Model Capability（图像生成）agent 工具协议----
+// agent 内置文生图入口（specs/model-capabilities.md §6）：CLI generate_image 工具 →
+// bootstrap 协议端口 → host droraAgentService 分发 → 进程内模型能力档案画图服务。
+// 出站、凭据解密全部留在 host（凭据零出 host）；失败以结构化 ok:false 返回
+// （照 testJevConnection 风格不抛业务错），CLI 侧把配置类失败翻译为 ConfigurationError。
+export const droraModelCapabilityGenerateImageParamsSchema = z
+  .object({
+    // 图像描述（1-4000，与 CLI 工具 Input 同口径）。
+    prompt: nonEmptyString.max(4000),
+    // 尺寸自由字符串（各家取值集不同，不做枚举强校验）。
+    size: z.string().min(1).max(64).optional(),
+  })
+  .strict();
+export type DroraModelCapabilityGenerateImageProtocolParams = z.infer<
+  typeof droraModelCapabilityGenerateImageParamsSchema
+>;
+
+export const droraModelCapabilityGenerateImageErrorKindSchema = z.enum([
+  "disabled",
+  "not_configured",
+  "auth_failed",
+  "rate_limited",
+  "endpoint_error",
+  "bad_response",
+  "payload_too_large",
+  "network",
+]);
+export type DroraModelCapabilityGenerateImageErrorKind = z.infer<
+  typeof droraModelCapabilityGenerateImageErrorKindSchema
+>;
+
+export const droraModelCapabilityGenerateImageResultSchema = z.discriminatedUnion("ok", [
+  z
+    .object({
+      ok: z.literal(true),
+      // base64 图片载荷（host 侧已保证 ≤8MiB，防 stdio 大帧风险，spec §6.3/OQ-5）。
+      imageBase64: z.string().min(1),
+      contentType: z.string().regex(/^image\/[a-z0-9.+-]+$/iu),
+      bytes: z.number().int().positive(),
+    })
+    .strict(),
+  z
+    .object({
+      ok: z.literal(false),
+      errorKind: droraModelCapabilityGenerateImageErrorKindSchema,
+      // 可直接转述的失败文案；配置类失败含「模型设置页 → 图像生成配置」指引。
+      message: z.string().min(1),
+    })
+    .strict(),
+]);
+export type DroraModelCapabilityGenerateImageProtocolResult = z.infer<
+  typeof droraModelCapabilityGenerateImageResultSchema
+>;
+
 // ── Persona P0 管理方法（spec §4/§10、合同 §3/§4.1；wire 名单一出处 contracts/persona.ts）──
 // 无会话管理：方法在 CLI 协议 server 注册，经 Host 的 CLI 控制连接代理；不 session/create、
 // 不生成占位会话；控制域由服务绑定，params 不接受任意文件路径/dataRoot。未知字段拒绝（strict）。
@@ -4913,6 +4967,10 @@ export const droraProtocolMethods = {
   // agent 只读 vault 检索（VaultSearch 工具，obsidian-knowledge.md §5f）：CLI→host，
   // host 分发到进程内 knowledge query 服务；无 knowledge 服务的 host 结构化报不可用。
   knowledgeSearch: "knowledge/search",
+  // agent 内置文生图（generate_image 工具，specs/model-capabilities.md §6）：CLI→host，
+  // host 分发到进程内模型能力档案画图服务（凭据零出 host）；无画图服务的 host -32601，
+  // CLI 翻译为固定不可用文案（照 vault-search-port 先例）。
+  modelCapabilityGenerateImage: "modelCapability/generateImage",
   // Persona P0 无会话管理（spec §4/§10、合同 §3/§4.1）：Host 经 CLI 控制连接代理，
   // 不 session/create、不生成占位会话；wire 名单一出处 contracts/persona.ts。
   personaGetOverview: PERSONA_PROTOCOL_METHODS.getOverview,

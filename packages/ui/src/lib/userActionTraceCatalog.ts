@@ -102,11 +102,33 @@ export const SETTINGS_USER_ACTION_FEATURES = {
     "forget_persona_preference",
     "set_persona_policy",
     "export_persona_snapshot",
+    // 第十五批补登记：人设预设应用动作此前缺席目录，导致遥测静默降级为 noop。
+    "apply_persona_preset",
   ],
-  "settings.knowledge": [
-    "toggle_knowledge_jev",
-    "save_knowledge_jev_api_key",
-    "save_knowledge_jev_base_url",
+  // 模型能力档案（specs/model-capabilities.md §5.1 五条目；knowledge 分区随批次二删除，
+  // 旧 settings.knowledge 动作组由本组承接迁移后的配置面）。
+  "settings.model_capabilities": [
+    "toggle_decision_jev",
+    "change_decision_jev_provider",
+    "save_decision_jev_base_url",
+    "save_decision_jev_model",
+    "save_decision_jev_api_key",
+    "test_decision_jev_connection",
+    "toggle_embedding",
+    "download_embedding_model",
+    "change_asr_engine",
+    "save_asr_base_url",
+    "save_asr_model",
+    "save_asr_api_key",
+    "change_tts_engine",
+    "save_tts_base_url",
+    "save_tts_model",
+    "save_tts_voice",
+    "save_tts_api_key",
+    "toggle_image_generation",
+    "save_image_generation_base_url",
+    "save_image_generation_model",
+    "save_image_generation_api_key",
   ],
   "settings.browser": [
     "toggle_browser_use",

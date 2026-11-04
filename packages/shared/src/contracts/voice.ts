@@ -16,23 +16,18 @@
 export const VOICE_INPUT_SOURCE_KIND = "voice";
 
 /** appSettings 持久化键（validationAppSettings.ts schema 字段名与此一一对应，
- *  由 parity 单测钉住；specs/voice-agent-integration.md §6.1 八键表）。 */
+ *  由 parity 单测钉住；specs/voice-agent-integration.md §6.1）。
+ *
+ * 模型能力收敛（specs/model-capabilities.md §3.3，批次二）：引擎选择与厂商档
+ * （asrEngine/vendorBaseUrl/asrVendorModel/ttsEngine/ttsVendorModel/ttsVendorVoice
+ * 六键）迁入模型能力档案（contracts/modelCapabilities.ts asr/tts 条目）；本表收窄为
+ * 纯行为偏好 9 键（spec §0 澄清：行为偏好不是模型配置，留在语音分区）。 */
 export const VOICE_SETTINGS_KEYS = {
   composerEntryHidden: "voiceComposerEntryHidden",
   announcementEnabled: "voiceAnnouncementEnabled",
   announcementVoice: "voiceAnnouncementVoice",
   announcementRate: "voiceAnnouncementRate",
   dictationLang: "voiceDictationLang",
-  asrEngine: "voiceAsrEngine",
-  // 厂商档（spec §9.6.2：双腿共用 baseUrl + 一枚凭据；非秘密进 appSettings，
-  // apiKey 走 VOICE_VENDOR_CREDENTIAL_KEY 凭据服务不进 appSettings/wire）。
-  vendorBaseUrl: "voiceVendorBaseUrl",
-  asrVendorModel: "voiceAsrVendorModel",
-  ttsEngine: "voiceTtsEngine",
-  ttsVendorModel: "voiceTtsVendorModel",
-  // §9.7.3：云 TTS 音色独立键（厂商音色 id 命名空间）；voiceAnnouncementVoice
-  // 同步收窄为 system 引擎语义（系统音色名），两者永不互读。
-  ttsVendorVoice: "voiceTtsVendorVoice",
   // §9.7.5：播报语言键；"" = 自动 = UI locale（现状语义原样保留为缺省）。
   announcementLang: "voiceAnnouncementLang",
   // §9.7.8：persona 显示键——唯一消费方 = 设置面 Select 显示派生（运行时零读路径，
@@ -41,9 +36,6 @@ export const VOICE_SETTINGS_KEYS = {
   toolBriefEnabled: "voiceToolBriefEnabled",
   privacyDisclosureAcknowledged: "voicePrivacyDisclosureAcknowledged",
 } as const;
-
-/** 语音厂商档凭据键（spec §9.6.2：apiKey 经 ICredentialService 加密存储，照 oauth: 命名空间先例）。 */
-export const VOICE_VENDOR_CREDENTIAL_KEY = "voice:vendor:api-key";
 
 /** 跨窗口 claim 键（经既有 BroadcastHub 通用 claim 通道，Main 不解析语义）。 */
 export const VOICE_BROADCAST_CLAIM_KEY = {

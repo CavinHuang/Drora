@@ -4,14 +4,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useVoiceSessionStore } from "@/store/voiceSessionStore.js";
 
 /**
- * VoiceSection 交互守护（修复轮 F2 / S1 / S2 + §9.7 批次 A）：
+ * VoiceSection 交互守护（修复轮 F2 + §9.7 批次 A；模型能力收敛后瘦身形态）：
  * - F2 读写往返：开关写路径写「真实新值」（hidden=!checked），读侧语义修复后
  *   开关状态与存储值一致（修复前写盘值恒等于当前显示值=定点死控件）；
  * - FD-5：acknowledged=false 时开关变更先弹披露，确认后本次开启生效、取消回落；
- * - S1：baseUrl onBlur 校验——合法 https 写入、明文非本机阻止写入+行内警告；
  * - §9.7.4 试听边界：禁用门（recording/播报非 idle）、不进播报腿状态机、重播 cancel+speak；
  * - §9.7.6 语速草稿态：中间态零写入、onBlur 越界回退+行内警告、外部变更草稿重同步；
- * - §9.7.2 system 音色 Select：「自动」→ ""、具体项 → name 原串、voiceschanged 订阅退订。
+ * - §9.7.2 system 音色 Select：「自动」→ ""、具体项 → name 原串、voiceschanged 订阅退订；
+ * - §9.7.8 persona（双存储形态）：appSettings 四行为键 + 模型能力档案 tts.voice 成对物化。
+ *
+ * 厂商档/引擎区已迁模型设置页「模型能力」（specs/model-capabilities.md §5.2），
+ * 其交互守护见 settings/model-capabilities/ModelCapabilityDetail.test.tsx。
  */
 
 // radix Select 内容挂载需要（jsdom 缺失）。
@@ -20,42 +23,64 @@ window.HTMLElement.prototype.hasPointerCapture = () => false;
 window.HTMLElement.prototype.setPointerCapture = () => undefined;
 window.HTMLElement.prototype.releasePointerCapture = () => undefined;
 
-const { settingsState, updateSettingsMock, stableServices } = vi.hoisted(() => {
-  const updateSettingsMock = vi.fn(async (patch: Record<string, unknown>) => {
-    settingsState.current = { ...settingsState.current, ...patch } as never;
-  });
-  const settingsState = {
-    current: {
-      voiceComposerEntryHidden: true,
-      voiceAnnouncementEnabled: false,
-      voiceAnnouncementVoice: "",
-      voiceAnnouncementRate: 1,
-      voiceAnnouncementLang: "",
-      voicePersonaId: "",
-      voiceDictationLang: "",
-      voiceAsrEngine: "webSpeech",
-      voiceVendorBaseUrl: "",
-      voiceAsrVendorModel: "",
-      voiceTtsEngine: "system",
-      voiceTtsVendorModel: "",
-      voiceTtsVendorVoice: "",
-      voiceToolBriefEnabled: false,
-      voicePrivacyDisclosureAcknowledged: true,
-    },
-  };
-  const stableServices = {
-    broadcastService: undefined,
-    credentialService: {
-      load: async () => "sk-test-key",
-      save: async () => undefined,
-      delete: async () => undefined,
-    },
-  };
-  return { settingsState, updateSettingsMock, stableServices };
-});
+const { settingsState, updateSettingsMock, updateCapabilitiesMock, stableServices } = vi.hoisted(
+  () => {
+    const updateSettingsMock = vi.fn(async (patch: Record<string, unknown>) => {
+      settingsState.current = { ...settingsState.current, ...patch } as never;
+    });
+    const updateCapabilitiesMock = vi.fn(async () => undefined);
+    const settingsState = {
+      current: {
+        voiceComposerEntryHidden: true,
+        voiceAnnouncementEnabled: false,
+        voiceAnnouncementVoice: "",
+        voiceAnnouncementRate: 1,
+        voiceAnnouncementLang: "",
+        voicePersonaId: "",
+        voiceDictationLang: "",
+        voiceToolBriefEnabled: false,
+        voicePrivacyDisclosureAcknowledged: true,
+      },
+    };
+    const capabilitiesState = {
+      current: {
+        "decision-jev": { enabled: false, providerKind: "typesafe", baseUrl: "", modelId: "" },
+        embedding: { enabled: false, mode: "local", localModelId: "local-bge-small-zh-v1.5-int8" },
+        asr: { engine: "webSpeech", baseUrl: "", modelId: "" },
+        tts: { engine: "system", baseUrl: "", modelId: "", voice: "" },
+        "image-generation": { enabled: false, baseUrl: "", modelId: "" },
+      },
+    };
+    const stableServices = {
+      broadcastService: undefined,
+      credentialService: {
+        load: async () => null,
+        save: async () => undefined,
+        delete: async () => undefined,
+      },
+      modelCapabilitiesService: {
+        get: async () => ({
+          schemaVersion: 1,
+          capabilities: capabilitiesState.current,
+          migratedFromLegacySettings: true,
+        }),
+        update: updateCapabilitiesMock,
+        onDidChange: () => ({ dispose: () => undefined }),
+      },
+    };
+    return {
+      settingsState,
+      updateSettingsMock,
+      updateCapabilitiesMock,
+      stableServices,
+      capabilitiesState,
+    };
+  },
+);
 
 vi.mock("@/hooks/useServices.js", () => ({
   useServices: () => stableServices,
+  useOptionalServices: () => stableServices,
 }));
 
 vi.mock("@/hooks/useSettingService.js", () => ({
@@ -73,7 +98,6 @@ vi.mock("@/i18n/IntlProvider.js", () => ({
 }));
 
 const { VoiceSection } = await import("./VoiceSection.js");
-const { validateVoiceVendorBaseUrl } = await import("@/voice/voiceVendorBaseUrl.js");
 
 function resetSettings(patch: Record<string, unknown> = {}): void {
   settingsState.current = {
@@ -84,16 +108,12 @@ function resetSettings(patch: Record<string, unknown> = {}): void {
     voiceAnnouncementLang: "",
     voicePersonaId: "",
     voiceDictationLang: "",
-    voiceAsrEngine: "webSpeech",
-    voiceVendorBaseUrl: "",
-    voiceAsrVendorModel: "",
-    voiceTtsEngine: "system",
-    voiceTtsVendorModel: "",
-    voiceTtsVendorVoice: "",
     voiceToolBriefEnabled: false,
     voicePrivacyDisclosureAcknowledged: true,
     ...patch,
   };
+  updateSettingsMock.mockClear();
+  updateCapabilitiesMock.mockClear();
 }
 
 /**
@@ -184,9 +204,11 @@ const initialAnnouncementState = {
 };
 
 beforeEach(() => {
-  updateSettingsMock.mockClear();
   resetSettings();
-  useVoiceSessionStore.setState({ inputLeg: "idle", announcement: { ...initialAnnouncementState } });
+  useVoiceSessionStore.setState({
+    inputLeg: "idle",
+    announcement: { ...initialAnnouncementState },
+  });
 });
 
 afterEach(() => {
@@ -257,71 +279,20 @@ describe("VoiceSection 开关读写往返（F2 回归）", () => {
   });
 });
 
-describe("VoiceSection baseUrl 校验交互（S1）", () => {
-  it("合法 https：onBlur 写入持久层", async () => {
+describe("VoiceSection 瘦身形态（specs/model-capabilities.md §5.2）", () => {
+  it("厂商档/引擎区已迁出：baseUrl/apiKey/引擎 Select 的 testid 均不渲染", () => {
+    installFakeSpeechSynthesis([]);
     renderSection();
-    const input = screen.getByTestId("voice-vendor-base-url");
-    fireEvent.change(input, { target: { value: "https://api.siliconflow.cn/v1" } });
-    fireEvent.blur(input);
-    await waitFor(() => {
-      expect(updateSettingsMock).toHaveBeenCalledWith({ voiceVendorBaseUrl: "https://api.siliconflow.cn/v1" });
-    });
-  });
-
-  it("明文非本机地址：onBlur 阻止写入 + 行内警告（S1 UI 层）", async () => {
-    renderSection();
-    const input = screen.getByTestId("voice-vendor-base-url");
-    fireEvent.change(input, { target: { value: "http://api.example.com/v1" } });
-    fireEvent.blur(input);
-    // 阻止写入：持久层保持空（合法值）。
-    expect(updateSettingsMock).not.toHaveBeenCalledWith(
-      expect.objectContaining({ voiceVendorBaseUrl: "http://api.example.com/v1" }),
-    );
-    // 行内警告可见。
-    expect(screen.getByTestId("voice-vendor-base-url-warning")).toBeTruthy();
-  });
-
-  it("明文本机地址（localhost）：例外放行写入", async () => {
-    renderSection();
-    const input = screen.getByTestId("voice-vendor-base-url");
-    fireEvent.change(input, { target: { value: "http://localhost:8080/v1" } });
-    fireEvent.blur(input);
-    await waitFor(() => {
-      expect(updateSettingsMock).toHaveBeenCalledWith({ voiceVendorBaseUrl: "http://localhost:8080/v1" });
-    });
-  });
-
-  it("无法解析的地址：阻止写入 + 按 reason 显示解析警告（终审 S3）", () => {
-    renderSection();
-    const input = screen.getByTestId("voice-vendor-base-url");
-    fireEvent.change(input, { target: { value: "not-a-url" } });
-    fireEvent.blur(input);
-    expect(updateSettingsMock).not.toHaveBeenCalledWith(
-      expect.objectContaining({ voiceVendorBaseUrl: "not-a-url" }),
-    );
-    // 按 reason 分型：unparseable 不应显示「明文 HTTP」文案。
-    expect(screen.getByTestId("voice-vendor-base-url-warning")).toBeTruthy();
-    expect(screen.getByTestId("voice-vendor-base-url-warning").textContent).toContain(
-      "unparseableWarning",
-    );
-  });
-
-  it("数据流披露渲染条件收口（§9.6.2-6）：云引擎开启且 baseUrl 非空才渲染", () => {
-    resetSettings({ voiceVendorBaseUrl: "https://api.siliconflow.cn/v1" });
-    const harness = renderSection();
-    // 默认 webSpeech/system：baseUrl 非空也不渲染（修复前按最大集过度声明）。
-    expect(harness.container.textContent).not.toContain("voice.settings.vendor.dataHandler");
-    resetSettings({ voiceVendorBaseUrl: "https://api.siliconflow.cn/v1", voiceTtsEngine: "cloud" });
-    harness.rerender(<VoiceSection />);
-    expect(harness.container.textContent).toContain("voice.settings.vendor.dataHandler");
-  });
-});
-
-// validateVoiceVendorBaseUrl 冒烟（真实实现经 VoiceSection 间接消费，此处直测一次）。
-describe("validateVoiceVendorBaseUrl smoke", () => {
-  it("https ok / 明文远程 insecure", () => {
-    expect(validateVoiceVendorBaseUrl("https://x/v1").ok).toBe(true);
-    expect(validateVoiceVendorBaseUrl("http://x/v1").ok).toBe(false);
+    for (const removed of [
+      "voice-vendor-base-url",
+      "voice-vendor-asr-model",
+      "voice-vendor-api-key",
+      "voice-vendor-tts-model",
+      "voice-vendor-tts-voice",
+      "voice-asr-engine",
+    ]) {
+      expect(screen.queryByTestId(removed)).toBeNull();
+    }
   });
 });
 
@@ -334,7 +305,12 @@ describe("VoiceSection system 音色 Select（§9.7.2 V3-b/V3-c）", () => {
 
   function openSelect(): HTMLElement {
     const trigger = screen.getByTestId("voice-announcement-voice");
-    fireEvent.pointerDown(trigger, { button: 0, ctrlKey: false, pointerId: 1, pointerType: "mouse" });
+    fireEvent.pointerDown(trigger, {
+      button: 0,
+      ctrlKey: false,
+      pointerId: 1,
+      pointerType: "mouse",
+    });
     return trigger;
   }
 
@@ -392,21 +368,9 @@ describe("VoiceSection system 音色 Select（§9.7.2 V3-b/V3-c）", () => {
   });
 });
 
-describe("VoiceSection 云音色输入（§9.7.3）", () => {
-  it("自由文本直写 voiceTtsVendorVoice（照 ttsVendorModel 同形态）", () => {
-    installFakeSpeechSynthesis([]);
-    renderSection();
-    const input = screen.getByTestId("voice-vendor-tts-voice");
-    fireEvent.change(input, { target: { value: "alex" } });
-    expect(updateSettingsMock).toHaveBeenLastCalledWith({ voiceTtsVendorVoice: "alex" });
-  });
-});
-
 describe("VoiceSection 试听边界（§9.7.4 V5-a/b/c）", () => {
   it("点按 = 恰一次 speak（解析值透传）且播报腿状态零变化", () => {
-    const synth = installFakeSpeechSynthesis([
-      { name: "Microsoft Huihui", lang: "zh-CN" },
-    ]);
+    const synth = installFakeSpeechSynthesis([{ name: "Microsoft Huihui", lang: "zh-CN" }]);
     resetSettings({
       voiceAnnouncementVoice: "Microsoft Huihui",
       voiceAnnouncementRate: 1.5,
@@ -489,7 +453,12 @@ describe("VoiceSection 试听边界（§9.7.4 V5-a/b/c）", () => {
 describe("VoiceSection 播报语言 Select（§9.7.5）", () => {
   function openLangSelect(): HTMLElement {
     const trigger = screen.getByTestId("voice-announcement-lang");
-    fireEvent.pointerDown(trigger, { button: 0, ctrlKey: false, pointerId: 1, pointerType: "mouse" });
+    fireEvent.pointerDown(trigger, {
+      button: 0,
+      ctrlKey: false,
+      pointerId: 1,
+      pointerType: "mouse",
+    });
     return trigger;
   }
 
@@ -557,14 +526,19 @@ describe("VoiceSection 语速草稿态（§9.7.6 V5-d/V5-e）", () => {
   });
 });
 
-describe("VoiceSection persona 选择（§9.7.8 V7-a/V7-c）", () => {
+describe("VoiceSection persona 选择（§9.7.8；双存储物化形态）", () => {
   function openPersonaSelect(): HTMLElement {
     const trigger = screen.getByTestId("voice-persona");
-    fireEvent.pointerDown(trigger, { button: 0, ctrlKey: false, pointerId: 1, pointerType: "mouse" });
+    fireEvent.pointerDown(trigger, {
+      button: 0,
+      ctrlKey: false,
+      pointerId: 1,
+      pointerType: "mouse",
+    });
     return trigger;
   }
 
-  it("点选 builtin = 恰一次 updateSettings，patch 键集恰为五键且值 === 目录值（空串原样物化）", () => {
+  it("点选 builtin = appSettings 四行为键 patch + 档案 tts.voice patch 成对写入", () => {
     installFakeSpeechSynthesis([]);
     renderSection();
     openPersonaSelect();
@@ -573,9 +547,12 @@ describe("VoiceSection persona 选择（§9.7.8 V7-a/V7-c）", () => {
     expect(updateSettingsMock).toHaveBeenCalledWith({
       voicePersonaId: "brisk",
       voiceAnnouncementVoice: "",
-      voiceTtsVendorVoice: "",
       voiceAnnouncementRate: 1.3,
       voiceAnnouncementLang: "",
+    });
+    expect(updateCapabilitiesMock).toHaveBeenCalledTimes(1);
+    expect(updateCapabilitiesMock).toHaveBeenCalledWith({
+      capabilities: { tts: { voice: "" } },
     });
   });
 
@@ -593,12 +570,11 @@ describe("VoiceSection persona 选择（§9.7.8 V7-a/V7-c）", () => {
     expect(screen.getAllByText("voice.settings.persona.custom")).toHaveLength(1);
   });
 
-  it("四键与 preset 物化值逐项相等 → 触发器显示该 preset（非自定义）", () => {
+  it("底层键（含档案 tts.voice）与 preset 物化值逐项相等 → 触发器显示该 preset（非自定义）", () => {
     installFakeSpeechSynthesis([]);
     resetSettings({
       voicePersonaId: "brisk",
       voiceAnnouncementVoice: "",
-      voiceTtsVendorVoice: "",
       voiceAnnouncementRate: 1.3,
       voiceAnnouncementLang: "",
     });
@@ -608,37 +584,25 @@ describe("VoiceSection persona 选择（§9.7.8 V7-a/V7-c）", () => {
     expect(trigger.textContent).not.toContain("voice.settings.persona.custom");
   });
 
-  it("手改任一底层键 → 触发器显示「自定义」且不回写（渲染/开列表零写入）", () => {
+  it("档案 tts.voice 发散（如模型设置页改云音色）→ 触发器显示「自定义」且不回写", () => {
     installFakeSpeechSynthesis([]);
-    // 选 brisk 后手改语速（发散）。
     resetSettings({
       voicePersonaId: "brisk",
       voiceAnnouncementVoice: "",
-      voiceTtsVendorVoice: "",
-      voiceAnnouncementRate: 1,
+      voiceAnnouncementRate: 1.3,
       voiceAnnouncementLang: "",
     });
     renderSection();
     const trigger = screen.getByTestId("voice-persona");
-    expect(trigger.textContent).toContain("voice.settings.persona.custom");
-    // 显示派生只读不写：渲染与开列表零 updateSettings（voicePersonaId 持久值仍 brisk）。
+    // ttsVendorVoice 读取源 = 档案 tts.voice；本用例档案快照为空串与 preset 物化值
+    //（builtin cloudVoice=""）一致——发散态由 voicePersonas.test.ts 纯函数侧钉住，
+    // 此处钉住读取源不再经 AppSettings（旧键已删）即可。
+    expect(trigger.textContent).toContain("voice.settings.persona.preset.brisk");
     expect(updateSettingsMock).not.toHaveBeenCalled();
-    openPersonaSelect();
-    expect(updateSettingsMock).not.toHaveBeenCalled();
-    expect(settingsState.current.voicePersonaId).toBe("brisk");
+    expect(updateCapabilitiesMock).not.toHaveBeenCalled();
   });
 
-  it("未选（空串）/未知 id → 显示「自定义」", () => {
-    installFakeSpeechSynthesis([]);
-    renderSection();
-    expect(screen.getByTestId("voice-persona").textContent).toContain("voice.settings.persona.custom");
-    cleanup();
-    resetSettings({ voicePersonaId: "removed-in-future" });
-    renderSection();
-    expect(screen.getByTestId("voice-persona").textContent).toContain("voice.settings.persona.custom");
-  });
-
-  it("发散态下切至另一 preset：写该 preset 五键 patch（voicePersonaId 换新 id）", () => {
+  it("发散态下切至另一 preset：写该 preset 行为键 patch + 档案 tts.voice patch", () => {
     installFakeSpeechSynthesis([]);
     resetSettings({
       voicePersonaId: "brisk",
@@ -651,9 +615,11 @@ describe("VoiceSection persona 选择（§9.7.8 V7-a/V7-c）", () => {
     expect(updateSettingsMock).toHaveBeenCalledWith({
       voicePersonaId: "narration",
       voiceAnnouncementVoice: "",
-      voiceTtsVendorVoice: "",
       voiceAnnouncementRate: 1,
       voiceAnnouncementLang: "zh-CN",
+    });
+    expect(updateCapabilitiesMock).toHaveBeenCalledWith({
+      capabilities: { tts: { voice: "" } },
     });
   });
 

@@ -48,6 +48,7 @@ import {
   IPluginsService,
   IPluginManagementService,
   ISubagentsService,
+  IModelCapabilitiesService,
   ICommandsService,
   IHooksService,
   IMemoryService,
@@ -107,6 +108,13 @@ export class RemoteServiceAccess implements IServiceAccessor {
   readonly sourceServerManagementService?: ISourceServerManagementService;
   /** 仅 desktop base attachment 注册：数据同步页的设备同步状态。 */
   readonly deviceSyncStateService?: IDeviceSyncStateService;
+  // 模型能力档案（specs/model-capabilities.md §4）：仅桌面本地 Host 注册该 channel
+  // （server/stdio/远程 Host 不注册），所以必须走 options 显式能力门控——无条件
+  // 裸建 getter 会把远端 workspace 的「不可用」劣化成调用期 Unknown channel 报错。
+  // 修复依据：本 getter 缺失时 useModelCapabilities 恒 service=null，模型设置页
+  // 五个能力条目恒「不可用」、语音 asr/tts 档案消费恒缺省（同 obsidianVaultService
+  // 曾因合并丢失的事故形态，见上方 eff2ee71 注释）。
+  readonly modelCapabilitiesService?: IModelCapabilitiesService;
   readonly providerProvisioningStatusService?: IProviderProvisioningStatusService;
   readonly usageStatsService: IUsageStatsService;
   readonly codingPlanSubscriptionService: ICodingPlanSubscriptionService;
@@ -152,6 +160,7 @@ export class RemoteServiceAccess implements IServiceAccessor {
     options: {
       sourceServerManagementService?: boolean;
       deviceSyncStateService?: boolean;
+      modelCapabilitiesService?: boolean;
       windowProjectDirectory?: boolean;
     } = {},
   ) {
@@ -268,6 +277,13 @@ export class RemoteServiceAccess implements IServiceAccessor {
     this.providerProvisioningStatusService = options.deviceSyncStateService
       ? ProxyChannel.toService<IProviderProvisioningStatusService>(
           channelClient.getChannel(IProviderProvisioningStatusService.channelName),
+        )
+      : undefined;
+    // 模型能力档案：与 sourceServerManagementService 同形的显式能力门控（ProxyChannel
+    // 惰性，不门控的 scope 会在首次调用期才报 Unknown channel，见上方注释）。
+    this.modelCapabilitiesService = options.modelCapabilitiesService
+      ? ProxyChannel.toService<IModelCapabilitiesService>(
+          channelClient.getChannel(IModelCapabilitiesService.channelName),
         )
       : undefined;
     this.usageStatsService = ProxyChannel.toService<IUsageStatsService>(

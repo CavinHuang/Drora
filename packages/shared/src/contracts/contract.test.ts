@@ -20,7 +20,7 @@ import {
  * web-remote-relay 同款），且根 vitest unit 工程只收集各包 src 下以此命名的测试，
  * 按现状命名才能进入默认测试通道，故采用 contract.test.ts。
  *
- * §6.1 八键与 validationAppSettings schema 字段名的 parity 断言在本文件内
+ * §6.1 九键与 validationAppSettings schema 字段名的 parity 断言在本文件内
  * （persisted defaults + patch optional 两 schema 的字段名集合 === VOICE_SETTINGS_KEYS
  * 值集合，另抽查 §6.1 默认值）。
  */
@@ -32,24 +32,21 @@ describe("voice contract constants", () => {
     expect(voiceInputSourceSchema.shape.kind.value).toBe(VOICE_INPUT_SOURCE_KIND);
   });
 
-  it("exposes exactly the appSettings keys per spec §6.1 + §9.6.2 厂商档 + §9.7.3/§9.7.5/§9.7.8 additive", () => {
+  it("exposes exactly the behavior-preference appSettings keys（§6.1 + §9.7.5/§9.7.8 additive；厂商档六键随模型能力收敛迁出）", () => {
+    // 模型能力收敛（specs/model-capabilities.md §3.3 批次二）：asrEngine/vendorBaseUrl/
+    // asrVendorModel/ttsEngine/ttsVendorModel/ttsVendorVoice 六键迁入模型能力档案，
+    // voice 契约收窄为纯行为偏好 9 键（引擎选择在档案 asr/tts 条目）。
     expect(Object.keys(VOICE_SETTINGS_KEYS).sort()).toEqual(
       [
         "announcementEnabled",
         "announcementLang",
         "announcementRate",
         "announcementVoice",
-        "asrEngine",
-        "asrVendorModel",
         "composerEntryHidden",
         "dictationLang",
         "personaId",
         "privacyDisclosureAcknowledged",
-        "ttsEngine",
-        "ttsVendorModel",
-        "ttsVendorVoice",
         "toolBriefEnabled",
-        "vendorBaseUrl",
       ].sort(),
     );
     expect(VOICE_SETTINGS_KEYS.composerEntryHidden).toBe("voiceComposerEntryHidden");
@@ -57,13 +54,10 @@ describe("voice contract constants", () => {
     expect(VOICE_SETTINGS_KEYS.announcementVoice).toBe("voiceAnnouncementVoice");
     expect(VOICE_SETTINGS_KEYS.announcementRate).toBe("voiceAnnouncementRate");
     expect(VOICE_SETTINGS_KEYS.dictationLang).toBe("voiceDictationLang");
-    expect(VOICE_SETTINGS_KEYS.asrEngine).toBe("voiceAsrEngine");
     expect(VOICE_SETTINGS_KEYS.toolBriefEnabled).toBe("voiceToolBriefEnabled");
     expect(VOICE_SETTINGS_KEYS.privacyDisclosureAcknowledged).toBe(
       "voicePrivacyDisclosureAcknowledged",
     );
-    // §9.7.3：云 TTS 音色独立键（与 voiceAnnouncementVoice 分属两个命名空间，永不互读）。
-    expect(VOICE_SETTINGS_KEYS.ttsVendorVoice).toBe("voiceTtsVendorVoice");
     // §9.7.5：播报语言键（""=自动=UI locale）。
     expect(VOICE_SETTINGS_KEYS.announcementLang).toBe("voiceAnnouncementLang");
     // §9.7.8：persona 显示键（设置面显示派生单处消费，运行时零读路径）。
@@ -80,9 +74,8 @@ describe("voice contract constants", () => {
     // parity 单测（spec §9.1）：validationAppSettings voice 字段名集合 === 键值集合。
     // 动态 import 避免把大 schema 拉进非 settings 消费方的模块图。
     // persisted 侧经 appSettingsSchema.parse({}) 拿全默认对象——键集与默认值一次断言。
-    const { appSettingsSchema, appSettingsPatchSchema } = await import(
-      "../validationAppSettings.js"
-    );
+    const { appSettingsSchema, appSettingsPatchSchema } =
+      await import("../validationAppSettings.js");
     const expected = Object.values(VOICE_SETTINGS_KEYS).sort();
     const persistedKeys = Object.keys(appSettingsSchema.parse({}))
       .filter((key) => key.startsWith("voice"))
@@ -98,9 +91,9 @@ describe("voice contract constants", () => {
     expect(defaults.voiceAnnouncementEnabled).toBe(false);
     expect(defaults.voicePrivacyDisclosureAcknowledged).toBe(false);
     expect(defaults.voiceAnnouncementRate).toBe(1);
-    expect(defaults.voiceAsrEngine).toBe("webSpeech");
-    // §9.7.3/§9.7.5/§9.7.8 additive 默认值：三键空串（cloud=厂商默认音色 / lang=自动=UI locale / persona=未选）。
-    expect(defaults.voiceTtsVendorVoice).toBe("");
+    // §9.7.5/§9.7.8 additive 默认值：两键空串（lang=自动=UI locale / persona=未选）；
+    // 引擎/厂商档默认（asr=webSpeech、tts=system）随六键迁入模型能力档案
+    // （defaultModelCapabilitiesFile，services 侧单测钉住）。
     expect(defaults.voiceAnnouncementLang).toBe("");
     expect(defaults.voicePersonaId).toBe("");
   });
@@ -122,25 +115,21 @@ describe("voiceInputSourceSchema (strict, additive)", () => {
   });
 
   it("rejects unknown kind", () => {
-    expect(
-      conversationInputSourceSchema.safeParse({ kind: "voiceX" }).success,
-    ).toBe(false);
+    expect(conversationInputSourceSchema.safeParse({ kind: "voiceX" }).success).toBe(false);
   });
 
   it("rejects extra fields (strict)", () => {
     // §2.2：.strict() 偏斜方向 CLI→renderer——多余字段整条拒收，旧 CLI 不携带 source。
-    expect(
-      voiceInputSourceSchema.safeParse({ kind: "voice", extra: 1 }).success,
-    ).toBe(false);
+    expect(voiceInputSourceSchema.safeParse({ kind: "voice", extra: 1 }).success).toBe(false);
   });
 
   it("rejects invalid engine and overlong lang", () => {
-    expect(
-      voiceInputSourceSchema.safeParse({ kind: "voice", engine: "whisper" }).success,
-    ).toBe(false);
-    expect(
-      voiceInputSourceSchema.safeParse({ kind: "voice", lang: "x".repeat(36) }).success,
-    ).toBe(false);
+    expect(voiceInputSourceSchema.safeParse({ kind: "voice", engine: "whisper" }).success).toBe(
+      false,
+    );
+    expect(voiceInputSourceSchema.safeParse({ kind: "voice", lang: "x".repeat(36) }).success).toBe(
+      false,
+    );
   });
 
   it("keeps the union discriminated on kind without breaking pluginUi/genUi members", () => {
@@ -149,12 +138,11 @@ describe("voiceInputSourceSchema (strict, additive)", () => {
       conversationInputSourceSchema.safeParse({ kind: "pluginUi", pluginId: "p", toolCallId: "t" })
         .success,
     ).toBe(true);
-    expect(
-      conversationInputSourceSchema.safeParse({ kind: "genUi", path: "a.ts" }).success,
-    ).toBe(true);
+    expect(conversationInputSourceSchema.safeParse({ kind: "genUi", path: "a.ts" }).success).toBe(
+      true,
+    );
   });
 });
-
 
 describe("conversationInputIntentSchema.source with voice member", () => {
   const baseIntent = {
@@ -185,6 +173,8 @@ describe("conversationInputIntentSchema.source with voice member", () => {
   });
 
   it("rejects an intent whose source has an unknown kind", () => {
-    expect(conversationInputIntentSchema.safeParse({ ...baseIntent, source: { kind: "nope" } }).success).toBe(false);
+    expect(
+      conversationInputIntentSchema.safeParse({ ...baseIntent, source: { kind: "nope" } }).success,
+    ).toBe(false);
   });
 });

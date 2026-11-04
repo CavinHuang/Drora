@@ -221,6 +221,37 @@ export function createSettingService(): ISettingService {
   return createSettingServiceWithMigrations().service;
 }
 
+/**
+ * setting.json 绝对路径（与 createSettingServiceWithMigrations 的实例内 settingsFile
+ * 同一解析规则：DRORA_DESKTOP_HOME_DIR || HOME || USERPROFILE）。唯一出处——一次性
+ * 旧键迁移（specs/model-capabilities.md §3.3）与测试种子直接引用，禁止两处拼路径。
+ */
+export function resolveAppSettingsFilePath(): string {
+  return join(resolveUserHomeDir(), ".drora", "v2", "setting.json");
+}
+
+/**
+ * 原始（未经 appSettings schema 解析的）setting.json 内容读取。
+ *
+ * 用途唯一：模型能力档案的一次性旧键迁移（specs/model-capabilities.md §3.3）。批次二
+ * 把 14 个旧键从 appSettings schema 删除后，settingService.get() 的 z.object 解析会
+ * strip 掉文件里的旧键——迁移源必须读原始 JSON 才能拿到旧值；任何失败（文件缺失/
+ * 半截 JSON/解析异常）按「旧值缺失」处理返回空对象，不阻断迁移（fail-closed 到各
+ * 能力默认关闭态，与 §3.3 迁移规则一致）。运行时读路径仍然只经 settingService.get()。
+ */
+export async function readRawLegacyAppSettings(): Promise<Record<string, unknown>> {
+  try {
+    const raw = await readFile(resolveAppSettingsFilePath(), "utf-8");
+    const parsed: unknown = JSON.parse(raw);
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      return parsed as Record<string, unknown>;
+    }
+    return {};
+  } catch {
+    return {};
+  }
+}
+
 /** Host 私有迁移入口，不加入 Setting RPC；普通 get/update 从不等待 OAuth 查询。 */
 export function createSettingServiceWithMigrations(): {
   service: ISettingService;

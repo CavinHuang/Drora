@@ -1,4 +1,3 @@
-import type { KnowledgeJevProvider } from "./knowledge-jev.js";
 import { PERSONA_RUNTIME_PREFERENCE_ENABLED } from "./contracts/persona.js";
 import type { RemoteAssetInstallMode } from "./remoteAssetInstallMode.js";
 import type { RemoteResourcePackageSelection } from "./remoteResourcePackages.js";
@@ -295,7 +294,7 @@ export interface AppSettings {
    */
   computerUseComposerEntryHidden?: boolean;
   /**
-   * 语音八键 wire 面（specs/voice-agent-integration.md §6.1，全部 optional：
+   * 语音九键 wire 面（specs/voice-agent-integration.md §6.1，全部 optional：
    * undefined 走 validationAppSettings default——入口默认隐藏、播报默认关、
    * 隐私披露未确认）。键名与 contracts/voice.ts VOICE_SETTINGS_KEYS 一一对应。
    */
@@ -304,14 +303,6 @@ export interface AppSettings {
   voiceAnnouncementVoice?: string;
   voiceAnnouncementRate?: number;
   voiceDictationLang?: string;
-  voiceAsrEngine?: "webSpeech" | "remote";
-  /** 厂商档非秘密配置（spec §9.6.2；apiKey 走凭据服务不上 wire）。 */
-  voiceVendorBaseUrl?: string;
-  voiceAsrVendorModel?: string;
-  voiceTtsEngine?: "system" | "cloud";
-  voiceTtsVendorModel?: string;
-  /** 云 TTS 音色 id（spec §9.7.3 独立命名空间；空串 = 厂商默认音色）。 */
-  voiceTtsVendorVoice?: string;
   /** 播报语言（spec §9.7.5；空串 = 自动 = UI locale）。 */
   voiceAnnouncementLang?: string;
   /** persona 显示键（spec §9.7.8；设置面显示派生单处消费，运行时零读路径）。 */
@@ -491,27 +482,4 @@ export interface AppSettings {
    * 与 droraEndpointOrigin 的 test-only 门禁有意不同。
    */
   webRemoteControlRelayOrigin?: string;
-  /**
-   * VaultView 智能问库 Jev 出站决策开关（specs/obsidian-knowledge.md §5d.10）。
-   * 默认关闭（ADR #5：零出站）；开启仅表示允许装配，实际出站仍需逐 run 用户授权。
-   * 装配期快照，变更重启 Host 后生效。
-   */
-  knowledgeJevEnabled?: boolean;
-  /** Jev 决策模型提供商；缺省 typesafe。决策模型与 agent 聊天模型相互独立。 */
-  knowledgeJevProvider?: KnowledgeJevProvider;
-  /** TypeSafe 端点覆盖（网关/代理场景）；空/缺省 = 官方默认端点。重启后生效。 */
-  knowledgeJevBaseUrl?: string;
-  /** OpenRouter 侧 Jev 模型标识（provider=openrouter 时必填），例如 typesafe/jev-latest。 */
-  knowledgeJevOpenrouterModel?: string;
-  /** OpenRouter Jev 决策端点 baseURL；缺省回落内置端点（openrouter.ai/api/alpha + /decisions 决策路径），可覆盖。 */
-  knowledgeJevOpenrouterBaseUrl?: string;
-  /** AI Gateway 部署侧 Jev 模型标识（provider=ai-gateway 时必填），例如 typesafe/jev-latest。 */
-  knowledgeJevAiGatewayModel?: string;
-  /** AI Gateway 部署的 Jev 路由 baseURL；缺省回落内置端点（Vercel AI Gateway），自有部署覆盖。 */
-  knowledgeJevAiGatewayBaseUrl?: string;
-  /**
-   * 本地语义检索开关（specs/obsidian-knowledge.md §5b.9）：开启后装配注入本地嵌入
-   * 端口（bge-small-zh int8，首次使用下载模型，推理零出站）。缺省 false；重启生效。
-   */
-  knowledgeSemanticEnabled?: boolean;
 }

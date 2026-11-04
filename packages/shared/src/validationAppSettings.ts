@@ -530,7 +530,7 @@ const appSettingsObjectSchema = z.object({
   // 输入框电脑操作入口改为默认不展示，设置项保留、默认关闭。
   // default 只对缺省字段生效，显式存过 false 的用户仍保持展示。
   computerUseComposerEntryHidden: z.boolean().default(true),
-  // 语音八键（specs/voice-agent-integration.md §6.1，EG-3；键名与 contracts/voice.ts
+  // 语音九键（specs/voice-agent-integration.md §6.1，EG-3；键名与 contracts/voice.ts
   // VOICE_SETTINGS_KEYS 一一对应，由 contracts/contract.test.ts parity 单测钉住）。
   // 入口默认隐藏（!== false 判定照 CUA 哲学：新用户不闪按钮、不后台白跑权限查询）；
   // 播报默认关；隐私披露未确认前两个语音开启入口都被 FD-5 确认门拦住。
@@ -539,16 +539,6 @@ const appSettingsObjectSchema = z.object({
   voiceAnnouncementVoice: z.string().default(""),
   voiceAnnouncementRate: z.number().min(0.5).max(2).default(1),
   voiceDictationLang: z.string().default(""),
-  voiceAsrEngine: z.enum(["webSpeech", "remote"]).default("webSpeech"),
-  // 厂商档（spec §9.6.2）：非秘密配置进 appSettings；apiKey 走 VOICE_VENDOR_CREDENTIAL_KEY
-  // 凭据服务（appSettings 全 schema 无任何 apiKey 字段，秘密不上 wire）。
-  voiceVendorBaseUrl: z.string().default(""),
-  voiceAsrVendorModel: z.string().default(""),
-  voiceTtsEngine: z.enum(["system", "cloud"]).default("system"),
-  voiceTtsVendorModel: z.string().default(""),
-  // §9.7.3：云 TTS 音色独立键（厂商音色 id；空串 = 厂商默认音色）；与
-  // voiceAnnouncementVoice（system 引擎系统音色名）分属两个命名空间，永不互读。
-  voiceTtsVendorVoice: z.string().default(""),
   // §9.7.5：播报语言；空串 = 自动 = UI locale（现状语义为缺省，显式值优先）。
   voiceAnnouncementLang: z.string().default(""),
   // §9.7.8：persona 显示键；空串 = 未选（显示「自定义」派生档）。
@@ -628,19 +618,6 @@ const appSettingsObjectSchema = z.object({
   webRemoteControlLastEnabledContext: webRemoteControlLastEnabledContextSchema.optional(),
   droraEndpointOrigin: droraEndpointOriginSchema.optional(),
   webRemoteControlRelayOrigin: webRemoteControlRelayOriginSchema.optional(),
-  // Jev 出站决策（obsidian-knowledge.md §5d.10）：缺省关闭，显式存过 true 的用户保持开启。
-  knowledgeJevEnabled: z.boolean().default(false),
-  knowledgeSemanticEnabled: z.boolean().default(false),
-  // catch：历史/非法落盘值（如已废弃的枚举项）回落缺省，避免整个 settings 被判损坏隔离。
-  knowledgeJevProvider: z
-    .enum(["typesafe", "openrouter", "ai-gateway"])
-    .default("typesafe")
-    .catch("typesafe"),
-  knowledgeJevBaseUrl: nonEmptyStringSchema.optional(),
-  knowledgeJevOpenrouterModel: nonEmptyStringSchema.optional(),
-  knowledgeJevOpenrouterBaseUrl: nonEmptyStringSchema.optional(),
-  knowledgeJevAiGatewayModel: nonEmptyStringSchema.optional(),
-  knowledgeJevAiGatewayBaseUrl: nonEmptyStringSchema.optional(),
 });
 
 export const appSettingsSchema = z.preprocess(
@@ -679,18 +656,12 @@ export const appSettingsPatchSchema = z.object({
   embeddedBrowserAllowInsecureCertificates: z.boolean().optional(),
   embeddedBrowserViewportPreference: embeddedBrowserViewportPreferenceSchema.optional(),
   computerUseComposerEntryHidden: z.boolean().optional(),
-  // 语音八键 update 面（全部 optional：patch 语义）；§6.1 / contracts/voice.ts parity。
+  // 语音九键 update 面（全部 optional：patch 语义）；§6.1 / contracts/voice.ts parity。
   voiceComposerEntryHidden: z.boolean().optional(),
   voiceAnnouncementEnabled: z.boolean().optional(),
   voiceAnnouncementVoice: z.string().optional(),
   voiceAnnouncementRate: z.number().min(0.5).max(2).optional(),
   voiceDictationLang: z.string().optional(),
-  voiceAsrEngine: z.enum(["webSpeech", "remote"]).optional(),
-  voiceVendorBaseUrl: z.string().optional(),
-  voiceAsrVendorModel: z.string().optional(),
-  voiceTtsEngine: z.enum(["system", "cloud"]).optional(),
-  voiceTtsVendorModel: z.string().optional(),
-  voiceTtsVendorVoice: z.string().optional(),
   voiceAnnouncementLang: z.string().optional(),
   voicePersonaId: z.string().optional(),
   voiceToolBriefEnabled: z.boolean().optional(),
@@ -779,12 +750,4 @@ export const appSettingsPatchSchema = z.object({
   droraEndpointOrigin: droraEndpointOriginSchema.optional(),
   webRemoteControlRelayOrigin: webRemoteControlRelayOriginSchema.optional(),
   /** Jev 出站决策（obsidian-knowledge.md §5d.10）；更新补丁全可选。 */
-  knowledgeJevEnabled: z.boolean().optional(),
-  knowledgeSemanticEnabled: z.boolean().optional(),
-  knowledgeJevProvider: z.enum(["typesafe", "openrouter", "ai-gateway"]).optional(),
-  knowledgeJevBaseUrl: z.union([nonEmptyStringSchema, z.literal("")]).optional(),
-  knowledgeJevOpenrouterModel: z.union([nonEmptyStringSchema, z.literal("")]).optional(),
-  knowledgeJevOpenrouterBaseUrl: z.union([nonEmptyStringSchema, z.literal("")]).optional(),
-  knowledgeJevAiGatewayModel: z.union([nonEmptyStringSchema, z.literal("")]).optional(),
-  knowledgeJevAiGatewayBaseUrl: z.union([nonEmptyStringSchema, z.literal("")]).optional(),
 });

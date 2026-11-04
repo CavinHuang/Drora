@@ -6,10 +6,9 @@
  * （末尾斜杠剥除、路径拼接 {baseURL}/v1/systemone）、提供商模型别名覆盖优先于
  * 请求携带的官方别名、状态码原样透传（429/5xx 分类由 adapter 承担）、2xx 坏
  * JSON 容错为 body=null。
- * 运行：node --import tsx --test packages/services/test/knowledgeSystemOneTransport.test.ts
  */
 import assert from "node:assert/strict";
-import test from "node:test";
+import { it } from "vitest";
 import {
   TYPESAFE_OFFICIAL_BASE_URL,
   createSystemOneHttpTransport,
@@ -44,11 +43,11 @@ function makeRequest(model: string) {
   };
 }
 
-test("TYPESAFE_OFFICIAL_BASE_URL 是官方托管端点（装配层缺省回落的单一出处）", () => {
+it("TYPESAFE_OFFICIAL_BASE_URL 是官方托管端点（装配层缺省回落的单一出处）", () => {
   assert.equal(TYPESAFE_OFFICIAL_BASE_URL, "https://api.typesafe.ai");
 });
 
-test("缺 API Key / 缺 baseURL 构造即抛错（不做隐藏默认，绝不静默出站）", () => {
+it("缺 API Key / 缺 baseURL 构造即抛错（不做隐藏默认，绝不静默出站）", () => {
   assert.throws(
     () => createSystemOneHttpTransport({ apiKey: "", baseUrl: TYPESAFE_OFFICIAL_BASE_URL }),
     /API Key/u,
@@ -59,7 +58,7 @@ test("缺 API Key / 缺 baseURL 构造即抛错（不做隐藏默认，绝不静
   );
 });
 
-test("线格式：POST {baseURL}/v1/systemone + Bearer；末尾斜杠剥除；官方别名透传", async () => {
+it("线格式：POST {baseURL}/v1/systemone + Bearer；末尾斜杠剥除；官方别名透传", async () => {
   const { calls, fetchImpl } = fakeFetch({
     status: 200,
     json: { model: "jev-latest", answers: { relevance: { type: "noul", noul: 0.5 } } },
@@ -79,7 +78,7 @@ test("线格式：POST {baseURL}/v1/systemone + Bearer；末尾斜杠剥除；�
   assert.equal(calls[0]?.body.model, "jev-latest");
 });
 
-test("提供商模型别名覆盖优先于请求携带的官方别名", async () => {
+it("提供商模型别名覆盖优先于请求携带的官方别名", async () => {
   const { calls, fetchImpl } = fakeFetch({
     status: 200,
     json: { model: "tenant/jev-1.13.0", answers: { relevance: { type: "noul", noul: 0.5 } } },
@@ -94,7 +93,7 @@ test("提供商模型别名覆盖优先于请求携带的官方别名", async ()
   assert.equal(calls[0]?.body.model, "tenant/jev-1.13.0");
 });
 
-test("状态码原样透传；2xx 坏 JSON 容错为 body=null（adapter 按 provider_error 回退）", async () => {
+it("状态码原样透传；2xx 坏 JSON 容错为 body=null（adapter 按 provider_error 回退）", async () => {
   const rateLimited = fakeFetch({ status: 429, json: { error: "rate limited" } });
   const transport429 = createSystemOneHttpTransport({
     apiKey: "sk-test",

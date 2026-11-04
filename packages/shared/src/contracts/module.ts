@@ -6,5 +6,11 @@ export const sharedContractsModule = {
   id: "shared-contracts",
   requires: ["shared"],
   provides: ["shared-contracts"],
-  publicEntrypoints: ["contract.ts", "desktopPet.ts", "voice.ts", "persona.ts"],
+  publicEntrypoints: [
+    "contract.ts",
+    "desktopPet.ts",
+    "voice.ts",
+    "persona.ts",
+    "modelCapabilities.ts",
+  ],
 } as const;

@@ -238,6 +238,17 @@ describe("Window Host 的 Source 重连与数据库启动整合", () => {
         // B 类保护：Drora knowledge host 装配随上游 v3.16.1 结构并入 InitLocal 块，
         // 这里提供 no-op stub，验证其不阻塞「数据库准备前不创建业务服务」的时序断言。
         assembleDroraKnowledgeHost: async () => undefined,
+        // 模型能力档案（specs/model-capabilities.md §9 批次一）：InitLocal 在 knowledge
+        // 装配前构造档案服务；stub 只需满足 createLocalServices 注册形状，本测试不触其 IO。
+        createModelCapabilitiesService: () => ({
+          get: async () => {
+            throw new Error("model capabilities snapshot not used in this test");
+          },
+          update: async () => {
+            throw new Error("model capabilities update not used in this test");
+          },
+          onDidChange: () => ({ dispose() {} }),
+        }),
         // 上游 v3.16.1：startPlan 验证码解析器改由 InitLocal 内联装配。
         resolveStartPlanCaptchaResolver: () => ({}),
         captchaConfigServiceHolder: { current: undefined },

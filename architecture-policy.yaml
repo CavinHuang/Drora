@@ -346,7 +346,7 @@ modules:
   - id: services-drora-extensions
     roots: [packages/services/src/drora-extensions]
     managed: true
-    requires: [services, shared]
+    requires: [services, shared, services-model-capabilities]
     publicEntrypoints:
       [
         packages/services/src/drora-extensions/contract.ts,
@@ -1323,6 +1323,9 @@ modules:
       - packages/ui/src/voice/contract.ts
       - packages/ui/src/voice/voiceTuning.ts
       - packages/ui/src/voice/voiceRecordingControl.ts
+      # baseUrl https/localhost 校验器（specs/model-capabilities.md §5.1 连接区模式
+      # 复用；通用 URL 形态校验，非语音专属）。
+      - packages/ui/src/voice/voiceVendorBaseUrl.ts
     layers:
       adapters: .
     owner: drora
@@ -1338,6 +1341,7 @@ modules:
       - packages/shared/src/contracts/desktopPet.ts
       - packages/shared/src/contracts/voice.ts
       - packages/shared/src/contracts/persona.ts
+      - packages/shared/src/contracts/modelCapabilities.ts
     layers:
       contract: .
     owner: drora
@@ -1384,6 +1388,36 @@ modules:
     publicEntrypoints:
       - apps/drora-cli/packages/bootstrap/src/app/drora-persona/index.ts
       - apps/drora-cli/packages/bootstrap/src/app/drora-persona/contract.ts
+    layers:
+      app: .
+    owner: drora
+  # services-model-capabilities：由 architecture:adopt 登记
+  - id: services-model-capabilities
+    roots:
+      - packages/services/src/model-capabilities
+    managed: true
+    requires:
+      - services
+      - shared
+    publicEntrypoints:
+      - packages/services/src/model-capabilities/index.ts
+      - packages/services/src/model-capabilities/contract.ts
+    layers:
+      app: .
+    owner: drora
+  # ui-model-capabilities：由 architecture:adopt 登记
+  - id: ui-model-capabilities
+    roots:
+      - packages/ui/src/settings/model-capabilities
+    managed: true
+    requires:
+      - services
+      - shared
+      - ui
+      - voice
+    publicEntrypoints:
+      - packages/ui/src/settings/model-capabilities/index.ts
+      - packages/ui/src/settings/model-capabilities/contract.ts
     layers:
       app: .
     owner: drora
@@ -1629,6 +1663,11 @@ exceptions:
       - packages/ui/src/settings/sourceServerDeviceList.ts
       - packages/ui/src/lib/remoteConnectionPresentation.ts
     reason: Settings remote device list (RDUX-13) splits the presentational row and pure ordering/search helpers out of the existing SourceServerManagementPanel, and removes the now-unused settings navigation status aggregate from the admitted presentation model; adopting packages/ui/src/settings or packages/ui/src/lib needs a separate module boundary refactor (same pattern as settings-machine-unmanaged-edit).
+  - id: model-capabilities-unmanaged-new-files
+    rule: unmanaged-new-file
+    paths:
+      - packages/ui/src/ToolCallBlocks/renderers/generate-image.tsx
+    reason: Model-capabilities tool card (specs/model-capabilities.md §12 F-1) admitted path-exact; adopting the ToolCallBlocks renderer directory needs a separate module boundary refactor (same pattern as workflow-share-unmanaged-new-files).
   - id: workflow-share-unmanaged-new-files
     rule: unmanaged-new-file
     paths:
@@ -1693,6 +1732,11 @@ exceptions:
     paths:
       - packages/ui/src/v4/composer/composerTextAppend.ts
     reason: composerTextInsertRequest mode="append" 的确定性拼接纯函数（§2.4），唯一消费方是同 unmanaged 聚合的 ConversationComposer 应用分支，无跨模块边界；v4/ 整目录接管不在本批范围。
+  - id: model-capabilities-hook-unmanaged-dir
+    rule: unmanaged-new-file
+    paths:
+      - packages/ui/src/hooks/useModelCapabilities.ts
+    reason: 模型能力档案 hook（specs/model-capabilities.md §4/§5；与 useModelProviders 同构的 UI 服务访问入口）；照 useSettingService 先例落在 hooks/，hooks/ 整目录接管不在本批范围；表单本体在已 adopt 的 ui-model-capabilities 模块。
   - id: voice-announcement-preferences-unmanaged-dir
     rule: unmanaged-new-file
     paths:
@@ -1789,3 +1833,15 @@ exceptions:
     paths:
       - apps/drora-cli/packages/bootstrap/vitest.config.ts
     reason: bootstrap 包级 vitest 配置只放宽真实 App/Protocol/SQLite 用例的测试超时预算（20s），不含任何运行时逻辑（照 opensource-cua-test-project-config 先例）；接管整个未受管 drora-cli bootstrap 目录不在本批范围。
+  # —— 批次三 agent 内置文生图（specs/model-capabilities.md §6）：CLI 侧四个新文件
+  #    分别照 vault-search.ts / vault-search.port.ts 同位先例落位（工具契约、端口接口、
+  #    工具 handler、协议端口实现），VaultSearch 同族文件当年入库早于门禁时间戳故无此条；
+  #    接管整个未受管 drora-cli 大模块不在本批范围（adoptPlan 既定口径）。
+  - id: cli-generate-image-unmanaged-new-files
+    rule: unmanaged-new-file
+    paths:
+      - apps/drora-cli/packages/contracts/src/tools/generate-image.ts
+      - apps/drora-cli/packages/contracts/src/interfaces/image-generation.port.ts
+      - apps/drora-cli/packages/core/src/tool/handlers/generate-image.ts
+      - apps/drora-cli/packages/bootstrap/src/drora-protocol/generate-image-port.ts
+    reason: agent 内置文生图工具的 CLI 四件（契约 schema、端口接口、handler、协议端口实现），全部照 VaultSearch 同族先例文件在既有未受管目录的同位新增；跨 contracts/core/bootstrap 三包散落，逐文件精确路径准入；接管整个 drora-cli 大模块需要独立的模块边界重构，不在本批范围。

@@ -3,6 +3,7 @@ import {
   RespondToCoordinatorOutputSchema,
   MCP_TOOL_DISPLAY_MAX_DESCRIPTION_CHARS,
   MCP_TOOL_DISPLAY_MAX_NAME_CHARS,
+  GENERATE_IMAGE_TOOL_NAME,
   CUA_TARGET_APP_DISPLAY_META_KEY,
   cuaTargetAppDisplaySchema,
   nodeReplCuaAppDisplaySchema,
@@ -434,7 +435,16 @@ function createNodeReplDisplay(
   toolName: string,
   output: unknown,
 ): ToolResultDisplayPayload | undefined {
-  if (toolName !== "js" && toolName !== "mcp__node_repl__js") return undefined;
+  // generate_image（specs/model-capabilities.md §6）：≤200KiB 时 output.images 携带
+  // base64 载荷走同一 node_repl_images 展示（复用既有 UI 渲染面）；handler 侧已保证
+  // 只有 ≤200KiB 才带 images，这里的预算判定仍是边界（超限截断记 truncated）。
+  if (
+    toolName !== "js" &&
+    toolName !== "mcp__node_repl__js" &&
+    toolName !== GENERATE_IMAGE_TOOL_NAME
+  ) {
+    return undefined;
+  }
   if (!isRecord(output)) return undefined;
 
   const candidates = [

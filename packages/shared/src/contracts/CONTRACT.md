@@ -10,7 +10,7 @@
 - 改名任何键前先全链 grep 生产与消费（AGENTS.md）；wire 面 schema（如 input-intent 的
   kind literal）以 z.literal(常量) 引用，不允许重复字面量。
 - 行为阈值、打断词表等 renderer 行为参数不进本模块（spec §2.1 冻结边界，归 ui/voice）。
-- VOICE_SETTINGS_KEYS 八键与 validationAppSettings schema 字段名的 parity 由单测钉住
+- VOICE_SETTINGS_KEYS 九键与 validationAppSettings schema 字段名的 parity 由单测钉住
   （contract.test.ts：persisted/patch 两 schema 字段名集合 === 值集合 + §6.1 默认值抽查）。
 - persona.ts（specs/drora-persona-system.md §4；数据合同 §1/§2/§3）：管理错误码封闭枚举、
   receipt scope/resultCode 词汇、库位置键（可信 getCliStorageRoot 下 personas/persona.sqlite）、

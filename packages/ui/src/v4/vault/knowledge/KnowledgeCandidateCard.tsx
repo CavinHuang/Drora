@@ -20,7 +20,7 @@ import { Button } from "@/components/ui/button.js";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip.js";
 import { useDroraIntl } from "@/i18n/IntlProvider.js";
 import { useTabStore } from "@/store/TabStoreProvider.js";
-import { setPendingSettingsSection } from "@/lib/settingsNavigation.js";
+import { setPendingSettingsSectionIntent } from "@/lib/settingsNavigation.js";
 import type { MarkdownSelectionTarget } from "@/lib/conversationSelectionReference.js";
 import { deriveAskBanners, type KnowledgeEvidenceInspectState } from "./knowledgeAskModel.js";
 import { cn } from "@/components/lib/utils.js";
@@ -63,11 +63,14 @@ export function AskBannerList({
   banners: ReturnType<typeof deriveAskBanners>;
 }): React.ReactElement | null {
   const { intl } = useDroraIntl();
-  // jevOff 是唯一带配置入口的横幅：跳设置页「知识问答」分区（桌面端分区可见）。
+  // jevOff 是唯一带配置入口的横幅：知识分区已随模型能力收敛删除（specs/
+  // model-capabilities.md §5.2），Jev 开关迁至模型设置页「模型能力 → 知识评分」；
   // 与 App.handleOpenSettingsSection 同一机制：先写意图再开设置 tab，不另开路径。
   const openSettingsTab = useTabStore((state) => state.openSettingsTab);
   const goKnowledgeSettings = React.useCallback(() => {
-    setPendingSettingsSection("knowledge");
+    // capability 深链（specs/model-capabilities.md §12 F-5）：直达「模型能力 → 知识评分」
+    // 条目，不再停在分区级让用户自己找左栏条目。
+    setPendingSettingsSectionIntent("modelProvider", { modelCapabilityPurpose: "decision-jev" });
     openSettingsTab();
   }, [openSettingsTab]);
   if (banners.length === 0) return null;

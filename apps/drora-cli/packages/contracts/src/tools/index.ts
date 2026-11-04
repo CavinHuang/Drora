@@ -62,5 +62,8 @@ export * from "./performance.js";
 // Shared types (only once to avoid duplicates)
 export type { DiffHunk, GitDiff } from "./write.js";
 export * from "./vault-search.js";
+// agent 内置文生图（specs/model-capabilities.md §6.2）：GENERATE_IMAGE_TOOL_NAME 与
+// Input/PortResult schema 被 core 的工具注册与 bootstrap 端口实现读走。
+export * from "./generate-image.js";
 export * from "./tool-search.js";
 export * from "./deferred-tool-call.js";

@@ -87,6 +87,7 @@ import {
   createHostApiNetworkTransport,
   createSettingServiceWithMigrations,
   createDeviceSyncStateService,
+  createModelCapabilitiesService,
   createHostProviderProvisioningStatus,
   getAppConfigDir,
   OffPeakModelUnavailableError,
@@ -3930,7 +3931,11 @@ parentPort.on("message", async (e: Electron.MessageEvent) => {
         } = createSettingServiceWithMigrations();
         // B 类保护：Drora knowledge host 装配（obsidian-knowledge spec）与上游
         // setWorkspaceProjection 并存，knowledgeOptions 在 createLocalServices 展开。
-        const knowledgeOptions = await assembleDroraKnowledgeHost(settingService, logger);
+        // 模型能力档案（specs/model-capabilities.md §4 唯一所有者）：Host 唯一构造点，
+        // 迁移直调本 settingService（RPC patch 吞 undefined 删不掉旧键）；同一实例供
+        // knowledge 装配与 RPC 面共用，避免双所有者。
+        const modelCapabilitiesService = createModelCapabilitiesService({ settingService });
+        const knowledgeOptions = await assembleDroraKnowledgeHost(modelCapabilitiesService, logger);
         const hostApiNetworkTransport = createHostApiNetworkTransport(async () => {
           const settings = await settingService.get();
           return {
@@ -4128,6 +4133,7 @@ parentPort.on("message", async (e: Electron.MessageEvent) => {
               parentPort,
               settingService,
               prepareLegacyAccountConnections,
+              modelCapabilitiesService,
               ...knowledgeOptions,
               hostApiNetworkTransport,
               resolveClientLanguage: () => applicationLocale,

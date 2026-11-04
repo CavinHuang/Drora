@@ -110,6 +110,12 @@
 - **裁定**：两项能力**整体保持官方原实现运行**——官方契约（relay 协议/分享域/落地页/手机页）不做 Drora 化改造；Drora 增量仅限既有的 relay 官方/自建切换层（台账 9：`webRemoteControlRelayOrigin` + 三 URL 优先级 + ws2 同源推导）。本条同时关闭「待甄别」中 V3 审计 B 的分享链接挂起项：**维持现状不改链接**。
 - **下次同步注意**：上游若演进分享/远控协议或页面，按官方实现继续吸收；不得在本能力范围内引入品牌化改造（如需 Drora 自有分享域/自有手机页，须另立 spec 并经用户重新裁定）；官方下载锚点改动视为产品行为变更，须用户确认。
 
+## 台账 13：模型设置页「模型能力」分组对上游共享 UI 触点的加法扩展（2026-11-04 登记）
+
+- **能力范围**：`packages/ui/src/settings/model-provider-section/`（上游同步提交承载的共享目录，git 史仅 3 次 upstream 同步）内的本役改动——`useModelProviderNavigation.ts` 新增 capabilities 第三分组（`MODEL_CAPABILITY_NAV_GROUP_ID` 单一出处）+ `connectionSelectionMatchesNavigationItem` 等价改写（`item.type === "custom"` → `"custom" || "capability"`）；`Navigation.tsx` 新增 `resolveNavItemTestId`（testid 统一化）；`Detail.tsx` 按 `type === "capability"` 分派到 `packages/ui/src/settings/model-capabilities/`（自研新模块，架构 adopt 登记 ui-model-capabilities）；`constants.ts` nav union 扩展。
+- **裁定**：spec `specs/model-capabilities.md`（§5.1/§12）授权的最小增量接缝；全部新逻辑在自研新文件，共享文件只做接线与等价改写。provider 卡片/套餐区行为零变化。
+- **下次同步注意**：上游若重写 settings 导航（v3.17.1 已有 project-sidebar 重写先例），按「官方形态为权威」合并后**回植三件事**：capabilities 第三分组构造（useModelProviderNavigation）、`capability:` 节点的 Detail 分派与 testid、`SettingsModelProviderTarget.capabilityPurpose` 深链认领（ModelProviderSection.applyModelProviderTarget）。登记先例：台账 5（project-sidebar）。
+
 ## 待甄别（非既定分歧，下轮同步前需核实）
 
 - **clientType 与 api-key 名漂移嫌疑**（随工单 F1 观察到，未改）：同一上游文档 `apps/zcode-cli/docs/design/v2/auth-login.md` 中 `clientType: "zcode"`（本仓 `apps/drora-cli/docs/design/v2/auth-login.md:176` 为 drora）与 `zcode-api-key`（本仓 :174/:190 为 drora-api-key；同文档 ：186 `appId=zcode` 已守豁免）。appId 是服务端注册值有 spec 实锤（规则 0）；clientType 与 api-key 名是否服务端注册值**未验证**（api-key 名偏客户端自建名，风险较低）。下轮同步 bigmodel OAuth 面时先甄别这两个字面量的服务端契约地位，再决定纳入规则 0 豁免或维持改名，不得静默跟随任一侧。

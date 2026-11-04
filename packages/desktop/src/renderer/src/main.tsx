@@ -321,6 +321,9 @@ function initializeBusinessRoot(port: MessagePort): void {
   const services = connectViaMessagePort(port, {
     sourceServerManagementService: true,
     deviceSyncStateService: true,
+    // 模型能力档案仅桌面本地 Host 注册（specs/model-capabilities.md §4）：base 连接
+    // 显式开启，模型设置页五条目与语音引擎档才能经 RPC 读写档案。
+    modelCapabilitiesService: true,
   });
   baseServicesForRemoteSessions = services;
   registerBaseWorkspaceServices(services);

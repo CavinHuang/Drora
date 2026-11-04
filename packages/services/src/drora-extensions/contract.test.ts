@@ -24,17 +24,19 @@ it.each([
 );
 
 import { vi } from "vitest";
-import type { ISettingService } from "../setting/setting.js";
+import type { IModelCapabilitiesService } from "../model-capabilities/index.js";
 import { assembleDroraKnowledgeHost } from "./knowledgeHost.js";
-it("unreadable settings fail closed without blocking the Host or creating a semantic model", async () => {
+it("unreadable model capabilities fail closed without blocking the Host or creating a semantic model", async () => {
   const warn = vi.fn();
-  const settingService = {
+  const modelCapabilitiesService = {
     get: vi.fn(async () => {
-      throw new Error("settings_unavailable");
+      throw new Error("capabilities_unavailable");
     }),
-  } as unknown as ISettingService;
-  const host = await assembleDroraKnowledgeHost(settingService, { warn });
+  } as unknown as IModelCapabilitiesService;
+  const host = await assembleDroraKnowledgeHost(modelCapabilitiesService, { warn });
   expect(host.knowledgeEmbeddingPort).toBeNull();
+  expect(await host.knowledgeSemanticSource()).toBeNull();
   expect(await host.knowledgeJevConfigSource()).toBeNull();
-  expect(warn).toHaveBeenCalledTimes(2);
+  // 3 次降级各告警一次：初始化预构建、显式 semanticSource 解析、jev configSource 解析。
+  expect(warn).toHaveBeenCalledTimes(3);
 });

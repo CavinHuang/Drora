@@ -34,16 +34,13 @@ describe("voice i18n keys", () => {
 
   it("keeps placeholders identical across locales for interpolated keys", () => {
     // 带插值的键：recordingIndicatorAria 的 {session}（绑定会话名）、
-    // vendor.dataHandler 的 {baseUrl}（§9.6.2 数据处理方披露）。
+    // voice.brief.prefix 的 {tool}/{target}（§4.2-7 简报模板；vendor.dataHandler
+    // 随厂商档迁模型能力分组后已不在本命名空间）。
     const interpolated = VOICE_CONSUMED_I18N_KEYS.filter(
       (key) => placeholders(zhCN[key] ?? "").length > 0,
     );
     expect(interpolated.sort()).toEqual(
-      [
-        "voice.brief.prefix",
-        "voice.dictation.recordingIndicatorAria",
-        "voice.settings.vendor.dataHandler",
-      ].sort(),
+      ["voice.brief.prefix", "voice.dictation.recordingIndicatorAria"].sort(),
     );
     for (const key of interpolated) {
       expect(placeholders(enUS[key] ?? ""), `en-US ${key}`).toEqual(placeholders(zhCN[key] ?? ""));
@@ -53,10 +50,10 @@ describe("voice i18n keys", () => {
 
 describe("§9.9.4-L12 remote ASR 文案与已实现能力一致", () => {
   it("remote ASR 引擎名不含「即将支持/coming soon」（§9.6 已实现）", () => {
-    // 回退即红：恢复旧文案「云引擎（即将支持）/Cloud engine (coming soon)」则本用例红。
-    expect(zhCN["voice.settings.asr.engine.remote"]).toBe("云引擎");
-    expect(enUS["voice.settings.asr.engine.remote"]).toBe("Cloud engine");
-    // 全 voice.* 命名空间零「即将支持/coming soon」残留。
+    // 引擎文案随厂商档迁模型能力分组（settings.modelCapability.asr.engine.remote）；
+    // 断言同步迁移，另保留全 voice.* 命名空间零「即将支持/coming soon」残留扫描。
+    expect(zhCN["settings.modelCapability.asr.engine.remote"]).toBe("云端引擎");
+    expect(enUS["settings.modelCapability.asr.engine.remote"]).toBe("Cloud engine");
     for (const [key, message] of Object.entries(zhCN)) {
       if (key.startsWith("voice.")) {
         expect(message, `zh-CN ${key}`).not.toContain("即将支持");

@@ -984,6 +984,8 @@ export async function createDroraApp(options: DroraAppOptions): Promise<DroraApp
       modelCatalogPort,
       automationPort: options.automationPort,
       vaultSearchPort: options.vaultSearchPort,
+      // agent 内置文生图端口（specs/model-capabilities.md §6）：恒注入传递（不做注册门）。
+      imageGenerationPort: options.imageGenerationPort,
       offPeakPort: options.offPeakPort,
       topicResourcePort: options.topicResourcePort,
       appVersion,

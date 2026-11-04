@@ -15,6 +15,7 @@ import { ExploreToolCallBlock } from "@/ToolCallBlocks/renderers/explore.js";
 import { ExecuteToolCallBlock } from "@/ToolCallBlocks/renderers/execute.js";
 import { ExecuteGroupToolCallBlock } from "@/ToolCallBlocks/renderers/execute-group.js";
 import { FallbackToolCallBlock } from "@/ToolCallBlocks/renderers/fallback.js";
+import { GenerateImageToolCallBlock } from "@/ToolCallBlocks/renderers/generate-image.js";
 import { GetWorkflowRunToolCallBlock } from "@/ToolCallBlocks/renderers/get-workflow-run.js";
 import { ListModelsToolCallBlock } from "@/ToolCallBlocks/renderers/list-models.js";
 import { ListSavedWorkflowsToolCallBlock } from "@/ToolCallBlocks/renderers/list-saved-workflows.js";
@@ -172,6 +173,10 @@ export function resolveToolCallRenderer(context: ToolCallBlockRenderContext) {
       return SwitchModeToolCallBlock;
     case "web-fetch":
       return WebFetchToolCallBlock;
+    // 文生图（§12 修复 F-1）：node_repl_images 展示载荷此前只有 node-repl family
+    // 消费；generate_image 的内联图由专用卡渲染，未登记时会掉进 raw fallback。
+    case "image-generation":
+      return GenerateImageToolCallBlock;
     case "search":
       return SearchToolCallBlock;
     case "shell":

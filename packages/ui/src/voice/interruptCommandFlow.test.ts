@@ -142,6 +142,9 @@ const { settingsState } = vi.hoisted(() => ({
 
 vi.mock("@/hooks/useServices.js", () => ({
   useServices: () => ({ broadcastService: undefined }),
+  // useModelCapabilities（引擎数据源切档案）经 useOptionalServices 取服务；
+  // 本链路测试不涉档案 → 返回 null 服务（capabilities=null → 引擎缺省 system）。
+  useOptionalServices: () => null,
 }));
 
 vi.mock("@/hooks/useSettingService.js", () => ({

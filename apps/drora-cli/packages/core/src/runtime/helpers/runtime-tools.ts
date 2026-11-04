@@ -191,6 +191,9 @@ function createRuntimeToolExecutor(
     artifactStore: deps.artifactStore,
     automationPort: deps.automationPort,
     vaultSearchPort: deps.vaultSearchPort,
+    // agent 内置文生图端口（specs/model-capabilities.md §6）：恒注入传递，与
+    // VaultSearch 的 include 门有意分歧（能力发现靠真实 schema 注册，见 handlers/index.ts 注释）。
+    imageGenerationPort: deps.imageGenerationPort,
     offPeakPort: deps.offPeakPort,
     topicResourcePort: deps.topicResourcePort,
     sessionStore: deps.sessionStore,

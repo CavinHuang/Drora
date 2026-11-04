@@ -21,6 +21,13 @@ import {
   type ModelProviderNavGroup,
   type PresetProviderSpec,
 } from "@/settings/model-provider-section/constants.js";
+import {
+  MODEL_CAPABILITY_GROUP_TITLE_ID,
+  MODEL_CAPABILITY_NAV_GROUP_ID,
+  MODEL_CAPABILITY_NAV_LABEL_IDS,
+  MODEL_CAPABILITY_NAV_PURPOSES,
+  createCapabilityNodeKey,
+} from "@/settings/model-capabilities/index.js";
 import { pickCodingPlanEntitlementProvider } from "@/lib/codingPlanProvider.js";
 import {
   createCodingPlanProviderNodeKey,
@@ -219,6 +226,19 @@ export function useModelProviderNavigation({
           label: getProviderFormLabel(provider),
           provider,
           statusActive: provider.executable === true,
+        })),
+      },
+      // 「模型能力」第三分组（specs/model-capabilities.md §5.1）：固定五条目、
+      // 固定顺序（MODEL_CAPABILITY_PURPOSES 契约顺序），不参与 dnd 排序。
+      // 分组 id 引用模块契约常量（§12 清理：此前生产方硬编码字面量绕过单一出处）。
+      {
+        id: MODEL_CAPABILITY_NAV_GROUP_ID,
+        title: intl.formatMessage({ id: MODEL_CAPABILITY_GROUP_TITLE_ID }),
+        items: MODEL_CAPABILITY_NAV_PURPOSES.map((purpose) => ({
+          key: createCapabilityNodeKey(purpose),
+          type: "capability" as const,
+          purpose,
+          label: intl.formatMessage({ id: MODEL_CAPABILITY_NAV_LABEL_IDS[purpose] }),
         })),
       },
     ];
@@ -558,7 +578,7 @@ export function connectionSelectionMatchesNavigationItem(
   selection: ProviderFamilyConnectionSelection,
   item: Exclude<ModelProviderNavGroup["items"][number], { type: "codingPlanLoading" }>,
 ): boolean {
-  if (item.type === "custom") return false;
+  if (item.type === "custom" || item.type === "capability") return false;
   const familySpec = resolveModelProviderFamilySpecByProviderId(item.presetId ?? "");
   if (familySpec?.id !== family) return false;
   if (selection.kind === "start-plan") {

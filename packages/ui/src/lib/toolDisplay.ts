@@ -254,6 +254,24 @@ const nodeReplToolStrategy: ToolDisplayStrategy = {
   },
 };
 
+// 文生图（specs/model-capabilities.md §12 修复 F-1）：图片经 node_repl_images display
+// 由专用 renderer 内联渲染；通用区若再摊开 prompt JSON 与 "Image saved to" 文本会与
+// 图片区重复。无 display 的大图（>200KiB 落盘）仍由专用 renderer 展示路径文本。
+const imageGenerationToolStrategy: ToolDisplayStrategy = {
+  matches(context) {
+    return context.identity.family === "image-generation";
+  },
+  build() {
+    return {
+      inlinePreview: { type: "none" },
+      showSummaryFileLink: false,
+      showInput: false,
+      showOutput: false,
+      showKind: false,
+    };
+  },
+};
+
 const TOOL_DISPLAY_STRATEGIES: ToolDisplayStrategy[] = [
   diffToolStrategy,
   readToolStrategy,
@@ -262,6 +280,7 @@ const TOOL_DISPLAY_STRATEGIES: ToolDisplayStrategy[] = [
   searchToolStrategy,
   goalToolStrategy,
   nodeReplToolStrategy,
+  imageGenerationToolStrategy,
   genericImageStrategy,
 ];
 

@@ -37,6 +37,10 @@ export const DRORA_KNOWN_TOOL_NAMES = [
   // wire 名就是 snake_case 的 submit_result（仓库里唯一一个），下划线必须字面在场：
   // 未登记时 UI identity 退回 unknown，动态工作流 actor 的提交会落到 raw fallback renderer。
   "submit_result",
+  // 文生图内置工具（specs/model-capabilities.md §6）：未登记时 identity 回 unknown、
+  // 消息流落 raw fallback 卡，node_repl_images 展示载荷（图片内联）没有任何渲染器
+  // 消费——用户只见「Image saved to: <path>」文本，看不到生成的图（§12 修复 F-1）。
+  "generate_image",
 ] as const;
 
 export type DroraKnownToolName = (typeof DRORA_KNOWN_TOOL_NAMES)[number];
@@ -56,6 +60,7 @@ export type DroraToolFamily =
   | "message"
   | "task-control"
   | "node-repl"
+  | "image-generation"
   | "workflow";
 
 const TOOL_FAMILY_BY_NAME: Record<DroraKnownToolName, DroraToolFamily> = {
@@ -87,6 +92,7 @@ const TOOL_FAMILY_BY_NAME: Record<DroraKnownToolName, DroraToolFamily> = {
   mcp__node_repl__js: "node-repl",
   mcp__node_repl__js_reset: "node-repl",
   mcp__node_repl__js_add_node_module_dir: "node-repl",
+  generate_image: "image-generation",
   Agent: "agent",
   Task: "agent",
   Skill: "skill",

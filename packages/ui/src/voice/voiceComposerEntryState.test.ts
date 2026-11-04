@@ -34,9 +34,9 @@ describe("resolveVoiceComposerEntryView", () => {
   });
 
   it("does not render when the ASR engine is unsupported", () => {
-    expect(
-      resolveVoiceComposerEntryView({ ...visibleInputs, asrSupported: false }).visible,
-    ).toBe(false);
+    expect(resolveVoiceComposerEntryView({ ...visibleInputs, asrSupported: false }).visible).toBe(
+      false,
+    );
   });
 
   it("does not render when hidden by settings (default hidden)", () => {
@@ -80,38 +80,52 @@ describe("resolveVoiceDictationLang", () => {
 });
 
 describe("resolveVoiceAnnouncementVoiceConfig", () => {
+  // 模型能力收敛（specs/model-capabilities.md §5.2）：云音色第二参数注入（模型能力
+  // 档案 tts.voice），AppSettings 旧键 voiceTtsVendorVoice 已删除。
   it("defaults to system voice and rate 1", () => {
-    expect(resolveVoiceAnnouncementVoiceConfig(null)).toEqual({ rate: 1 });
+    expect(resolveVoiceAnnouncementVoiceConfig(null, null)).toEqual({ rate: 1 });
     expect(
-      resolveVoiceAnnouncementVoiceConfig({ voiceAnnouncementVoice: "", voiceAnnouncementRate: 1 }),
+      resolveVoiceAnnouncementVoiceConfig(
+        { voiceAnnouncementVoice: "", voiceAnnouncementRate: 1 },
+        undefined,
+      ),
     ).toEqual({ rate: 1 });
   });
 
   it("passes configured voice and clamps invalid rates back to 1", () => {
     expect(
-      resolveVoiceAnnouncementVoiceConfig({
-        voiceAnnouncementVoice: " 晓琳 ",
-        voiceAnnouncementRate: 1.5,
-      }),
+      resolveVoiceAnnouncementVoiceConfig(
+        {
+          voiceAnnouncementVoice: " 晓琳 ",
+          voiceAnnouncementRate: 1.5,
+        },
+        "",
+      ),
     ).toEqual({ voice: "晓琳", rate: 1.5 });
     expect(
-      resolveVoiceAnnouncementVoiceConfig({ voiceAnnouncementVoice: "", voiceAnnouncementRate: 9 }),
+      resolveVoiceAnnouncementVoiceConfig(
+        { voiceAnnouncementVoice: "", voiceAnnouncementRate: 9 },
+        null,
+      ),
     ).toEqual({ rate: 1 });
   });
 
   it("returns vendorVoice on the cloud track independently (§9.7.3 双轨)", () => {
     // 云音色非空：双轨同返回（speak 路由后适配器各取各轨）。
     expect(
-      resolveVoiceAnnouncementVoiceConfig({
-        voiceAnnouncementVoice: "晓琳",
-        voiceAnnouncementRate: 1,
-        voiceTtsVendorVoice: " alex ",
-      }),
+      resolveVoiceAnnouncementVoiceConfig(
+        {
+          voiceAnnouncementVoice: "晓琳",
+          voiceAnnouncementRate: 1,
+        },
+        " alex ",
+      ),
     ).toEqual({ voice: "晓琳", vendorVoice: "alex", rate: 1 });
     // 云音色空/缺省：vendorVoice 字段缺省（= 厂商默认音色），system 轨零影响。
-    expect(
-      resolveVoiceAnnouncementVoiceConfig({ voiceAnnouncementVoice: "晓琳", voiceTtsVendorVoice: "" }),
-    ).toEqual({ voice: "晓琳", rate: 1 });
+    expect(resolveVoiceAnnouncementVoiceConfig({ voiceAnnouncementVoice: "晓琳" }, "")).toEqual({
+      voice: "晓琳",
+      rate: 1,
+    });
   });
 });
 

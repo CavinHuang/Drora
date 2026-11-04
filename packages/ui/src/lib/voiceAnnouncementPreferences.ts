@@ -23,13 +23,19 @@ export function isVoiceAnnouncementEnabled(
 /**
  * 播报音色/语速/云音色（§6.1 键 3/4 + §9.7.3 vendorVoice；空音色 = 系统默认、
  * 空云音色 = 厂商默认，语速缺省 1）。
+ *
+ * 模型能力收敛（specs/model-capabilities.md §5.2）：云音色读模型能力档案 tts.voice，
+ * 由调用方经 useModelCapabilities 注入（AppSettings 旧键 voiceTtsVendorVoice 已删除）。
  */
-export function resolveVoiceAnnouncementOutputConfig(settings: AppSettings | null | undefined): {
+export function resolveVoiceAnnouncementOutputConfig(
+  settings: AppSettings | null | undefined,
+  ttsVendorVoice: string | null | undefined,
+): {
   voice?: string;
   vendorVoice?: string;
   rate: number;
 } {
-  return resolveVoiceAnnouncementVoiceConfig(settings);
+  return resolveVoiceAnnouncementVoiceConfig(settings, ttsVendorVoice);
 }
 
 /** 播报语言（§9.7.5；空 = 自动 = UI locale，显式值优先）。 */

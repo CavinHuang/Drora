@@ -535,6 +535,30 @@ export const TID_MODEL_PROVIDER_MODEL_DELETE_BUTTON = "model-provider-model-dele
 /** 模型供应商添加模型按钮 */
 export const TID_MODEL_PROVIDER_ADD_MODEL_BUTTON = "model-provider-add-model-button";
 
+// Model Capabilities（模型能力档案设置，specs/model-capabilities.md §5.1/§5.2）
+/** 模型能力左侧导航条目（动态后缀为 capability node key，如 decision-jev） */
+export const TID_MODEL_CAPABILITY_NAV_ITEM = "model-capability-nav-item";
+/** 模型能力条目 API Key 输入框 */
+export const TID_MODEL_CAPABILITY_API_KEY_INPUT = "model-capability-api-key-input";
+/** 模型能力条目 API Key 保存按钮（留空保存即删除） */
+export const TID_MODEL_CAPABILITY_API_KEY_SAVE_BUTTON = "model-capability-api-key-save-button";
+/** 模型能力条目 baseUrl 输入框（动态后缀为条目名，如 asr / tts / decision-jev / image-generation） */
+export const TID_MODEL_CAPABILITY_BASE_URL_INPUT = "model-capability-base-url-input";
+/** 模型能力条目 baseUrl 行内警告（连接区 https 校验） */
+export const TID_MODEL_CAPABILITY_BASE_URL_WARNING = "model-capability-base-url-warning";
+/** 模型能力条目模型 id / 音色输入框（动态后缀为条目名 + 字段名） */
+export const TID_MODEL_CAPABILITY_MODEL_INPUT = "model-capability-model-input";
+/** 模型能力条目开关（动态后缀为条目名，如 decision-jev / embedding / image-generation） */
+export const TID_MODEL_CAPABILITY_TOGGLE = "model-capability-toggle";
+/** 模型能力条目引擎下拉触发器（动态后缀为 asr / tts） */
+export const TID_MODEL_CAPABILITY_ENGINE_SELECT = "model-capability-engine-select";
+/** 知识评分连接测试按钮 */
+export const TID_MODEL_CAPABILITY_TEST_CONNECTION_BUTTON =
+  "model-capability-test-connection-button";
+/** 语义嵌入模型下载/重试按钮（动态后缀为 action / retry） */
+export const TID_MODEL_CAPABILITY_EMBEDDING_DOWNLOAD_BUTTON =
+  "model-capability-embedding-download-button";
+
 // Chat Toolbar
 /** 聊天工具栏模型选择按钮 */
 export const TID_CHAT_MODEL_SELECT_TRIGGER = "chat-model-select-trigger";

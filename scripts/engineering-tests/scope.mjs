@@ -31,9 +31,26 @@ async function resolvePushBase(root, head, remote) {
 }
 
 async function firstPushBase(root, head) {
-  // 首次推送没有 remote SHA；只使用已确认的集成分支，缺失时严格报错，不猜测其他分支。
-  const staging = await commit(root, "origin/staging");
-  return (await git(root, ["merge-base", staging, head])).toString().trim();
+  // 首次推送没有 remote SHA。基线选择（台账 8/10 裁定，v3.17.2 合并曾覆盖本回退、
+  // 依台账 10「drora/main 回退必须保留」恢复）：上游集成分支 origin/staging 存在且
+  // 为 HEAD 祖先时用之；否则回退产品远端 drora/main——不猜测其他分支；两者都缺失
+  // 时保持「无基线严格报错」语义（照抄台账 8 的 origin/main 字面回退会让 merge-base
+  // 退回上一上游锚点导致全量误选，不得采用）。
+  const staging = await tryResolveCommit(root, "origin/staging");
+  if (staging && (await isAncestor(root, staging, head))) {
+    return (await git(root, ["merge-base", staging, head])).toString().trim();
+  }
+  const droraMain = await commit(root, "drora/main");
+  return (await git(root, ["merge-base", droraMain, head])).toString().trim();
+}
+
+/** 可失败版 commit：引用不存在返回 null，不抛错（首推基线的探测语义）。 */
+async function tryResolveCommit(root, ref) {
+  try {
+    return await commit(root, ref);
+  } catch {
+    return null;
+  }
 }
 
 /** 只解析比较基线；改动文件与关联测试全部由 Vitest 官方选择。 */

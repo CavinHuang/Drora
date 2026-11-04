@@ -74,6 +74,7 @@ import { WorkflowActorSessionSidePane } from "@/app-shell/WorkflowActorSessionSi
 import { WorkflowWorkspaceSidePane } from "@/app-shell/WorkflowWorkspaceSidePane.js";
 import { WorkflowArtifactSidePane } from "@/app-shell/WorkflowArtifactSidePane.js";
 import { TeamMemberTabPane, TeamSidePane } from "@/app-shell/TeamSidePane.js";
+import { MateSidePane } from "@/app-shell/MateSidePane.js";
 import {
   getSidePaneTabTitle,
   SidePaneTabDragOverlay,
@@ -109,6 +110,7 @@ import {
   type OpenScopedWorkflowArtifactSideTabRequest,
   type OpenScopedWorkflowRunSideTabRequest,
   type OpenBackgroundBashSideTabRequest,
+  type OpenMateSideTabRequest,
   type WorkspaceSidePaneState,
 } from "@/lib/workspaceSidePane.js";
 import { inferMediaPreview, type CodeViewerSource } from "@/lib/codeViewer.js";
@@ -116,6 +118,7 @@ import type { MessageFileLinkTarget } from "@/components/ai-elements/message.js"
 import { getVisibleSidePaneTabs } from "@/lib/workspaceSidePane.js";
 import { useDroraIntl } from "@/i18n/IntlProvider.js";
 import {
+  AnchorIcon,
   BugIcon,
   ChevronRightIcon,
   FileDiffIcon,
@@ -358,6 +361,8 @@ export function AnimatedSidePanePanel({
   onOpenFileLink,
   onPrefillComposer,
   onOpenTeamMemberSession,
+  onOpenMateSidePane,
+  onOpenMateSession,
   onOpenSubagentSession,
   onOpenWorkflowActorSession,
   onOpenWorkflowWorkspace,
@@ -465,6 +470,15 @@ export function AnimatedSidePanePanel({
       workspaceIdentity?: string;
     },
   ) => void;
+  /** 大副（Mate）面板打开通道（01 详设 §5）：open-tab launcher 的入口回调；缺席不出现入口。 */
+  onOpenMateSidePane?: (request: OpenMateSideTabRequest) => void;
+  /** 大副汇报卡「打开会话」跳转通道（缺席 = 汇报卡不渲染跳转按钮）。 */
+  onOpenMateSession?: (request: {
+    sessionId: string;
+    workspacePath: string;
+    workspaceIdentity?: string;
+    remoteSessionId?: string;
+  }) => void;
   onOpenBackgroundBash?: (request: OpenBackgroundBashSideTabRequest) => void;
   onOpenSubagentSession: (request: OpenScopedSubagentSideTabRequest) => void;
   /** run 详情页里点 ask 节点 → 打开那个 actor 实例的 transcript tab。 */
@@ -849,6 +863,18 @@ export function AnimatedSidePanePanel({
       icon: FolderOpenIcon,
       onOpen: () => onOpenFileManager(),
     },
+    mate: {
+      id: "mate",
+      label: intl.formatMessage({ id: "sidePane.mate" }),
+      description: intl.formatMessage({ id: "sidePane.launcher.mate" }),
+      icon: AnchorIcon,
+      onOpen: () =>
+        onOpenMateSidePane?.({
+          workspacePath: workspaceAbsPath,
+          ...(workspaceIdentity?.trim() ? { workspaceIdentity } : {}),
+          ...(workspaceRemoteSessionId ? { remoteSessionId: workspaceRemoteSessionId } : {}),
+        }),
+    },
     review: {
       id: "review",
       label: intl.formatMessage({ id: "sidePane.review" }),
@@ -881,6 +907,7 @@ export function AnimatedSidePanePanel({
   const openTabLauncherItems: OpenTabLauncherItem[] = resolveOpenTabLauncherItemIds({
     canOpenSelectionSideConversation,
     canOpenSites,
+    canOpenMate: onOpenMateSidePane !== undefined && services.assistantTicketService != null,
     developerToolsEnabled,
     hasReviewTab,
     supportsEmbeddedBrowser,
@@ -1022,6 +1049,7 @@ export function AnimatedSidePanePanel({
         workflowScriptTitle: intl.formatMessage({ id: "sidePane.workflowScript" }),
         workflowArtifactTitle: intl.formatMessage({ id: "sidePane.workflowArtifact" }),
         teamTitle: intl.formatMessage({ id: "sidePane.team" }),
+        mateTitle: intl.formatMessage({ id: "sidePane.mate" }),
       }}
       onActivateTab={activateSidePaneTab}
       onCloseTab={onCloseTab}
@@ -1376,6 +1404,20 @@ export function AnimatedSidePanePanel({
                             onOpenCodeViewer={onOpenCodeViewer}
                             onOpenFileLink={onOpenFileLink}
                           />
+                        ) : tab.type === "mate" ? (
+                          // 大副面板（01 详设 §5）：workspace 级全局 tab。数据经
+                          // assistantTicketService 快照推送（面板内 useAssistantTickets），
+                          // 与会话投影无关——但仍需 ServiceProvider 提供 accessor 上下文。
+                          // onOpenMateSession 缺席（手机远控）时汇报卡不渲染跳转按钮。
+                          <ServiceProvider services={services}>
+                            <MateSidePane
+                              tab={tab}
+                              focused={isVisible && tab.id === visibleActiveTabId}
+                              {...(onOpenMateSession === undefined
+                                ? {}
+                                : { onOpenMateSession })}
+                            />
+                          </ServiceProvider>
                         ) : tab.type === "code-viewer" || tab.type === "file-manager" ? (
                           <FileManagerPane
                             markdownSelectionTarget={{

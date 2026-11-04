@@ -82,8 +82,10 @@ import {
   type OpenScopedWorkflowWorkspaceSideTabRequest,
   openTeamSidePane,
   openTeamMemberSidePane,
+  openMateSidePane,
   type OpenScopedTeamSideTabRequest,
   type OpenScopedTeamMemberSideTabRequest,
+  type OpenMateSideTabRequest,
   type WorkspaceSidePaneState,
   type WorkspaceSidePaneTab,
 } from "@/lib/workspaceSidePane.js";
@@ -1153,6 +1155,27 @@ export function useAppPanels(options: {
     [commitOpenedSidePaneState],
   );
 
+  /**
+   * 打开（或聚焦）workspace 级全局的大副面板 tab（01 详设 §5；MateSidePaneTab 不绑
+   * parentSessionId，可见性同 git/developer-tools 档）。tab 幂等，面板自己读快照推送。
+   */
+  const handleOpenMateSidePane = useCallback(
+    (request: OpenMateSideTabRequest) => {
+      const workspaceKey = request.workspaceIdentity?.trim() || request.workspacePath;
+      setIsSidePaneCollapsed(false);
+      commitOpenedSidePaneState((current) =>
+        openMateSidePane(current, {
+          ...request,
+          workspaceKey,
+        }),
+      );
+      logger.debug("[App] 打开 Mate 右侧 tab", {
+        workspaceKey,
+      });
+    },
+    [commitOpenedSidePaneState],
+  );
+
   /** 打开（或聚焦）一个成员 transcript tab（specs/agents-team.md §10 增补四）。 */
   const handleOpenTeamMemberSidePane = useCallback(
     (request: OpenScopedTeamMemberSideTabRequest) => {
@@ -1773,6 +1796,7 @@ export function useAppPanels(options: {
     handleOpenWorkflowArtifact,
     handleOpenTeamSidePane,
     handleOpenTeamMemberSidePane,
+    handleOpenMateSidePane,
     handleToggleTerminal,
     handleToggleSidebar,
     handleToggleSidePaneCollapse,

@@ -1,8 +1,10 @@
 import { requestSecurityMessagesZhCN } from "@/request-security-edition/messages.js";
 import { teamMessagesZh } from "@/i18n/teamMessages.js";
+import { mateMessagesZh } from "@/i18n/mateMessages.js";
 /** 中文翻译 */
 const zhCN: Record<string, string> = {
   ...teamMessagesZh,
+  ...mateMessagesZh,
   "preview.image.copy": "复制图片",
   "preview.image.actions": "图片操作",
   "preview.image.added": "已添加到聊天",
@@ -1539,6 +1541,10 @@ const zhCN: Record<string, string> = {
   "sidePane.workflowScript": "脚本步骤",
   "sidePane.workflowArtifact": "产物",
   "sidePane.team": "团队",
+  // 大副（Mate）面板 tab（01 详设 §5）：workspace 级全局 tab 的标题与 launcher 描述。
+  "sidePane.mate": "大副",
+  "sidePane.launcher.mate": "工单决策、观察与汇报",
+
   // team 面板（specs/agents-team.md §10）：空态与成员下钻占位。占位文案都如实说明
   // 「是什么 + 会怎样」，不以色独行（DESIGN.md）。
   "team.panel.empty.title": "还没有团队",

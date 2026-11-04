@@ -324,6 +324,10 @@ function initializeBusinessRoot(port: MessagePort): void {
     // 模型能力档案仅桌面本地 Host 注册（specs/model-capabilities.md §4）：base 连接
     // 显式开启，模型设置页五条目与语音引擎档才能经 RPC 读写档案。
     modelCapabilitiesService: true,
+    // Drora Mate 工单服务仅桌面本地 Host 注册（PR-1B 三审发现 1）：base 连接显式开启
+    // 能力位，open-tab launcher 入口与 MateSidePane 快照订阅才能经 RPC 到达——
+    // 漏传即桌面端整体不可达（同 modelCapabilities 显式传参先例的必写位）。
+    assistantTicketService: true,
   });
   baseServicesForRemoteSessions = services;
   registerBaseWorkspaceServices(services);

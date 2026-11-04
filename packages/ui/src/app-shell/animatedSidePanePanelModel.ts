@@ -7,6 +7,7 @@ export type OpenTabLauncherItemId =
   | "sites"
   | "selection-side-conversation"
   | "files"
+  | "mate"
   | "review"
   | "terminal"
   | "browser"
@@ -17,15 +18,24 @@ export function resolveOpenTabLauncherItemIds({
   hasReviewTab,
   canOpenSelectionSideConversation = false,
   canOpenSites = false,
+  canOpenMate = false,
   supportsEmbeddedBrowser = true,
 }: {
   developerToolsEnabled: boolean;
   hasReviewTab: boolean;
   canOpenSelectionSideConversation?: boolean;
   canOpenSites?: boolean;
+  /** 大副服务在当前 accessor 已注册（桌面本地 Host）；缺席（远程/旧 Host）不出现入口。 */
+  canOpenMate?: boolean;
   supportsEmbeddedBrowser?: boolean;
 }): OpenTabLauncherItemId[] {
   const itemIds: OpenTabLauncherItemId[] = ["files"];
+
+  // 大副是 workspace 级全局面板（01 详设 §5），与 files 同为基础工具档排在最前；
+  // 服务未注册时入口整体不出现（面板内的诚实不可用态只兜运行中出现缺席的场景）。
+  if (canOpenMate) {
+    itemIds.push("mate");
+  }
 
   if (supportsEmbeddedBrowser) {
     itemIds.push("browser");

@@ -131,6 +131,11 @@ describe("recordTrigger + 决策卡放行（Mode A 直派）", () => {
       const ticket = snapshot2.tickets.find((t) => t.id === approved.value.ticketId);
       expect(ticket?.status).toBe(ASSISTANT_TICKET_STATUSES.running);
       expect(ticket?.sessionId).toBe(approved.value.sessionId);
+      // 放行即人工决策（PR-1B 审查发现 2）：decided_by=gate→user，卡片脱离待决策集
+      // （UI isMatePendingDecision 判 decidedBy=gate），releaseCount 按同口径积累。
+      const decided = snapshot2.decisions.find((d) => d.id === decision.id);
+      expect(decided?.decidedBy).toBe("user");
+      expect(snapshot2.trust.releaseCount).toBe(1);
     } finally {
       setAssistantDispatchPort(null);
     }
@@ -304,5 +309,190 @@ describe("迁移", () => {
     second.close();
     const third = openAssistantDatabase(dbPath);
     expect(() => third.raw).toThrow(AssistantStoreMigrationError);
+  });
+});
+
+describe("applyTicketTurnEvent 归账（01 §3；PR-1B 三审发现 6 服务侧核心）", () => {
+  async function createDispatchedTicket() {
+    const { service, db } = createService();
+    setAssistantDispatchPort(async (request) => ({
+      ok: true as const,
+      value: { ticketId: request.ticketId, sessionId: `sess-${request.ticketId}` },
+    }));
+    const recorded = await service.recordTrigger({
+      text: "归账用例",
+      simulated: ASSISTANT_STRENGTHS.explicit,
+      targetWorkspaceIdentity: "ws-a",
+    });
+    if (!recorded.ok) throw new Error("record failed");
+    const snapshot = await service.getSnapshot();
+    const decision = snapshot.decisions[0]!;
+    const approved = await service.approveDecision({
+      decisionId: decision.id,
+      targetWorkspaceIdentity: "ws-a",
+    });
+    if (!approved.ok) throw new Error("approve failed");
+    return {
+      service,
+      db,
+      ticketId: approved.value.ticketId,
+      decisionId: decision.id,
+      setPort: setAssistantDispatchPort,
+    };
+  }
+
+  function countUsageRows(db: ReturnType<typeof openAssistantDatabase>, ticketId: string): number {
+    let rows = 0;
+    db.transaction((raw) => {
+      rows = (
+        raw.prepare("SELECT COUNT(*) AS n FROM usage_log WHERE ticket_id = ?").get(ticketId) as {
+          n: number;
+        }
+      ).n;
+    });
+    return rows;
+  }
+
+  it("turn_started→running；turn_completed→done+output_summary 首行截断+usage 差值行", async () => {
+    const { service, db, ticketId, setPort } = await createDispatchedTicket();
+    try {
+      service.applyTicketTurnEvent({ ticketId, atMs: Date.now(), kind: "turn_started" });
+      let snapshot = await service.getSnapshot();
+      expect(snapshot.tickets[0]!.status).toBe(ASSISTANT_TICKET_STATUSES.running);
+
+      service.applyTicketTurnEvent({
+        ticketId,
+        atMs: Date.now(),
+        kind: "turn_completed",
+        outputSummary: "完成首行摘要\n第二行不进摘要",
+        usage: { inputTokens: 100, outputTokens: 50, cacheReadTokens: 10, cacheWriteTokens: 5 },
+      });
+      snapshot = await service.getSnapshot();
+      expect(snapshot.tickets[0]!.status).toBe(ASSISTANT_TICKET_STATUSES.done);
+      expect(snapshot.tickets[0]!.outputSummary).toBe("完成首行摘要");
+      expect(snapshot.tickets[0]!.usage).toEqual({ inputTokens: 100, outputTokens: 50 });
+      expect(countUsageRows(db, ticketId)).toBe(1);
+    } finally {
+      setPort(null);
+    }
+  });
+
+  it("差值归账：第二次累计只记增量行，usage_accum 累进", async () => {
+    const { service, db, ticketId, setPort } = await createDispatchedTicket();
+    try {
+      service.applyTicketTurnEvent({
+        ticketId,
+        atMs: Date.now(),
+        kind: "turn_completed",
+        usage: { inputTokens: 100, outputTokens: 50 },
+      });
+      service.applyTicketTurnEvent({
+        ticketId,
+        atMs: Date.now(),
+        kind: "turn_completed",
+        usage: { inputTokens: 150, outputTokens: 80 },
+      });
+      const snapshot = await service.getSnapshot();
+      expect(snapshot.tickets[0]!.usage).toEqual({ inputTokens: 150, outputTokens: 80 });
+      expect(countUsageRows(db, ticketId)).toBe(2);
+    } finally {
+      setPort(null);
+    }
+  });
+
+  it("单调丢弃：atMs 早于工单 updated_ms 的迟到事件整体忽略", async () => {
+    const { service, ticketId, setPort } = await createDispatchedTicket();
+    try {
+      const before = (await service.getSnapshot()).tickets[0]!;
+      service.applyTicketTurnEvent({
+        ticketId,
+        atMs: before.updatedAtMs - 1000,
+        kind: "turn_failed",
+        failReason: "迟到重放",
+      });
+      const after = (await service.getSnapshot()).tickets[0]!;
+      expect(after.status).toBe(before.status);
+      expect(after.failReason).toBe(before.failReason);
+    } finally {
+      setPort(null);
+    }
+  });
+
+  it("turn_failed→failed+fail_reason+mandate 撤销；终态后迟到 turn_started 不改写状态", async () => {
+    const { service, db, ticketId, setPort } = await createDispatchedTicket();
+    try {
+      service.applyTicketTurnEvent({
+        ticketId,
+        atMs: Date.now(),
+        kind: "turn_failed",
+        failReason: "CLI 崩溃",
+      });
+      let snapshot = await service.getSnapshot();
+      expect(snapshot.tickets[0]!.status).toBe(ASSISTANT_TICKET_STATUSES.failed);
+      expect(snapshot.tickets[0]!.failReason).toBe("CLI 崩溃");
+      let mandateState = "";
+      db.transaction((raw) => {
+        mandateState = (
+          raw.prepare("SELECT state FROM mandate WHERE ticket_id = ?").get(ticketId) as {
+            state: string;
+          }
+        ).state;
+      });
+      expect(mandateState).toBe("revoked");
+
+      service.applyTicketTurnEvent({ ticketId, atMs: Date.now(), kind: "turn_started" });
+      snapshot = await service.getSnapshot();
+      expect(snapshot.tickets[0]!.status).toBe(ASSISTANT_TICKET_STATUSES.failed);
+    } finally {
+      setPort(null);
+    }
+  });
+});
+
+describe("approveDecision 并发幂等（PR-1B 三审发现 7：事务内按 decision_id 查重）", () => {
+  it("首个放行派发在途时，同 decisionId 的第二次 approve 幂等返回、不建第二张票、不重复派发", async () => {
+    const { service, db } = createService();
+    let dispatchCalls = 0;
+    let releaseDispatch: (() => void) | null = null;
+    const gate = new Promise<void>((resolve) => {
+      releaseDispatch = resolve;
+    });
+    setAssistantDispatchPort(async (request) => {
+      dispatchCalls += 1;
+      await gate;
+      return {
+        ok: true as const,
+        value: { ticketId: request.ticketId, sessionId: `sess-${request.ticketId}` },
+      };
+    });
+    try {
+      const recorded = await service.recordTrigger({
+        text: "并发幂等",
+        simulated: ASSISTANT_STRENGTHS.explicit,
+        targetWorkspaceIdentity: "ws-a",
+      });
+      if (!recorded.ok) throw new Error("record failed");
+      const snapshot = await service.getSnapshot();
+      const decisionId = snapshot.decisions[0]!.id;
+      const first = service.approveDecision({ decisionId, targetWorkspaceIdentity: "ws-a" });
+      // 首个派发在途（gate 未放行）时发起第二次 approve：事务内按 decision_id 查重命中
+      // 首张票，alreadyExisted 臂跳过派发直接幂等返回（不建第二张票、不重复派发）。
+      const second = await service.approveDecision({ decisionId, targetWorkspaceIdentity: "ws-a" });
+      expect(second.ok).toBe(true);
+      if (!second.ok) return;
+      let ticketCount = 0;
+      db.transaction((raw) => {
+        ticketCount = (raw.prepare("SELECT COUNT(*) AS n FROM ticket").get() as { n: number }).n;
+      });
+      expect(ticketCount).toBe(1);
+      expect(dispatchCalls).toBe(1);
+      releaseDispatch?.();
+      const firstResult = await first;
+      expect(firstResult.ok).toBe(true);
+      if (!firstResult.ok) return;
+      expect(second.value.ticketId).toBe(firstResult.value.ticketId);
+    } finally {
+      setAssistantDispatchPort(null);
+    }
   });
 });

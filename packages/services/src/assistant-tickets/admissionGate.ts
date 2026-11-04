@@ -57,8 +57,11 @@ export function evaluateAdmission(
 
   // observe（P1 唯一开放模式）：全量零执行。
   //   explicit → 决策卡（人工放行才执行）；inferred → would-accept 记录。
-  // auto（P4 信任门开启后）：直接可执行——P1/P2 由 mate.auto.locked 在服务层拒绝，
-  // 门函数先行按矩阵给出 outcome（direct_dispatch），服务层负责锁校验。
+  // auto（P4 信任门开启后才可达；P1/P2 由 mate.auto.locked 在服务层恒拒，本分支当前
+  // 不可达）：占位实现——explicit/inferred 都出决策卡（人工终审），**不引入
+  // direct_dispatch 之类的新 outcome**（ASSISTANT_OUTCOMES 是封闭枚举，01 §1.1）。
+  // 与 spec §6 auto 行（执行出告知卡/经评估后执行）的最终语义在 P4 实装时必须
+  // revisit 本函数与枚举（PR-1B 二审发现 3 对齐）。
   if (config.mode === ASSISTANT_MODES.observe) {
     return input.strength === ASSISTANT_STRENGTHS.explicit
       ? { strength: input.strength, outcome: ASSISTANT_OUTCOMES.decisionCard }

@@ -1,8 +1,10 @@
 import { requestSecurityMessagesEnUS } from "@/request-security-edition/messages.js";
 import { teamMessagesEn } from "@/i18n/teamMessages.js";
+import { mateMessagesEn } from "@/i18n/mateMessages.js";
 /** English translations */
 const enUS: Record<string, string> = {
   ...teamMessagesEn,
+  ...mateMessagesEn,
   "preview.image.copy": "Copy image",
   "preview.image.actions": "Image actions",
   "preview.image.added": "Added to chat",
@@ -1675,6 +1677,11 @@ const enUS: Record<string, string> = {
   "sidePane.workflowScript": "Script steps",
   "sidePane.workflowArtifact": "Artifact",
   "sidePane.team": "Team",
+  // Mate side pane tab (design 01 §5): title and launcher description for the
+  // workspace-level global tab.
+  "sidePane.mate": "Mate",
+  "sidePane.launcher.mate": "Ticket decisions, observations and reports",
+
   // Team panel (specs/agents-team.md §10): empty state and member drill-down placeholders.
   // Copy states what is true and what happens next, never color alone (DESIGN.md).
   "team.panel.empty.title": "No team yet",

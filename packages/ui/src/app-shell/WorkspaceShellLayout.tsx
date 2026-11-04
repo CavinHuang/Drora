@@ -418,6 +418,9 @@ const WorkspaceShellLayoutContent = memo(function WorkspaceShellLayoutComponent(
   // 由 TeamNavigationProvider 内的入口触发，Shell 负责落到 side pane tab。
   handleOpenTeamSidePane,
   handleOpenTeamMemberSidePane,
+  // Drora 扩展挂载：大副（Mate）面板打开回调（01 详设 §5）——workspace 级全局 tab，
+  // 入口（open-tab launcher）与汇报卡「打开会话」的落点都在本 Shell。
+  handleOpenMateSidePane,
   handleOpenTerminalTab,
   handleToggleGit,
   handleOpenGitReview,
@@ -1717,6 +1720,26 @@ const WorkspaceShellLayoutContent = memo(function WorkspaceShellLayoutComponent(
     },
     [handleOpenTeamMemberSidePane, workspaceTabs],
   );
+  // Drora 扩展挂载：大副汇报卡「打开会话」的导航落点（01 详设 §5 MateReportCard）。
+  // 与 team 导航同一条「先回到目标会话」的路径（handleSelectTaskInChat：跨 workspace
+  // 时先 ensureTaskNavigationWorkspace 再选中任务）；P1 派发目标恒为本 workspace，
+  // workspace 身份由 MateSidePane 随 tab 传入。
+  const handleOpenMateSession = useCallback(
+    (request: {
+      sessionId: string;
+      workspacePath: string;
+      workspaceIdentity?: string;
+      remoteSessionId?: string;
+    }) => {
+      handleSelectTaskInChat(
+        request.workspacePath,
+        request.sessionId,
+        request.workspaceIdentity,
+        request.remoteSessionId,
+      );
+    },
+    [handleSelectTaskInChat],
+  );
   // 中枢的产物 chip：与「查看实例」逐字同构（同一条「先回到发起它的会话」的路径），
   // 只是终点是 `workflow-artifact` tab 而不是 run 详情页。
   const handleOpenSavedWorkflowArtifact = useCallback(
@@ -2285,6 +2308,8 @@ const WorkspaceShellLayoutContent = memo(function WorkspaceShellLayoutComponent(
       onOpenSubagentSession={handleOpenSubagentSession}
       onOpenWorkflowActorSession={handleOpenWorkflowActorSession}
       onOpenTeamMemberSession={handleOpenTeamMemberSidePaneSession}
+      onOpenMateSidePane={handleOpenMateSidePane}
+      onOpenMateSession={handleOpenMateSession}
       onOpenWorkflowWorkspace={handleOpenWorkflowWorkspace}
       onOpenWorkflowArtifact={handleOpenWorkflowArtifact}
       onOpenWorkflowRun={handleOpenWorkflowRun}

@@ -17,6 +17,7 @@ import {
   PlugIcon,
   NotepadTextIcon,
   PackageIcon,
+  AnchorIcon,
   PaletteIcon,
   ShieldCheckIcon,
   SquareTerminalIcon,
@@ -319,6 +320,11 @@ export function SidePaneTabIcon({ tab }: { tab: WorkspaceSidePaneTab }) {
   if (tab.type === "team-member") {
     return <UserIcon className="size-3.5" />;
   }
+  // 大副面板是「一个 workspace 的工单决策/观察视图」（01 详设 §5），与团队（Users）、
+  // 单成员（User）都不同形；Anchor 点出「大副」（first mate）的航海本义。
+  if (tab.type === "mate") {
+    return <AnchorIcon className="size-3.5" />;
+  }
   if (tab.type === "selection-side-chat") {
     return <MessageSquareTextIcon className="size-3.5" />;
   }
@@ -540,6 +546,10 @@ export function getSidePaneTabTitle(
   // 成员 transcript tab（§10 增补四）：标题=成员名（身份即标题；memberName 恒在）。
   if (tab.type === "team-member") {
     return tab.memberName;
+  }
+  // 大副 tab 不带任何数据（身份只是 workspace），标题恒为本地化名（01 详设 §5）。
+  if (tab.type === "mate") {
+    return formatMessage({ id: "sidePane.mate" });
   }
   if (tab.type === "selection-side-chat") {
     return `${formatMessage({ id: "sidePane.selectionChat" })} ${tab.ordinal}`;

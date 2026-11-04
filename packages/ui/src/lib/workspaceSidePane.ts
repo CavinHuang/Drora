@@ -552,6 +552,33 @@ export interface TeamMemberSidePaneTab {
   childSessionId?: string;
 }
 
+/**
+ * 大副（Mate）面板 tab（docs/mate-implementation-plan-2026-11-04/01-p1-detailed-design.md §5；
+ * specs/drora-personal-assistant.md 台账 16 自研扩展）。
+ *
+ * 与 team 的关键差异：**workspace 级全局 tab，不绑 parentSessionId**（同 git /
+ * developer-tools 的可见性档），一个 workspace 只有一个大副面板。tab **不携带任何
+ * Mate 数据**：面板自己读 assistantTicketService 的快照推送（getSnapshot 拉一次 +
+ * onDidChange 跟随，唯一数据通道），冷恢复 / 断线 resync 后自动收敛。GC：**没有**——
+ * 快照推送自愈、无过期名单可显示（同 team 的理由链），服务缺席时面板显示诚实不可用态。
+ */
+export interface MateSidePaneTab {
+  id: string;
+  type: "mate";
+  ownerTaskId?: string | null;
+  openedAt?: number;
+  workspaceKey: string;
+  workspacePath: string;
+  workspaceIdentity?: string;
+  remoteSessionId?: string;
+}
+
+export interface OpenMateSideTabRequest {
+  workspacePath: string;
+  workspaceIdentity?: string;
+  remoteSessionId?: string;
+}
+
 export interface OpenTeamSideTabRequest {
   parentSessionId: string;
 }
@@ -655,7 +682,8 @@ export type WorkspaceSidePaneTab =
   | WorkflowWorkspaceSidePaneTab
   | WorkflowArtifactSidePaneTab
   | TeamSidePaneTab
-  | TeamMemberSidePaneTab;
+  | TeamMemberSidePaneTab
+  | MateSidePaneTab;
 
 /**
  * Browser/browser-use 的页面与 CDP 生命周期依赖 `<webview>` 持续连接 DOM。
@@ -998,6 +1026,21 @@ function createTeamSidePaneTab(
   };
 }
 
+function createMateSidePaneTab(
+  options: OpenMateSideTabRequest & { workspaceKey: string },
+): MateSidePaneTab {
+  return {
+    // 结构化 id：一个 workspace 只有一个大副面板，重复打开幂等聚焦同一 tab。
+    id: ["mate", encodeSidePaneTabIdPart(options.workspaceKey)].join(":"),
+    type: "mate",
+    openedAt: Date.now(),
+    workspaceKey: options.workspaceKey,
+    workspacePath: options.workspacePath,
+    ...(options.workspaceIdentity ? { workspaceIdentity: options.workspaceIdentity } : {}),
+    ...(options.remoteSessionId ? { remoteSessionId: options.remoteSessionId } : {}),
+  };
+}
+
 function createWorkflowActorSessionSidePaneTab(
   options: OpenScopedWorkflowActorSessionSideTabRequest & { workspaceKey: string },
 ): WorkflowActorSessionSidePaneTab {
@@ -1269,6 +1312,10 @@ export function isSidePaneTabVisibleInScope(
     case "developer-tools":
     case "plugin-market":
     case "treemapping":
+      return true;
+    // 大副是 workspace 级全局 tab（不绑 parentSessionId，01 §5）——归属判断与
+    // git/developer-tools 同档：只按 workspace 匹配，跨对话恒可见。
+    case "mate":
       return true;
     case "browser-use":
       return tab.sessionId === scope.ownerTaskId;
@@ -2195,6 +2242,21 @@ export function openTeamSidePane(
   const nextTab = createTeamSidePaneTab(options);
   const existing = current?.tabs.find(
     (tab): tab is TeamSidePaneTab => tab.type === "team" && tab.id === nextTab.id,
+  );
+  return activateSidePaneTab(current, existing ? { ...existing, ...nextTab } : nextTab);
+}
+
+/**
+ * 打开（或聚焦）workspace 级全局的大副面板 tab（01 §5；不绑 parentSessionId，同 git 的
+ * 可见性档）。重复打开幂等聚焦；GC 没有（tab 不带 Mate 数据，面板读快照推送自愈）。
+ */
+export function openMateSidePane(
+  current: WorkspaceSidePaneState | null,
+  options: OpenMateSideTabRequest & { workspaceKey: string },
+): WorkspaceSidePaneState {
+  const nextTab = createMateSidePaneTab(options);
+  const existing = current?.tabs.find(
+    (tab): tab is MateSidePaneTab => tab.type === "mate" && tab.id === nextTab.id,
   );
   return activateSidePaneTab(current, existing ? { ...existing, ...nextTab } : nextTab);
 }

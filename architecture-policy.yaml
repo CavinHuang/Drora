@@ -1394,6 +1394,20 @@ modules:
       - packages/services/src/assistant-tickets/contract.ts
     layers:
       adapters: .
+  # ui-mate：由 architecture:adopt 登记
+  - id: ui-mate
+    roots:
+      - packages/ui/src/mate
+    managed: true
+    requires:
+      - services
+      - shared
+      - ui
+    publicEntrypoints:
+      - packages/ui/src/mate/index.ts
+      - packages/ui/src/mate/contract.ts
+    layers:
+      app: .
 
 global:
   # 临时时间戳（2026-09-10）：unmanaged-new-file 只约束此日期之后首次入库的文件。
@@ -1820,3 +1834,15 @@ exceptions:
       - apps/drora-cli/packages/core/src/tool/handlers/generate-image.ts
       - apps/drora-cli/packages/bootstrap/src/drora-protocol/generate-image-port.ts
     reason: agent 内置文生图工具的 CLI 四件（契约 schema、端口接口、handler、协议端口实现），全部照 VaultSearch 同族先例文件在既有未受管目录的同位新增；跨 contracts/core/bootstrap 三包散落，逐文件精确路径准入；接管整个 drora-cli 大模块需要独立的模块边界重构，不在本批范围。
+  # PR-1B UI 地基（docs/mate-implementation-plan-2026-11-04/00-master-plan.md §2）：store/hooks/i18n
+  # 按详设落位宿主 ui 模块规范目录（mateStore 照 offPeakTaskStore、useAssistantTickets 照
+  # useModelCapabilities、mateMessages 照 teamMessages——三个先例文件本身也在 unmanaged ui）；
+  # 业务口径集中在 managed ui-mate 模块（packages/ui/src/mate），三文件只经其公开入口消费。
+  - id: mate-ui-host-side-unmanaged-new-files
+    rule: unmanaged-new-file
+    paths:
+      - packages/ui/src/store/mateStore.ts
+      - packages/ui/src/hooks/useAssistantTickets.ts
+      - packages/ui/src/i18n/mateMessages.ts
+      - packages/ui/src/app-shell/MateSidePane.tsx
+    reason: PR-1B groundwork files admitted path-exact per the mate implementation plan (store/hooks/i18n live in the host ui module's canonical directories, matching the offPeakTaskStore/useModelCapabilities/teamMessages precedents, and the side-pane container lives in app-shell like TeamSidePane); the mate business projection, contract and presentational components live in the managed ui-mate module, and these files consume only its public entrypoints.

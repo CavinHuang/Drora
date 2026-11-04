@@ -116,8 +116,11 @@ export class RemoteServiceAccess implements IServiceAccessor {
   // 五个能力条目恒「不可用」、语音 asr/tts 档案消费恒缺省（同 obsidianVaultService
   // 曾因合并丢失的事故形态，见上方 eff2ee71 注释）。
   readonly modelCapabilitiesService?: IModelCapabilitiesService;
-  /** Drora Mate 工单服务（specs/drora-personal-assistant.md）：仅桌面本地 Host 注册，
-   *  同 modelCapabilities 走 options 显式能力门控（远端/stdio Host 不注册该 channel）。 */
+  /** Drora Mate 工单服务（specs/drora-personal-assistant.md）：同 modelCapabilities 走
+   *  options 显式能力门控。注册语义注记（PR-1B 三审发现 5）：Host 侧 createLocalServices
+   *  为桌面本地与 stdio 复用、两者都注册该 channel，**门控发生在 client 能力位**
+   *  （main.tsx base 连接显式传 assistantTicketService:true；web/手机连接不传即
+   *  fail-closed undefined）——不是「stdio Host 未注册」。 */
   readonly assistantTicketService?: IAssistantTicketService;
   readonly providerProvisioningStatusService?: IProviderProvisioningStatusService;
   readonly usageStatsService: IUsageStatsService;

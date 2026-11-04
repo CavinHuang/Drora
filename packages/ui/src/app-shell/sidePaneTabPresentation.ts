@@ -24,6 +24,7 @@ export interface SidePaneTabPresentationLabels {
   workflowScriptTitle: string;
   workflowArtifactTitle: string;
   teamTitle: string;
+  mateTitle: string;
 }
 
 export function getSidePaneTabSearchHint(tab: WorkspaceSidePaneTab): string {
@@ -52,6 +53,10 @@ export function getSidePaneTabSearchHint(tab: WorkspaceSidePaneTab): string {
   }
   if (tab.type === "team") {
     return `${tab.parentSessionId} agents team members board mailbox`;
+  }
+  if (tab.type === "mate") {
+    // 大副是 workspace 级 tab（无 parentSessionId）；决策/工单/观察是它的可搜语义。
+    return "mate assistant ticket decision would-accept observe 大副";
   }
   if (tab.type === "selection-side-chat") {
     return `${tab.parentSessionId} ${tab.childSessionId} ${tab.ordinal} selection side chat`;
@@ -115,6 +120,7 @@ export function getLocalizedSidePaneTabTitle(
       "sidePane.workflowScript": labels.workflowScriptTitle,
       "sidePane.workflowArtifact": labels.workflowArtifactTitle,
       "sidePane.team": labels.teamTitle,
+      "sidePane.mate": labels.mateTitle,
     };
     return titleByMessageId[descriptor.id] ?? descriptor.id;
   });
@@ -133,6 +139,7 @@ export function getSidePaneTabTypeLabel(
   if (tab.type === "workflow-workspace") return labels.workflowScriptTitle;
   if (tab.type === "workflow-artifact") return labels.workflowArtifactTitle;
   if (tab.type === "team") return labels.teamTitle;
+  if (tab.type === "mate") return labels.mateTitle;
   if (tab.type === "team-member") return tab.memberName;
   if (tab.type === "selection-side-chat") return labels.selectionChatTitle;
   if (tab.type === "subagent-session") {

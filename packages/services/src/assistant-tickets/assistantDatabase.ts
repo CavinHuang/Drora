@@ -191,6 +191,10 @@ function runAssistantMigrations(raw: AssistantDatabaseRaw): void {
       cache_write_tokens INTEGER NOT NULL DEFAULT 0,
       at_ms INTEGER NOT NULL
     )`);
+    // 幂等兜底（PR-1B 三审发现 7；01 §2「decisionId→ticketId 唯一索引」）：一 decision
+    // 至多一张票。索引只加不破（v1 旧库补建亦安全）；进程内并发的主防线是 approve
+    // 事务内按 decision_id 查重（单写者事务串行化），索引挡跨进程/未来多写者。
+    raw.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_ticket_decision_id ON ticket(decision_id)");
     raw.exec(
       "INSERT INTO kv(key, value, updated_ms) VALUES ('schema_version', '1', strftime('%s','now') * 1000) ON CONFLICT(key) DO NOTHING",
     );

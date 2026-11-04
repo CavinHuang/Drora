@@ -1,7 +1,9 @@
 # Drora Mate（个人助理「大副」）设计 spec
 
 - 日期：2026-11-04
-- 状态：W0 设计定稿，实现未开始
+- 状态：P1 实现中——PR-1A 服务核心与 PR-1B UI 面已交付（feat/mate-p1），实现与本文
+  的偏差按 00-master-plan §8/§9 与 ui-mate CONTRACT.md 登记；ticketLedger 帧接线随
+  PR-1A 后续批次（见 ui-mate CONTRACT.md 与 coverage matrix）。
 - 基线：main @ 42bacc627（upstream **v3.17.2 已整并**：b3e44cb2a 六段合并 + a9fe401ee 源同步）。
   本 spec §3/§7 引用的四个接缝路径（`apps/drora-cli/packages/core/src/team/hub.ts`、
   `drora-protocol-v4/sessions-index.ts`、services 的 drora-session 与 bot-project-runtime）
@@ -17,15 +19,15 @@ preset 无 bash、无写盘工具，只做路由、派发、盯单、汇报。
 
 命名契约一次定齐（契约键单一出处，见 §5 落点）：
 
-| 层       | 值                                                             |
-| -------- | -------------------------------------------------------------- |
-| 产品名   | Drora Mate / 大副（i18n：zh「大副」/ en "Mate"）               |
-| 服务模块 | `packages/services/src/assistant-tickets/`                     |
-| UI 模块  | `ui-mate/` 新文件族（复用 teamActivity 三面接缝先例）          |
-| 协议     | `packages/shared/src/drora-protocol-v4/assistant.ts`（新文件） |
-| 契约常量 | `packages/shared/src/contracts/assistant.ts`（新文件）         |
-| 命令入口 | `/mate`（CLI `.drora/commands` 自定义命令 + UI 导航端口）      |
-| 设置键   | `drora.mate.*`；持久化前缀 `mate-`                             |
+| 层       | 值                                                                                                                                                             |
+| -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 产品名   | Drora Mate / 大副（i18n：zh「大副」/ en "Mate"）                                                                                                               |
+| 服务模块 | `packages/services/src/assistant-tickets/`                                                                                                                     |
+| UI 模块  | `ui-mate/` 新文件族（复用 teamActivity 三面接缝先例）                                                                                                          |
+| 协议     | `packages/shared/src/drora-protocol-v4/assistant.ts`（新文件）                                                                                                 |
+| 契约常量 | `packages/shared/src/contracts/assistant.ts`（新文件）                                                                                                         |
+| 命令入口 | `/mate`（CLI `.drora/commands` 自定义命令 + UI 导航端口）                                                                                                      |
+| 设置键   | `drora.mate.*`（P4 启用，01 §1.4）；持久化=数据目录 `mate/` 下库文件 `mate.sqlite`（contracts/assistant.ts ASSISTANT_STORAGE_KEYS 单一出处；00 §8.5 命名统一） |
 
 ## 2. 产品规则
 
@@ -61,14 +63,14 @@ preset 无 bash、无写盘工具，只做路由、派发、盯单、汇报。
 
 ## 4. 状态所有者
 
-| 状态                           | 唯一所有者                     | 说明                    |
-| ------------------------------ | ------------------------------ | ----------------------- |
-| Trigger/Ticket/Decision/Outbox | AssistantTicketService         | 事务写；幂等键=ticketId |
-| 团队执行事实                   | TeamHub journal（既有）        | 不建第二份              |
-| 名单/准入/预算配置             | settings + contracts/assistant | 键单出处                |
-| Router 会话                    | CLI runtime（既有会话机制）    | 可重建，无业务事实      |
-| Renderer                       | 投影 + 草稿 + pending overlay  | 不新增业务状态          |
-| Main / relay                   | 仅转发与进程/窗口管理          | 不承载工单              |
+| 状态                           | 唯一所有者                                                                  | 说明                            |
+| ------------------------------ | --------------------------------------------------------------------------- | ------------------------------- |
+| Trigger/Ticket/Decision/Outbox | AssistantTicketService                                                      | 事务写；幂等键=ticketId         |
+| 团队执行事实                   | TeamHub journal（既有）                                                     | 不建第二份                      |
+| 名单/准入/预算配置             | mate.sqlite kv 表（01 §1.4：P1 不动 AppSettings；drora.mate.\* 键 P4 启用） | 键单出处（contracts/assistant） |
+| Router 会话                    | CLI runtime（既有会话机制）                                                 | 可重建，无业务事实              |
+| Renderer                       | 投影 + 草稿 + pending overlay                                               | 不新增业务状态                  |
+| Main / relay                   | 仅转发与进程/窗口管理                                                       | 不承载工单                      |
 
 ## 5. 领域模型
 
@@ -163,13 +165,15 @@ Mate 带证据选择，派发桥校验后生效）；Tier3 决策卡问人（低
 ## 9. 并发与写域
 
 三层边界：会话内串行（CommandInbox 唯一入口，既有）；工单间并行（默认）；工作区内协调
-写域（不串行，无全局锁，无硬上限——软预算默认同 workspace 活动工单 3，超出排队+告知卡）。
+写域（不串行，无全局锁，无硬上限——软预算默认同 workspace 活动工单 3，超出排队+告知卡；
+**P1 简化（00 §2 前置 commit）：软预算=1（budgetMaxActivePerWorkspace:1，实现
+assistantTicketsService DEFAULT_CONFIG），无 worktree**）。
 
-| 档  | 机制                                                                       | 适用/默认                       |
-| --- | -------------------------------------------------------------------------- | ------------------------------- |
-| W1  | 每工单 `git worktree .drora/mate/<id>` + 分支 `mate/<id>`，交付走 PR/patch | Mode A 默认                     |
-| W2  | 写域声明+派发桥比对同 workspace 其他活动工单，重叠→排队/问人               | 非 git 或用户关闭 W1            |
-| W3  | 附着用户会话不隔离（那是用户自己的工作目录）                               | Mode C；仍检查与 W1/W2 工单冲突 |
+| 档  | 机制                                                                       | 适用/默认                                                                                      |
+| --- | -------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| W1  | 每工单 `git worktree .drora/mate/<id>` + 分支 `mate/<id>`，交付走 PR/patch | Mode A 默认（**P2 起**；P1 无 worktree——写域=同 workspace 会话，决策/汇报卡明示「P1 未隔离」） |
+| W2  | 写域声明+派发桥比对同 workspace 其他活动工单，重叠→排队/问人               | 非 git 或用户关闭 W1                                                                           |
+| W3  | 附着用户会话不隔离（那是用户自己的工作目录）                               | Mode C；仍检查与 W1/W2 工单冲突                                                                |
 
 不变式：Mate 派生活动工单两两写域不相交；工单终态即清理 worktree（保留分支），失败清理
 动作如实入台账；换代重派续用同一 worktree/分支，不重复 `worktree add`。
@@ -182,7 +186,8 @@ automation（cron 协议既有）驱动，周期读 TicketService 状态时间�
 ## 11. UI（四面一源）
 
 所有面是 TicketService 快照的投影；`mateStore`（zustand）只存过滤/选中/展开局部态；
-数据经 `useMateSnapshot()` 订阅。
+数据经 `useAssistantTickets()` 订阅（getSnapshot 拉一次 + onDidChange 推送；实现为
+useModelCapabilities 同构形态，00 §8 二审 B2）。
 
 1. **Surface A 大副对话**：状态条（模式徽标/打扰配额/活动工单数）+ 对话流内嵌决策卡
    （原文引用+预估+`Y/N/E` 键盘流+"已等待"只显示不超时）与汇报卡（结论+工件链接+实耗+

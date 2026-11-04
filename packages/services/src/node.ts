@@ -3336,6 +3336,10 @@ export function createLocalServices(options: {
   }
 
   // Drora Mate 工单服务（台账 16）：host-local 能力，无条件注册（未触发时零行为）。
+  // 注册范围注记（PR-1B 三审发现 5）：createLocalServices 为桌面本地 Host 与 stdio
+  // host（server/stdioServices.ts）共用，**两者都注册本 channel 并建 mate.sqlite**；
+  // 「仅桌面可用」的门控在 client 侧能力位（renderer main.tsx 显式传
+  // assistantTicketService:true），不在 Host 注册面。
   // 库连接惰性（assistantDatabase 内部首次访问才建文件），环境问题不炸启动。
   // 派发端口（P1 Mode A）：v4 通道接线——createSession/sendText 走 droraAgentService
   // 的 sendConversationCommandV4（对齐 droraTaskServiceAdapter 形态；permissionTier

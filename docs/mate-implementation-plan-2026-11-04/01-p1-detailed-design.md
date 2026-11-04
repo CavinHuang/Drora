@@ -167,7 +167,7 @@ MateSidePane（tab 容器，照 TeamSidePane 形态）
  └ MateConfigSection  模式（observe 锁定，auto 禁用+达标 tooltip）｜allowlist 编辑（每行 identity）｜双测试按钮（点名/未指名）
 ```
 
-**数据流（推模式，照 conversationProjectionStore 先例而非 offPeak 拉模式）**：`useAssistantTickets()` 用 `useSyncExternalStore(subscribe=service.onDidChange, getSnapshot=service 缓存快照)`；`mateStore`（zustand）只存 `{filter, selectedTicketId, expandedDecisionId}` 三个局部态——快照本体不复制进 store，避免第二份业务状态。
+**数据流（推模式，照 conversationProjectionStore 先例而非 offPeak 拉模式）**：`useAssistantTickets()` 照 `useModelCapabilities` 模板同构实现——挂载时 `service.getSnapshot()` 拉一次 + `service.onDidChange` 订阅推送（disposable `{dispose()}`），配 `updatedAtMs` 单调丢弃防拉取与推送竞态（实现稿修订，2026-11-05 审查轮对齐：原稿的 `useSyncExternalStore` 需要同步 getSnapshot，而服务 `getSnapshot()` 是异步 Promise，须先建 renderer 侧缓存层才成立；P2 若引入 renderer 快照缓存再切换）。`mateStore`（zustand）只存 `{filter, selectedTicketId, expandedDecisionId}` 三个局部态、按 workspace 分域（键=tab.workspaceKey，mate tab 每 workspace 一个且 side pane 对全部 tab 常挂载）——快照本体不复制进 store，避免第二份业务状态。
 
 **view-model 纯函数**：`deriveMateViewModel(snap, filter) → {groups, counts, trust}`（零副作用，单测主战场）。
 

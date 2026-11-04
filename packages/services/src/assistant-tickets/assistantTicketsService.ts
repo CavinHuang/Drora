@@ -15,10 +15,10 @@ import {
   ASSISTANT_TICKET_STATUSES,
   type AssistantMode,
   type AssistantPermissionTier,
-  type AssistantStrength,
 } from "@drora/shared";
 import { createServiceLogger } from "../logger/serviceLogger.js";
 import { evaluateAdmission } from "./admissionGate.js";
+import { createTicketLedger, type AssistantTicketTurnEventInput } from "./ticketLedger.js";
 import {
   AssistantDatabase,
   openAssistantDatabase,
@@ -77,12 +77,18 @@ interface TicketRow {
 
 export function createAssistantTicketsService(
   options: AssistantTicketsServiceOptions,
-): IAssistantTicketService {
+): IAssistantTicketService & {
+  /** host 内部 ledger 入口（01 §3；不在 IAssistantTicketService——channel 代理面只含
+   * 接口方法，renderer 不可达）。装配层（node.ts ticketLedger 接线）与单测消费。 */
+  applyTicketTurnEvent(input: AssistantTicketTurnEventInput): void;
+} {
   const db = options.database ?? openAssistantDatabase(options.databasePath);
   const localIdentity = options.localIdentity;
   const emitters = new Set<SnapshotEmitter>();
   /** decisionId → {ticketId, sessionId} 幂等登记（同卡二次放行返回首次结果）。 */
   const dispatchIndex = new Map<number, { ticketId: string; sessionId: string }>();
+  // turn 事件归账（01 §3；实现委托 ticketLedger.ts，publish 为提升声明可安全引用）。
+  const ledger = createTicketLedger({ db, publish });
 
   // ------------------------------------------------------------------
   // kv 配置（P1 全存台账 kv，不动 AppSettings——01 §1.4）
@@ -299,13 +305,20 @@ export function createAssistantTicketsService(
         const created = db.transaction(
           (
             raw,
-          ): AssistantResult<{
-            ticketId: string;
-            mandateId: string;
-            brief: string;
-            targetIdentity: string;
-            tier: AssistantPermissionTier;
-          }> => {
+          ):
+            | (AssistantResult<{
+                ticketId: string;
+                mandateId: string;
+                brief: string;
+                targetIdentity: string;
+                tier: AssistantPermissionTier;
+              }> & { alreadyExisted?: undefined })
+            | {
+                ok: true;
+                alreadyExisted: true;
+                ticketId: string;
+                sessionId: string;
+              } => {
             const decision = raw
               .prepare(
                 "SELECT d.id, d.trigger_id, d.outcome, t.text, t.workspace_identity FROM admission_decision d JOIN trigger t ON t.id = d.trigger_id WHERE d.id = ?",
@@ -327,6 +340,28 @@ export function createAssistantTicketsService(
                 ASSISTANT_ERROR_CODES.decisionNotFound,
                 `outcome=${decision.outcome} 不可放行`,
               );
+            }
+            // 并发幂等兜底（PR-1B 三审发现 7；01 §2「decisionId→ticketId 唯一索引」）：
+            // 首个放行的派发 IO 在途时 dispatchIndex 尚未记账（set 在 await runDispatch
+            // 之后），同 decisionId 的第二次 approve 会穿过前置内存检查。单写者事务
+            // 串行化下在此按 decision_id 查已建工单，命中即幂等返回首次结果（sessionId
+            // 未回写时为空串，诚实反映在途），不再建第二张票；UNIQUE 索引
+            // idx_ticket_decision_id 是跨进程第二道防线。
+            const existingTicket = raw
+              .prepare("SELECT id, incarnation_current FROM ticket WHERE decision_id = ?")
+              .get(input.decisionId) as { id: string; incarnation_current: string } | undefined;
+            if (existingTicket) {
+              const existingIncarnation = JSON.parse(existingTicket.incarnation_current) as {
+                sessionId?: string;
+              };
+              // alreadyExisted 标记：调用方据此跳过派发直接幂等返回——返回裸 success 会被
+              // 当成「新建成功」而把已有工单再派一遍（本轮插桩实测，PR-1B 三审发现 7）。
+              return {
+                ok: true as const,
+                alreadyExisted: true as const,
+                ticketId: existingTicket.id,
+                sessionId: existingIncarnation.sessionId ?? "",
+              };
             }
             const ticketId = `T-${createUuid()}`;
             const mandateId = `M-${createUuid()}`;
@@ -369,15 +404,27 @@ export function createAssistantTicketsService(
                 ts,
                 ts,
               );
+            // 修复（PR-1B 审查发现 2，2026-11-05）：放行即人工决策，除 reaffirm outcome 外
+            // 必须把 decided_by 写为 user——trust.releaseCount 的 SQL 口径是
+            // decision_card+decided_by='user'（见 buildSnapshot :176-180），漏写会让放行后
+            // 卡片仍留在待决策集（UI isMatePendingDecision 判 decidedBy=gate）且 releaseCount 恒 0。
             raw
-              .prepare("UPDATE admission_decision SET outcome = ? WHERE id = ?")
-              .run(ASSISTANT_OUTCOMES.decisionCard, decision.id);
+              .prepare("UPDATE admission_decision SET outcome = ?, decided_by = ? WHERE id = ?")
+              .run(ASSISTANT_OUTCOMES.decisionCard, "user", decision.id);
             return {
               ok: true as const,
               value: { ticketId, mandateId, brief, targetIdentity, tier },
             };
           },
         );
+        if (created.alreadyExisted) {
+          // 并发第二次放行：工单已在首个放行事务中建好（可能派发仍在途），幂等返回
+          // 首次 ticketId/sessionId（sessionId 未回写时为空串，诚实反映在途），不重派。
+          return {
+            ok: true as const,
+            value: { ticketId: created.ticketId, sessionId: created.sessionId },
+          };
+        }
         if (!created.ok) return created;
 
         // 派发（事务外：v4 通道是异步 IO；失败→ticket=failed+reason，诚实留痕不静默重试）。
@@ -562,6 +609,10 @@ export function createAssistantTicketsService(
         },
       };
     },
+
+    // host 内部 ledger 入口（01 §3 归账；不在 IAssistantTicketService——renderer 经
+    // channel 代理只见接口方法面，本方法仅装配层可触达）。归账实现委托 ticketLedger.ts。
+    applyTicketTurnEvent: ledger.applyTicketTurnEvent,
   };
 
   // ------------------------------------------------------------------
@@ -664,6 +715,11 @@ export function setAssistantDispatchPort(port: AssistantDispatchPort | null): vo
   dispatchPort = port;
 }
 
-function getAssistantDispatchPort(): AssistantDispatchPort | null {
-  return dispatchPort;
-}
+export type {
+  AssistantTicketTurnEventInput,
+  AssistantTicketTurnEventKind,
+} from "./ticketLedger.js";
+
+// 死代码清理（PR-1B 二审发现 4）：原 getAssistantDispatchPort 定义后零调用（服务闭包
+// 直读模块级 dispatchPort），照 lint no-unused-vars 点名移除；装配层仍经
+// setAssistantDispatchPort 注入。

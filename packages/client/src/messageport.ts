@@ -28,6 +28,8 @@ export function createMessagePortServiceConnection(
     sourceServerManagementService?: boolean;
     deviceSyncStateService?: boolean;
     modelCapabilitiesService?: boolean;
+    /** Drora Mate 工单服务能力位（仅桌面本地 Host 注册；缺省不建代理，消费方判空降级）。 */
+    assistantTicketService?: boolean;
   } = {},
 ): MessagePortServiceConnection {
   logMessagePortDebug("[messageport] creating protocol and client...");
@@ -65,6 +67,8 @@ export function connectViaMessagePort(
     sourceServerManagementService?: boolean;
     deviceSyncStateService?: boolean;
     modelCapabilitiesService?: boolean;
+    /** Drora Mate 工单服务能力位（仅桌面本地 Host 注册；缺省不建代理，消费方判空降级）。 */
+    assistantTicketService?: boolean;
   } = {},
 ): IServiceAccessor {
   return createMessagePortServiceConnection(port, options).services;

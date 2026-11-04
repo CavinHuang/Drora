@@ -1,0 +1,38 @@
+{
+  // fixture 静态检查（PR-1B 二审发现 9）：test/fixtures 不在 ui 主工程（rootDir=src），
+  // 浏览器验收夹具与 IAssistantTicketService 等接口的字面量一致性在此强制。
+  // 仅 path-exact 收录 mate-browser.fixture：其余夹具（agents-team-remote/workflow-* 等）
+  // 存在与本批无关的存量类型错误（TS2739/TS2741/TS2345），纳入会使基线变红，待其归属
+  // 批次各自收口。include 需覆盖 src（夹具经 @/ 与相对路径引入整个 src 依赖图）。
+  // 独立编译项、不继承 base：base 的 composite 会强制 incremental 并落 tsbuildinfo，
+  // 本检查是 noEmit 纯校验、不进 tsc -b 产物链，经根 typecheck 尾段执行。
+  "compilerOptions": {
+    "target": "es2024",
+    "lib": ["es2025", "dom", "dom.iterable"],
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "noEmit": true,
+    "incremental": false,
+    "composite": false,
+    "declaration": false,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "verbatimModuleSyntax": true,
+    "isolatedModules": true,
+    "noUncheckedIndexedAccess": true,
+    "strict": true,
+    "jsx": "react-jsx",
+    "types": ["node"],
+    "paths": {
+      "@/*": ["./src/*"]
+    }
+  },
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "src/**/*.d.ts",
+    "src/**/*.json",
+    "test/fixtures/mate-browser.fixture.tsx"
+  ]
+}

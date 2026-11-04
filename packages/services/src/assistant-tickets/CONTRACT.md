@@ -12,6 +12,14 @@ Mode A 直派（v4 createSession/sendText，commandId=ticketId 幂等）+ sqlite
   （Mandate 仅 accept 创建 / 用户 stop / 校验失败撤销三条变更途径，spec §5）。
 - 诚实失败：派发失败 → ticket=failed+fail_reason+mandate revoked，不静默重试、
   不用超时兜底；同 decision 二次放行幂等返回首次结果。
+- turn 事件归账（01 §3）：服务工厂暴露 host 内部入口 `applyTicketTurnEvent`
+  （不在 IAssistantTicketService，renderer 不可达）——状态机 running/done+output_summary
+  （120 截断）/failed+reason+mandate 撤销、usage 差值行写 usage_log、updated_ms 单调
+  丢弃迟到重放，服务测试锁定。**帧接线（droraAgentService.onDynamicConversationFrame →
+  解析 session/event·snapshot）随 PR-1A 后续批次交付**，真实链路当前仍停在派发后状态
+  （coverage matrix 已如实声明）。
+- 并发幂等（PR-1B 三审发现 7）：同 decisionId 并发放行由 approve 事务内按 decision_id
+  查重（alreadyExisted 臂跳过派发）+ ticket(decision_id) UNIQUE 索引双防线闭合。
 - observe=全量零执行：explicit 出决策卡、inferred 记 would-accept；
   auto 在信任门（P4）开启前恒拒（mate.auto.locked）。
 

@@ -49,6 +49,20 @@ test("historical labels, planned E2E and retained CLI CUA browser engineering ev
   assert.deepEqual(inspectRetiredAppUnitEvidence(markdown, options), []);
 });
 
+test("drora 清单（在跑）的测试路径不加 retired: 也合法（AGENTS 双显式清单）", async () => {
+  const droraListed = "packages/services/test/assistantTicketsService.test.ts";
+  // inspectCoverageMatrices 把 drora 清单并入现行集；此处以同形 options 锁定豁免语义。
+  const options2 = {
+    engineeringTests: new Set([droraListed, "packages/desktop/test/fixture.test.ts"]),
+  };
+  assert.deepEqual(
+    inspectRetiredAppUnitEvidence(`由 \`${droraListed}\` 覆盖（drora 清单在跑）`, options2),
+    [],
+  );
+  // 不在任一清单的 packages/** App 单测仍按退役处理。
+  assert.ok(inspectRetiredAppUnitEvidence(`由 \`${unit}\` 覆盖`, options2).length > 0);
+});
+
 test("all current coverage matrices stop claiming retired App evidence", async () => {
   const errors = await inspectCoverageMatrices();
   assert.deepEqual(errors, []);

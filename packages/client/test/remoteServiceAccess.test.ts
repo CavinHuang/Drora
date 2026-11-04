@@ -24,6 +24,7 @@ function createAccess(options?: {
   sourceServerManagementService?: boolean;
   deviceSyncStateService?: boolean;
   modelCapabilitiesService?: boolean;
+  assistantTicketService?: boolean;
   windowProjectDirectory?: boolean;
 }) {
   const client = new ChannelClient(new MessagePortProtocol(new FakeMessagePort()));
@@ -45,6 +46,23 @@ describe("RemoteServiceAccess 模型能力服务代理", () => {
   it("缺省不开门控时保持 undefined（远端/服务器 Host 不注册该 channel，fail-closed）", () => {
     const access = createAccess();
     expect(access.modelCapabilitiesService).toBeUndefined();
+  });
+
+  // PR-1B 三审发现 1：Mate 工单服务与 modelCapabilities 同形的能力门控——漏传能力位
+  // 即桌面端大副整体不可达（launcher 无入口、面板恒不可用），在此层锁定代理面。
+  it("options.assistantTicketService=true 时创建可调用代理（动作+getSnapshot+onDidChange）", () => {
+    const access = createAccess({ assistantTicketService: true });
+    const service = access.assistantTicketService;
+    expect(service).toBeDefined();
+    expect(typeof service?.recordTrigger).toBe("function");
+    expect(typeof service?.approveDecision).toBe("function");
+    expect(typeof service?.setMode).toBe("function");
+    expect(typeof service?.getSnapshot).toBe("function");
+    expect(typeof service?.onDidChange).toBe("function");
+  });
+
+  it("assistantTicketService 缺省保持 undefined（远程/stdio 场景 fail-closed）", () => {
+    expect(createAccess().assistantTicketService).toBeUndefined();
   });
 
   it("已注册的其他可选服务门控形态不被本改动破坏（sourceServerManagementService 先例）", () => {

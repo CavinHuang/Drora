@@ -56,9 +56,14 @@ export function inspectRetiredAppUnitEvidence(markdown, { engineeringTests = new
 }
 
 export async function inspectCoverageMatrices(root = repoRoot) {
-  const engineeringTests = new Set(
-    JSON.parse(await readFile(resolve(root, "scripts/engineering-test-files.json"), "utf8")),
-  );
+  // 现行清单 = engineering + drora 双显式清单（AGENTS.md「工程 Vitest 为 engineering+drora
+  // 双显式清单」）：两份清单里的测试都是保留集，coverage matrix 引用它们不加 retired: 前缀。
+  // 修复背景：PR-1B 在矩阵引用 packages/services/test/assistantTicketsService.test.ts
+  // （drora 清单、在跑），首版只豁免 engineering 清单而把它误判为退役 App 单测。
+  const engineeringTests = new Set([
+    ...JSON.parse(await readFile(resolve(root, "scripts/engineering-test-files.json"), "utf8")),
+    ...JSON.parse(await readFile(resolve(root, "scripts/drora-test-files.json"), "utf8")),
+  ]);
   const directory = resolve(root, "docs/testing");
   const files = (await readdir(directory))
     .filter((file) => /coverage.*matrix.*\.md$/u.test(file))

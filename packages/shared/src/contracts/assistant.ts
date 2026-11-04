@@ -18,8 +18,47 @@
 // 版本常量（值随首次发行冻结；语义变更必须递增并走迁移/兼容流程，照 persona.ts）
 // ---------------------------------------------------------------------------
 
-/** mate.sqlite schema 版本；迁移只加不破，未知版本报 schema_incompatible（01 §1.1）。 */
-export const ASSISTANT_STORE_SCHEMA_VERSION = 1;
+/** mate.sqlite schema 版本；迁移只加不破，未知版本报 schema_incompatible（01 §1.1）。
+ * v2（2026-11-05，P2）：新增 router_evaluation 表与 ticket.write_domain 列。 */
+export const ASSISTANT_STORE_SCHEMA_VERSION = 2;
+
+// ---------------------------------------------------------------------------
+// 身份与派发模式（spec §1 命名契约 / §7 三模式；P2 定案见 02 详设 §1.1/§5）
+// ---------------------------------------------------------------------------
+
+/**
+ * assistant 虚拟 workspace 的身份键（02 详设 §1.1 定案）：身份键规则
+ * `workspaceIdentity?.trim() || workspacePath` 下 identity 是隔离键；对应
+ * workspacePath（cwd/CLI 会话状态落位）由 services paths.getAssistantWorkspaceDir()
+ * 单点派生（host 内部路径，不跨进程，不进契约）。
+ */
+export const ASSISTANT_IDENTITY = "drora-mate";
+
+/** 派发模式（spec §7 派发桥）：A=独立单工单；B=建队（prompt 驱动 /team）；C=附着既有会话。 */
+export const ASSISTANT_DISPATCH_MODES = {
+  independent: "A",
+  team: "B",
+  attach: "C",
+} as const;
+
+export type AssistantDispatchMode =
+  (typeof ASSISTANT_DISPATCH_MODES)[keyof typeof ASSISTANT_DISPATCH_MODES];
+
+/** 代际 cause 封闭枚举（spec §8；换代只由锚校验/生命周期事件/lease 失效触发）。 */
+export const ASSISTANT_GENERATION_CAUSES = {
+  superseded: "superseded",
+  lost: "lost",
+  userPicked: "user_picked",
+  expired: "expired",
+} as const;
+
+export type AssistantGenerationCause =
+  (typeof ASSISTANT_GENERATION_CAUSES)[keyof typeof ASSISTANT_GENERATION_CAUSES];
+
+/** 生产默认值（spec §9 软预算 P2 恢复 3；config kv 缺席时回落到这里）。 */
+export const ASSISTANT_DEFAULTS = {
+  budgetMaxActivePerWorkspace: 3,
+} as const;
 
 // ---------------------------------------------------------------------------
 // 持久化位置键（spec §1 命名契约：数据文件名 mate.sqlite；路径拼接只引用这里的字面量）
@@ -79,10 +118,14 @@ export type AssistantPermissionTier =
   (typeof ASSISTANT_PERMISSION_TIERS)[keyof typeof ASSISTANT_PERMISSION_TIERS];
 
 // ---------------------------------------------------------------------------
-// 工单状态机（spec §7/§8：P1 三态简化 awaiting_output 并入 done；P2 恢复四态只加不破）
+// 工单状态机（spec §7/§8：P2 新增 queued（软预算排队）——只加不破。
+// awaiting_output 四态恢复依赖汇报/outbox 管线（P4 汇报卡完整版），P2 维持
+// turn_completed→done 的 P1 折叠，避免出现无推进路径的悬挂态）
 // ---------------------------------------------------------------------------
 
 export const ASSISTANT_TICKET_STATUSES = {
+  /** 软预算满时的排队态（spec §9：超出排队+告知卡，释放即 FIFO 派发）。 */
+  queued: "queued",
   dispatched: "dispatched",
   running: "running",
   done: "done",
@@ -113,6 +156,12 @@ export const ASSISTANT_ERROR_CODES = {
   ticketNotFound: "mate.ticket.not_found",
   /** 派发目标 ACK 拒绝（v4 通道）。 */
   dispatchRejected: "mate.dispatch.rejected",
+  /** Router 评估通道未装配/失败：诚实降级 Tier3 问人，不重试模型（02 详设 §1.2）。 */
+  routerUnavailable: "mate.router.unavailable",
+  /** 附着目标校验失败（不存在/归属 identity 不符，02 详设 §2 Tier2 派发桥校验）。 */
+  attachTargetInvalid: "mate.attach.invalid",
+  /** 锚校验失配/会话已失位（spec §8 换代触发源①②）。 */
+  anchorMismatch: "mate.incarnation.anchor_mismatch",
 } as const;
 
 export type AssistantErrorCode = (typeof ASSISTANT_ERROR_CODES)[keyof typeof ASSISTANT_ERROR_CODES];
@@ -127,4 +176,26 @@ export const ASSISTANT_SNAPSHOT_LIMITS = {
   ticketsMax: 100,
   /** TicketView.brief 首行截断长度（code point）。 */
   briefPreviewMax: 120,
+  /** Router 决策证据条数上界（02 详设 §1.2：evidence 数组有界）。 */
+  routerEvidenceMax: 3,
+  /** Router 证据引用单条长度上界（code point，02 详设 §1.2：原文片段 ≤80 字）。 */
+  routerEvidenceQuoteMax: 80,
+  /** 候选卡 verbatim 截断长度（code point，02 详设 §1.3：截断 1500 字）。 */
+  candidateBriefMax: 1500,
+  /** Router 无状态壳轮转阈值：每 N 张工单归档旧会话建新会话（02 详设 §1.1）。 */
+  routerRotateEveryTickets: 10,
+} as const;
+
+// ---------------------------------------------------------------------------
+// assistantActivity wire（spec §11.4 / 02 详设 §6；host 任务行 overlay 携带，
+// controller frame → 桌面与手机同源消费；旧帧字段缺席合法）
+// ---------------------------------------------------------------------------
+
+/** 任务行 activity 内 mate 摘要的 wire 字段名（与 teamActivity 键同位；单出处）。 */
+export const SESSION_MATE_ACTIVITY_KEY = "mate";
+
+/** mate 摘要有界容量（schema 同值引用，防两处漂移）。 */
+export const ASSISTANT_MATE_ACTIVITY_LIMITS = {
+  activeCountMax: 99,
+  pendingDecisionsMax: 99,
 } as const;

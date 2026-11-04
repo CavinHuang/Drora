@@ -58,6 +58,8 @@ export * from "./cuaPermission.js";
 export * from "./team.js";
 export * from "./team-history.js";
 export * from "./sessions-index-team-activity.js";
+// Drora Mate：assistantActivity 任务行 wire 摘要（spec §11.4；host 合成，CLI 零改动）。
+export * from "./sessions-index-mate-activity.js";
 
 export {
   executionOutputPreviewSchema,

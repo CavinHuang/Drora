@@ -6,6 +6,8 @@ import {
   SESSION_TEAM_ACTIVITY_KEY,
   sessionTeamActivitySchema,
 } from "./sessions-index-team-activity.js";
+import { sessionMateActivitySchema } from "./sessions-index-mate-activity.js";
+import { SESSION_MATE_ACTIVITY_KEY } from "../contracts/assistant.js";
 import { sessionPhaseSchema } from "./snapshot.js";
 import { subscribeAckSchema } from "./transport.js";
 
@@ -89,6 +91,9 @@ export const windowHostControllerTaskActivitySchema = z
     // 侧栏工作流运行行；无 run 时缺席。
     workflowActivity: sessionWorkflowActivitySchema.optional(),
     [SESSION_TEAM_ACTIVITY_KEY]: sessionTeamActivitySchema.optional(),
+    // Drora Mate 活动摘要（host TicketService 合成；spec §11.4）——CLI→host wire 无此字段，
+    // 仅 host 任务行 overlay 携带；旧帧/旧 Host 缺席合法（移动端透传降级为无徽标）。
+    [SESSION_MATE_ACTIVITY_KEY]: sessionMateActivitySchema.optional(),
   })
   .strict();
 export type WindowHostControllerTaskActivity = z.infer<

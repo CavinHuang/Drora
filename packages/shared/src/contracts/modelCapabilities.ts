@@ -51,15 +51,13 @@ export type KnowledgeJevProvider = (typeof KNOWLEDGE_JEV_PROVIDERS)[number];
 // ---------------------------------------------------------------------------
 
 /**
- * 凭据键。decision-jev 按 providerKind 分键（迁自此前三键并存语义，
- * 切换供应商不丢 key）；asr/tts 各自独立（迁自单键双写）。
+ * 凭据键（spec §13 重构后仅剩 decision-jev：线协议不适用供应商卡，维持自含）。
+ * asr/tts/image-generation 的 apiKey 自 §13 起复用官方供应商卡（provider_config.json
+ * 经 providerSettingsFacade 读取），不再有独立凭据键；旧键仅存迁移表冻结字面量。
  */
 export const modelCapabilityCredentialKey = {
   decisionJev: (providerKind: KnowledgeJevProvider) =>
     `model-capabilities:decision-jev:${providerKind}:api-key`,
-  asr: "model-capabilities:asr:api-key",
-  tts: "model-capabilities:tts:api-key",
-  imageGeneration: "model-capabilities:image-generation:api-key",
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -77,7 +75,7 @@ export const modelCapabilityCredentialKey = {
  *   （与现 jevAssembly「缺必填即禁用」一致）。
  */
 export const modelCapabilitiesFileSchema = z.object({
-  schemaVersion: z.literal(1),
+  schemaVersion: z.literal(2),
   capabilities: z.object({
     "decision-jev": z.object({
       enabled: z.boolean().default(false),
@@ -93,25 +91,33 @@ export const modelCapabilitiesFileSchema = z.object({
       mode: z.literal("local"), // "remote" 为 schema 预留，V1 解析器 fail-closed 拒绝
       localModelId: z.literal("local-bge-small-zh-v1.5-int8"),
     }),
+    // §13 引用式条目：供应商卡（官方模型管理）持有 baseUrl+apiKey，条目只存路由
+    // （providerRef=providerId）与模型选择；baseUrlOverride 留空继承供应商卡
+    // （手填覆盖优先，spec §13.4），网关分域名边缘用。
     asr: z.object({
       engine: z.enum(["webSpeech", "remote"]).default("webSpeech"),
-      baseUrl: z.string().default(""), // engine=remote 时必填（https 强制，localhost 例外，照 voiceVendorBaseUrl 校验）
+      providerRef: z.string().default(""), // engine=remote 时必填（指向 provider_config 的 providerId）
       modelId: z.string().default(""),
+      baseUrlOverride: z.string().default(""),
     }),
     tts: z.object({
       engine: z.enum(["system", "cloud"]).default("system"),
-      baseUrl: z.string().default(""),
+      providerRef: z.string().default(""),
       modelId: z.string().default(""),
       voice: z.string().default(""),
+      baseUrlOverride: z.string().default(""),
     }),
     "image-generation": z.object({
       enabled: z.boolean().default(false),
-      baseUrl: z.string().default(""), // enabled=true 时必填（https 强制）
+      providerRef: z.string().default(""), // enabled=true 时必填
       modelId: z.string().default(""), // enabled=true 时必填（如 cogview-4-flash、dall-e-3）
+      baseUrlOverride: z.string().default(""),
     }),
   }),
   /** 旧 AppSettings 14 键 + 旧凭据 5 键一次性迁移标记（spec §3.3；true = 已迁移，跳过）。 */
   migratedFromLegacySettings: z.boolean().default(false),
+  /** §13 供应商引用式迁移标记：true = 旧自含键已自动建卡并转 providerRef。 */
+  migratedToProviderRef: z.boolean().default(false),
 });
 
 /** 档案文件（解析后；所有 default 已物化）。 */
@@ -123,15 +129,16 @@ export type ModelCapabilities = ModelCapabilitiesFile["capabilities"];
 /** 全默认档案（文件缺失/损坏降级与迁移基线共用同一出处；所有字段显式物化）。 */
 export function defaultModelCapabilitiesFile(): ModelCapabilitiesFile {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     capabilities: {
       "decision-jev": { enabled: false, providerKind: "typesafe", baseUrl: "", modelId: "" },
       embedding: { enabled: false, mode: "local", localModelId: "local-bge-small-zh-v1.5-int8" },
-      asr: { engine: "webSpeech", baseUrl: "", modelId: "" },
-      tts: { engine: "system", baseUrl: "", modelId: "", voice: "" },
-      "image-generation": { enabled: false, baseUrl: "", modelId: "" },
+      asr: { engine: "webSpeech", providerRef: "", modelId: "", baseUrlOverride: "" },
+      tts: { engine: "system", providerRef: "", modelId: "", voice: "", baseUrlOverride: "" },
+      "image-generation": { enabled: false, providerRef: "", modelId: "", baseUrlOverride: "" },
     },
     migratedFromLegacySettings: false,
+    migratedToProviderRef: false,
   };
 }
 
@@ -144,13 +151,10 @@ export type ModelCapabilityEntriesPatch = {
   [K in ModelCapabilityPurpose]?: Partial<ModelCapabilities[K]>;
 };
 
-/** 凭据补丁：value 为 null（或空串，ApiKeyRow「留空保存即删除」语义）= 删除该键。 */
+/** 凭据补丁（§13 后仅 decision-jev）：value 为 null（或空串，ApiKeyRow「留空保存即删除」语义）= 删除该键。 */
 interface ModelCapabilitiesCredentialPatch {
   /** decision-jev 按 providerKind 分键写删。 */
   decisionJev?: { providerKind: KnowledgeJevProvider; value: string | null };
-  asr?: string | null;
-  tts?: string | null;
-  imageGeneration?: string | null;
 }
 
 export interface ModelCapabilitiesUpdate {
@@ -196,4 +200,13 @@ export const MODEL_CAPABILITIES_LEGACY_CREDENTIAL_KEYS = {
   },
   /** 原 VOICE_VENDOR_CREDENTIAL_KEY（contracts/voice.ts，随 voice 契约收窄删除导出）。 */
   voiceVendor: "voice:vendor:api-key",
+  /**
+   * §13 前的自含凭据键（v1 档案时代，asr/tts/image-generation 各一键）。迁移器按条目
+   * baseUrl 自动建供应商卡时把值导入卡片，随后删除这些键；此处为迁移表冻结字面量。
+   */
+  selfContained: {
+    asr: "model-capabilities:asr:api-key",
+    tts: "model-capabilities:tts:api-key",
+    imageGeneration: "model-capabilities:image-generation:api-key",
+  },
 } as const;

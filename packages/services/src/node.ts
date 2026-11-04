@@ -2495,17 +2495,46 @@ export function createLocalServices(options: {
     hostId: options?.projectStorageHostId ?? "local",
     workspaceIdentity: undefined,
   });
-  // agent 内置文生图（specs/model-capabilities.md §6）：档案服务在场才提供画图源
+  // agent 内置文生图（specs/model-capabilities.md §6/§13）：档案服务在场才提供画图源
   // （未注入 = 本 host 无档案面，协议分发回 -32601 结构化不可用）。服务无状态，
-  // thunk 惰性构造与 knowledgeQuerySource 同款；凭据解密只经本进程共享 credentialService。
+  // thunk 惰性构造与 knowledgeQuerySource 同款。§13 连接解析经 providerRuntime 的
+  // settings facade 公开入口读供应商卡（baseUrl+apiKey 单点在 provider_config）。
   const modelCapabilitiesServiceOption = options?.modelCapabilitiesService;
+  const resolveProviderConnection = async (providerRef: string) => {
+    const view = await providerRuntime.providerSettings.getView();
+    const provider = view.providers.find((candidate) => candidate.providerId === providerRef);
+    if (!provider) return null;
+    const baseUrl = provider.effectiveConfig?.api?.baseUrl?.trim();
+    const access = provider.effectiveConfig?.access;
+    const apiKey = access?.type === "api-key" ? access.apiKey?.trim() : undefined;
+    if (!baseUrl || !apiKey) return null;
+    return { baseUrl, apiKey };
+  };
+  const createCapabilityProviderCard = async (input: { name: string; baseUrl: string; apiKey: string }) => {
+    // §13 迁移建卡：官方 createPersonalProvider（custom 形态）+ overlay 写连接信息。
+    const created = await providerRuntime.providerSettings.createPersonalProvider({
+      providerName: input.name,
+    });
+    await providerRuntime.providerSettings.savePersonalProviderOverlay(
+      created.providerId,
+      {
+        group: "custom",
+        access: { type: "api-key", apiKey: input.apiKey },
+        api: { type: "openai-chat-completions", baseUrl: input.baseUrl },
+      } as unknown as Parameters<typeof providerRuntime.providerSettings.savePersonalProviderOverlay>[1],
+    );
+    return created.providerId;
+  };
   const agentImageGenerationSource = modelCapabilitiesServiceOption
     ? () =>
         createImageGenerationService({
           modelCapabilities: modelCapabilitiesServiceOption,
-          credentialService,
+          resolveProviderConnection,
         })
     : undefined;
+  // §13 late-bind：providerRuntime 就绪后回填建卡器；档案服务的 §13 迁移在首次
+  // get()（knowledge 装配/协议请求，均晚于本行）才执行，时序安全。
+  modelCapabilitiesServiceOption?.attachProviderCardCreator?.(createCapabilityProviderCard);
   const droraAgentService = createDroraAgentService({
     useSharedTaskRuntime: async (target) => {
       if (options?.projectStorageHostId && options.projectStorageHostId !== "local") return false;

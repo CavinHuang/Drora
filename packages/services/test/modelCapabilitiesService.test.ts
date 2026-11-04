@@ -129,17 +129,17 @@ it("MC-1：条目浅合并——补丁只覆盖给定字段，兄弟字段与其
   const { service } = createService();
   await service.update({
     capabilities: {
-      tts: { engine: "cloud", baseUrl: "https://tts.example/v1", modelId: "tts-1" },
+      tts: { engine: "cloud", providerRef: "custom:tts", modelId: "tts-1" },
     },
   });
   const updated = await service.update({
     capabilities: {
       tts: { voice: "alloy" },
-      "image-generation": { enabled: true, baseUrl: "https://img.example/v4", modelId: "cogview" },
+      "image-generation": { enabled: true, providerRef: "custom:img", modelId: "cogview" },
     },
   });
   assert.equal(updated.capabilities.tts.engine, "cloud", "兄弟字段不被清空");
-  assert.equal(updated.capabilities.tts.baseUrl, "https://tts.example/v1");
+  assert.equal(updated.capabilities.tts.providerRef, "custom:tts");
   assert.equal(updated.capabilities.tts.voice, "alloy");
   assert.equal(updated.capabilities["image-generation"].modelId, "cogview");
   assert.equal(updated.capabilities["decision-jev"].enabled, false, "其余条目不动");
@@ -148,14 +148,26 @@ it("MC-1：条目浅合并——补丁只覆盖给定字段，兄弟字段与其
 it("MC-1：凭据留空保存即删除（ApiKeyRow 语义）；纯凭据更新也广播", async () => {
   await makeRoot();
   const { service, credentials } = createService();
-  await service.update({ credentials: { asr: "sk-asr", tts: "sk-tts" } });
-  assert.equal(credentials.store.get(modelCapabilityCredentialKey.asr), "sk-asr");
+  const jevKey = modelCapabilityCredentialKey.decisionJev("typesafe");
+  const orKey = modelCapabilityCredentialKey.decisionJev("openrouter");
+  await service.update({
+    credentials: {
+      decisionJev: { providerKind: "typesafe", value: "sk-jev" },
+    },
+  });
+  await service.update({
+    credentials: {
+      decisionJev: { providerKind: "openrouter", value: "sk-or" },
+    },
+  });
+  assert.equal(credentials.store.get(jevKey), "sk-jev");
+  assert.equal(credentials.store.get(orKey), "sk-or", "providerKind 分键互不影响");
 
   const received: ModelCapabilitiesFile[] = [];
   service.onDidChange((snapshot) => received.push(snapshot));
-  await service.update({ credentials: { asr: "" } });
-  assert.equal(credentials.store.has(modelCapabilityCredentialKey.asr), false, "空串删除 asr 键");
-  assert.equal(credentials.store.get(modelCapabilityCredentialKey.tts), "sk-tts", "tts 键不受影响");
+  await service.update({ credentials: { decisionJev: { providerKind: "typesafe", value: "" } } });
+  assert.equal(credentials.store.has(jevKey), false, "空串删除该 providerKind 键");
+  assert.equal(credentials.store.get(orKey), "sk-or", "兄弟 providerKind 键不受影响");
   assert.equal(received.length, 1, "纯凭据变更也触发广播");
 });
 
@@ -188,7 +200,7 @@ it("MC-1：坏 schema（未来版本号）同样降级；get 返回克隆快照"
   );
   const { service } = createService();
   const snapshot = await service.get();
-  assert.equal(snapshot.schemaVersion, 1);
+  assert.equal(snapshot.schemaVersion, 2);
   assert.equal(snapshot.capabilities.asr.engine, "webSpeech");
 
   snapshot.capabilities.asr.engine = "remote";

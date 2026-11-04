@@ -548,6 +548,9 @@ export const TID_MODEL_CAPABILITY_BASE_URL_INPUT = "model-capability-base-url-in
 export const TID_MODEL_CAPABILITY_BASE_URL_WARNING = "model-capability-base-url-warning";
 /** 模型能力条目模型 id / 音色输入框（动态后缀为条目名 + 字段名） */
 export const TID_MODEL_CAPABILITY_MODEL_INPUT = "model-capability-model-input";
+
+/** §13 供应商引用下拉（asr/tts/image-generation 条目）。 */
+export const TID_MODEL_CAPABILITY_PROVIDER_SELECT = "model-capability-provider-select";
 /** 模型能力条目开关（动态后缀为条目名，如 decision-jev / embedding / image-generation） */
 export const TID_MODEL_CAPABILITY_TOGGLE = "model-capability-toggle";
 /** 模型能力条目引擎下拉触发器（动态后缀为 asr / tts） */

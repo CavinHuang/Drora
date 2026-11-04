@@ -1,29 +1,26 @@
 /**
- * 「图像生成」（image-generation）条目表单（specs/model-capabilities.md §5.1 字段表）。
+ * 「图像生成」（image-generation）条目表单（specs/model-capabilities.md §5.1/§13）。
  *
- * 开关 + baseUrl（含常用预设 datalist：OpenAI / 智谱开放平台 / 自填）+ 模型 id +
- * ApiKeyInput。本批仅落档案配置面（schema 已随批次一交付）；工具链路（generate_image
- * 工具 + Host 画图服务）属批次三。生效语义：即时（每次工具调用经反向 RPC 取快照）。
- * baseUrl 校验同连接区模式（https 强制，本机明文例外）；enabled=true 时 baseUrl/modelId
- * 必填的 fail-closed 判定在消费方（Host 画图服务），表单不重复实现。
+ * §13 供应商引用式：开关 + 供应商下拉（providerRef，连接信息单点在官方供应商卡）
+ * + 模型 id + 可选 baseUrl 覆盖（datalist 预设保留供覆盖场景）。不再有独立 ApiKey
+ * 输入——key 在供应商卡管理（§13 单一连接层）。fail-closed 判定在消费方（Host 画图
+ * 服务），表单不重复实现。
  */
-import { useCallback, useState } from "react";
-import { modelCapabilityCredentialKey } from "@drora/shared";
+import { useCallback } from "react";
 import { TID_MODEL_CAPABILITY_TOGGLE, testId } from "@drora/shared/test-ids";
 import { Switch } from "@/components/ui/switch.js";
-import { useServices } from "@/hooks/useServices.js";
 import { useModelCapabilities } from "@/hooks/useModelCapabilities.js";
 import { useDroraIntl } from "@/i18n/IntlProvider.js";
 import { startUserAction } from "@/lib/userActionTelemetry.js";
 import { SettingsGroupCard, SettingsRow } from "@/settings/SettingsPageParts.js";
 import {
-  CapabilityApiKeyRow,
   CapabilityBaseUrlRow,
+  CapabilityProviderRefRow,
   CapabilityTextValueRow,
-  useCredentialPresence,
+  useCapabilityProviderOptions,
 } from "./CapabilityFormParts.js";
 
-/** baseUrl 常用预设（datalist 仅输入建议；OQ-1 datalist 终审在批次三，先按 §5.1 两组落）。 */
+/** baseUrl 覆盖的常用预设（datalist 仅输入建议；正常路径无需覆盖——卡片已持 baseUrl）。 */
 const IMAGE_GENERATION_BASE_URL_PRESETS = [
   "https://api.openai.com/v1",
   "https://open.bigmodel.cn/api/paas/v4",
@@ -33,15 +30,8 @@ const IMAGE_GENERATION_BASE_URL_DATALIST_ID = "model-capability-image-base-url-p
 export function ImageGenerationCapabilityForm() {
   const { intl } = useDroraIntl();
   const { capabilities, update } = useModelCapabilities();
-  const { credentialService } = useServices();
   const entry = capabilities?.["image-generation"] ?? null;
-
-  const loadCredential = useCallback(
-    () => credentialService.load(modelCapabilityCredentialKey.imageGeneration),
-    [credentialService],
-  );
-  const [credentialPresent, setCredentialPresent] = useCredentialPresence(loadCredential);
-  const [savingCredential, setSavingCredential] = useState(false);
+  const providerOptions = useCapabilityProviderOptions();
 
   const handleEnabledChange = useCallback(
     async (enabled: boolean) => {
@@ -64,16 +54,38 @@ export function ImageGenerationCapabilityForm() {
     [update],
   );
 
-  const handleBaseUrlSave = useCallback(
-    (baseUrl: string) => {
+  const handleProviderRefSave = useCallback(
+    (providerRef: string) => {
+      const trace = startUserAction({
+        featureId: "settings.model_capabilities",
+        action: "save_image_generation_provider",
+        trigger: "select",
+      });
+      void update({ capabilities: { "image-generation": { providerRef } } })
+        .then(() => {
+          trace.complete({ resultSource: "setting_service", configured: providerRef.length > 0 });
+        })
+        .catch((error: unknown) => {
+          trace.fail({ failureStage: "setting_update" });
+          void error;
+        });
+    },
+    [update],
+  );
+
+  const handleBaseUrlOverrideSave = useCallback(
+    (baseUrlOverride: string) => {
       const trace = startUserAction({
         featureId: "settings.model_capabilities",
         action: "save_image_generation_base_url",
-        trigger: "button", // 输入落盘动作照 save_http_proxy 先例记 button
+        trigger: "button",
       });
-      void update({ capabilities: { "image-generation": { baseUrl } } })
+      void update({ capabilities: { "image-generation": { baseUrlOverride } } })
         .then(() => {
-          trace.complete({ resultSource: "setting_service", configured: baseUrl.length > 0 });
+          trace.complete({
+            resultSource: "setting_service",
+            configured: baseUrlOverride.length > 0,
+          });
         })
         .catch((error: unknown) => {
           trace.fail({ failureStage: "setting_update" });
@@ -102,21 +114,6 @@ export function ImageGenerationCapabilityForm() {
     [update],
   );
 
-  const handleCredentialSave = useCallback(
-    async (value: string) => {
-      setSavingCredential(true);
-      try {
-        await update({
-          credentials: { imageGeneration: value.length > 0 ? value : null },
-        });
-        setCredentialPresent(value.trim().length > 0);
-      } finally {
-        setSavingCredential(false);
-      }
-    },
-    [setCredentialPresent, update],
-  );
-
   return (
     <SettingsGroupCard>
       <SettingsRow
@@ -137,16 +134,15 @@ export function ImageGenerationCapabilityForm() {
           />
         }
       />
-      <CapabilityBaseUrlRow
-        labelId="settings.modelCapability.imageGeneration.baseUrl.title"
-        placeholderId="settings.modelCapability.imageGeneration.baseUrl.placeholder"
-        value={entry?.baseUrl ?? ""}
-        onSave={handleBaseUrlSave}
+      {/* 配置行不门控开关（与 v1 行为一致）：覆盖行与 datalist 预设常驻可填，
+          开关只控制消费方出站（fail-closed 在 Host 画图服务）。 */}
+      <CapabilityProviderRefRow
+        labelId="settings.modelCapability.imageGeneration.provider.title"
+        descriptionId="settings.modelCapability.imageGeneration.provider.description"
+        value={entry?.providerRef ?? ""}
+        options={providerOptions}
+        onSave={handleProviderRefSave}
         testIdValue="image-generation"
-        datalist={{
-          id: IMAGE_GENERATION_BASE_URL_DATALIST_ID,
-          values: IMAGE_GENERATION_BASE_URL_PRESETS,
-        }}
       />
       <CapabilityTextValueRow
         labelId="settings.modelCapability.imageGeneration.model.title"
@@ -155,15 +151,16 @@ export function ImageGenerationCapabilityForm() {
         onSave={handleModelSave}
         testIdValue="image-generation"
       />
-      <CapabilityApiKeyRow
-        credentialLabel={intl.formatMessage({
-          id: "settings.modelCapability.imageGeneration.apiKey.title",
-        })}
-        descriptionId="settings.modelCapability.imageGeneration.apiKey.description"
-        present={credentialPresent}
-        saving={savingCredential}
-        onSave={handleCredentialSave}
-        actionName="save_image_generation_api_key"
+      <CapabilityBaseUrlRow
+        labelId="settings.modelCapability.imageGeneration.baseUrlOverride.title"
+        placeholderId="settings.modelCapability.imageGeneration.baseUrl.placeholder"
+        value={entry?.baseUrlOverride ?? ""}
+        onSave={handleBaseUrlOverrideSave}
+        testIdValue="image-generation"
+        datalist={{
+          id: IMAGE_GENERATION_BASE_URL_DATALIST_ID,
+          values: IMAGE_GENERATION_BASE_URL_PRESETS,
+        }}
       />
     </SettingsGroupCard>
   );

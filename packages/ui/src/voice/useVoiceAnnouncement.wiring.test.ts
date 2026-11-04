@@ -61,7 +61,13 @@ vi.mock("./speechSynthesisTtsAdapter.js", () => ({
   createSpeechSynthesisTtsAdapter: () => fakeTts,
 }));
 
-const { settingsState, ttsCapabilityState, cloudTtsState, stableServices } = vi.hoisted(() => {
+const {
+  settingsState,
+  ttsCapabilityState,
+  cloudTtsState,
+  stableServices,
+  providerConnectionControls,
+} = vi.hoisted(() => {
   const settingsState = {
     current: {
       voiceAnnouncementEnabled: true,
@@ -81,14 +87,20 @@ const { settingsState, ttsCapabilityState, cloudTtsState, stableServices } = vi.
   // onDidChange 到达的新快照；rerender 触发 hook 重渲染即重算引擎签名）。
   const ttsCapability = {
     engine: "system" as "system" | "cloud",
-    baseUrl: "",
+    providerRef: "",
     modelId: "",
     voice: "",
+    baseUrlOverride: "",
   };
   const setTtsCapability = (patch: Partial<typeof ttsCapability>) => {
     Object.assign(ttsCapability, patch);
   };
-  const asrCapability = { engine: "webSpeech" as "webSpeech" | "remote", baseUrl: "", modelId: "" };
+  const asrCapability = {
+    engine: "webSpeech" as "webSpeech" | "remote",
+    providerRef: "",
+    modelId: "",
+    baseUrlOverride: "",
+  };
   const setAsrCapability = (patch: Partial<typeof asrCapability>) => {
     Object.assign(asrCapability, patch);
   };
@@ -138,10 +150,42 @@ const { settingsState, ttsCapabilityState, cloudTtsState, stableServices } = vi.
       },
     }),
   };
-  // 稳定 services 引用：mock 每渲染返回新对象会让 getVendorApiKey/cloudTts/tts/planner
+  const providerCard = {
+    baseUrl: "https://api.siliconflow.cn/v1",
+    apiKey: "sk-test-key",
+  };
+  let providerConnection: { baseUrl: string; apiKey: string } | null = providerCard;
+  // 连接解析门闩：默认放行；pending 用例换成未决 Promise 后 getView 挂起。
+  let connectionGate: Promise<void> = Promise.resolve();
+  // 稳定 services 引用：mock 每渲染返回新对象会让解析器/cloudTts/tts/planner
+  // 链式重建…（原注释并入上块）。原：getVendorApiKey/cloudTts/tts/planner
   // 链式重建，planner 变更 cleanup 触发旧实例 dispose 打断播报（评审 #2 关联根因）。
   const stableServices = {
     broadcastService: undefined,
+    // §13：tts 连接（baseUrl+apiKey）经 providerSettingsService 按 providerRef 解析。
+    providerSettingsService: {
+      getView: async () => {
+        await connectionGate;
+        return {
+          providers: [
+            {
+              providerId: "custom:tts-vendor",
+              providerName: "SiliconFlow",
+              enabled: true,
+              effectiveConfig: {
+                api: {
+                  type: "openai-chat-completions",
+                  baseUrl: providerConnection?.baseUrl ?? "",
+                },
+                access: providerConnection
+                  ? { type: "api-key", apiKey: providerConnection.apiKey }
+                  : { type: "api-key", apiKey: "" },
+              },
+            },
+          ],
+        };
+      },
+    },
     credentialService: {
       // §9.9.3-M10：凭据读取可编程（默认即时返回；未加载用例替换为挂起/空串）。
       load: async (): Promise<string | null> => "sk-test-key",
@@ -150,7 +194,7 @@ const { settingsState, ttsCapabilityState, cloudTtsState, stableServices } = vi.
     },
     modelCapabilitiesService: {
       get: async () => ({
-        schemaVersion: 1,
+        schemaVersion: 2,
         capabilities: {
           "decision-jev": { enabled: false, providerKind: "typesafe", baseUrl: "", modelId: "" },
           embedding: {
@@ -160,9 +204,10 @@ const { settingsState, ttsCapabilityState, cloudTtsState, stableServices } = vi.
           },
           asr: asrCapability,
           tts: ttsCapability,
-          "image-generation": { enabled: false, baseUrl: "", modelId: "" },
+          "image-generation": { enabled: false, providerRef: "", modelId: "", baseUrlOverride: "" },
         },
         migratedFromLegacySettings: true,
+        migratedToProviderRef: true,
       }),
       update: async () => {
         throw new Error("not used in wiring test");
@@ -170,7 +215,32 @@ const { settingsState, ttsCapabilityState, cloudTtsState, stableServices } = vi.
       onDidChange: () => ({ dispose: () => undefined }),
     },
   };
-  return { settingsState, ttsCapabilityState, cloudTtsState, stableServices };
+  return {
+    settingsState,
+    ttsCapabilityState,
+    cloudTtsState,
+    stableServices,
+    // §13：供应商卡连接可编程控制柄（ getView 闭包实时读 providerConnection）。
+    providerConnectionControls: {
+      get: () => providerConnection,
+      set: (value: { baseUrl: string; apiKey: string } | null) => {
+        providerConnection = value;
+      },
+      /** 用例间复位：恢复默认有效卡并放行门闩（防用例间状态泄漏）。 */
+      reset: () => {
+        providerConnection = providerCard;
+        connectionGate = Promise.resolve();
+      },
+      /** 挂起连接解析（返回 release；release 后 getView 按当前 connection 放行）。 */
+      hold: () => {
+        let release!: () => void;
+        connectionGate = new Promise<void>((resolve) => {
+          release = resolve;
+        });
+        return release;
+      },
+    },
+  };
 });
 
 vi.mock("./cloudTtsAdapter.js", async (importOriginal) => {
@@ -309,14 +379,27 @@ beforeEach(() => {
   resetVoiceCommandHandlersForTest();
   // §9.9.3-M10：凭据默认即时加载（cloud 用例依赖）；未加载用例内替换为挂起 promise。
   stableServices.credentialService.load = async () => "sk-test-key";
+  // §13：供应商卡连接复位（空 key/挂起用例不得泄漏到后续用例）。
+  providerConnectionControls.reset();
   settingsState.current = {
     voiceAnnouncementEnabled: true,
     voiceAnnouncementVoice: "",
     voiceAnnouncementRate: 1,
     voiceToolBriefEnabled: false,
   };
-  ttsCapabilityState.setTtsCapability({ engine: "system", baseUrl: "", modelId: "", voice: "" });
-  ttsCapabilityState.setAsrCapability({ engine: "webSpeech", baseUrl: "", modelId: "" });
+  ttsCapabilityState.setTtsCapability({
+    engine: "system",
+    providerRef: "",
+    modelId: "",
+    voice: "",
+    baseUrlOverride: "",
+  });
+  ttsCapabilityState.setAsrCapability({
+    engine: "webSpeech",
+    providerRef: "",
+    modelId: "",
+    baseUrlOverride: "",
+  });
 });
 
 afterEach(() => {
@@ -446,7 +529,7 @@ describe("useVoiceAnnouncement wiring", () => {
   it("routes cloud engine speech and falls back to speechSynthesis on consecutive failures (§9.6.5-3)", async () => {
     ttsCapabilityState.setTtsCapability({
       engine: "cloud",
-      baseUrl: "https://api.siliconflow.cn/v1",
+      providerRef: "custom:tts-vendor",
       modelId: "CosyVoice2-0.5B",
     });
     const harness = await mountAnnouncement({ units: [makeUnit("t1", ["第一句。"])] });
@@ -474,7 +557,7 @@ describe("useVoiceAnnouncement wiring", () => {
   it("recovers cloud engine at the next resolution point after settings change (§9.6.5-3 至下一解析点恢复)", async () => {
     ttsCapabilityState.setTtsCapability({
       engine: "cloud",
-      baseUrl: "https://api.siliconflow.cn/v1",
+      providerRef: "custom:tts-vendor",
       modelId: "CosyVoice2-0.5B",
     });
     const harness = await mountAnnouncement({ units: [makeUnit("t1", ["第一句。"])] });
@@ -483,8 +566,12 @@ describe("useVoiceAnnouncement wiring", () => {
     await vi.advanceTimersByTimeAsync(0);
     expect(harness.result.current.indicatorPhase).toBe("annIdle");
 
-    // 用户修复厂商档（同引擎、baseUrl 变更 = 签名变化）→ 下一解析点恢复 cloud。
-    ttsCapabilityState.setTtsCapability({ baseUrl: "https://recovered.gateway/v1" });
+    // 用户修复供应商卡（同 providerRef、卡 baseUrl 变更）→ 连接解析恢复 → 下一解析点恢复 cloud。
+    providerConnectionControls.set({
+      baseUrl: "https://recovered.gateway/v1",
+      apiKey: "sk-test-key",
+    });
+    ttsCapabilityState.setTtsCapability({ baseUrlOverride: "https://recovered.gateway/v1" });
     harness.rerender();
     harness.result.current.planner.consumeTurnTail({ turnId: "t2", text: "恢复后句。" });
     await vi.advanceTimersByTimeAsync(0);
@@ -573,15 +660,13 @@ describe("useVoiceAnnouncement wiring", () => {
   it("credential pending: 凭据未加载时 cloud 引擎首句解析 system，加载完成后下一句起走 cloud（§9.9.3-M10）", async () => {
     ttsCapabilityState.setTtsCapability({
       engine: "cloud",
-      baseUrl: "https://api.siliconflow.cn/v1",
+      providerRef: "custom:tts-vendor",
       modelId: "CosyVoice2-0.5B",
     });
-    // 凭据未加载：load 挂起不 resolve（null=未加载占位场景）。
-    let resolveCredential!: (key: string | null) => void;
-    stableServices.credentialService.load = () =>
-      new Promise<string | null>((resolve) => {
-        resolveCredential = resolve;
-      });
+    // §13：连接未解析 = 供应商卡数据挂起（getView 挂起 → cloudApiKeyRef null → 首句 system）。
+    const savedConnection = providerConnectionControls.get();
+    providerConnectionControls.set(null);
+    const releaseConnection = providerConnectionControls.hold();
     const infoSpy = vi.spyOn(logger, "info").mockImplementation(() => undefined);
     try {
       const harness = await mountAnnouncement({ units: [makeUnit("t1", ["首句。"])] });
@@ -596,8 +681,9 @@ describe("useVoiceAnnouncement wiring", () => {
           scope === "voice.tts" && String(message).includes("credential pending"),
       );
       expect(pendingLogs).toHaveLength(1);
-      // 凭据加载完成（credentialBump = 新解析点）→ 下一句起走 cloud。
-      resolveCredential("sk-test-key");
+      // 连接解析完成（credentialBump = 新解析点）→ 下一句起走 cloud。
+      providerConnectionControls.set(savedConnection);
+      releaseConnection();
       await vi.advanceTimersByTimeAsync(0);
       harness.result.current.planner.consumeTurnTail({ turnId: "t2", text: "次句。" });
       await vi.advanceTimersByTimeAsync(0);
@@ -610,12 +696,12 @@ describe("useVoiceAnnouncement wiring", () => {
   it("credential 空串：持续 system、零 cloud 管线调用（§9.9.3-M10 零回落计数）", async () => {
     ttsCapabilityState.setTtsCapability({
       engine: "cloud",
-      baseUrl: "https://api.siliconflow.cn/v1",
+      providerRef: "custom:tts-vendor",
       modelId: "CosyVoice2-0.5B",
     });
-    // 加载完成但为空串 = 确认缺失：判档不完整，不标 pending、零 cloud speak
-    //（连败计数构造性为零——未加载/缺失期根本不进 cloud 管线）。
-    stableServices.credentialService.load = async () => "";
+    // §13 确认缺失：供应商卡在场但 apiKey 为空串 → 判档不完整，零 cloud speak
+    //（连败计数构造性为零——缺失期根本不进 cloud 管线）。
+    providerConnectionControls.set({ baseUrl: "https://api.siliconflow.cn/v1", apiKey: "" });
     await mountAnnouncement({ units: [makeUnit("t1", ["首句。"])] });
     expect(fakeTts.spoken).toEqual(["首句。"]);
     expect(cloudTtsState.spoken).toEqual([]);
@@ -656,15 +742,12 @@ describe("§9.9.4-L13 cloudFallback 恢复签名纳入凭据指纹", () => {
   it("回落置位后用户补凭据（load null→非空）→ 清回落标记且下一句走 cloud，日志零凭据原文", async () => {
     ttsCapabilityState.setTtsCapability({
       engine: "cloud",
-      baseUrl: "https://api.siliconflow.cn/v1",
+      providerRef: "custom:tts-vendor",
       modelId: "CosyVoice2-0.5B",
     });
-    // 凭据未加载（load 挂起，null=未加载占位）。
-    let resolveCredential!: (key: string | null) => void;
-    stableServices.credentialService.load = () =>
-      new Promise<string | null>((resolve) => {
-        resolveCredential = resolve;
-      });
+    // §13：连接挂起（getView 门闩未放行 → cloudApiKeyRef null = 未加载）。
+    providerConnectionControls.set(null);
+    const releaseConnection = providerConnectionControls.hold();
     const infoSpy = vi.spyOn(logger, "info").mockImplementation(() => undefined);
     try {
       const harness = await mountAnnouncement({ units: [makeUnit("t1", ["首句。"])] });
@@ -677,7 +760,13 @@ describe("§9.9.4-L13 cloudFallback 恢复签名纳入凭据指纹", () => {
       // 用户补 apiKey：凭据 load null→非空 → credentialBump 解析点 → 签名的凭据
       // 分量 absent→present → cloudFallbackRef 清除（rerender 强制渲染提交使签名
       // effect 在下一句 speak 前落定）。
-      resolveCredential("sk-test-key");
+      providerConnectionControls.set(
+        providerConnectionControls.get() ?? {
+          baseUrl: "https://api.siliconflow.cn/v1",
+          apiKey: "sk-test-key",
+        },
+      );
+      releaseConnection();
       await vi.advanceTimersByTimeAsync(0);
       harness.rerender();
       await vi.advanceTimersByTimeAsync(0);
@@ -716,7 +805,7 @@ it("§9.8 regression: remote ASR entry must work without SpeechRecognition", asy
   // 引擎/厂商档读模型能力档案 asr 条目（specs/model-capabilities.md §5.2，MC-10）。
   ttsCapabilityState.setAsrCapability({
     engine: "remote",
-    baseUrl: "https://voice.example.test/v1",
+    providerRef: "custom:tts-vendor",
     modelId: "asr",
   });
   vi.stubGlobal(

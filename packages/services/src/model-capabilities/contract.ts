@@ -25,6 +25,14 @@ export interface IModelCapabilitiesService {
   update(params: ModelCapabilitiesUpdate): Promise<ModelCapabilitiesFile>;
   /** 订阅档案变更（档案写盘与凭据写删都触发；凭据值不随事件出服务）。 */
   onDidChange(listener: (snapshot: ModelCapabilitiesFile) => void): { dispose(): void };
+  /**
+   * §13 late-bind：Host 装配在 providerRuntime 就绪后回填建卡器（档案服务构造
+   * 早于 provider facade，构造注入不可行）。仅 Host 进程内调用；renderer 代理
+   * 不调用。未回填时 §13 迁移跳过（条目空路由 fail-closed）。
+   */
+  attachProviderCardCreator?(
+    creator: (input: { name: string; baseUrl: string; apiKey: string }) => Promise<string>,
+  ): void;
 }
 
 export const IModelCapabilitiesService = createServiceDescriptor<IModelCapabilitiesService>(

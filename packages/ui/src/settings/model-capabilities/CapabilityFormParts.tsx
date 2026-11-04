@@ -7,7 +7,7 @@
  * - CapabilityBaseUrlRow：连接区模式（baseUrl 输入 + 行内 https 校验警告，照
  *   ProviderCardSections/VoiceSection S1 先例：明文非本机地址阻止写入 + 警告分型）。
  */
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { EyeIcon, EyeOffIcon, LoaderCircle } from "lucide-react";
 import {
   TID_MODEL_CAPABILITY_API_KEY_INPUT,
@@ -16,6 +16,7 @@ import {
   TID_MODEL_CAPABILITY_BASE_URL_WARNING,
   TID_MODEL_CAPABILITY_MODEL_INPUT,
   testId,
+  TID_MODEL_CAPABILITY_PROVIDER_SELECT,
 } from "@drora/shared/test-ids";
 import { Button } from "@/components/ui/button.js";
 import { Input } from "@/components/ui/input.js";
@@ -23,6 +24,15 @@ import { toast } from "@/components/ui/toast.js";
 import { useDroraIntl } from "@/i18n/IntlProvider.js";
 import { logger } from "@/logger.js";
 import { startUserAction } from "@/lib/userActionTelemetry.js";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select.js";
+import { useServices } from "@/hooks/useServices.js";
+import { useProviderSettingsServiceView } from "@/hooks/useProviderSettingsView.js";
 import { SettingsRow } from "@/settings/SettingsPageParts.js";
 import { validateVoiceVendorBaseUrl } from "@/voice/voiceVendorBaseUrl.js";
 
@@ -294,6 +304,97 @@ export function CapabilityTextValueRow({
             }
           }}
         />
+      }
+    />
+  );
+}
+
+// ---------------------------------------------------------------------------
+// §13 供应商引用行（asr/tts/image-generation 共用）：providerRef 下拉 + 数据源 hook
+// ---------------------------------------------------------------------------
+
+/** 能力条目可引用的供应商摘要（providerRef 下拉数据；§13 单一连接层）。 */
+export interface CapabilityProviderOption {
+  providerId: string;
+  label: string;
+}
+
+/**
+ * §13 供应商列表数据源：直读 providerSettingsService 视图（轻量，不带连通性测试；
+ * useModelProviders 的重形态不适合设置表单）。仅列 enabled 且可执行/或显式 api-key
+ * 形态的卡——能力出站只认有 baseUrl+apiKey 的连接。
+ */
+export function useCapabilityProviderOptions(): CapabilityProviderOption[] {
+  const { providerSettingsService } = useServices();
+  const read = useProviderSettingsServiceView(providerSettingsService);
+  return useMemo(() => {
+    const view = read.state.status === "ready" ? read.state.view : null;
+    if (!view) return [];
+    return view.providers
+      .filter((provider) => {
+        const access = provider.effectiveConfig?.access;
+        const hasConnection = Boolean(
+          provider.effectiveConfig?.api?.baseUrl && access?.type === "api-key" && access.apiKey,
+        );
+        return provider.enabled && hasConnection;
+      })
+      .map((provider) => ({
+        providerId: provider.providerId,
+        label: provider.providerName ?? provider.providerId,
+      }));
+  }, [read.state]);
+}
+
+/**
+ * §13 供应商选择行：下拉（含「未选择」占位）+ 说明（连接信息来自所选供应商卡，
+ * key 单点管理）。条目 baseUrlOverride 不在本行——高级折叠区（网关分域名边缘）。
+ */
+export function CapabilityProviderRefRow({
+  labelId,
+  descriptionId,
+  value,
+  options,
+  onSave,
+  testIdValue,
+}: {
+  labelId: string;
+  descriptionId: string;
+  value: string;
+  options: readonly CapabilityProviderOption[];
+  onSave: (providerRef: string) => void;
+  testIdValue: string;
+}) {
+  const { intl } = useDroraIntl();
+  return (
+    <SettingsRow
+      label={intl.formatMessage({ id: labelId })}
+      description={intl.formatMessage({ id: descriptionId })}
+      control={
+        <Select
+          value={value || undefined}
+          onValueChange={(next) => {
+            onSave(next);
+          }}
+        >
+          <SelectTrigger
+            className="w-72"
+            data-testid={testId(TID_MODEL_CAPABILITY_PROVIDER_SELECT, testIdValue)}
+            aria-label={intl.formatMessage({ id: labelId })}
+          >
+            <SelectValue
+              placeholder={intl.formatMessage({
+                id: "settings.modelCapability.provider.unselected",
+              })}
+            />
+          </SelectTrigger>
+          <SelectContent>
+            {options.map((option) => (
+              <SelectItem key={option.providerId} value={option.providerId}>
+                {option.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       }
     />
   );

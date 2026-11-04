@@ -6,9 +6,8 @@
  * voiceComposerEntryState 纯函数；录音运行时全部在 useVoiceDictation，本 hook 不复制
  * 任何状态机分支。FD-5 的两入口共用 reader 守卫也在这里消费（isVoicePrivacyAcknowledged）。
  */
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import { useShallow } from "zustand/react/shallow";
-import { modelCapabilityCredentialKey } from "@drora/shared";
 import { useDroraIntl } from "@/i18n/IntlProvider.js";
 import { useServices } from "@/hooks/useServices.js";
 import { useSettings } from "@/hooks/useSettingService.js";
@@ -58,35 +57,49 @@ export function useVoiceComposerEntry({
   const { intl, locale } = useDroraIntl();
   const services = useServices();
   const { settings, update: updateSettings } = useSettings();
-  // ASR 引擎/厂商档数据源切模型能力档案（specs/model-capabilities.md §4/§5.2）：
-  // settings 只剩行为偏好（入口显隐/听写语言/披露确认）；引擎选择读档案 asr 条目，
-  // 凭据读 model-capabilities:asr:api-key（旧 voice:vendor:api-key 已迁移删除）。
-  // 档案服务缺席（远端 workspace 等）→ capabilities=null → engine 缺省 webSpeech，
-  // 回退树语义不变（MC-10）。
+  // ASR 引擎数据源（specs/model-capabilities.md §4/§13）：引擎选择读档案 asr 条目；
+  // §13 起连接信息（baseUrl+apiKey）单点在官方供应商卡，经 providerSettingsService
+  // 按 providerRef 实时解析（卡删/key 变即时生效，回退树语义不变 MC-10）。
   const { capabilities } = useModelCapabilities();
   const asrCapability = capabilities?.asr ?? null;
   const [privacyDialogOpen, setPrivacyDialogOpen] = useState(false);
   // 能力探测一次即可：window.SpeechRecognition 的存在性在会话生命周期内不会翻转；
   // 缺席（Firefox/iOS Safari）即不出入口（§6.1 能力探测，不写 UA 分支）。
   const webSpeechSupported = useMemo(() => createWebSpeechAsrAdapter().isSupported(), []);
-  const [vendorCredentialReady, setVendorCredentialReady] = useState(false);
+  const [vendorConnectionReady, setVendorConnectionReady] = useState(false);
+  const [vendorConnection, setVendorConnection] = useState<{
+    baseUrl: string;
+    apiKey: string;
+  } | null>(null);
   useEffect(() => {
     let active = true;
-    setVendorCredentialReady(false);
-    if (asrCapability?.engine !== "remote") return;
-    void services.credentialService
-      ?.load(modelCapabilityCredentialKey.asr)
-      .then((key) => {
-        if (active) setVendorCredentialReady(Boolean(key?.trim()));
+    setVendorConnectionReady(false);
+    setVendorConnection(null);
+    if (asrCapability?.engine !== "remote" || !asrCapability.providerRef.trim()) return;
+    void services.providerSettingsService
+      ?.getView()
+      .then((view) => {
+        if (!active) return;
+        const provider = view.providers.find(
+          (candidate) => candidate.providerId === asrCapability.providerRef,
+        );
+        const access = provider?.effectiveConfig?.access;
+        const baseUrl = provider?.effectiveConfig?.api?.baseUrl?.trim() ?? "";
+        const apiKey = access?.type === "api-key" ? (access.apiKey?.trim() ?? "") : "";
+        const override = asrCapability.baseUrlOverride.trim();
+        const connection = baseUrl && apiKey ? { baseUrl: override || baseUrl, apiKey } : null;
+        setVendorConnection(connection);
+        setVendorConnectionReady(connection !== null);
       })
       .catch(() => undefined);
     return () => {
       active = false;
     };
   }, [
-    services.credentialService,
+    services.providerSettingsService,
     asrCapability?.engine,
-    asrCapability?.baseUrl,
+    asrCapability?.providerRef,
+    asrCapability?.baseUrlOverride,
     asrCapability?.modelId,
   ]);
   // F6：只在完整 remote 档+独立媒体能力均成立时选 remote，入口与起录同一解析规则。
@@ -94,9 +107,9 @@ export function useVoiceComposerEntry({
     resolveAsrEngineChoice({
       engine: asrCapability?.engine ?? "webSpeech",
       vendorConfigComplete: isVoiceVendorConfigComplete({
-        baseUrl: asrCapability?.baseUrl,
+        baseUrl: vendorConnection?.baseUrl ?? "",
         model: asrCapability?.modelId,
-        apiKey: vendorCredentialReady ? "available" : "",
+        apiKey: vendorConnectionReady ? "available" : "",
       }),
       remoteSupported: isRemoteAsrSupported(),
       webSpeechSupported,
@@ -132,12 +145,12 @@ export function useVoiceComposerEntry({
     });
   }, [updateSettings]);
 
-  // §9.6.6 引擎选型输入：档案 asr 引擎/厂商档 + 凭据服务 apiKey（异步，新键）。
+  // §13：apiKey 来自供应商卡（vendorConnection 已含，闭包实时取 ref 值不重建）。
+  const vendorConnectionRef = useRef(vendorConnection);
+  vendorConnectionRef.current = vendorConnection;
   const getVendorApiKey = useCallback(
-    () =>
-      services.credentialService?.load(modelCapabilityCredentialKey.asr).catch(() => null) ??
-      Promise.resolve(null),
-    [services.credentialService],
+    () => Promise.resolve(vendorConnectionRef.current?.apiKey ?? null),
+    [],
   );
   const dictation = useVoiceDictation({
     sessionId,
@@ -147,7 +160,7 @@ export function useVoiceComposerEntry({
     requestStart,
     asrEngine: asrCapability?.engine ?? "webSpeech",
     vendor: {
-      baseUrl: asrCapability?.baseUrl ?? "",
+      baseUrl: vendorConnection?.baseUrl ?? "",
       model: asrCapability?.modelId ?? "",
     },
     getVendorApiKey,

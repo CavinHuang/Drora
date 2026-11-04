@@ -122,14 +122,14 @@ it("MC-2：旧设置 + 旧凭据 → 档案一一对应（voice 双写）、旧�
   assert.equal(snapshot.capabilities.embedding.enabled, true);
   assert.equal(snapshot.capabilities.asr.engine, "remote");
   assert.equal(
-    snapshot.capabilities.asr.baseUrl,
+    snapshot.capabilities.asr.baseUrlOverride,
     "https://vendor.example/v1",
     "voice 单键双写 asr",
   );
   assert.equal(snapshot.capabilities.asr.modelId, "asr-model-1");
   assert.equal(snapshot.capabilities.tts.engine, "cloud");
   assert.equal(
-    snapshot.capabilities.tts.baseUrl,
+    snapshot.capabilities.tts.baseUrlOverride,
     "https://vendor.example/v1",
     "voice 单键双写 tts",
   );
@@ -149,8 +149,14 @@ it("MC-2：旧设置 + 旧凭据 → 档案一一对应（voice 双写）、旧�
     credentials.store.get(modelCapabilityCredentialKey.decisionJev("ai-gateway")),
     "sk-agw",
   );
-  assert.equal(credentials.store.get(modelCapabilityCredentialKey.asr), "sk-voice");
-  assert.equal(credentials.store.get(modelCapabilityCredentialKey.tts), "sk-voice");
+  assert.equal(
+    credentials.store.get(MODEL_CAPABILITIES_LEGACY_CREDENTIAL_KEYS.selfContained.asr),
+    "sk-voice",
+  );
+  assert.equal(
+    credentials.store.get(MODEL_CAPABILITIES_LEGACY_CREDENTIAL_KEYS.selfContained.tts),
+    "sk-voice",
+  );
 
   // --- 旧键清理（批次二语义）：空补丁整写经 schema strip，14 旧键全部物理删除 ---
   const rawSettings = JSON.parse(await readFile(settingsPath(root), "utf-8")) as Record<
@@ -289,7 +295,10 @@ it("MC-2 回归（合规修复）：迁移标记落盘失败 → 旧设置键与
       credentials.store.get(modelCapabilityCredentialKey.decisionJev("typesafe")),
       "sk-typesafe",
     );
-    assert.equal(credentials.store.get(modelCapabilityCredentialKey.asr), "sk-voice");
+    assert.equal(
+      credentials.store.get(MODEL_CAPABILITIES_LEGACY_CREDENTIAL_KEYS.selfContained.asr),
+      "sk-voice",
+    );
   } finally {
     await chmod(v2, 0o700);
   }
@@ -334,7 +343,7 @@ it("MC-2 回归（合规修复）：新凭据键写失败 → 该旧凭据键保
 
 it("MC-2 回归（合规修复）：voice 双写任一腿失败 → 旧 voice 键保留；已写腿保留同值（幂等重试）", async () => {
   await makeRoot();
-  const failingKeys = new Set([modelCapabilityCredentialKey.tts]);
+  const failingKeys = new Set([MODEL_CAPABILITIES_LEGACY_CREDENTIAL_KEYS.selfContained.tts]);
   const store = new Map<string, string>([
     [MODEL_CAPABILITIES_LEGACY_CREDENTIAL_KEYS.voiceVendor, "sk-voice"],
   ]);
@@ -359,6 +368,10 @@ it("MC-2 回归（合规修复）：voice 双写任一腿失败 → 旧 voice �
     true,
     "tts 腿写失败时旧 voice 键必须保留",
   );
-  assert.equal(store.get(modelCapabilityCredentialKey.asr), "sk-voice", "asr 腿已写，同值重试幂等");
-  assert.equal(store.has(modelCapabilityCredentialKey.tts), false);
+  assert.equal(
+    store.get(MODEL_CAPABILITIES_LEGACY_CREDENTIAL_KEYS.selfContained.asr),
+    "sk-voice",
+    "asr 腿已写，同值重试幂等",
+  );
+  assert.equal(store.has(MODEL_CAPABILITIES_LEGACY_CREDENTIAL_KEYS.selfContained.tts), false);
 });

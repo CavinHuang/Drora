@@ -8,7 +8,6 @@
  * 音色为厂商音色 id 命名空间（与系统音色 voiceAnnouncementVoice 永不互读，§9.7.3）。
  */
 import { useCallback, useState } from "react";
-import { modelCapabilityCredentialKey } from "@drora/shared";
 import { TID_MODEL_CAPABILITY_ENGINE_SELECT, testId } from "@drora/shared/test-ids";
 import {
   Select,
@@ -17,7 +16,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select.js";
-import { useServices } from "@/hooks/useServices.js";
 import { useModelCapabilities } from "@/hooks/useModelCapabilities.js";
 import { useDroraIntl } from "@/i18n/IntlProvider.js";
 import { startUserAction } from "@/lib/userActionTelemetry.js";
@@ -26,22 +24,16 @@ import {
   CapabilityApiKeyRow,
   CapabilityBaseUrlRow,
   CapabilityTextValueRow,
-  useCredentialPresence,
+  CapabilityProviderRefRow,
+  useCapabilityProviderOptions,
 } from "./CapabilityFormParts.js";
 
 export function TtsCapabilityForm() {
   const { intl } = useDroraIntl();
   const { capabilities, update } = useModelCapabilities();
-  const { credentialService } = useServices();
   const entry = capabilities?.tts ?? null;
+  const providerOptions = useCapabilityProviderOptions();
   const engine = entry?.engine ?? "system";
-
-  const loadCredential = useCallback(
-    () => credentialService.load(modelCapabilityCredentialKey.tts),
-    [credentialService],
-  );
-  const [credentialPresent, setCredentialPresent] = useCredentialPresence(loadCredential);
-  const [savingCredential, setSavingCredential] = useState(false);
 
   const handleEngineChange = useCallback(
     async (next: "system" | "cloud") => {
@@ -61,16 +53,38 @@ export function TtsCapabilityForm() {
     [update],
   );
 
-  const handleBaseUrlSave = useCallback(
-    (baseUrl: string) => {
+  const handleProviderRefSave = useCallback(
+    (providerRef: string) => {
+      const trace = startUserAction({
+        featureId: "settings.model_capabilities",
+        action: "save_tts_provider",
+        trigger: "select",
+      });
+      void update({ capabilities: { tts: { providerRef } } })
+        .then(() => {
+          trace.complete({ resultSource: "setting_service", configured: providerRef.length > 0 });
+        })
+        .catch((error: unknown) => {
+          trace.fail({ failureStage: "setting_update" });
+          void error;
+        });
+    },
+    [update],
+  );
+
+  const handleBaseUrlOverrideSave = useCallback(
+    (baseUrlOverride: string) => {
       const trace = startUserAction({
         featureId: "settings.model_capabilities",
         action: "save_tts_base_url",
-        trigger: "button", // 输入落盘动作照 save_http_proxy 先例记 button
+        trigger: "button",
       });
-      void update({ capabilities: { tts: { baseUrl } } })
+      void update({ capabilities: { tts: { baseUrlOverride } } })
         .then(() => {
-          trace.complete({ resultSource: "setting_service", configured: baseUrl.length > 0 });
+          trace.complete({
+            resultSource: "setting_service",
+            configured: baseUrlOverride.length > 0,
+          });
         })
         .catch((error: unknown) => {
           trace.fail({ failureStage: "setting_update" });
@@ -118,21 +132,6 @@ export function TtsCapabilityForm() {
     [update],
   );
 
-  const handleCredentialSave = useCallback(
-    async (value: string) => {
-      setSavingCredential(true);
-      try {
-        await update({
-          credentials: { tts: value.length > 0 ? value : null },
-        });
-        setCredentialPresent(value.trim().length > 0);
-      } finally {
-        setSavingCredential(false);
-      }
-    },
-    [setCredentialPresent, update],
-  );
-
   return (
     <SettingsGroupCard>
       <SettingsRow
@@ -167,11 +166,12 @@ export function TtsCapabilityForm() {
       />
       {engine === "cloud" ? (
         <>
-          <CapabilityBaseUrlRow
-            labelId="settings.modelCapability.tts.baseUrl.title"
-            placeholderId="settings.modelCapability.tts.baseUrl.placeholder"
-            value={entry?.baseUrl ?? ""}
-            onSave={handleBaseUrlSave}
+          <CapabilityProviderRefRow
+            labelId="settings.modelCapability.tts.provider.title"
+            descriptionId="settings.modelCapability.tts.provider.description"
+            value={entry?.providerRef ?? ""}
+            options={providerOptions}
+            onSave={handleProviderRefSave}
             testIdValue="tts"
           />
           <CapabilityTextValueRow
@@ -188,15 +188,12 @@ export function TtsCapabilityForm() {
             onSave={handleVoiceSave}
             testIdValue="tts-voice"
           />
-          <CapabilityApiKeyRow
-            credentialLabel={intl.formatMessage({
-              id: "settings.modelCapability.tts.apiKey.title",
-            })}
-            descriptionId="settings.modelCapability.tts.apiKey.description"
-            present={credentialPresent}
-            saving={savingCredential}
-            onSave={handleCredentialSave}
-            actionName="save_tts_api_key"
+          <CapabilityBaseUrlRow
+            labelId="settings.modelCapability.tts.baseUrlOverride.title"
+            placeholderId="settings.modelCapability.tts.baseUrl.placeholder"
+            value={entry?.baseUrlOverride ?? ""}
+            onSave={handleBaseUrlOverrideSave}
+            testIdValue="tts"
           />
         </>
       ) : null}

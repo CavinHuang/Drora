@@ -43,7 +43,6 @@ import { createCloudTtsAdapter, resolveTtsEngineChoice } from "./cloudTtsAdapter
 import { isVoiceVendorConfigComplete } from "./resolveAsrAdapter.js";
 import { createToolBriefPlanner } from "./toolBriefPlanner.js";
 import { VOICE_TTS_CLOUD_CONSECUTIVE_FAILURES } from "./voiceTuning.js";
-import { modelCapabilityCredentialKey } from "@drora/shared";
 import type { VoiceTtsPort, VoiceTtsUtterance } from "./voiceTtsPort.js";
 import { useModelCapabilities } from "@/hooks/useModelCapabilities.js";
 import { logger } from "@/logger.js";
@@ -168,12 +167,25 @@ export function useVoiceAnnouncement({
     [services.broadcastService],
   );
   const synthTts = useMemo(() => createSpeechSynthesisTtsAdapter(), []);
-  // §9.6.2：厂商档三元组的 apiKey 经凭据服务读取（不上 appSettings/wire；新键）。
-  const getVendorApiKey = useCallback(
-    () =>
-      services.credentialService?.load(modelCapabilityCredentialKey.tts).catch(() => null) ??
-      Promise.resolve(null),
-    [services.credentialService],
+  // §13：连接信息（baseUrl+apiKey）单点在官方供应商卡，按 providerRef 经
+  // providerSettingsService 实时解析；卡删/key 变即时生效。
+  const resolveVendorConnection = useCallback(
+    async (capability: { providerRef: string; baseUrlOverride: string } | null) => {
+      const providerRef = capability?.providerRef.trim() ?? "";
+      if (!providerRef) return null;
+      try {
+        const view = await services.providerSettingsService?.getView();
+        const provider = view?.providers.find((candidate) => candidate.providerId === providerRef);
+        const access = provider?.effectiveConfig?.access;
+        const baseUrl = provider?.effectiveConfig?.api?.baseUrl?.trim() ?? "";
+        const apiKey = access?.type === "api-key" ? (access.apiKey?.trim() ?? "") : "";
+        const override = capability?.baseUrlOverride.trim() ?? "";
+        return baseUrl && apiKey ? { baseUrl: override || baseUrl, apiKey } : null;
+      } catch {
+        return null;
+      }
+    },
+    [services.providerSettingsService],
   );
   // 档案 tts 快照 ref（cloudTts.getVendorConfig 闭包取最新值而不重建适配器实例；
   // 与 settingsRef 同型，见下）。
@@ -184,20 +196,19 @@ export function useVoiceAnnouncement({
       createCloudTtsAdapter({
         getVendorConfig: async () => {
           const current = ttsCapabilityRef.current;
-          const baseUrl = current?.baseUrl?.trim() ?? "";
           const model = current?.modelId?.trim() ?? "";
-          if (baseUrl.length === 0 || model.length === 0) {
+          if (model.length === 0) {
             return null;
           }
-          const apiKey = (await getVendorApiKey().catch(() => null))?.trim() ?? "";
-          if (apiKey.length === 0) {
+          const connection = await resolveVendorConnection(current);
+          if (!connection) {
             return null;
           }
-          return { baseUrl, model, apiKey };
+          return { baseUrl: connection.baseUrl, model, apiKey: connection.apiKey };
         },
         consecutiveFailuresThreshold: VOICE_TTS_CLOUD_CONSECUTIVE_FAILURES,
       }),
-    [getVendorApiKey],
+    [resolveVendorConnection],
   );
 
   // 设置读取经 reader 收口（§9.3）；ref 保证 planner deps 闭包拿最新值而不重建 planner。
@@ -224,16 +235,20 @@ export function useVoiceAnnouncement({
     // 3 句触发会话内静默回落 system（启动期凭据竞态可造成整会话降级，UI 零反馈）。
     // 现统一以凭据真实状态判定：未加载/空串均判档不完整 → 本次解析 system，
     // 凭据加载完成后（credentialBump 解析点）下一句起按最新状态重析。
-    const apiKey = cloudApiKeyRef.current;
-    const credentialReady = apiKey != null && apiKey.trim().length > 0;
-    const capability = ttsCapabilityRef.current;
+    const capabilityForChoice = ttsCapabilityRef.current;
+    // §13 同步路由判定：providerRef + modelId 在场即选 cloud（baseUrl 合法性与
+    // apiKey 由 getVendorConfig 出站前解析供应商卡 fail-closed 兜底，卡不可用
+    // → 适配器逐句失败回落 system，与凭据缺失同路径）。不复用
+    // isVoiceVendorConfigComplete——它校验 URL 形态，§13 下 baseUrl 不在条目上。
+    const connectionReady =
+      cloudApiKeyRef.current != null && cloudApiKeyRef.current.trim().length > 0;
+    const vendorRoutable =
+      (capabilityForChoice?.providerRef.trim().length ?? 0) > 0 &&
+      (capabilityForChoice?.modelId.trim().length ?? 0) > 0 &&
+      connectionReady;
     const choice = resolveTtsEngineChoice({
-      engine: capability?.engine ?? "system",
-      vendorConfigComplete: isVoiceVendorConfigComplete({
-        baseUrl: capability?.baseUrl,
-        model: capability?.modelId,
-        apiKey: credentialReady ? apiKey : "",
-      }),
+      engine: capabilityForChoice?.engine ?? "system",
+      vendorConfigComplete: vendorRoutable,
     });
     // §7.1：引擎解析结果落 voice.tts info 槽位（引擎变化时记录一次）。
     if (lastTtsEngineLoggedRef.current !== choice) {
@@ -241,7 +256,9 @@ export function useVoiceAnnouncement({
       // §9.9.3-M10：cloud 被选但因凭据未加载回落 system 时标注 credential pending
       //（一次性日志形态；空串=确认缺失不标 pending——非等待态）。
       const credentialPending =
-        choice === "system" && (capability?.engine ?? "system") === "cloud" && apiKey == null;
+        choice === "system" &&
+        (capabilityForChoice?.engine ?? "system") === "cloud" &&
+        cloudApiKeyRef.current == null;
       logger.info(
         "voice.tts",
         `tts engine resolved: ${choice}${credentialPending ? " (credential pending)" : ""}`,
@@ -279,10 +296,10 @@ export function useVoiceAnnouncement({
   const [, bumpCredentialVersion] = useReducer((count: number) => count + 1, 0);
   useEffect(() => {
     let cancelled = false;
-    void getVendorApiKey()
-      .then((key) => {
+    void resolveVendorConnection(ttsCapabilityRef.current)
+      .then((connection) => {
         if (!cancelled) {
-          cloudApiKeyRef.current = key ?? null;
+          cloudApiKeyRef.current = connection?.apiKey ?? null;
           bumpCredentialVersion();
         }
       })
@@ -290,7 +307,7 @@ export function useVoiceAnnouncement({
     return () => {
       cancelled = true;
     };
-  }, [getVendorApiKey]);
+  }, [resolveVendorConnection, ttsCapability?.providerRef, ttsCapability?.baseUrlOverride]);
   const localeRef = useRef(locale);
   localeRef.current = locale;
   const requestTaskStopRef = useRef(requestTaskStop);
@@ -482,7 +499,7 @@ export function useVoiceAnnouncement({
       : "absent";
   // 引擎/厂商档签名源切模型能力档案（§9.6.5-3 恢复条款语义不变：引擎/端点/模型/凭据
   // 指纹任一变化 = 下一解析点，清会话内回落标记）。
-  const ttsEngineSignature = `${ttsCapability?.engine ?? "system"}\0${ttsCapability?.baseUrl ?? ""}\0${ttsCapability?.modelId ?? ""}\0${credentialFingerprint}`;
+  const ttsEngineSignature = `${ttsCapability?.engine ?? "system"}\0${ttsCapability?.providerRef ?? ""}\0${ttsCapability?.baseUrlOverride ?? ""}\0${ttsCapability?.modelId ?? ""}\0${credentialFingerprint}`;
   const wasTtsEngineSignatureRef = useRef(ttsEngineSignature);
   useEffect(() => {
     if (wasTtsEngineSignatureRef.current !== ttsEngineSignature) {

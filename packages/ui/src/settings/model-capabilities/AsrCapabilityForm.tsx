@@ -9,7 +9,6 @@
  * webSpeech，§9.6.6 回退树不变）；此处仅提示，不阻断选择。
  */
 import { useCallback, useState } from "react";
-import { modelCapabilityCredentialKey } from "@drora/shared";
 import { TID_MODEL_CAPABILITY_ENGINE_SELECT, testId } from "@drora/shared/test-ids";
 import {
   Select,
@@ -18,7 +17,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select.js";
-import { useServices } from "@/hooks/useServices.js";
 import { useModelCapabilities } from "@/hooks/useModelCapabilities.js";
 import { useDroraIntl } from "@/i18n/IntlProvider.js";
 import { startUserAction } from "@/lib/userActionTelemetry.js";
@@ -27,22 +25,16 @@ import {
   CapabilityApiKeyRow,
   CapabilityBaseUrlRow,
   CapabilityTextValueRow,
-  useCredentialPresence,
+  CapabilityProviderRefRow,
+  useCapabilityProviderOptions,
 } from "./CapabilityFormParts.js";
 
 export function AsrCapabilityForm() {
   const { intl } = useDroraIntl();
   const { capabilities, update } = useModelCapabilities();
-  const { credentialService } = useServices();
   const entry = capabilities?.asr ?? null;
+  const providerOptions = useCapabilityProviderOptions();
   const engine = entry?.engine ?? "webSpeech";
-
-  const loadCredential = useCallback(
-    () => credentialService.load(modelCapabilityCredentialKey.asr),
-    [credentialService],
-  );
-  const [credentialPresent, setCredentialPresent] = useCredentialPresence(loadCredential);
-  const [savingCredential, setSavingCredential] = useState(false);
 
   const handleEngineChange = useCallback(
     async (next: "webSpeech" | "remote") => {
@@ -62,16 +54,38 @@ export function AsrCapabilityForm() {
     [update],
   );
 
-  const handleBaseUrlSave = useCallback(
-    (baseUrl: string) => {
+  const handleProviderRefSave = useCallback(
+    (providerRef: string) => {
+      const trace = startUserAction({
+        featureId: "settings.model_capabilities",
+        action: "save_asr_provider",
+        trigger: "select",
+      });
+      void update({ capabilities: { asr: { providerRef } } })
+        .then(() => {
+          trace.complete({ resultSource: "setting_service", configured: providerRef.length > 0 });
+        })
+        .catch((error: unknown) => {
+          trace.fail({ failureStage: "setting_update" });
+          void error;
+        });
+    },
+    [update],
+  );
+
+  const handleBaseUrlOverrideSave = useCallback(
+    (baseUrlOverride: string) => {
       const trace = startUserAction({
         featureId: "settings.model_capabilities",
         action: "save_asr_base_url",
-        trigger: "button", // 输入落盘动作照 save_http_proxy 先例记 button
+        trigger: "button",
       });
-      void update({ capabilities: { asr: { baseUrl } } })
+      void update({ capabilities: { asr: { baseUrlOverride } } })
         .then(() => {
-          trace.complete({ resultSource: "setting_service", configured: baseUrl.length > 0 });
+          trace.complete({
+            resultSource: "setting_service",
+            configured: baseUrlOverride.length > 0,
+          });
         })
         .catch((error: unknown) => {
           trace.fail({ failureStage: "setting_update" });
@@ -98,21 +112,6 @@ export function AsrCapabilityForm() {
         });
     },
     [update],
-  );
-
-  const handleCredentialSave = useCallback(
-    async (value: string) => {
-      setSavingCredential(true);
-      try {
-        await update({
-          credentials: { asr: value.length > 0 ? value : null },
-        });
-        setCredentialPresent(value.trim().length > 0);
-      } finally {
-        setSavingCredential(false);
-      }
-    },
-    [setCredentialPresent, update],
   );
 
   return (
@@ -149,11 +148,12 @@ export function AsrCapabilityForm() {
       />
       {engine === "remote" ? (
         <>
-          <CapabilityBaseUrlRow
-            labelId="settings.modelCapability.asr.baseUrl.title"
-            placeholderId="settings.modelCapability.asr.baseUrl.placeholder"
-            value={entry?.baseUrl ?? ""}
-            onSave={handleBaseUrlSave}
+          <CapabilityProviderRefRow
+            labelId="settings.modelCapability.asr.provider.title"
+            descriptionId="settings.modelCapability.asr.provider.description"
+            value={entry?.providerRef ?? ""}
+            options={providerOptions}
+            onSave={handleProviderRefSave}
             testIdValue="asr"
           />
           <CapabilityTextValueRow
@@ -163,15 +163,12 @@ export function AsrCapabilityForm() {
             onSave={handleModelSave}
             testIdValue="asr"
           />
-          <CapabilityApiKeyRow
-            credentialLabel={intl.formatMessage({
-              id: "settings.modelCapability.asr.apiKey.title",
-            })}
-            descriptionId="settings.modelCapability.asr.apiKey.description"
-            present={credentialPresent}
-            saving={savingCredential}
-            onSave={handleCredentialSave}
-            actionName="save_asr_api_key"
+          <CapabilityBaseUrlRow
+            labelId="settings.modelCapability.asr.baseUrlOverride.title"
+            placeholderId="settings.modelCapability.asr.baseUrl.placeholder"
+            value={entry?.baseUrlOverride ?? ""}
+            onSave={handleBaseUrlOverrideSave}
+            testIdValue="asr"
           />
         </>
       ) : null}

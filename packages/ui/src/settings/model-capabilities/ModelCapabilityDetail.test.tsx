@@ -31,14 +31,20 @@ const { capabilityState, updateMock, stableServices, controllerState } = vi.hois
     current: {
       "decision-jev": { enabled: false, providerKind: "typesafe", baseUrl: "", modelId: "" },
       embedding: { enabled: false, mode: "local", localModelId: "local-bge-small-zh-v1.5-int8" },
-      asr: { engine: "webSpeech", baseUrl: "", modelId: "" },
-      tts: { engine: "system", baseUrl: "", modelId: "", voice: "" },
+      asr: { engine: "webSpeech", providerRef: "", modelId: "", baseUrlOverride: "" },
+      tts: { engine: "system", providerRef: "", modelId: "", voice: "", baseUrlOverride: "" },
       "image-generation": { enabled: false, baseUrl: "", modelId: "" },
     },
   };
   // useModelCapabilities mock 的 controller 形状开关（unavailable 用例切 service=null）。
   const controllerState = { serviceAvailable: true };
   const stableServices = {
+    // §13：供应商下拉数据源（useCapabilityProviderOptions 经
+    // useProviderSettingsServiceView；空列表即可——表单测试聚焦档案写路径）。
+    providerSettingsService: {
+      getView: async () => ({ providers: [] }),
+      onDidChange: () => ({ dispose: () => undefined }),
+    },
     credentialService: {
       load: vi.fn(async (key: string) => (key.endsWith("typesafe:api-key") ? "stored-key" : null)),
       save: async () => undefined,
@@ -106,8 +112,8 @@ function resetCapabilities(): void {
   capabilityState.current = {
     "decision-jev": { enabled: false, providerKind: "typesafe", baseUrl: "", modelId: "" },
     embedding: { enabled: false, mode: "local", localModelId: "local-bge-small-zh-v1.5-int8" },
-    asr: { engine: "webSpeech", baseUrl: "", modelId: "" },
-    tts: { engine: "system", baseUrl: "", modelId: "", voice: "" },
+    asr: { engine: "webSpeech", providerRef: "", modelId: "", baseUrlOverride: "" },
+    tts: { engine: "system", providerRef: "", modelId: "", voice: "", baseUrlOverride: "" },
     "image-generation": { enabled: false, baseUrl: "", modelId: "" },
   };
   updateMock.mockClear();
@@ -253,22 +259,25 @@ describe("语音识别/语音合成条目（asr/tts；引擎选择迁入档案�
     });
   });
 
-  it("engine=remote 时显 baseUrl + 模型 id + ApiKeyInput（字段表 §5.1）", () => {
+  it("engine=remote 时显供应商下拉 + 覆盖 + 模型 id；无独立 ApiKeyInput（§13 字段表）", () => {
     capabilityState.current.asr = {
       engine: "remote",
-      baseUrl: "https://api.siliconflow.cn/v1",
+      providerRef: "",
       modelId: "",
+      baseUrlOverride: "",
     };
     render(<ModelCapabilityDetail purpose="asr" />);
-    expect(screen.getByTestId("model-capability-base-url-input-asr")).toBeTruthy();
+    expect(screen.getByTestId("model-capability-provider-select-asr")).toBeTruthy();
     expect(screen.getByTestId("model-capability-model-input-asr")).toBeTruthy();
-    expect(screen.getByTestId("model-capability-api-key-input")).toBeTruthy();
+    expect(screen.getByTestId("model-capability-base-url-input-asr")).toBeTruthy();
+    expect(screen.queryByTestId("model-capability-api-key-input")).toBeNull();
   });
 
   it("tts engine=cloud 时显 baseUrl + 模型 + 音色 + ApiKeyInput；音色写档案 tts.voice", async () => {
     capabilityState.current.tts = {
       engine: "cloud",
-      baseUrl: "https://api.siliconflow.cn/v1",
+      providerRef: "custom:sf",
+      baseUrlOverride: "",
       modelId: "m",
       voice: "",
     };
@@ -305,26 +314,38 @@ describe("图像生成条目（image-generation；仅档案配置面，工具链
 
 describe("baseUrl 连接区校验（自 VoiceSection S1 迁入的语义）", () => {
   it("合法 https：onBlur 写入 capabilities 面", async () => {
-    capabilityState.current.asr = { engine: "remote", baseUrl: "", modelId: "" };
+    capabilityState.current.asr = {
+      engine: "remote",
+      providerRef: "",
+      modelId: "",
+      baseUrlOverride: "",
+    };
     render(<ModelCapabilityDetail purpose="asr" />);
     const input = screen.getByTestId("model-capability-base-url-input-asr");
     fireEvent.change(input, { target: { value: "https://api.siliconflow.cn/v1" } });
     fireEvent.blur(input);
     await waitFor(() => {
       expect(updateMock).toHaveBeenCalledWith({
-        capabilities: { asr: { baseUrl: "https://api.siliconflow.cn/v1" } },
+        capabilities: { asr: { baseUrlOverride: "https://api.siliconflow.cn/v1" } },
       });
     });
   });
 
   it("明文非本机地址：阻止写入 + 行内警告", () => {
-    capabilityState.current.asr = { engine: "remote", baseUrl: "", modelId: "" };
+    capabilityState.current.asr = {
+      engine: "remote",
+      providerRef: "",
+      modelId: "",
+      baseUrlOverride: "",
+    };
     render(<ModelCapabilityDetail purpose="asr" />);
     const input = screen.getByTestId("model-capability-base-url-input-asr");
     fireEvent.change(input, { target: { value: "http://api.example.com/v1" } });
     fireEvent.blur(input);
     expect(updateMock).not.toHaveBeenCalledWith(
-      expect.objectContaining({ capabilities: { asr: { baseUrl: "http://api.example.com/v1" } } }),
+      expect.objectContaining({
+        capabilities: { asr: { baseUrlOverride: "http://api.example.com/v1" } },
+      }),
     );
     expect(screen.getByTestId("model-capability-base-url-warning").textContent).toContain(
       "insecureWarning",
@@ -332,7 +353,12 @@ describe("baseUrl 连接区校验（自 VoiceSection S1 迁入的语义）", () 
   });
 
   it("无法解析的地址：unparseable 警告分型", () => {
-    capabilityState.current.asr = { engine: "remote", baseUrl: "", modelId: "" };
+    capabilityState.current.asr = {
+      engine: "remote",
+      providerRef: "",
+      modelId: "",
+      baseUrlOverride: "",
+    };
     render(<ModelCapabilityDetail purpose="asr" />);
     const input = screen.getByTestId("model-capability-base-url-input-asr");
     fireEvent.change(input, { target: { value: "not-a-url" } });

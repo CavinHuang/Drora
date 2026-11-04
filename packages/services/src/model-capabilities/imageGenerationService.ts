@@ -12,7 +12,6 @@
  *   认证失败、429 限流、其余 4xx/5xx 透传状态码、坏 JSON/坏载荷结构化报错。
  */
 import { modelCapabilityCredentialKey } from "@drora/shared";
-import type { ICredentialService } from "../credential/credential.js";
 import { createServiceLogger } from "../logger/serviceLogger.js";
 import type { IModelCapabilitiesService } from "./contract.js";
 
@@ -45,8 +44,14 @@ export type ImageGenerationResult =
 export interface ImageGenerationServiceDependencies {
   /** 档案唯一所有者（每次请求读快照，天然最新，spec §4 生效语义）。 */
   modelCapabilities: Pick<IModelCapabilitiesService, "get">;
-  /** 凭据解密读取；生产注入 Host 共享实例，测试注入假实现。 */
-  credentialService: Pick<ICredentialService, "load">;
+  /**
+   * §13 供应商连接解析：providerRef → 官方供应商卡的 { baseUrl, apiKey }。
+   * 生产由 Host 装配注入（走 providerSettings facade 公开入口）；每次调用实时读
+   * （卡片改 key/删卡即时生效）。条目 baseUrlOverride 优先于卡 baseUrl。
+   */
+  resolveProviderConnection: (
+    providerRef: string,
+  ) => Promise<{ baseUrl: string; apiKey: string } | null>;
   /** 注入 fetch 便于测试（默认 globalThis.fetch，照 jevTransport 先例）。 */
   fetchImpl?: typeof fetch;
 }
@@ -193,21 +198,22 @@ export function createImageGenerationService(dependencies: ImageGenerationServic
           "图像生成未启用：请在模型设置页 → 图像生成配置中开启",
         );
       }
-      const baseUrl = capability.baseUrl.trim();
       const modelId = capability.modelId.trim();
-      if (baseUrl.length === 0 || modelId.length === 0 || !isUsableBaseUrl(baseUrl)) {
+      const providerRef = capability.providerRef.trim();
+      if (modelId.length === 0 || providerRef.length === 0) {
         return configurationFailure(
           "not_configured",
-          "图像生成配置不完整（需 https Base URL、模型 ID 与 API Key）：请在模型设置页 → 图像生成配置中补全",
+          "图像生成配置不完整（需选择供应商与模型）：请在模型设置页 → 图像生成中选择",
         );
       }
-      const apiKey = (
-        await dependencies.credentialService.load(modelCapabilityCredentialKey.imageGeneration)
-      )?.trim();
-      if (!apiKey) {
+      // §13：连接信息单点在官方供应商卡；override 优先（手填覆盖，spec §13.4）。
+      const card = await dependencies.resolveProviderConnection(providerRef);
+      const baseUrl = (capability.baseUrlOverride.trim() || card?.baseUrl || "").trim();
+      const apiKey = (card?.apiKey ?? "").trim();
+      if (baseUrl.length === 0 || !isUsableBaseUrl(baseUrl) || apiKey.length === 0) {
         return configurationFailure(
           "not_configured",
-          "图像生成缺少 API Key：请在模型设置页 → 图像生成配置中填写",
+          "图像生成供应商连接不可用（卡片缺失/无 API Key/Base URL 非法）：请在模型设置页检查供应商卡",
         );
       }
 

@@ -106,11 +106,12 @@ function applyLegacySettings(
   if (asrEngine === "webSpeech" || asrEngine === "remote") {
     capabilities.asr.engine = asrEngine;
   }
-  // voiceVendorBaseUrl 双写同值到 asr 与 tts（此后两腿独立演化，有意语义改进）。
+  // voiceVendorBaseUrl 双写同值到 asr 与 tts 的 baseUrlOverride（§13 v2 形态：
+  // override 是 §13 迁移器自动建卡的线索，建卡后清空；两腿此后独立演化）。
   const vendorBaseUrl = readLegacySettings(settings, "voiceVendorBaseUrl");
   if (isNonEmptyString(vendorBaseUrl)) {
-    capabilities.asr.baseUrl = vendorBaseUrl.trim();
-    capabilities.tts.baseUrl = vendorBaseUrl.trim();
+    capabilities.asr.baseUrlOverride = vendorBaseUrl.trim();
+    capabilities.tts.baseUrlOverride = vendorBaseUrl.trim();
   }
   const asrModel = readLegacySettings(settings, "voiceAsrVendorModel");
   if (isNonEmptyString(asrModel)) capabilities.asr.modelId = asrModel.trim();
@@ -181,15 +182,17 @@ async function migrateLegacyCredentials(
     const trimmed = voiceValue.trim();
     // 单键双写：asr 与 tts 都写成功才删旧键。已写入的一腿保留（同值双写，
     // 重试幂等覆盖），旧键保留保证任一腿失败时值不丢。
+    // §13：voice 旧键值转存到自含键（selfContained.asr/tts），由 §13 迁移器
+    // 按 baseUrlOverride 自动建卡后删除；不再有 modelCapabilityCredentialKey.asr/tts。
     const asrSaved = await saveCredentialOrWarn(
       credentialService,
-      modelCapabilityCredentialKey.asr,
+      MODEL_CAPABILITIES_LEGACY_CREDENTIAL_KEYS.selfContained.asr,
       trimmed,
       legacyVoiceKey,
     );
     const ttsSaved = await saveCredentialOrWarn(
       credentialService,
-      modelCapabilityCredentialKey.tts,
+      MODEL_CAPABILITIES_LEGACY_CREDENTIAL_KEYS.selfContained.tts,
       trimmed,
       legacyVoiceKey,
     );

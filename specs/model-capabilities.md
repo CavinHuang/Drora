@@ -346,3 +346,56 @@ agent 会话
 - **jevAssembly 共享 credentialService 注入**：文档化有意缺省（功能等价、实例无缓存），后续装配优化时注入。
 - **上游共享触点登记**：`settings/model-provider-section` 的本役加法与等价改写按 ledger 5 先例登记 `specs/drora-divergence-ledger.md` 台账 13。
 - vaultSearchPort 传递链断裂（既有、非本役）：独立工单。
+
+## 13. 供应商引用式重构（2026-11-05 定稿，用户裁定「可以」后实施）
+
+### 13.1 背景与裁定
+
+用户两轮追问确立的方向：**key 单点存储**——同供应商的 apiKey 不应在能力档案里录第二遍，直接复用官方模型管理（provider 体系）已保存的连接信息。2026-11-05 复核推翻了首轮「暂不做」裁定所依据的两笔账：
+
+1. 「key 明文是安全降级」不成立——聊天 key 本就明文于 `provider_config.json`（官方设计，provider-bundled-persistence），能力 key 跟随走明文是**全仓一致**而非降级；加密是含聊天 key 的全仓独立议题。
+2. 「等上游出官方多模态管理」是拖延——key 落在官方体系内，将来上游出任何新设计只需迁移路由表，key 一动不动，比现状（key 双存储）**更好迁移**。
+
+### 13.2 目标形态（供应商即唯一连接层，能力即路由表）
+
+```
+官方模型管理（零 schema 改动，用官方自定义供应商现成能力）
+  供应商卡 = baseUrl + apiKey（聊天/画图/语音共用，key 只此一份）
+                    ▲ 出站时实时读取（provider facade 公开入口 / renderer 经 RPC 代理）
+模型能力档案（自研 schema 改形）
+  条目 = providerRef（指向 providerId）+ modelId + 可选 baseUrl 覆盖
+  不再自含任何 apiKey 字段
+```
+
+### 13.3 范围裁定
+
+| 能力                                                          | 处置                    |
+| ------------------------------------------------------------- | ----------------------- |
+| image-generation / asr / tts（标准端点形状）                  | **改引用式**            |
+| decision-jev（System One 专用线协议，按 providerKind 分三键） | 维持自含现状（§3 原案） |
+| embedding（本地 ONNX 资产，无端点无 key）                     | 不适用，不动            |
+
+### 13.4 迁移与表单裁定（用户已确认）
+
+- **存量迁移**：按条目 baseUrl 在官方模型管理**自动建自定义供应商卡**（无感迁移；卡名取条目用途，key 从旧凭据键导入），条目转 providerRef 后删旧键。
+- **表单形态**：只给「选供应商」下拉 + 「去新建供应商」跳转，**不保留**手填 baseUrl/key 兜底形态（单形态，避免解析双分支）；仅留可选 baseUrl 覆盖（网关分域名边缘）。
+- baseUrl 覆盖与 providerRef 的键值并存规则：**手填覆盖优先，留空继承供应商卡**。
+
+### 13.5 改动面清单（实施依据）
+
+1. 契约 `modelCapabilities.ts`：三条目改形（providerRef/modelId/baseUrlOverride），删自含 apiKey 语义与 asr/tts/image-generation 三凭据键定义；Jev 三键保留。
+2. 解析层 `model-capabilities/`：连接信息经 providerSettingsFacade 公开入口读；供应商被删/无 key → 现行 fail-closed（not_configured）语义不变；迁移器：读旧键 → 自动建卡 → 条目转 providerRef → 删旧键（幂等标记沿用）。
+3. Host 消费：imageGenerationService、node.ts 装配。
+4. Renderer 消费：useVoiceComposerEntry/useVoiceAnnouncement 经 providerSettingsService RPC 代理读供应商连接（ND-1 修复已验证链路）；回退树不变。
+5. UI：三表单改「供应商下拉 + modelId（+可选覆盖）」；供应商卡 detail 底部反向关联纯展示；i18n/遥测/test-ids 同规格补齐。
+6. 注意点：聊天选择器会出现无模型的能力专用卡（空列表自然不误导）；供应商卡随 provisioning 面同步远端（对远端语音有利，key envelope 实现时核对 allowlist）。
+
+### 13.6 实施记录（2026-11-05 当日完成）
+
+- 契约：schemaVersion 1→2（三条目 providerRef/modelId/baseUrlOverride + migratedToProviderRef 标记）；凭据键收缩至 decision-jev；旧自含键冻结入迁移表 `MODEL_CAPABILITIES_LEGACY_CREDENTIAL_KEYS.selfContained`。
+- 解析层：读取层 upgradeV1FileToV2（v1 自含 baseUrl 保底进 override 作迁移线索）；providerRefMigration（按 override+旧键自动建卡回填，标记落盘成功才删键）；createProviderCard 走 late-bind（Host 构造时序：档案服务先于 providerRuntime，attachProviderCardCreator 回填）。
+- Host：imageGenerationService 依赖改 resolveProviderConnection（node.ts 经 providerSettingsFacade.getView 按 providerId 取卡，access api-key 判型）；§13 建卡器 createPersonalProvider+overlay（group:custom/api-key/openai-chat-completions）。
+- Renderer：useVoiceComposerEntry/useVoiceAnnouncement 经 providerSettingsService.getView 解析（连接态 vendorConnection/cloudApiKeyRef 三态保留：未加载→system 首句、确认缺失→持续 system、已解析→cloud；回退树与连败回落零变化）；引擎签名 baseUrl 分量替换为 providerRef+override。
+- UI：CapabilityProviderRefRow（下拉）+ useCapabilityProviderOptions（enabled 且 baseUrl+api-key 完整的卡）；三表单改「供应商+模型（+音色/覆盖）」，ApiKey 行删除；图像配置行不门控开关（v1 行为一致）；TID_MODEL_CAPABILITY_PROVIDER_SELECT 新增；i18n 双语 +10 键。
+- 测试：services 三文件 §13 化（凭据断言→decision-jev 分键/自含冻结键；画图 mock credentialService→resolveProviderConnection）；wiring 18/18（providerConnectionControls 控制柄 get/set/hold/reset，门闩 connectionGate 承载 pending 三态）；表单 20/20（供应商 mock providers:[]）；override 行 testid 沿用原 base-url-input id（E2E 兼容）。
+- 门禁终态：typecheck=0 / architecture=0 violations / lint=0 / test:drora 1874 过 7 跳 / 表单+catalog+i18n 34 绿。

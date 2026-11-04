@@ -7,8 +7,8 @@
  * 8MiB/20MiB 上限）、凭据不进任何返回文案。
  */
 import assert from "node:assert/strict";
+import { defaultModelCapabilitiesFile } from "@drora/shared";
 import { it } from "vitest";
-import { defaultModelCapabilitiesFile, modelCapabilityCredentialKey } from "@drora/shared";
 import {
   createImageGenerationService,
   type ImageGenerationResult,
@@ -59,28 +59,32 @@ function makeCapabilities(overrides: Partial<Record<string, unknown>> = {}) {
   file.migratedFromLegacySettings = true;
   file.capabilities["image-generation"] = {
     enabled: true,
-    baseUrl: "https://api.example/v1",
+    providerRef: "custom:example",
     modelId: "cogview-4-flash",
+    baseUrlOverride: "",
     ...overrides,
   } as (typeof file.capabilities)["image-generation"];
   return { get: async () => file };
 }
 
-function makeCredentialStore(value: string | null = API_KEY) {
-  return {
-    load: async (key: string) =>
-      key === modelCapabilityCredentialKey.imageGeneration ? value : null,
-  };
+/** §13 连接解析 mock：providerRef → 供应商卡连接（卡片持有 baseUrl+apiKey）。 */
+function makeConnectionResolver(
+  connection: { baseUrl: string; apiKey: string } | null = {
+    baseUrl: "https://api.example/v1",
+    apiKey: API_KEY,
+  },
+) {
+  return async () => connection;
 }
 
 function makeService(overrides: {
   capabilities?: ReturnType<typeof makeCapabilities>;
-  credentials?: ReturnType<typeof makeCredentialStore>;
+  connection?: ReturnType<typeof makeConnectionResolver> extends () => infer R ? R : never;
   fetchImpl: typeof fetch;
 }) {
   return createImageGenerationService({
     modelCapabilities: overrides.capabilities ?? makeCapabilities(),
-    credentialService: overrides.credentials ?? makeCredentialStore(),
+    resolveProviderConnection: overrides.connection ?? makeConnectionResolver(),
     fetchImpl: overrides.fetchImpl,
   });
 }
@@ -104,25 +108,30 @@ it("MC-4/MC-7：档案未启用 → disabled 结构化失败（含设置页指�
   assert.equal(calls.length, 0, "fail-closed：未启用不得出站");
 });
 
-it("MC-7：baseUrl/modelId 缺失或 key 缺失 → not_configured，零出站", async () => {
-  const cases: Array<{ overrides: Partial<Record<string, unknown>>; key: string | null }> = [
-    { overrides: { baseUrl: "" }, key: API_KEY },
-    { overrides: { modelId: "" }, key: API_KEY },
-    { overrides: { baseUrl: "http://api.example/v1" }, key: API_KEY },
-    { overrides: { baseUrl: "not a url" }, key: API_KEY },
-    { overrides: {}, key: null },
+it("MC-7：providerRef/modelId 缺失或供应商卡连接不可用 → not_configured，零出站", async () => {
+  // §13 形态：条目缺路由（providerRef/modelId）或供应商卡连接不可用（卡片缺失/
+  // 无 key / override 与卡片 baseUrl 均非法）都 fail-closed。
+  const cases: Array<{
+    overrides?: Partial<Record<string, unknown>>;
+    connection?: { baseUrl: string; apiKey: string } | null;
+  }> = [
+    { overrides: { providerRef: "" } },
+    { overrides: { modelId: "" } },
+    { connection: null },
+    { connection: { baseUrl: "http://api.example/v1", apiKey: API_KEY } },
+    { connection: { baseUrl: "not a url", apiKey: API_KEY } },
+    { connection: { baseUrl: "https://api.example/v1", apiKey: "" } },
   ];
   for (const testCase of cases) {
     const { fetchImpl, calls } = makeFetch(() => b64Success("aGk=", 2));
     const service = makeService({
-      capabilities: makeCapabilities(testCase.overrides),
-      credentials: makeCredentialStore(testCase.key),
+      ...(testCase.overrides ? { capabilities: makeCapabilities(testCase.overrides) } : {}),
+      connection: makeConnectionResolver(testCase.connection),
       fetchImpl,
     });
     const result = await service.generate({ prompt: "a cat" });
     assert.equal(result.ok, false);
     assert.equal((result as { errorKind: string }).errorKind, "not_configured");
-    assert.match((result as { message: string }).message, /模型设置页 → 图像生成配置/);
     assert.equal(calls.length, 0, "fail-closed：未配置不得出站");
   }
 });
@@ -152,7 +161,7 @@ it("MC-6：baseUrl 尾斜杠归一后拼接 images/generations；localhost http 
   const imageBase64 = Buffer.from("png").toString("base64");
   const { fetchImpl, calls } = makeFetch(() => b64Success(imageBase64, 3));
   const service = makeService({
-    capabilities: makeCapabilities({ baseUrl: "http://localhost:9000/v1/" }),
+    connection: makeConnectionResolver({ baseUrl: "http://localhost:9000/v1/", apiKey: API_KEY }),
     fetchImpl,
   });
   const result = await service.generate({ prompt: "a cat" });

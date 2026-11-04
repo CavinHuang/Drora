@@ -3934,7 +3934,11 @@ parentPort.on("message", async (e: Electron.MessageEvent) => {
         // 迁移直调本 settingService（RPC patch 吞 undefined 删不掉旧键）；同一实例供
         // knowledge 装配与 RPC 面共用，避免双所有者。
         const modelCapabilitiesService = createModelCapabilitiesService({ settingService });
-        const knowledgeOptions = await assembleDroraKnowledgeHost(modelCapabilitiesService, logger);
+        const knowledgeOptions = await assembleDroraKnowledgeHost(
+          modelCapabilitiesService,
+          logger,
+          async () => (await settingService.get()).httpProxy,
+        );
         const hostApiNetworkTransport = createHostApiNetworkTransport(async () => {
           const settings = await settingService.get();
           return {

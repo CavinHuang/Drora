@@ -4822,15 +4822,19 @@ const zhCN: Record<string, string> = {
   "settings.modelCapabilities.groupTitle": "模型能力",
   "settings.modelCapability.nav.decisionJev": "知识评分",
   "settings.modelCapability.nav.embedding": "语义嵌入",
+  "settings.modelCapability.provider.createFirst": "新建 API Key 供应商卡",
   "settings.modelCapability.provider.unselected": "未选择供应商",
   "settings.modelCapability.asr.provider.title": "供应商",
-  "settings.modelCapability.asr.provider.description": "语音识别的连接信息（Base URL 与 API Key）来自所选供应商卡，在模型设置 → 供应商中统一管理。",
+  "settings.modelCapability.asr.provider.description":
+    "语音识别的连接信息（Base URL 与 API Key）来自所选供应商卡，在模型设置 → 供应商中统一管理。",
   "settings.modelCapability.asr.baseUrlOverride.title": "Base URL 覆盖（可选）",
   "settings.modelCapability.tts.provider.title": "供应商",
-  "settings.modelCapability.tts.provider.description": "语音合成的连接信息（Base URL 与 API Key）来自所选供应商卡，在模型设置 → 供应商中统一管理。",
+  "settings.modelCapability.tts.provider.description":
+    "语音合成的连接信息（Base URL 与 API Key）来自所选供应商卡，在模型设置 → 供应商中统一管理。",
   "settings.modelCapability.tts.baseUrlOverride.title": "Base URL 覆盖（可选）",
   "settings.modelCapability.imageGeneration.provider.title": "供应商",
-  "settings.modelCapability.imageGeneration.provider.description": "图像生成的连接信息（Base URL 与 API Key）来自所选供应商卡，在模型设置 → 供应商中统一管理。",
+  "settings.modelCapability.imageGeneration.provider.description":
+    "图像生成的连接信息（Base URL 与 API Key）来自所选供应商卡，在模型设置 → 供应商中统一管理。",
   "settings.modelCapability.imageGeneration.baseUrlOverride.title": "Base URL 覆盖（可选）",
   "settings.modelCapability.nav.asr": "语音识别",
   "settings.modelCapability.nav.tts": "语音合成",

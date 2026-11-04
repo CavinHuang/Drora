@@ -5447,15 +5447,19 @@ const enUS: Record<string, string> = {
   "settings.modelCapabilities.groupTitle": "Model capabilities",
   "settings.modelCapability.nav.decisionJev": "Knowledge scoring",
   "settings.modelCapability.nav.embedding": "Semantic embedding",
+  "settings.modelCapability.provider.createFirst": "Create an API Key provider card",
   "settings.modelCapability.provider.unselected": "No provider selected",
   "settings.modelCapability.asr.provider.title": "Provider",
-  "settings.modelCapability.asr.provider.description": "Speech recognition connection (Base URL and API Key) comes from the selected provider card, managed under Settings → Model providers.",
+  "settings.modelCapability.asr.provider.description":
+    "Speech recognition connection (Base URL and API Key) comes from the selected provider card, managed under Settings → Model providers.",
   "settings.modelCapability.asr.baseUrlOverride.title": "Base URL override (optional)",
   "settings.modelCapability.tts.provider.title": "Provider",
-  "settings.modelCapability.tts.provider.description": "Speech synthesis connection (Base URL and API Key) comes from the selected provider card, managed under Settings → Model providers.",
+  "settings.modelCapability.tts.provider.description":
+    "Speech synthesis connection (Base URL and API Key) comes from the selected provider card, managed under Settings → Model providers.",
   "settings.modelCapability.tts.baseUrlOverride.title": "Base URL override (optional)",
   "settings.modelCapability.imageGeneration.provider.title": "Provider",
-  "settings.modelCapability.imageGeneration.provider.description": "Image generation connection (Base URL and API Key) comes from the selected provider card, managed under Settings → Model providers.",
+  "settings.modelCapability.imageGeneration.provider.description":
+    "Image generation connection (Base URL and API Key) comes from the selected provider card, managed under Settings → Model providers.",
   "settings.modelCapability.imageGeneration.baseUrlOverride.title": "Base URL override (optional)",
   "settings.modelCapability.nav.asr": "Speech recognition",
   "settings.modelCapability.nav.tts": "Speech synthesis",

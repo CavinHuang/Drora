@@ -16,6 +16,8 @@ import {
 export async function assembleDroraKnowledgeHost(
   modelCapabilitiesService: IModelCapabilitiesService,
   logger: { warn(...args: unknown[]): void },
+  /** §13 附带：settings.httpProxy 读取器（hf 镜像直连被墙环境经代理下载模型）。 */
+  readHttpProxy?: () => Promise<string | undefined>,
 ) {
   // Jev 配置动态源（obsidian-knowledge.md §5d.10 配置热生效）：解析闭包携带
   // 档案服务，每个决策 stage 解析当前装配——配置变更即时生效（免重启）。
@@ -44,9 +46,13 @@ export async function assembleDroraKnowledgeHost(
       if (snapshot.capabilities.embedding.enabled !== true) {
         return null;
       }
+      const httpProxy = readHttpProxy
+        ? (await readHttpProxy().catch(() => undefined))?.trim()
+        : undefined;
       return createLocalEmbeddingPort({
         modelRoot: resolveKnowledgeModelRoot(),
         logger: { warn: (message, details) => logger.warn(message, details) },
+        ...(httpProxy ? { httpProxy } : {}),
       });
     } catch (error) {
       logger.warn("[host] 语义检索端口解析失败，保持纯词法", {

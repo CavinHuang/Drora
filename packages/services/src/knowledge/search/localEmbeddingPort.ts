@@ -71,6 +71,8 @@ export interface LocalEmbeddingPortOptions {
   /** 下载/降级日志面（host logger）。 */
   logger?: { warn(message: string, details?: Record<string, unknown>): void };
   /** 下载实现（缺省全局 fetch；测试注入假实现）。 */
+  /** §13：settings.httpProxy 注入（hf 镜像直连被墙环境经代理下载）。 */
+  httpProxy?: string;
   fetchImpl?: typeof fetch;
 }
 
@@ -186,6 +188,7 @@ async function downloadModelFiles(
   modelDir: string,
   logger: LocalEmbeddingPortOptions["logger"],
   fetchImpl: typeof fetch,
+  dispatcher?: unknown,
 ): Promise<void> {
   await mkdir(modelDir, { recursive: true });
   for (const bound of SIZE_BOUNDS) {
@@ -196,9 +199,12 @@ async function downloadModelFiles(
     for (const mirror of MIRRORS) {
       try {
         // 单镜像尝试 120s 超时：镜像失联时快速轮换下一个，而非无限挂起。
+        // §13 附带修复：用户环境直连 hf 镜像被墙（fetch failed），显式走 settings
+        // 配置的 HTTP 代理（undici ProxyAgent dispatcher；无代理配置时原样直连）。
         const response = await fetchImpl(`${mirror.baseUrl}/${bound.file}`, {
           signal: AbortSignal.timeout(120_000),
-        });
+          ...(dispatcher ? { dispatcher } : {}),
+        } as RequestInit);
         if (!response.ok || !response.body) {
           lastError = `http_${response.status}`;
           continue;
@@ -272,6 +278,21 @@ export function createLocalEmbeddingPort(
 ): KnowledgeEmbeddingPort {
   const logger = options.logger;
   const fetchImpl = options.fetchImpl ?? fetch;
+  // §13：代理 dispatcher 惰性构建（undici ProxyAgent；仅 httpProxy 配置时创建，
+  // 下载期才触发 import，推理路径零开销）。
+  let dispatcherPromise: Promise<unknown | null> | null = null;
+  const getDispatcher = (): Promise<unknown | null> => {
+    if (!options.httpProxy?.trim()) return Promise.resolve(null);
+    dispatcherPromise ??= import("undici")
+      .then(({ ProxyAgent }) => new ProxyAgent(options.httpProxy!.trim()) as unknown)
+      .catch((error: unknown) => {
+        logger?.warn("代理 dispatcher 构建失败，回退直连", {
+          error: error instanceof Error ? error.message : String(error),
+        });
+        return null;
+      });
+    return dispatcherPromise;
+  };
   const modelDir = join(options.modelRoot, MODEL_DIR_NAME);
   let runtimePromise: Promise<RuntimeState> | null = null;
   // 状态面（spec §5b.9）：model_missing（缺文件未下载）→ downloading → ready/failed。
@@ -292,7 +313,8 @@ export function createLocalEmbeddingPort(
         if (!filesReady) {
           portState = "downloading";
           portLastError = null;
-          await downloadModelFiles(modelDir, logger, fetchImpl);
+          const dispatcher = await getDispatcher();
+          await downloadModelFiles(modelDir, logger, fetchImpl, dispatcher);
         }
         // 动态 import：onnxruntime-node 是可选运行时（缺模块 = 端口不可用，词法照常）。
         const ort = (await import("onnxruntime-node")) as unknown as OnnxRuntime;

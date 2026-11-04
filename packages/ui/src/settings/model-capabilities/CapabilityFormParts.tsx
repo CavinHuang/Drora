@@ -32,6 +32,7 @@ import {
   SelectValue,
 } from "@/components/ui/select.js";
 import { useServices } from "@/hooks/useServices.js";
+import { setPendingSettingsSectionIntent } from "@/lib/settingsNavigation.js";
 import { useProviderSettingsServiceView } from "@/hooks/useProviderSettingsView.js";
 import { SettingsRow } from "@/settings/SettingsPageParts.js";
 import { validateVoiceVendorBaseUrl } from "@/voice/voiceVendorBaseUrl.js";
@@ -110,16 +111,19 @@ export function CapabilityApiKeyRow({
   }, [actionName, draft, intl, onSave]);
 
   return (
+    // wide 布局：输入+显隐+保存三件超 default 192px 列，溢出会盖住左侧描述文字
+    //（用户实机截图 bug），280px 列 + 输入自适应放得下。
     <SettingsRow
+      controlLayout="wide"
       label={credentialLabel}
       description={intl.formatMessage({ id: descriptionId })}
       control={
-        <div className="flex items-center gap-2">
+        <div className="flex w-full items-center gap-2">
           <div className="relative">
             <Input
               type={visible ? "text" : "password"}
               autoComplete="off"
-              className="w-64 pr-9"
+              className="min-w-0 flex-1 pr-9"
               placeholder={intl.formatMessage({
                 id: "settings.modelCapability.apiKey.placeholder",
               })}
@@ -365,6 +369,28 @@ export function CapabilityProviderRefRow({
   testIdValue: string;
 }) {
   const { intl } = useDroraIntl();
+  // §13 空态：没有任何可用 API Key 卡时下拉无选项（Radix 空弹层），改渲染引导文案
+  // + 跳转按钮（打开模型设置供应商分区新建卡，照 jevOff 横幅同机制）。
+  if (options.length === 0) {
+    return (
+      <SettingsRow
+        label={intl.formatMessage({ id: labelId })}
+        description={intl.formatMessage({ id: descriptionId })}
+        control={
+          <Button
+            variant="outline"
+            className="w-72"
+            data-testid={testId(TID_MODEL_CAPABILITY_PROVIDER_SELECT, testIdValue)}
+            onClick={() => {
+              setPendingSettingsSectionIntent("modelProvider");
+            }}
+          >
+            {intl.formatMessage({ id: "settings.modelCapability.provider.createFirst" })}
+          </Button>
+        }
+      />
+    );
+  }
   return (
     <SettingsRow
       label={intl.formatMessage({ id: labelId })}

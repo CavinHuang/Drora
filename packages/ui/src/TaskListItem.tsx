@@ -48,7 +48,7 @@ import { createTaskWorkbenchDragPreview } from "@/lib/taskWorkbenchDragPreview.j
 import { resolveTaskSourceLabel } from "@/lib/taskSourceAttribution.js";
 import { logger } from "@/logger.js";
 import { runUserAction, runUserActionAsync } from "@/lib/userActionTelemetry.js";
-import { TaskRowActionButton } from "@/project-sidebar/grouped/task-row-action-button.js";
+import { TaskRowActionButton } from "@/workspace-grouped-tasks/task-row-action-button.js";
 import { TaskWorkflowRunLines } from "@/components/workflow-run-line/TaskWorkflowRunLines.js";
 import { TeamSessionLine } from "@/team/session-line.js";
 

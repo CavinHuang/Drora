@@ -32,9 +32,9 @@
     "@drora/dynamic-workflow": "workspace:*",
     "@drora/dynamic-workflow-runtime": "workspace:*",
     "@drora/i18n": "workspace:*",
-    "@drora/provider": "workspace:*",
-    "@drora/provider-node": "workspace:*",
-    "@drora/shared": "workspace:*",
+    "@drora/provider": "link:../../../../packages/provider",
+    "@drora/provider-node": "link:../../../../packages/provider-node",
+    "@drora/shared": "link:../../../../packages/shared",
     "@drora/telemetry": "workspace:*",
     "diff": "^9.0.0",
     "zod": "4.6.5"
@@ -43,6 +43,6 @@
     "@types/node": "^24.0.0",
     "@types/yazl": "^3.3.1",
     "yazl": "^3.3.1",
-    "@drora/formal-proof": "workspace:*"
+    "@drora/formal-proof": "link:../../../../packages/formal-proof"
   }
 }

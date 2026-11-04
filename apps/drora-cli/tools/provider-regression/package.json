@@ -21,9 +21,9 @@
     "@drora/bootstrap": "workspace:*",
     "@drora/contracts": "workspace:*",
     "@drora/core": "workspace:*",
-    "@drora/model-option-map": "workspace:*",
-    "@drora/provider": "workspace:*",
-    "@drora/provider-node": "workspace:*",
+    "@drora/model-option-map": "link:../../../../packages/model-option-map",
+    "@drora/provider": "link:../../../../packages/provider",
+    "@drora/provider-node": "link:../../../../packages/provider-node",
     "zod": "4.6.5"
   },
   "devDependencies": {

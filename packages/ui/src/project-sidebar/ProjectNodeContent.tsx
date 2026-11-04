@@ -28,7 +28,7 @@ import type {
 import { Button } from "@/components/ui/button.js";
 import { cn } from "@/components/lib/utils.js";
 import { CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible.js";
-import { TaskRowActionButton } from "@/project-sidebar/grouped/task-row-action-button.js";
+import { TaskRowActionButton } from "@/workspace-grouped-tasks/task-row-action-button.js";
 import {
   DropdownMenu,
   DropdownMenuContent,

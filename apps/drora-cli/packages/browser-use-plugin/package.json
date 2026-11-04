@@ -19,7 +19,7 @@
     "@drora/contracts": "workspace:*",
     "@drora/core": "workspace:*",
     "@drora/node-repl-host": "workspace:*",
-    "@drora/shared": "workspace:*",
+    "@drora/shared": "link:../../../../packages/shared",
     "zod": "4.6.5"
   },
   "devDependencies": {

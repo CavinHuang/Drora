@@ -3,7 +3,7 @@ import type { KeyboardEvent, MouseEvent } from "react";
 import { X } from "lucide-react";
 import { cn } from "@/components/lib/utils.js";
 import { useDroraIntl } from "@/i18n/IntlProvider.js";
-import { TaskRowActionButton } from "@/project-sidebar/grouped/task-row-action-button.js";
+import { TaskRowActionButton } from "@/workspace-grouped-tasks/task-row-action-button.js";
 
 export function GroupedDraftTaskRow({
   active,

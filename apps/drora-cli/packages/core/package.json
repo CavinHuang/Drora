@@ -39,9 +39,9 @@
   "dependencies": {
     "@drora/contracts": "workspace:*",
     "@drora/dynamic-workflow": "workspace:*",
-    "@drora/shared": "workspace:*",
+    "@drora/shared": "link:../../../../packages/shared",
     "@drora/shared-types": "workspace:*",
-    "@drora/drora-cua": "workspace:*",
+    "@drora/drora-cua": "link:../../../../packages/zcode-cua",
     "cheerio": "^1.0.0",
     "diff": "^9.0.0",
     "ipaddr.js": "1.9.1",

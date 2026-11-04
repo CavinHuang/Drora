@@ -1,0 +1,27 @@
+packages:
+  - "packages/*"
+  - "tools/*"
+  - "!packages/documents-plugin"
+  - "!packages/image-search-plugin"
+  - "!packages/pdf-plugin"
+  - "!packages/plugin-creator-plugin"
+  - "!packages/presentations-plugin"
+  - "!packages/restore-legacy-sessions-plugin"
+  - "!packages/skill-creator-plugin"
+  - "!packages/spreadsheets-plugin"
+  - "!packages/zcode-cua-plugin"
+  - "!packages/drora-guide-plugin"
+
+supportedArchitectures:
+  os:
+    - current
+    - darwin
+    - linux
+    - win32
+  cpu:
+    - current
+    - x64
+    - arm64
+  libc:
+    - current
+    - glibc

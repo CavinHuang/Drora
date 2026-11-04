@@ -178,29 +178,26 @@ if (useBootstrapWithRemoteBuild) {
 }
 
 if (!useTurboBuild) {
-  // Linux 容器 demo 里没有仓库级 turbo 根，`turbo --cwd apps/drora-cli`
-  // 会把 apps/drora-cli 当根目录，并拒绝 turbo.json 中指向 ../../packages/shared 的 inputs。
-  // 同时 agent 子 workspace 不包含根 packages/shared，但 agent 包依赖 @drora/shared。
-  // 因此默认改用仓库根 workspace 的明确 pnpm 包顺序构建，避免 WDIO 前置构建卡在子 workspace 解析。
+  // v3.17.2 对齐（specs/upstream-v3.17.2-migration.md §9）：apps/drora-cli 已拆独立
+  // workspace（自带 pnpm-workspace/lockfile），根 workspace 的 `--filter` 不再可见
+  // （匹配不到会静默成功、掩盖产物缺失）。非 turbo 路径整体改走 CLI workspace 的
+  // turbo 全量构建；两侧 workspace 均排除的 seed 插件（office 四件）仍按目录直构。
   for (const filter of defaultBuildFilters) {
     const excludedSeedDir = workspaceExcludedSeedDirs.get(filter);
     if (excludedSeedDir !== undefined) {
-      // workspace 排除的 seed 插件（office 四件）按 ci.yml 先例目录直构：
-      // `--filter` 匹配不到包会静默成功，掩盖产物缺失。
       runCommand("pnpm", ["--dir", `apps/drora-cli/packages/${excludedSeedDir}`, "run", "build"], {
         env: pnpmRunEnv,
         stdio: "inherit",
       });
-      continue;
     }
-    runCommand("pnpm", ["--filter", filter, "build"], {
-      env: pnpmRunEnv,
-      stdio: "inherit",
-    });
   }
+  runCommand("pnpm", ["--dir", "apps/drora-cli", "run", "build"], {
+    env: pnpmRunEnv,
+    stdio: "inherit",
+  });
 
   await verifyRequiredDevPluginRuntimeArtifacts();
-  runCommand("pnpm", ["--filter", "@drora/cli", "build:desktop-agent"], {
+  runCommand("pnpm", ["--dir", "apps/drora-cli/packages/cli", "run", "build:desktop-agent"], {
     env: pnpmRunEnv,
     stdio: "inherit",
   });

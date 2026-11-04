@@ -145,7 +145,7 @@ async function buildOutputs(skipBuild) {
     return;
   }
 
-  run("pnpm", ["--filter", "@drora/cli...", "build"]);
+  run("pnpm", ["--dir", "apps/drora-cli", "run", "build"]);
   await rm(resolve(root, "packages", "server", "dist"), {
     force: true,
     recursive: true,

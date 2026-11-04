@@ -14,7 +14,7 @@
   },
   "dependencies": {
     "@hono/node-server": "^1.14.4",
-    "@drora/shared": "workspace:*",
+    "@drora/shared": "link:../../../../packages/shared",
     "hono": "^4.10.7",
     "http-mitm-proxy": "^1.1.0",
     "lucide-react": "^1.17.0",

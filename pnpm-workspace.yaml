@@ -2,9 +2,6 @@ packages:
   - apps/dev-docs
   - packages/*
   - apps/website
-  - apps/drora-cli
-  - apps/drora-cli/packages/*
-  - apps/drora-cli/tools/*
   # 内容型/冻结插件仍作为 seed 分发；Android/iOS 已公开源码，参与安装和 runtime 构建。
   # 保留冻结 CUA 的排除，避免 install 解析其独立 catalog: 协议。
   - "!apps/drora-cli/packages/documents-plugin"

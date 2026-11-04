@@ -339,7 +339,7 @@ var newHeadersFromIncoming = (incoming) => {
   }
   return new Headers(headerRecord);
 };
-var wrapBodyStream = Symbol("wrapBodyStream");
+var wrapBodyStream = /* @__PURE__ */ Symbol("wrapBodyStream");
 var newRequestFromIncoming = (method, url2, headers, incoming, abortController) => {
   const init = {
     method,
@@ -387,13 +387,13 @@ var newRequestFromIncoming = (method, url2, headers, incoming, abortController) 
   }
   return new Request(url2, init);
 };
-var getRequestCache = Symbol("getRequestCache");
-var requestCache = Symbol("requestCache");
-var incomingKey = Symbol("incomingKey");
-var urlKey = Symbol("urlKey");
-var headersKey = Symbol("headersKey");
-var abortControllerKey = Symbol("abortControllerKey");
-var getAbortController = Symbol("getAbortController");
+var getRequestCache = /* @__PURE__ */ Symbol("getRequestCache");
+var requestCache = /* @__PURE__ */ Symbol("requestCache");
+var incomingKey = /* @__PURE__ */ Symbol("incomingKey");
+var urlKey = /* @__PURE__ */ Symbol("urlKey");
+var headersKey = /* @__PURE__ */ Symbol("headersKey");
+var abortControllerKey = /* @__PURE__ */ Symbol("abortControllerKey");
+var getAbortController = /* @__PURE__ */ Symbol("getAbortController");
 var requestPrototype = {
   get method() {
     return this[incomingKey].method || "GET";
@@ -446,7 +446,7 @@ var requestPrototype = {
     }
   });
 });
-Object.defineProperty(requestPrototype, Symbol.for("nodejs.util.inspect.custom"), {
+Object.defineProperty(requestPrototype, /* @__PURE__ */ Symbol.for("nodejs.util.inspect.custom"), {
   value: function(depth, options, inspectFn) {
     const props = {
       method: this.method,
@@ -495,9 +495,9 @@ var newRequest = (incoming, defaultHostname) => {
   req[urlKey] = url2.href;
   return req;
 };
-var responseCache = Symbol("responseCache");
-var getResponseCache = Symbol("getResponseCache");
-var cacheKey = Symbol("cache");
+var responseCache = /* @__PURE__ */ Symbol("responseCache");
+var getResponseCache = /* @__PURE__ */ Symbol("getResponseCache");
+var cacheKey = /* @__PURE__ */ Symbol("cache");
 var GlobalResponse = global.Response;
 var Response2 = class _Response {
   #body;
@@ -558,7 +558,7 @@ var Response2 = class _Response {
     }
   });
 });
-Object.defineProperty(Response2.prototype, Symbol.for("nodejs.util.inspect.custom"), {
+Object.defineProperty(Response2.prototype, /* @__PURE__ */ Symbol.for("nodejs.util.inspect.custom"), {
   value: function(depth, options, inspectFn) {
     const props = {
       status: this.status,
@@ -639,8 +639,8 @@ var X_ALREADY_SENT = "x-hono-already-sent";
 if (typeof global.crypto === "undefined") {
   global.crypto = crypto;
 }
-var outgoingEnded = Symbol("outgoingEnded");
-var incomingDraining = Symbol("incomingDraining");
+var outgoingEnded = /* @__PURE__ */ Symbol("outgoingEnded");
+var incomingDraining = /* @__PURE__ */ Symbol("incomingDraining");
 var DRAIN_TIMEOUT_MS = 500;
 var MAX_DRAIN_BYTES = 64 * 1024 * 1024;
 var drainIncoming = (incoming) => {
@@ -2206,7 +2206,7 @@ var BROKER_METHODS = [
   "pip_live_probe_initial_hit_surface"
 ];
 var BROKER_METHOD_SET = new Set(BROKER_METHODS);
-var BROKER_PRESENTED_RESULT = Symbol("zcode.cua.broker-presented-result");
+var BROKER_PRESENTED_RESULT = /* @__PURE__ */ Symbol("zcode.cua.broker-presented-result");
 var BROKER_TOKEN_ENV = "DRORA_CUA_PERMISSION_BROKER_TOKEN";
 var BROKER_SOCKET_ENV = "DRORA_CUA_PERMISSION_BROKER_SOCKET";
 function isWindowsNamedPipePath(path) {

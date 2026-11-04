@@ -1406,6 +1406,7 @@ modules:
     publicEntrypoints:
       - packages/services/src/model-capabilities/index.ts
       - packages/services/src/model-capabilities/contract.ts
+      - packages/services/src/model-capabilities/node.ts
     layers:
       app: .
     owner: drora
@@ -1454,6 +1455,10 @@ global:
   acceptedUpstreamSnapshot: scripts/architecture/upstream-snapshot.json
 
 exceptions:
+  - id: voice-wiring-test-file-lines
+    rule: max-file-lines
+    paths: [packages/ui/src/voice/useVoiceAnnouncement.wiring.test.ts]
+    reason: §13 供应商引用式改造（specs/model-capabilities.md §13.6）新增连接解析 mock 控制柄与门闩用例，测试文件自然越限；语音 wiring 用例拆分另立工单。
   - id: window-host-attachment-rpc-policy-existing-edit
     rule: unmanaged-new-file
     paths: [packages/desktop/src/host/windowHostAttachmentRpcPolicy.ts]

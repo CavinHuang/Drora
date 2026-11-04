@@ -11,7 +11,8 @@
     "./cua-permission-broker": "./src/cua-permission-broker/index.ts",
     "./process/processTreeTerminator": "./src/process/processTreeTerminator.ts",
     "./server-remote": "./src/server-remote/index.ts",
-    "./node": "./src/node.ts"
+    "./node": "./src/node.ts",
+    "./model-capabilities-node": "./src/model-capabilities/node.ts"
   },
   "scripts": {
     "lint": "oxlint",

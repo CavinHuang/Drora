@@ -1,4 +1,4 @@
-import { assembleDroraKnowledgeHost } from "@drora/services/node";
+import { createModelCapabilitiesService, assembleDroraKnowledgeHost } from "@drora/services/node";
 import { normalizeRemoteConnectionError, sanitizeRemoteConnectionLog } from "@drora/shared";
 import { join } from "node:path";
 /* eslint-disable max-lines -- Host 入口集中编排 local/remote service wiring，本次退出保护需要在同一处桥接 host 上报。 */
@@ -87,7 +87,6 @@ import {
   createHostApiNetworkTransport,
   createSettingServiceWithMigrations,
   createDeviceSyncStateService,
-  createModelCapabilitiesService,
   createHostProviderProvisioningStatus,
   getAppConfigDir,
   OffPeakModelUnavailableError,

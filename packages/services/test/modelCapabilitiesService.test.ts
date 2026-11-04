@@ -20,7 +20,7 @@ import { setDataBaseDir } from "../src/paths.js";
 import {
   createModelCapabilitiesService,
   type ModelCapabilitiesServiceDependencies,
-} from "../src/model-capabilities/index.js";
+} from "../src/model-capabilities/node.js";
 
 const tempRoots: string[] = [];
 

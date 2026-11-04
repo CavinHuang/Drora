@@ -23,7 +23,7 @@ import {
 } from "@drora/shared";
 import { setDataBaseDir } from "../src/paths.js";
 import { createSettingService } from "../src/setting/settingService.js";
-import { createModelCapabilitiesService } from "../src/model-capabilities/index.js";
+import { createModelCapabilitiesService } from "../src/model-capabilities/node.js";
 
 const originalHome = process.env.HOME;
 const tempRoots: string[] = [];

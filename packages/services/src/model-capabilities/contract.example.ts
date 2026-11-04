@@ -2,7 +2,8 @@
  * services-model-capabilities 标准调用示例：agent 靠模仿写代码，这里放的就是该模仿的那份。
  */
 import { modelCapabilityCredentialKey } from "@drora/shared";
-import { IModelCapabilitiesService, createModelCapabilitiesService } from "./index.js";
+import { createModelCapabilitiesService } from "./node.js";
+import type { IModelCapabilitiesService } from "./contract.js";
 
 /** Host 装配（desktop host 唯一构造点）：迁移在首次 get 时执行一次。 */
 export function exampleConstruct(

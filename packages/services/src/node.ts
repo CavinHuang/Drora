@@ -235,15 +235,15 @@ export type { KnowledgeJevAssembly } from "./knowledge/decision/jevAssembly.js";
 import type { KnowledgeEmbeddingPort } from "./knowledge/search/embeddingPort.js";
 // 模型能力档案（specs/model-capabilities.md §4 唯一所有者；desktop 本地 Host 注入）。
 import { IModelCapabilitiesService } from "./model-capabilities/index.js";
-import { createImageGenerationService } from "./model-capabilities/index.js";
+import { createImageGenerationService } from "./model-capabilities/node.js";
 export { IModelCapabilitiesService } from "./model-capabilities/index.js";
-export { createModelCapabilitiesService } from "./model-capabilities/index.js";
-export type { ModelCapabilitiesServiceDependencies } from "./model-capabilities/index.js";
-export { createImageGenerationService } from "./model-capabilities/index.js";
+export { createModelCapabilitiesService } from "./model-capabilities/node.js";
+export type { ModelCapabilitiesServiceDependencies } from "./model-capabilities/node.js";
+export { createImageGenerationService } from "./model-capabilities/node.js";
 export type {
   ImageGenerationResult,
   ImageGenerationServiceDependencies,
-} from "./model-capabilities/index.js";
+} from "./model-capabilities/node.js";
 export {
   TYPESAFE_OFFICIAL_BASE_URL,
   createSystemOneHttpTransport,
@@ -2510,19 +2510,22 @@ export function createLocalServices(options: {
     if (!baseUrl || !apiKey) return null;
     return { baseUrl, apiKey };
   };
-  const createCapabilityProviderCard = async (input: { name: string; baseUrl: string; apiKey: string }) => {
+  const createCapabilityProviderCard = async (input: {
+    name: string;
+    baseUrl: string;
+    apiKey: string;
+  }) => {
     // §13 迁移建卡：官方 createPersonalProvider（custom 形态）+ overlay 写连接信息。
     const created = await providerRuntime.providerSettings.createPersonalProvider({
       providerName: input.name,
     });
-    await providerRuntime.providerSettings.savePersonalProviderOverlay(
-      created.providerId,
-      {
-        group: "custom",
-        access: { type: "api-key", apiKey: input.apiKey },
-        api: { type: "openai-chat-completions", baseUrl: input.baseUrl },
-      } as unknown as Parameters<typeof providerRuntime.providerSettings.savePersonalProviderOverlay>[1],
-    );
+    await providerRuntime.providerSettings.savePersonalProviderOverlay(created.providerId, {
+      group: "custom",
+      access: { type: "api-key", apiKey: input.apiKey },
+      api: { type: "openai-chat-completions", baseUrl: input.baseUrl },
+    } as unknown as Parameters<
+      typeof providerRuntime.providerSettings.savePersonalProviderOverlay
+    >[1]);
     return created.providerId;
   };
   const agentImageGenerationSource = modelCapabilitiesServiceOption

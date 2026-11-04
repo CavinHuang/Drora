@@ -12,7 +12,7 @@ import { it } from "vitest";
 import {
   createImageGenerationService,
   type ImageGenerationResult,
-} from "../src/model-capabilities/index.js";
+} from "../src/model-capabilities/node.js";
 
 const API_KEY = "sk-test-key-do-not-leak";
 

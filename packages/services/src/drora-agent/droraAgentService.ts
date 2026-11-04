@@ -213,7 +213,7 @@ import {
   type DroraTaskMode,
 } from "@drora/shared";
 import type { IKnowledgeQueryService } from "#src/knowledge/knowledgeQuery.js";
-import type { ImageGenerationResult } from "#src/model-capabilities/index.js";
+import type { ImageGenerationResult } from "#src/model-capabilities/node.js";
 import { toVaultSearchProtocolResult } from "#src/knowledge/vaultSearchProtocol.js";
 import { createServiceLogger } from "#src/logger/serviceLogger.js";
 import { createOfficialMcpIssuanceAudit } from "#src/official-mcp/officialMcpIssuanceAudit.js";

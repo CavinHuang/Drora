@@ -399,3 +399,31 @@ agent 会话
 - UI：CapabilityProviderRefRow（下拉）+ useCapabilityProviderOptions（enabled 且 baseUrl+api-key 完整的卡）；三表单改「供应商+模型（+音色/覆盖）」，ApiKey 行删除；图像配置行不门控开关（v1 行为一致）；TID_MODEL_CAPABILITY_PROVIDER_SELECT 新增；i18n 双语 +10 键。
 - 测试：services 三文件 §13 化（凭据断言→decision-jev 分键/自含冻结键；画图 mock credentialService→resolveProviderConnection）；wiring 18/18（providerConnectionControls 控制柄 get/set/hold/reset，门闩 connectionGate 承载 pending 三态）；表单 20/20（供应商 mock providers:[]）；override 行 testid 沿用原 base-url-input id（E2E 兼容）。
 - 门禁终态：typecheck=0 / architecture=0 violations / lint=0 / test:drora 1874 过 7 跳 / 表单+catalog+i18n 34 绿。
+
+## 14. 火山引擎 TTS 协议适配（2026-11-05 立项，用户选路线 A）
+
+### 14.1 背景
+
+用户要台腔妹子播报音色：火山引擎 bigtts 系列有「湾湾小何」(`zh_female_wanwanxiaohe_moon_bigtts`，台湾腔普通话女声；命名规范与官方 2.0 音色同族——对照 TVB 女声 2.0 `zh_female_tvbnv_uranus_bigtts`；ListenHub 台腔「灵依」音色 id 即同款)。但火山走自有 v3 协议（豆包语音 API），非 OpenAI 兼容 `/audio/speech`，供应商卡不能填卡即用。用户裁定路线 A：适配分支。
+
+### 14.2 协议形状（社区已验证实现 + 火山文档）
+
+- `POST {baseUrl}/api/v3/tts/unidirectional`（NDJSON 流式）
+- Headers：`X-Api-App-Id`、`X-Api-Access-Key`、`X-Api-Resource-Id`、`X-Api-Request-Id`（uuid）
+- Body：`{user: {uid}, req_params: {text, speaker, audio_params: {format: "mp3", sample_rate: 24000, speech_rate, loudness_rate}}}`
+- 响应逐行 JSON：`{code, message, data?}`——code 0 且 data = base64 音频分片；code 20000000 = 合成结束；其他非零 = 错误
+- 资源 ID 推断：speaker 含 `uranus` → `seed-tts-2.0`；`S_` 前缀 → `seed-icl-1.0`；其余（含 `moon_bigtts`）→ `seed-tts-1.0`
+- 凭据复合形态：供应商卡 API Key = `AppID:Access Token`（冒号分隔；火山需要双值，单一 key 字段承载）
+
+### 14.3 适配实现（renderer cloudTtsAdapter）
+
+- 识别：baseUrl host = `openspeech.bytedance.com` → 火山分支（其余走既有 OpenAI 形状，零变化）
+- 请求：`{model}` 字段（能力条目「播报模型」）映射 speaker；`speed` 乘数 0.25–4 → 火山 `speech_rate` [-50,100]（`(rate-1)*100` 取整钳制）；`voice`（厂商音色）火山侧不用（音色即 speaker）
+- 响应：逐行 JSON 解析 → base64 分片拼接 → Blob(mp3) → playBlob（打断/连败回落语义零变化）
+- 错误：非 2xx HTTP / 链接期 code 非零 / 无音频分片 → 单句 error（回落计数照旧）；apiKey 缺冒号分隔 → 结构化报错「火山引擎卡 API Key 需为 AppID:Access Token 形态」
+- 隐私边界不变：日志零 apiKey/零合成文本
+
+### 14.4 验收
+
+- 单测：请求形状（headers/body 断言）、NDJSON 解析（分片拼接/结束标记/错误码）、复合凭据解析、资源 ID 推断、既有 OpenAI 路径回归
+- 实机：火山引擎开通豆包语音合成大模型 → 供应商卡（baseUrl=openspeech.bytedance.com、API Key=AppID:Access Token）→ 语音合成选卡 + 播报模型 `zh_female_wanwanxiaohe_moon_bigtts` → 播报出声

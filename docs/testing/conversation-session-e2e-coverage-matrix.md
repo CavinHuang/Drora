@@ -494,7 +494,7 @@ ATUI01–03：`packages/desktop/test/e2e/conversation-session/manual-review/pend
 2026-10-19 实际运行通过：真实组件与仓库 CSS 的桌面/窄屏、两主题、导航 scope、关系来源、
 失败依赖、下钻返回、staged/idle 与双语切换。仍是 renderer-only 候选，未覆盖 Host 命令或手机重连。
 同轮补充通过：手机无导航端口的只读详情展开、coarse-pointer 44px 图层按钮，以及
-`packages/mobile-web/test/remoteFrame.test.ts` 的独立远控时间线团队摘要 SSR 回归。
+`retired:packages/mobile-web/test/remoteFrame.test.ts` 的独立远控时间线团队摘要 SSR 回归（retired: 为退役历史证据，不计现行覆盖。）。
 
 AT-01（2026-10-21，spec §14 缺口11）：`conversation-session-agents-team-staged-approval`。
 首个覆盖真实 Host 链路的 team 桌面用例（replay provider 夹具全 synthetic）：

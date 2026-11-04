@@ -373,13 +373,16 @@ export function CapabilityProviderRefRow({
   // + 跳转按钮（打开模型设置供应商分区新建卡，照 jevOff 横幅同机制）。
   if (options.length === 0) {
     return (
+      // wide 布局 + 自适应宽：照 CapabilityApiKeyRow 同款（default 192px 列装不下，
+      // 溢出盖住描述文字——同款实机截图 bug）。
       <SettingsRow
+        controlLayout="wide"
         label={intl.formatMessage({ id: labelId })}
         description={intl.formatMessage({ id: descriptionId })}
         control={
           <Button
             variant="outline"
-            className="w-72"
+            className="w-full"
             data-testid={testId(TID_MODEL_CAPABILITY_PROVIDER_SELECT, testIdValue)}
             onClick={() => {
               setPendingSettingsSectionIntent("modelProvider");

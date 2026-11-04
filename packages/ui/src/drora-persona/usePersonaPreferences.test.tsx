@@ -2,23 +2,23 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { IPlatformService } from "@drora/shared";
-import enUSMessages from "@/i18n/locales/en-US.js";
 import zhCNMessages from "@/i18n/locales/zh-CN.js";
 import { PlatformProvider } from "@/hooks/usePlatform.js";
 
 /**
- * Persona P1a「交流默认与导出」交互守护（specs/drora-persona-system.md §9/§10、
+ * Persona P1a「交流默认与导出」交互守护（specs/drora-persona-system.md §9/§10 第十六批、
  * docs/design/drora-persona-data-contracts-2026-10-29.md §1.2/§2/§4.2/§7；
- * PersonaPreferencesSection + usePersonaPreferences）：
+ * PersonaSettingsSection 内挂表达区 + usePersonaPreferences）：
  * - 进区只读：listPreferences + getPersonaOverview，不写任何键、不为导出初始化；
- * - 单键保存：CAS 携带 expectedRevision（槽缺席=0）+ mutationId，成功后重读；
- * - CAS 冲突：保留草稿并给出「已保存 vs 草稿」比较，不静默 last-write-wins；
+ * - 即时保存：下拉键变更即提交、称呼失焦提交；CAS 携带 expectedRevision（槽缺席=0）+
+ *   mutationId，成功后重读；分歧未解决时自动提交暂停；
+ * - CAS 冲突：保留草稿并给出「已保存 vs 草稿」比较；分歧中的后续编辑保持面板可见；
  * - 忘记：确认文案必须写明「逻辑撤销」范围（清除应用内该键的值与候选，不删除聊天记录、
  *   项目记忆或诊断），禁止「彻底忘记/所有地方删除」类表述；
  * - outcome_unknown：结果未知文案 + 重试复用同一 mutationId（PM53），成功后换新 ID；
  * - U/L 使用策略：当前值经 getPersonaLearningOverview 读侧展示（读取失败按「未知」降级）；
- *   两态按钮各自显式提交；关闭 U 走级联确认（同事务关 L——合同 §4.2）；冲突后重新预读
- *   policyRevision（概览读路径）并由用户显式重试；P1b L 开关/解除抑制/来源状态守护见
+ *   U/L 以开关呈现并各自显式提交；关闭 U 走级联确认（同事务关 L——合同 §4.2）；冲突后
+ *   重新预读 policyRevision（概览读路径）并由用户显式重试；P1b L 开关/解除抑制/来源状态守护见
  *   usePersonaLearning.test.tsx；
  * - 导出：成功经 IPlatformService.saveFile 保存 2 空格缩进 JSON；取消不显示已保存；
  * - i18n：zh-CN 与 en-US 的 settings.drora.* 键集一致且关键文案符合诚实边界。
@@ -56,6 +56,14 @@ const mocks = vi.hoisted(() => {
     >,
   };
   const personaService = {
+    // core 编辑器方法：PersonaSettingsSection 编排身份区（本文件守护 P1a 面，
+    // core 走最小只读桩，保证分区可渲染）。
+    getPersonaCore: vi.fn(),
+    initializePersona: vi.fn(),
+    updatePersonaCore: vi.fn(),
+    resetPersonaCore: vi.fn(),
+    previewPersona: vi.fn(),
+    getPersonaApplication: vi.fn(),
     getPersonaOverview: vi.fn(),
     listPreferences: vi.fn(),
     setPersonalPolicy: vi.fn(),
@@ -71,29 +79,6 @@ const mocks = vi.hoisted(() => {
   return { state, personaService, saveFile };
 });
 
-/** P1a 只读导出的冻结快照样例（合同 §7 最小形状）。 */
-function personaExportPayload(): Record<string, unknown> {
-  return {
-    format: "drora-persona-export",
-    formatVersion: 1,
-    capturedAt: "2026-10-30T00:00:00.000Z",
-    coreRevision: 1,
-    policyRevision: mocks.state.policy.policyRevision,
-    core: {
-      displayName: "Drora",
-      selfDescription: "",
-      warmth: "balanced",
-      directness: "direct",
-      humor: "light",
-    },
-    templateVersion: 1,
-    compilerVersion: 1,
-    preferences: [],
-    omittedCounts: { inferredOmittedUnverifiable: 0 },
-    limitations: ["limitation-1"],
-  };
-}
-
 function defaultResponses(): void {
   mocks.state.initialized = true;
   mocks.state.policy = {
@@ -106,6 +91,36 @@ function defaultResponses(): void {
     replyLanguage: { value: "follow_user", revision: 1, keyGeneration: 1, status: "active" },
     preferredAddress: { value: "阿明", revision: 1, keyGeneration: 1, status: "active" },
   };
+  // core 只读桩：本文件不驱动身份写入路径，只让分区完成进区读取。
+  mocks.personaService.getPersonaCore.mockResolvedValue({
+    ok: true,
+    value: {
+      state: "current",
+      coreRevision: 1,
+      core: {
+        displayName: "Drora",
+        selfDescription: "",
+        warmth: "balanced",
+        directness: "direct",
+        humor: "light",
+      },
+      template: {
+        templateVersion: 1,
+        compilerVersion: 1,
+        identityStatement: "identity-statement",
+        principles: ["principle-1"],
+        capabilityHonesty: "honesty",
+        relationshipBoundary: "boundary",
+      },
+    },
+  });
+  mocks.personaService.previewPersona.mockResolvedValue({
+    ok: true,
+    value: { text: "PREVIEW-TEXT", templateVersion: 1, compilerVersion: 1 },
+  });
+  mocks.personaService.initializePersona.mockReset();
+  mocks.personaService.updatePersonaCore.mockReset();
+  mocks.personaService.resetPersonaCore.mockReset();
   mocks.personaService.getPersonaOverview.mockImplementation(async () => ({
     ok: true,
     value: mocks.state.initialized
@@ -275,10 +290,8 @@ function defaultResponses(): void {
       };
     },
   );
-  mocks.personaService.preparePersonaExport.mockImplementation(async () => {
-    if (!mocks.state.initialized) return { ok: false, code: "uninitialized" };
-    return { ok: true, value: personaExportPayload() };
-  });
+  // 导出交互守护在 personaPreferencesExportI18n.test.tsx；这里只备一个不会被动用的桩。
+  mocks.personaService.preparePersonaExport.mockResolvedValue({ ok: false, code: "uninitialized" });
   mocks.saveFile.mockReset();
 }
 
@@ -301,14 +314,19 @@ vi.mock("@/i18n/IntlProvider.js", () => ({
   }),
 }));
 
-const { PersonaPreferencesSection } = await import("./PersonaPreferencesSection.js");
+const { PersonaSettingsSection } = await import("./PersonaSettingsSection.js");
 
 const platformMock = { saveFile: mocks.saveFile } as unknown as IPlatformService;
 
 function renderPrefsSection(): void {
   render(
     <PlatformProvider platform={platformMock}>
-      <PersonaPreferencesSection personaService={mocks.personaService} />
+      <PersonaSettingsSection
+        personaService={mocks.personaService}
+        personaEnabled={false}
+        onPersonaEnabledChange={vi.fn(async () => {})}
+        applicationWorkspace={{ workspacePath: "/repo" }}
+      />
     </PlatformProvider>,
   );
 }
@@ -330,21 +348,18 @@ function openPrefsSelect(testId: string): void {
   });
 }
 
-function decodeSaveFileData(callIndex = 0): { suggestedName: string; json: string } {
-  const payload = mocks.saveFile.mock.calls[callIndex]?.[0] as {
-    data: ArrayBuffer;
-    suggestedName: string;
-  };
-  return {
-    suggestedName: payload.suggestedName,
-    json: new TextDecoder().decode(new Uint8Array(payload.data)),
-  };
-}
-
 async function openReadyPrefsSection(): Promise<void> {
   renderPrefsSection();
   await waitFor(() => {
     expect(inputById("settings-persona-pref-preferredAddress").value).toBe("阿明");
+  });
+}
+
+/** 展开「高级」折叠区（导出默认收起，spec §10 第十六批）。 */
+async function openAdvancedArea(): Promise<void> {
+  fireEvent.click(screen.getByTestId("settings-persona-advanced-trigger"));
+  await waitFor(() => {
+    expect(buttonById("settings-persona-export")).toBeTruthy();
   });
 }
 
@@ -381,9 +396,14 @@ describe("PersonaPreferencesSection（P1a 交流默认与导出）", () => {
     expect(mocks.personaService.savePreference).not.toHaveBeenCalled();
     expect(mocks.personaService.forgetPreference).not.toHaveBeenCalled();
     expect(mocks.personaService.setPersonalPolicy).not.toHaveBeenCalled();
-    // 保存/取消在无改动时禁用；L 当前值已知（关闭）时关闭按钮可点（unchanged 路径）。
-    expect(buttonById("settings-persona-pref-preferredAddress-save").disabled).toBe(true);
-    expect(buttonById("settings-persona-pref-preferredAddress-cancel").disabled).toBe(true);
+    // 即时保存（spec §10 第十六批）：无逐键保存按钮；U/L 开关如实显示概览读到的关闭值。
+    expect(screen.queryByTestId("settings-persona-pref-preferredAddress-save")).toBeNull();
+    expect(screen.getByTestId("settings-persona-policy-switch").getAttribute("data-state")).toBe(
+      "unchecked",
+    );
+    expect(screen.getByTestId("settings-persona-learning-switch").getAttribute("data-state")).toBe(
+      "unchecked",
+    );
   });
 
   it("preferredAddress 保存：CAS 携带 expectedRevision+mutationId，成功后重读且保存回到禁用", async () => {
@@ -392,8 +412,9 @@ describe("PersonaPreferencesSection（P1a 交流默认与导出）", () => {
     fireEvent.change(inputById("settings-persona-pref-preferredAddress"), {
       target: { value: "阿明二" },
     });
-    expect(buttonById("settings-persona-pref-preferredAddress-save").disabled).toBe(false);
-    fireEvent.click(buttonById("settings-persona-pref-preferredAddress-save"));
+    // 停顿未到去抖阈值时不写（提交时机由失焦驱动）。
+    expect(mocks.personaService.savePreference).not.toHaveBeenCalled();
+    fireEvent.blur(inputById("settings-persona-pref-preferredAddress"));
     await waitFor(() => {
       expect(mocks.personaService.savePreference).toHaveBeenCalledTimes(1);
     });
@@ -408,7 +429,7 @@ describe("PersonaPreferencesSection（P1a 交流默认与导出）", () => {
     expect(saveInput.expectedRevision).toBe(1);
     expect(typeof saveInput.mutationId).toBe("string");
     expect(saveInput.mutationId.length).toBeGreaterThan(0);
-    // 保存成功后重读（spec §10）：当前值徽章与控件回到服务值，保存/取消回到禁用。
+    // 保存成功后重读（spec §10）：当前值徽章与控件回到服务值。
     await waitFor(() => {
       expect(mocks.personaService.listPreferences.mock.calls.length).toBeGreaterThan(
         listCallsBefore,
@@ -419,7 +440,6 @@ describe("PersonaPreferencesSection（P1a 交流默认与导出）", () => {
         "当前值：阿明二",
       );
     });
-    expect(buttonById("settings-persona-pref-preferredAddress-save").disabled).toBe(true);
     expect(
       screen.getByTestId("settings-persona-pref-preferredAddress-notice").textContent,
     ).toContain("已保存");
@@ -429,8 +449,7 @@ describe("PersonaPreferencesSection（P1a 交流默认与导出）", () => {
     await openReadyPrefsSection();
     openPrefsSelect("settings-persona-pref-replyLanguage");
     fireEvent.click(screen.getByText("中文"));
-    expect(buttonById("settings-persona-pref-replyLanguage-save").disabled).toBe(false);
-    fireEvent.click(buttonById("settings-persona-pref-replyLanguage-save"));
+    // 离散选择即存（spec §10 第十六批）：选项变更立即提交，无保存按钮。
     await waitFor(() => {
       expect(mocks.personaService.savePreference).toHaveBeenCalledTimes(1);
     });
@@ -461,7 +480,7 @@ describe("PersonaPreferencesSection（P1a 交流默认与导出）", () => {
       keyGeneration: 4,
       status: "active",
     };
-    fireEvent.click(buttonById("settings-persona-pref-preferredAddress-save"));
+    fireEvent.blur(inputById("settings-persona-pref-preferredAddress"));
     await waitFor(() => {
       expect(screen.getByTestId("settings-persona-pref-preferredAddress-divergence")).toBeTruthy();
     });
@@ -479,22 +498,31 @@ describe("PersonaPreferencesSection（P1a 交流默认与导出）", () => {
     expect(screen.queryByTestId("settings-persona-pref-preferredAddress-divergence")).toBeNull();
     expect(inputById("settings-persona-pref-preferredAddress").value).toBe("大王");
 
-    // 服务再前进（revision 6）后再次保存冲突：面板重现；这次放弃草稿并加载最新。
+    // 分歧未解决：再次失焦不产生第二次 CAS 写（自动提交暂停，面板是唯一解决面）。
+    fireEvent.blur(inputById("settings-persona-pref-preferredAddress"));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(mocks.personaService.savePreference).toHaveBeenCalledTimes(1);
+
+    // 分歧中的后续编辑：面板重现（spec §10 第十六批），解决面保持可见。
+    fireEvent.change(inputById("settings-persona-pref-preferredAddress"), {
+      target: { value: "大王二" },
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId("settings-persona-pref-preferredAddress-divergence")).toBeTruthy();
+    });
+
+    // 服务再前进（revision 6）后放弃草稿并加载最新。
     mocks.state.rows.preferredAddress = {
       value: "老王",
       revision: 6,
       keyGeneration: 5,
       status: "active",
     };
-    fireEvent.click(buttonById("settings-persona-pref-preferredAddress-save"));
-    await waitFor(() => {
-      expect(screen.getByTestId("settings-persona-pref-preferredAddress-divergence")).toBeTruthy();
-    });
     fireEvent.click(screen.getByTestId("settings-persona-pref-preferredAddress-discard-draft"));
     await waitFor(() => {
       expect(inputById("settings-persona-pref-preferredAddress").value).toBe("老王");
     });
-    expect(buttonById("settings-persona-pref-preferredAddress-save").disabled).toBe(true);
+    expect(screen.queryByTestId("settings-persona-pref-preferredAddress-divergence")).toBeNull();
   });
 
   it("忘记：确认文案写明逻辑撤销范围；确认后携带 expectedRevision+mutationId 并重读", async () => {
@@ -570,7 +598,7 @@ describe("PersonaPreferencesSection（P1a 交流默认与导出）", () => {
         };
       },
     );
-    fireEvent.click(buttonById("settings-persona-pref-preferredAddress-save"));
+    fireEvent.blur(inputById("settings-persona-pref-preferredAddress"));
     await waitFor(() => {
       expect(
         screen.getByTestId("settings-persona-pref-preferredAddress-notice").textContent ?? "",
@@ -580,8 +608,8 @@ describe("PersonaPreferencesSection（P1a 交流默认与导出）", () => {
       screen.getByTestId("settings-persona-pref-preferredAddress-notice").textContent ?? "",
     ).toContain("幂等回放");
 
-    // 重试：必须复用同一 mutationId（合同 §2/PM53）。
-    fireEvent.click(buttonById("settings-persona-pref-preferredAddress-save"));
+    // 重试（再次失焦结算）：必须复用同一 mutationId（合同 §2/PM53）。
+    fireEvent.blur(inputById("settings-persona-pref-preferredAddress"));
     await waitFor(() => {
       expect(mutationIds).toHaveLength(2);
     });
@@ -596,17 +624,20 @@ describe("PersonaPreferencesSection（P1a 交流默认与导出）", () => {
     fireEvent.change(inputById("settings-persona-pref-preferredAddress"), {
       target: { value: "阿明三" },
     });
-    fireEvent.click(buttonById("settings-persona-pref-preferredAddress-save"));
+    fireEvent.blur(inputById("settings-persona-pref-preferredAddress"));
     await waitFor(() => {
       expect(mutationIds).toHaveLength(3);
     });
     expect(mutationIds[2]).not.toBe(mutationIds[0]);
   });
 
-  it("U 使用许可：当前值来自读侧概览；开启/关闭显式提交；关闭走级联确认；冲突后重新预读并重试", async () => {
+  it("U 偏好注入开关：当前值来自读侧概览；开启显式提交；关闭走级联确认；冲突后重新预读并重试", async () => {
     await openReadyPrefsSection();
+    expect(screen.getByTestId("settings-persona-policy-switch").getAttribute("data-state")).toBe(
+      "unchecked",
+    );
     // 开启：以概览读取的 policyRevision（0）做 CAS（calls[0]）；不发明 autoLearn 键。
-    fireEvent.click(buttonById("settings-persona-policy-enable"));
+    fireEvent.click(screen.getByTestId("settings-persona-policy-switch"));
     await waitFor(() => {
       expect(mocks.personaService.setPersonalPolicy).toHaveBeenCalledTimes(1);
     });
@@ -620,18 +651,13 @@ describe("PersonaPreferencesSection（P1a 交流默认与导出）", () => {
         "当前：开启",
       );
     });
-
-    fireEvent.click(buttonById("settings-persona-policy-enable"));
     await waitFor(() => {
-      expect(mocks.personaService.setPersonalPolicy).toHaveBeenCalledTimes(2);
-    });
-    await waitFor(() => {
-      expect(screen.getByTestId("settings-persona-policy-notice").textContent ?? "").toContain(
-        "未生成新版本",
+      expect(screen.getByTestId("settings-persona-policy-switch").getAttribute("data-state")).toBe(
+        "checked",
       );
     });
 
-    // 关闭（calls[2]）：另一窗口已把策略推进到 revision 2 → 冲突；重新预读后请用户显式重试。
+    // 关闭（calls[1]）：另一窗口已把策略推进到 revision 2 → 冲突；重新预读后请用户显式重试。
     mocks.state.policy = {
       usePreferences: true,
       autoLearn: true,
@@ -643,7 +669,7 @@ describe("PersonaPreferencesSection（P1a 交流默认与导出）", () => {
       code: "revision_conflict",
     }));
     const overviewCallsBefore = mocks.personaService.getPersonaLearningOverview.mock.calls.length;
-    fireEvent.click(buttonById("settings-persona-policy-disable"));
+    fireEvent.click(screen.getByTestId("settings-persona-policy-switch"));
     // 关闭 U 需经级联确认对话框（同事务关 L 的提示）。
     await waitFor(() => {
       expect(screen.getByTestId("settings-persona-cascade-confirm")).toBeTruthy();
@@ -659,21 +685,27 @@ describe("PersonaPreferencesSection（P1a 交流默认与导出）", () => {
         overviewCallsBefore,
       );
     });
-    expect(mocks.personaService.setPersonalPolicy.mock.calls[2]?.[0]).toMatchObject({
+    expect(mocks.personaService.setPersonalPolicy.mock.calls[1]?.[0]).toMatchObject({
       expectedPolicyRevision: 1,
       usePreferences: false,
     });
+    // 冲突后开关回到概览权威值（仍开启）。
+    await waitFor(() => {
+      expect(screen.getByTestId("settings-persona-policy-switch").getAttribute("data-state")).toBe(
+        "checked",
+      );
+    });
 
-    // 用户显式重试（calls[3]）：以重新预读的 revision 2 提交关闭（级联确认再次出现）。
-    fireEvent.click(buttonById("settings-persona-policy-disable"));
+    // 用户显式重试（calls[2]）：以重新预读的 revision 2 提交关闭（级联确认再次出现）。
+    fireEvent.click(screen.getByTestId("settings-persona-policy-switch"));
     await waitFor(() => {
       expect(screen.getByTestId("settings-persona-cascade-confirm")).toBeTruthy();
     });
     fireEvent.click(screen.getByTestId("settings-persona-cascade-confirm-action"));
     await waitFor(() => {
-      expect(mocks.personaService.setPersonalPolicy).toHaveBeenCalledTimes(4);
+      expect(mocks.personaService.setPersonalPolicy).toHaveBeenCalledTimes(3);
     });
-    expect(mocks.personaService.setPersonalPolicy.mock.calls[3]?.[0]).toMatchObject({
+    expect(mocks.personaService.setPersonalPolicy.mock.calls[2]?.[0]).toMatchObject({
       expectedPolicyRevision: 2,
       usePreferences: false,
     });
@@ -684,48 +716,23 @@ describe("PersonaPreferencesSection（P1a 交流默认与导出）", () => {
     });
   });
 
-  it("导出成功：2 空格缩进 JSON 经 saveFile 保存，文件名 drora-persona-export.json，显示已保存", async () => {
-    await openReadyPrefsSection();
-    mocks.saveFile.mockResolvedValue({ success: true, path: "/tmp/drora-persona-export.json" });
-    fireEvent.click(buttonById("settings-persona-export"));
-    await waitFor(() => {
-      expect(mocks.saveFile).toHaveBeenCalledTimes(1);
-    });
-    const saved = decodeSaveFileData();
-    expect(saved.suggestedName).toBe("drora-persona-export.json");
-    // 2 空格缩进 + 可回读为同一 payload。
-    expect(saved.json.startsWith('{\n  "format":')).toBe(true);
-    expect(JSON.parse(saved.json)).toMatchObject(personaExportPayload());
-    const notice = screen.getByTestId("settings-persona-export-notice").textContent ?? "";
-    expect(notice).toContain("已保存");
-  });
-
-  it("导出取消：如实显示未保存，不显示已保存，不自动重试", async () => {
-    await openReadyPrefsSection();
-    mocks.saveFile.mockResolvedValue({ success: false, canceled: true });
-    fireEvent.click(buttonById("settings-persona-export"));
-    await waitFor(() => {
-      expect(mocks.saveFile).toHaveBeenCalledTimes(1);
-    });
-    const notice = screen.getByTestId("settings-persona-export-notice").textContent ?? "";
-    expect(notice).toContain("已取消");
-    expect(notice).not.toContain("已保存");
-    // 不自动重试：取消后不再发起第二次保存。
-    expect(mocks.saveFile).toHaveBeenCalledTimes(1);
-  });
-
-  it("未初始化：导出显示尚无资料且不调 saveFile；保存/U 按钮禁用、忘记无入口", async () => {
+  it("未初始化：导出显示尚无资料且不调 saveFile；U/L 开关禁用、忘记无入口、失焦不提交", async () => {
     mocks.state.initialized = false;
     renderPrefsSection();
     await waitFor(() => {
-      expect(buttonById("settings-persona-export")).toBeTruthy();
+      expect(screen.getByTestId("settings-persona-section")).toBeTruthy();
     });
-    expect(buttonById("settings-persona-policy-enable").disabled).toBe(true);
-    expect(buttonById("settings-persona-policy-disable").disabled).toBe(true);
-    expect(buttonById("settings-persona-pref-preferredAddress-save").disabled).toBe(true);
-    // 未初始化时 listPreferences 返回空答案：槽缺席 → 无忘记入口；L 开关同样禁用。
+    await openAdvancedArea();
+    expect(buttonById("settings-persona-policy-switch").disabled).toBe(true);
+    expect(buttonById("settings-persona-learning-switch").disabled).toBe(true);
+    // 未初始化时 listPreferences 返回空答案：槽缺席 → 无忘记入口。
     expect(screen.queryByTestId("settings-persona-pref-preferredAddress-forget")).toBeNull();
-    expect(buttonById("settings-persona-learning-enable").disabled).toBe(true);
+    // 未初始化不自动提交（spec §10 第十六批）：编辑＋失焦也不产生写调用。
+    fireEvent.change(inputById("settings-persona-pref-preferredAddress"), {
+      target: { value: "临时" },
+    });
+    fireEvent.blur(inputById("settings-persona-pref-preferredAddress"));
+    expect(mocks.personaService.savePreference).not.toHaveBeenCalled();
 
     fireEvent.click(buttonById("settings-persona-export"));
     await waitFor(() => {
@@ -749,50 +756,5 @@ describe("PersonaPreferencesSection（P1a 交流默认与导出）", () => {
     await waitFor(() => {
       expect(inputById("settings-persona-pref-preferredAddress").value).toBe("阿明");
     });
-  });
-});
-
-describe("P1a i18n 完整性与诚实边界（zh-CN / en-US）", () => {
-  const zh = zhCNMessages as Record<string, string>;
-  const en = enUSMessages as Record<string, string>;
-  const zhDroraKeys = Object.keys(zh)
-    .filter((key) => key.startsWith("settings.drora."))
-    .sort();
-  const enDroraKeys = Object.keys(en)
-    .filter((key) => key.startsWith("settings.drora."))
-    .sort();
-
-  it("settings.drora.* 键集中英一致且非空", () => {
-    expect(zhDroraKeys.length).toBeGreaterThan(60);
-    expect(enDroraKeys).toEqual(zhDroraKeys);
-    for (const key of zhDroraKeys) {
-      expect(zh[key]?.length ?? 0).toBeGreaterThan(0);
-      expect(en[key]?.length ?? 0).toBeGreaterThan(0);
-    }
-  });
-
-  it("忘记确认与 U/导出文案满足诚实边界（两种语言）", () => {
-    expect(zh["settings.drora.forget.confirmDescription"]).toContain("逻辑撤销");
-    expect(zh["settings.drora.forget.confirmDescription"]).toContain(
-      "不会删除聊天记录、项目记忆或诊断",
-    );
-    expect((en["settings.drora.forget.confirmDescription"] ?? "").toLowerCase()).toContain(
-      "logical undo",
-    );
-    expect((en["settings.drora.forget.confirmDescription"] ?? "").toLowerCase()).toContain(
-      "does not delete chat history",
-    );
-    expect(zh["settings.drora.export.noData"]).toContain("尚无资料");
-    expect(en["settings.drora.export.noData"]).toContain("No data yet");
-    expect(zh["settings.drora.policy.state.unknown"]).toContain("未知");
-    expect(en["settings.drora.policy.state.unknown"]).toContain("unknown");
-    for (const messages of [zh, en]) {
-      for (const key of zhDroraKeys) {
-        const value = messages[key] ?? "";
-        expect(value).not.toContain("彻底忘记");
-        expect(value).not.toContain("所有地方删除");
-        expect(value).not.toContain("当前会话已关闭");
-      }
-    }
   });
 });

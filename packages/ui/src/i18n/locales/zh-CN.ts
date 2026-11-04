@@ -1020,7 +1020,7 @@ const zhCN: Record<string, string> = {
   "quickPick.command.switchThemeToDark": "切换主题到深色",
   "quickPick.command.switchThemeToLight": "切换主题到浅色",
   "quickPick.command.mcpServers": "MCP 服务器",
-  "quickPick.command.personalization": "个性化",
+  "quickPick.command.personalization": "自定义指令",
   "quickPick.command.skills": "技能",
   "quickPick.command.toggleSidebar": "切换侧边栏",
   "quickPick.command.toggleTerminal": "切换终端",
@@ -3352,7 +3352,7 @@ const zhCN: Record<string, string> = {
   "settings.nativeSearchEnhancementsDescription":
     "在新建会话或应用重启后恢复的会话中使用增强 Find 和 Grep。当前会话保持现有设置；Windows 的 Find 保持不变。",
   "settings.memory": "记忆",
-  "settings.personalization.title": "个性化",
+  "settings.personalization.title": "自定义指令",
   "settings.personalization.description":
     "添加自定义指令来个性化 Agent 的回复，指令会应用到你本机 Agent 的后续会话；远程设备需单独配置。",
   "settings.personalization.placeholder": "添加自定义指令…",
@@ -3361,7 +3361,7 @@ const zhCN: Record<string, string> = {
   "settings.personalization.saveFailed": "保存失败，请查看日志",
   "settings.personalization.loadFailed": "读取个性化指令失败，请查看日志",
   "settings.personalization.localOnly":
-    "个性化指令仅支持在本地桌面端设置，请前往本地桌面端的“个性化”设置。",
+    "个性化指令仅支持在本地桌面端设置，请前往本地桌面端的“自定义指令”设置。",
   "settings.personalization.unsaved": "有未保存的修改",
   "settings.personalization.sizeCount": "{used} / {limit}",
   "settings.personalization.sizeOverLimit":
@@ -3370,18 +3370,41 @@ const zhCN: Record<string, string> = {
   // Drora 人格分区（specs/drora-persona-system.md §10）：已保存/已应用/不可用是三件事，
   // 文案不得互相冒充；E 开关必须写明"用于新建或真正重新加载的会话"。
   "settings.drora.title": "Drora 个性",
+  // 人设预设（spec §13 第十五批）：覆盖语义与生效时机必须如实（下一轮生效，非立即）。
+  "settings.drora.presets.title": "人设预设",
+  "settings.drora.presets.description": "六张内置人格起点，一键切换；应用后仍可在下方继续自定义",
+  "settings.drora.presets.active": "使用中",
+  "settings.drora.presets.confirmTitle": "切换人设预设",
+  "settings.drora.presets.confirmDescription":
+    "将用「{name}」替换人格核心的五个字段，并以预设值显式覆盖全部四项交流偏好（被覆盖的键将停止自动学习；之后可在下方偏好设置修改）。",
+  "settings.drora.presets.confirmAction": "切换",
+  "settings.drora.presets.overwriteHint":
+    "应用会覆盖人格核心与四项交流偏好，下一轮对话生效（无需重启）。",
+  "settings.drora.presets.result.applied": "已应用「{name}」；下一轮对话生效。",
+  "settings.drora.presets.result.partial":
+    "部分应用：人格核心已更新；以下偏好键失败：{keys}（可在下方重试修改）",
+  "settings.drora.presets.result.failed": "应用失败：请稍后重试；未完成的步骤可安全重试。",
+  "settings.drora.presets.result.failedWithCode":
+    "应用失败（{code}）：请稍后重试；未完成的步骤可安全重试。",
   "settings.drora.loading": "正在读取 Drora 资料…",
   "settings.drora.unavailable": "当前连接不支持 Drora 资料管理。",
   "settings.drora.retry": "重试",
   "settings.drora.refresh": "重新读取",
+  "settings.drora.advanced.title": "高级",
+  "settings.drora.advanced.hint": "预览 · 应用情况 · 导出 · 恢复默认",
+  "settings.drora.revert": "回退到已保存的值",
+  "settings.drora.reset.title": "恢复产品默认",
+  "settings.drora.reset.description":
+    "五个身份字段恢复为产品默认值并生成新版本；不影响执行许可、交流默认或其他设置。",
+  "settings.drora.preferences.preferredAddressInvalid": "称呼不能为空；要清除请使用「忘记」。",
   "settings.drora.execution.label": "在会话中启用 Drora 个性",
   "settings.drora.execution.description":
     "用于新建或真正重新加载的会话；已打开的会话保持其启动时的设置，不会因该开关改变。",
   "settings.drora.execution.privacy":
     "启用后，Drora 的个性化内容会发送给当前选择的模型，并可能随原诊断记录保留。",
-  "settings.drora.identity.title": "身份",
+  "settings.drora.identity.title": "它是谁",
   "settings.drora.identity.description":
-    "只能编辑以下五个受控字段；身份定位、原则与边界由产品模板提供，可在预览中查看，不提供任意提示词编辑。",
+    "名字、自我描述与三个表达选项，改动即时保存：下拉选择即存，文本失焦后提交。身份定位、原则与边界由产品模板提供，可在高级区预览，不提供任意提示词编辑。",
   "settings.drora.identity.savedRevision": "已保存版本：revision {revision}",
   "settings.drora.identity.uninitialized": "尚未初始化，当前使用产品内置资料",
   "settings.drora.identity.initialize": "初始化资料",
@@ -3463,9 +3486,9 @@ const zhCN: Record<string, string> = {
   // P1a 交流默认与导出（specs/drora-persona-system.md §9/§10）：忘记是逻辑撤销，文案必须
   // 写明清除范围，禁止「彻底忘记/所有地方删除」类表述；U 无全局查询方法，状态只陈述本会话
   // 操作结果，不得出现「当前会话已关闭」类语义；导出无资料不为导出初始化。
-  "settings.drora.preferences.title": "交流默认",
+  "settings.drora.preferences.title": "它怎么说话",
   "settings.drora.preferences.description":
-    "以下四项是显式设置的交流默认：保存与忘记在下一次新轮生效，已冻结的轮不变；当前任务的具体要求始终优先于这些默认。",
+    "四项交流默认即时保存：下拉选择即存，称呼失焦后提交；忘记是显式动作。生效在下一次新轮，已冻结的轮不变；当前任务的具体要求始终优先于这些默认。",
   "settings.drora.preferences.uninitializedHint":
     "资料尚未初始化；初始化后才能保存、忘记交流默认或修改使用许可。",
   "settings.drora.preferences.loadFailed": "交流默认读取失败（{code}）。",
@@ -3514,7 +3537,7 @@ const zhCN: Record<string, string> = {
   "settings.drora.forget.confirmTitle": "忘记「{key}」？",
   "settings.drora.forget.confirmDescription":
     "这是逻辑撤销：将清除应用内该键已保存的值与候选，不会删除聊天记录、项目记忆或诊断，也不承诺介质级擦除；已冻结的轮不受影响。",
-  "settings.drora.policy.title": "使用许可（偏好注入）",
+  "settings.drora.policy.title": "偏好注入",
   "settings.drora.policy.description":
     "开启后，交流默认才会随新轮注入会话。切换立即生效于新轮；已冻结的轮不变。「当前」是页面读取的服务事实；其他窗口的修改在重新读取后刷新。",
   "settings.drora.policy.enable": "开启",
@@ -3540,7 +3563,7 @@ const zhCN: Record<string, string> = {
   "settings.drora.policy.cascade.action": "关闭使用许可",
   // P1b 自动学习（spec §5/§8）：独立授权、默认 off；只学四类交流默认，无经历/记忆页；
   // 预算上界为服务冻结常量；计数只描述本进程，不当全局事实。
-  "settings.drora.learning.title": "自动学习（推测交流默认）",
+  "settings.drora.learning.title": "自动学习",
   "settings.drora.learning.description":
     "开启后，Drora 才会在普通成功的对话轮获得有界学习机会，只推测上面四类交流默认；不创建经历或记忆页，不改变核心身份、工具权限或执行范围。学习有每日预算上限；关闭即停止新的接收与提交，并撤回未完成的学习工作。",
   "settings.drora.learning.enable": "开启",

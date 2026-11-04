@@ -1384,6 +1384,7 @@ modules:
       - cli-persona-domain
       - cli-persona-store
       - drora-cli
+      - provider
       - shared
     publicEntrypoints:
       - apps/drora-cli/packages/bootstrap/src/app/drora-persona/index.ts
@@ -1616,6 +1617,10 @@ exceptions:
     rule: max-file-lines
     paths: [packages/ui/src/team/TeamPanel.tsx]
     reason: TeamPanel 是 team 的唯一显示面（状态头/动作区/任务板/成员卡/消息尾窗共享同一投影模型与命令上抛链）；2026-10-18 审查修复兑现设计 §3.3.2 全部承诺（attention 卡/头像点/依赖缩进/artifactRefs/尾窗）后超线，拆文件会割裂单一派生通道。
+  - id: persona-preferences-section-size
+    rule: max-file-lines
+    paths: [packages/ui/src/drora-persona/PersonaPreferencesSection.tsx]
+    reason: 偏好区是四键槽/策略/学习概览/导出的唯一显示面（spec §9/§10，797 行基线上加 15 行）；spec §13 第十五批的 refreshKey 重读是预设覆盖四键后的呈现侧最小配合，拆文件会把同一槽状态机复制两份，模块化拆分留后续批次。
   - id: turn-speech-planner-size
     rule: max-file-lines
     paths: [packages/ui/src/voice/turnSpeechPlanner.ts]

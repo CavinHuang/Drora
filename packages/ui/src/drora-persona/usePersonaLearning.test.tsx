@@ -7,15 +7,15 @@ import zhCNMessages from "@/i18n/locales/zh-CN.js";
 /**
  * Persona P1b「有限学习管理」交互守护（specs/drora-persona-system.md §5/§8/§10、
  * docs/design/drora-persona-data-contracts-2026-10-29.md §3/§4.2/§6/§8；
- * PersonaPreferencesSection + usePersonaPreferences 的学习面）：
+ * PersonaSettingsSection 内挂表达区 + usePersonaPreferences 的学习面）：
  * - L 开关：当前值来自 getPersonaLearningOverview；开启＝usePreferences:true + autoLearn:true
- *   一次提交（学习前置＝U&&L）；关闭保持当前 U 值不变；级联文案不把「关 U」说成只关 L；
+ *   一次提交（学习前置＝U&&L）；关闭保持当前 U 值不变；概览缺席时开关整体禁用（不猜测）；
  * - 关闭 U 的级联确认：文案写明同事务关 L、撤租约、清未提交候选/负载，重开 U 不恢复 L；
  * - 来源状态列表（类别/状态/争议/抑制是三件事，分行如实展示）：
  *   extraction/inferred 槽显示「自动提取/推断」，disputed 显示暂停注入徽标与保存/忘记
  *   解决提示（不提供「解除争议」按钮），autoSuppressed 显示抑制徽标与「解除抑制」入口
  *   （allowLearningForKey，CAS expectedGeneration）；pendingCandidate 显示待确认建议；
- * - 概览读取失败：U/L 当前值诚实降级为「未知」，关闭 L 按钮禁用（不猜测 U 值发请求）；
+ * - 概览读取失败：U/L 当前值诚实降级为「未知」，开关禁用（不猜测 U 值发请求）；
  * - 预算/计数行：服务冻结上界（shared 常量）如实展示。
  */
 
@@ -69,6 +69,14 @@ const mocks = vi.hoisted(() => {
     overviewOk: true,
   };
   const personaService = {
+    // core 编辑器方法：PersonaSettingsSection 编排身份区（本文件守护 P1b 学习面，
+    // core 走最小只读桩，保证分区可渲染）。
+    getPersonaCore: vi.fn(),
+    initializePersona: vi.fn(),
+    updatePersonaCore: vi.fn(),
+    resetPersonaCore: vi.fn(),
+    previewPersona: vi.fn(),
+    getPersonaApplication: vi.fn(),
     getPersonaOverview: vi.fn(),
     listPreferences: vi.fn(),
     setPersonalPolicy: vi.fn(),
@@ -99,6 +107,33 @@ function defaultResponses(): void {
       templateVersion: 1,
       compilerVersion: 1,
     },
+  });
+  // core 只读桩：本文件不驱动身份写入路径，只让分区完成进区读取。
+  mocks.personaService.getPersonaCore.mockResolvedValue({
+    ok: true,
+    value: {
+      state: "current",
+      coreRevision: 1,
+      core: {
+        displayName: "Drora",
+        selfDescription: "",
+        warmth: "balanced",
+        directness: "direct",
+        humor: "light",
+      },
+      template: {
+        templateVersion: 1,
+        compilerVersion: 1,
+        identityStatement: "identity-statement",
+        principles: ["principle-1"],
+        capabilityHonesty: "honesty",
+        relationshipBoundary: "boundary",
+      },
+    },
+  });
+  mocks.personaService.previewPersona.mockResolvedValue({
+    ok: true,
+    value: { text: "PREVIEW-TEXT", templateVersion: 1, compilerVersion: 1 },
   });
   mocks.personaService.listPreferences.mockImplementation(async () => ({
     ok: true,
@@ -222,16 +257,23 @@ vi.mock("@/i18n/IntlProvider.js", () => ({
   }),
 }));
 
-const { PersonaPreferencesSection } = await import("./PersonaPreferencesSection.js");
+const { PersonaSettingsSection } = await import("./PersonaSettingsSection.js");
 
 function buttonById(testId: string): HTMLButtonElement {
   return screen.getByTestId(testId) as HTMLButtonElement;
 }
 
 async function openReadySection(): Promise<void> {
-  render(<PersonaPreferencesSection personaService={mocks.personaService} />);
+  render(
+    <PersonaSettingsSection
+      personaService={mocks.personaService}
+      personaEnabled={false}
+      onPersonaEnabledChange={vi.fn(async () => {})}
+      applicationWorkspace={{ workspacePath: "/repo" }}
+    />,
+  );
   await waitFor(() => {
-    expect(buttonById("settings-persona-learning-enable")).toBeTruthy();
+    expect(screen.getByTestId("settings-persona-learning-switch")).toBeTruthy();
   });
 }
 
@@ -312,7 +354,7 @@ describe("PersonaPreferencesSection P1b 学习管理（L 开关/来源状态/解
       "接收 5",
     );
     // 开启：usePreferences:true + autoLearn:true 一次提交（学习前置＝U&&L）。
-    fireEvent.click(buttonById("settings-persona-learning-enable"));
+    fireEvent.click(screen.getByTestId("settings-persona-learning-switch"));
     await waitFor(() => {
       expect(mocks.personaService.setPersonalPolicy).toHaveBeenCalledTimes(1);
     });
@@ -331,7 +373,7 @@ describe("PersonaPreferencesSection P1b 学习管理（L 开关/来源状态/解
     expect(screen.getByTestId("settings-persona-policy-state").textContent).toContain("当前：开启");
 
     // 关闭 L：保持当前 U 值（usePreferences:true 不变），autoLearn:false。
-    fireEvent.click(buttonById("settings-persona-learning-disable"));
+    fireEvent.click(screen.getByTestId("settings-persona-learning-switch"));
     await waitFor(() => {
       expect(mocks.personaService.setPersonalPolicy).toHaveBeenCalledTimes(2);
     });
@@ -351,7 +393,7 @@ describe("PersonaPreferencesSection P1b 学习管理（L 开关/来源状态/解
 
   it("关闭 U 的级联确认：文案写明同事务关 L/撤租约/清候选；确认后才提交 usePreferences:false", async () => {
     await openReadySection();
-    fireEvent.click(buttonById("settings-persona-policy-disable"));
+    fireEvent.click(screen.getByTestId("settings-persona-policy-switch"));
     await waitFor(() => {
       expect(screen.getByTestId("settings-persona-cascade-confirm")).toBeTruthy();
     });
@@ -380,26 +422,16 @@ describe("PersonaPreferencesSection P1b 学习管理（L 开关/来源状态/解
     expect(screen.getByTestId("settings-persona-policy-state").textContent).toContain("当前：关闭");
   });
 
-  it("概览读取失败：U/L 当前值诚实降级为未知；关闭 L 与关闭 U 不发猜测请求", async () => {
+  it("概览读取失败：U/L 当前值诚实降级为未知；开关整体禁用，不发猜测请求", async () => {
     mocks.state.overviewOk = false;
     await openReadySection();
     expect(screen.getByTestId("settings-persona-policy-state").textContent).toContain("未知");
     expect(screen.getByTestId("settings-persona-learning-state").textContent).toContain("未知");
-    // 关闭 L 需要保持当前 U 值（wire 必填 usePreferences）：概览缺席时按钮禁用，不猜测。
-    expect(buttonById("settings-persona-learning-disable").disabled).toBe(true);
-    // 开启 L 与 U 仍是显式提交（目标值明确）；关闭 U 经级联确认提交 false。
-    expect(buttonById("settings-persona-learning-enable").disabled).toBe(false);
-    fireEvent.click(buttonById("settings-persona-policy-disable"));
-    await waitFor(() => {
-      expect(screen.getByTestId("settings-persona-cascade-confirm")).toBeTruthy();
-    });
-    fireEvent.click(screen.getByTestId("settings-persona-cascade-confirm-action"));
-    await waitFor(() => {
-      expect(mocks.personaService.setPersonalPolicy).toHaveBeenCalledTimes(1);
-    });
-    expect(mocks.personaService.setPersonalPolicy.mock.calls[0]?.[0]).toMatchObject({
-      usePreferences: false,
-    });
+    // U/L 开关的当前值以概览为权威：概览缺席（读取失败）时开关整体禁用，
+    // 不以猜测值发请求（spec §10 第十六批「未知时禁用」）。
+    expect(buttonById("settings-persona-policy-switch").disabled).toBe(true);
+    expect(buttonById("settings-persona-learning-switch").disabled).toBe(true);
+    expect(mocks.personaService.setPersonalPolicy).not.toHaveBeenCalled();
   });
 });
 

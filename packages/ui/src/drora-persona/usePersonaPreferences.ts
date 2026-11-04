@@ -1,126 +1,48 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { IDroraAgentService } from "@drora/services";
-import type { SaveFileRequest, SaveFileResult } from "@drora/shared";
 import {
   PERSONA_ERROR_CODES,
   PERSONA_POLICY_DEFAULTS,
   PERSONA_PREFERENCE_KEYS,
-  type PersonaExportPayload,
   type PersonaLearningOverview,
-  type PersonaPreferenceFacts,
   type PersonaPreferenceKey,
 } from "@drora/shared";
 import { logger } from "@/logger.js";
-import { runUserActionAsync } from "@/lib/userActionTelemetry.js";
+import { runUserActionAsync, type UserActionTrigger } from "@/lib/userActionTelemetry.js";
+import {
+  PREFERENCE_KEY_LIST,
+  PERSONA_EXPORT_FILE_NAME,
+  createEmptySlots,
+  encodeExportPayload,
+  isPreferenceSlotDirty,
+  type PersonaExportNotice,
+  type PersonaPolicyState,
+  type PersonaPolicySwitch,
+  type PersonaPreferenceSlot,
+  type PersonaPreferencesService,
+  type PersonaSaveFilePort,
+} from "./personaPreferenceModel.js";
 
 /**
  * Drora Persona「交流默认、使用策略与有限学习管理」的状态机（specs/drora-persona-system.md
  * §5/§8/§9/§10、docs/design/drora-persona-data-contracts-2026-10-29.md §1.2/§2/§3/§4.2/§7）。
  * 复用 usePersonaCoreEditor 的模式：服务权威值 + 局部草稿（seedRevision 做 CAS 基线）、
  * 冲突保留草稿并重读比较、outcome_unknown 保留同一 mutationId 幂等回放（PM53）、
- * 每个键（以及 U/L 策略、解除抑制、导出）各自独立的在途 mutationId。
- * P1b：getPersonaLearningOverview 提供策略当前值（U/L）读路径与预算/来源/计数概览——
- * P1a 时代「本页不读取 U 全局当前值」的 workaround 由该读侧方法替代。
+ * 每键独立在途 mutationId；P1b 概览读路径见合同 §3。
+ * 即时保存（spec §10 第十六批）：下拉键变更即提交，称呼文本失焦/停顿约 1 秒提交，卸载前
+ * flush；服务 revision ≠ 草稿基线（分歧未解决）时暂停自动提交。保存成功后若草稿在同一
+ * 基线上又出现新编辑，变基到本次成功写入的新基线（中间写入是自己的保存，不覆盖他窗值）；
+ * 基线不一致的草稿交由分歧流程，不做 last-write-wins。类型与纯函数见 personaPreferenceModel.ts。
  */
 
-export type PersonaPreferencesService = Pick<
-  IDroraAgentService,
-  | "getPersonaOverview"
-  | "listPreferences"
-  | "setPersonalPolicy"
-  | "savePreference"
-  | "forgetPreference"
-  | "allowLearningForKey"
-  | "getPersonaLearningOverview"
-  | "preparePersonaExport"
->;
-
-/** 平台另存为端口（IPlatformService.saveFile，仅桌面实现；Web 缺席时导出如实降级）。 */
-export type PersonaSaveFilePort = (payload: SaveFileRequest) => Promise<SaveFileResult>;
-
-/** 导出文件名（spec §9：既有 IPlatformService.saveFile 负责保存；固定名便于识别）。 */
-export const PERSONA_EXPORT_FILE_NAME = "drora-persona-export.json";
-
-const PREFERENCE_KEY_LIST = [
-  PERSONA_PREFERENCE_KEYS.replyLanguage,
-  PERSONA_PREFERENCE_KEYS.explanationDetail,
+/** 文本输入键：即时保存走失焦/停顿去抖；其余键是受控下拉，变更即提交（spec §10 第十六批）。 */
+const TEXT_PREFERENCE_KEYS: readonly PersonaPreferenceKey[] = [
   PERSONA_PREFERENCE_KEYS.preferredAddress,
-  PERSONA_PREFERENCE_KEYS.collaborationStyle,
-] as const satisfies readonly PersonaPreferenceKey[];
+];
 
-export type PersonaPreferenceNotice =
-  | { tone: "success"; kind: "saved" }
-  | { tone: "success"; kind: "unchanged" }
-  | { tone: "info"; kind: "forgotten" }
-  | { tone: "info"; kind: "outcomeUnknown" }
-  | { tone: "error"; kind: "conflict" }
-  | { tone: "error"; kind: "uninitialized" }
-  | { tone: "error"; kind: "code"; code: string }
-  | { tone: "error"; kind: "rpc"; message: string };
-
-/** 单键草稿：value 为编辑值；seed 值/revision 是草稿开始编辑时的基线（保存 CAS 预期）。 */
-export interface PersonaPreferenceDraft {
-  value: string;
-  seedValue: string;
-  seedRevision: number;
-}
-
-export interface PersonaPreferenceSlot {
-  /** 服务权威值（listPreferences）；null = 该键槽缺席（未设置或已忘记）。 */
-  saved: PersonaPreferenceFacts | null;
-  draft: PersonaPreferenceDraft | null;
-  notice: PersonaPreferenceNotice | null;
-  pending: boolean;
-  forgetPending: boolean;
-  /** 解除抑制（allowLearningForKey）在途；与保存/忘记互斥（同一槽的串行编辑）。 */
-  allowPending: boolean;
-  /** 「保留草稿」后已承认的服务 revision；revision 再前进才重新提示分歧。 */
-  acknowledgedRevision: number | null;
-}
-
-/** U/L 两个策略开关共享同一 policy 行（同一 CAS/mutation 域），switch 区分展示归属。 */
-export type PersonaPolicySwitch = "usePreferences" | "autoLearn";
-
-export interface PersonaPolicyState {
-  /**
-   * 本会话最近一次确定性策略操作结果（含开关归属）。当前值以 learningOverview.policy 为准
-   * （getPersonaLearningOverview 读路径）；本字段只陈述「本会话提交过什么」。
-   */
-  lastOperation: {
-    switch: PersonaPolicySwitch;
-    value: boolean;
-    kind: "saved" | "unchanged";
-  } | null;
-  notice: PersonaPreferenceNotice | null;
-  pending: boolean;
-  /** 在途操作的目标：哪个开关正在提交什么值；null=空闲。 */
-  pendingTarget: { switch: PersonaPolicySwitch; value: boolean } | null;
-}
-
-export type PersonaExportNotice =
-  | { tone: "success"; kind: "saved"; path: string | null }
-  | { tone: "info"; kind: "canceled" }
-  | { tone: "info"; kind: "noData" }
-  | { tone: "error"; kind: "unsupported" }
-  | { tone: "error"; kind: "failed"; message: string }
-  | { tone: "error"; kind: "code"; code: string }
-  | { tone: "error"; kind: "rpc"; message: string };
-
-function createEmptySlots(): Record<PersonaPreferenceKey, PersonaPreferenceSlot> {
-  const slots = {} as Record<PersonaPreferenceKey, PersonaPreferenceSlot>;
-  for (const key of PREFERENCE_KEY_LIST) {
-    slots[key] = {
-      saved: null,
-      draft: null,
-      notice: null,
-      pending: false,
-      forgetPending: false,
-      allowPending: false,
-      acknowledgedRevision: null,
-    };
-  }
-  return slots;
-}
+/** 文本键自动提交的去抖间隔（spec §10「停顿约 1 秒」）。 */
+const AUTOSAVE_IDLE_MS = 1000;
+/** 该键写入在途时自动提交的顺延重试间隔（同一槽串行编辑，不并发两条写）。 */
+const AUTOSAVE_PENDING_RETRY_MS = 400;
 
 function createMutationId(): string {
   // mutationId 每次用户提交新生成（合同 §2）；opaque，不从昵称/cwd/用户文本推导。
@@ -130,25 +52,10 @@ function createMutationId(): string {
   return `mutation-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
 }
 
-/** 草稿是否有待保存的实际改动（改回基线值视为未改动）。 */
-export function isPreferenceSlotDirty(slot: PersonaPreferenceSlot): boolean {
-  return slot.draft !== null && slot.draft.value !== slot.draft.seedValue;
-}
-
-/**
- * CAS 分歧：草稿基线 revision 与服务当前 revision 不一致（含基线值已被忘记/其他窗口
- * 修改），且未对当前 revision 做过「保留草稿」承认。展示层据此给出「已保存 vs 草稿」比较。
- */
-export function isPreferenceSlotDiverged(slot: PersonaPreferenceSlot): boolean {
+/** 该键的自动提交是否被暂停：服务 revision ≠ 草稿基线（CAS 分歧未解决，面板引导）。 */
+function isSlotAutosavePaused(slot: PersonaPreferenceSlot): boolean {
   if (!slot.draft) return false;
-  const savedRevision = slot.saved?.revision ?? 0;
-  return savedRevision !== slot.draft.seedRevision && savedRevision !== slot.acknowledgedRevision;
-}
-
-/** 2 空格缩进 JSON 的 UTF-8 字节（合同 §7 冻结快照；不经此函数之外的地方序列化）。 */
-function encodeExportPayload(payload: PersonaExportPayload): ArrayBuffer {
-  const bytes = new TextEncoder().encode(JSON.stringify(payload, null, 2));
-  return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
+  return (slot.saved?.revision ?? 0) !== slot.draft.seedRevision;
 }
 
 export function usePersonaPreferences(
@@ -158,6 +65,7 @@ export function usePersonaPreferences(
   const [loadPhase, setLoadPhase] = useState<"loading" | "ready" | "error">("loading");
   const [loadErrorCode, setLoadErrorCode] = useState<string | null>(null);
   const [initialized, setInitialized] = useState(false);
+  const initializedRef = useRef(false);
   const [slots, setSlots] =
     useState<Record<PersonaPreferenceKey, PersonaPreferenceSlot>>(createEmptySlots);
   const [policy, setPolicy] = useState<PersonaPolicyState>({
@@ -187,6 +95,36 @@ export function usePersonaPreferences(
   // 策略 CAS 基线：learningOverview.policy.policyRevision（读路径与写路径同源）；
   // 概览缺席时回落 PERSONA_POLICY_DEFAULTS.policyRevision（策略行缺席时正确）。
   const policyRevisionRef = useRef<number>(PERSONA_POLICY_DEFAULTS.policyRevision);
+  // 即时保存的同步镜像：定时器/flush/卸载回调读 ref 而不是闭包 state（与 usePersonaCoreEditor 同模式）。
+  const slotsRef = useRef<Record<PersonaPreferenceKey, PersonaPreferenceSlot>>(createEmptySlots());
+  const prefTimersRef = useRef<
+    Partial<Record<PersonaPreferenceKey, ReturnType<typeof setTimeout>>>
+  >({});
+  const commitPreferenceRef = useRef<
+    (key: PersonaPreferenceKey, trigger?: UserActionTrigger) => Promise<void>
+  >(async () => {});
+
+  /** slots 的唯一写入通道：同步推进 ref 再落 state，供调度层读到最新槽状态。 */
+  const applySlots = useCallback(
+    (
+      updater: (
+        current: Record<PersonaPreferenceKey, PersonaPreferenceSlot>,
+      ) => Record<PersonaPreferenceKey, PersonaPreferenceSlot>,
+    ) => {
+      const next = updater(slotsRef.current);
+      slotsRef.current = next;
+      setSlots(next);
+    },
+    [],
+  );
+
+  const clearPrefTimer = useCallback((key: PersonaPreferenceKey) => {
+    const timer = prefTimersRef.current[key];
+    if (timer !== undefined) {
+      clearTimeout(timer);
+      delete prefTimersRef.current[key];
+    }
+  }, []);
 
   /** 只刷新学习概览（不碰 loadPhase）：冲突后重新预读策略版本号，保留用户意图。 */
   const refreshLearningOverview = useCallback(
@@ -239,7 +177,8 @@ export function usePersonaPreferences(
       }
       const byKey = new Map(listResult.value.preferences.map((entry) => [entry.key, entry]));
       setInitialized(overviewResult.value.state === "initialized");
-      setSlots((current) => {
+      initializedRef.current = overviewResult.value.state === "initialized";
+      applySlots((current) => {
         const next = {} as Record<PersonaPreferenceKey, PersonaPreferenceSlot>;
         for (const key of PREFERENCE_KEY_LIST) {
           const previous = current[key];
@@ -267,55 +206,146 @@ export function usePersonaPreferences(
       setLoadPhase("error");
       setLoadErrorCode(cause instanceof Error ? cause.message : String(cause));
     }
-  }, [personaService, refreshLearningOverview]);
+  }, [personaService, refreshLearningOverview, applySlots]);
 
   // 进入分区读取一次；只读，不写任何设置、不为导出/偏好初始化资料（spec §9）。
   useEffect(() => {
     void reload();
   }, [reload]);
 
+  /**
+   * 立即结算该键草稿（自动保存共用路径）。守卫顺序：在途互斥、未初始化（不自动提交）、
+   * 无实际改动、CAS 分歧未解决（自动提交暂停，分歧面板为唯一解决面）。
+   */
+  const flushPreferenceSave = useCallback(
+    async (key: PersonaPreferenceKey, trigger: UserActionTrigger = "keyboard"): Promise<void> => {
+      clearPrefTimer(key);
+      const slot = slotsRef.current[key];
+      if (!slot?.draft) return;
+      if (slot.pending || slot.forgetPending || slot.allowPending) return;
+      if (!initializedRef.current) return;
+      if (!isPreferenceSlotDirty(slot)) return;
+      if (isSlotAutosavePaused(slot)) return;
+      // 称呼清空不算一次提交意图（清空语义走「忘记」按钮）；与旧版客户端禁存口径一致。
+      if (
+        key === PERSONA_PREFERENCE_KEYS.preferredAddress &&
+        slot.draft.value.trim().length === 0
+      ) {
+        return;
+      }
+      await commitPreferenceRef.current(key, trigger);
+    },
+    [clearPrefTimer],
+  );
+
+  const flushPreferenceRef = useRef(flushPreferenceSave);
+  useEffect(() => {
+    flushPreferenceRef.current = flushPreferenceSave;
+  }, [flushPreferenceSave]);
+
+  const schedulePreferenceSave = useCallback(
+    (key: PersonaPreferenceKey, delay: number = AUTOSAVE_IDLE_MS) => {
+      clearPrefTimer(key);
+      prefTimersRef.current[key] = setTimeout(() => {
+        delete prefTimersRef.current[key];
+        const slot = slotsRef.current[key];
+        if (slot?.pending || slot?.forgetPending || slot?.allowPending) {
+          // 该键写入在途：顺延到在途完成后结算（草稿仍在槽里，不会丢）。
+          schedulePreferenceSave(key, AUTOSAVE_PENDING_RETRY_MS);
+          return;
+        }
+        void flushPreferenceRef.current(key, "keyboard");
+      }, delay);
+    },
+    [clearPrefTimer],
+  );
+
+  // 分区卸载前提交未落盘的文本键草稿（spec §10 第十六批）；定时器一并清理。
+  useEffect(() => {
+    return () => {
+      for (const key of PREFERENCE_KEY_LIST) {
+        clearPrefTimer(key);
+      }
+      for (const key of PREFERENCE_KEY_LIST) {
+        const slot = slotsRef.current[key];
+        if (!slot?.draft) continue;
+        if (slot.pending || slot.forgetPending || slot.allowPending) continue;
+        if (!initializedRef.current) continue;
+        if (!isPreferenceSlotDirty(slot)) continue;
+        if (isSlotAutosavePaused(slot)) continue;
+        void commitPreferenceRef.current(key, "keyboard");
+      }
+    };
+  }, [clearPrefTimer]);
+
   const patchSlot = useCallback(
     (key: PersonaPreferenceKey, patch: Partial<PersonaPreferenceSlot>) => {
-      setSlots((current) => {
+      applySlots((current) => {
         const slot = current[key];
         if (!slot) return current;
         return { ...current, [key]: { ...slot, ...patch } };
       });
     },
-    [],
+    [applySlots],
   );
 
-  const updatePreferenceDraft = useCallback((key: PersonaPreferenceKey, value: string) => {
-    setSlots((current) => {
-      const slot = current[key];
-      if (!slot) return current;
-      const draft = slot.draft ?? {
-        value,
-        seedValue: slot.saved?.value ?? "",
-        seedRevision: slot.saved?.revision ?? 0,
-      };
-      return { ...current, [key]: { ...slot, draft: { ...draft, value }, notice: null } };
-    });
-  }, []);
+  const updatePreferenceDraft = useCallback(
+    (key: PersonaPreferenceKey, value: string) => {
+      applySlots((current) => {
+        const slot = current[key];
+        if (!slot) return current;
+        const draft = slot.draft ?? {
+          value,
+          seedValue: slot.saved?.value ?? "",
+          seedRevision: slot.saved?.revision ?? 0,
+        };
+        // 分歧未解决时清除「保留草稿」承认：后续编辑保持分歧面板可见（spec §10 第十六批）。
+        const diverged = (slot.saved?.revision ?? 0) !== draft.seedRevision;
+        return {
+          ...current,
+          [key]: {
+            ...slot,
+            draft: { ...draft, value },
+            notice: null,
+            acknowledgedRevision: diverged ? null : slot.acknowledgedRevision,
+          },
+        };
+      });
+      // 即时保存调度（spec §10 第十六批）：下拉键变更即提交；文本键去抖；在途时顺延结算。
+      const slot = slotsRef.current[key];
+      const busy = slot?.pending || slot?.forgetPending || slot?.allowPending;
+      if (TEXT_PREFERENCE_KEYS.includes(key) || busy) {
+        schedulePreferenceSave(key);
+      } else {
+        void flushPreferenceRef.current(key, "select");
+      }
+    },
+    [applySlots, schedulePreferenceSave],
+  );
 
   const cancelPreferenceDraft = useCallback(
     (key: PersonaPreferenceKey) => {
+      clearPrefTimer(key);
       patchSlot(key, { draft: null, notice: null, acknowledgedRevision: null });
     },
-    [patchSlot],
+    [patchSlot, clearPrefTimer],
   );
 
-  const keepPreferenceDraft = useCallback((key: PersonaPreferenceKey) => {
-    // 保留草稿：承认当前服务 revision；revision 再前进才重新提示分歧。
-    setSlots((current) => {
-      const slot = current[key];
-      if (!slot) return current;
-      return {
-        ...current,
-        [key]: { ...slot, acknowledgedRevision: slot.saved?.revision ?? 0, notice: null },
-      };
-    });
-  }, []);
+  const keepPreferenceDraft = useCallback(
+    (key: PersonaPreferenceKey) => {
+      // 保留草稿：承认当前服务 revision；revision 再前进才重新提示分歧。
+      // 自动提交保持暂停（分歧守卫按原始 revision 比较），面板是唯一解决面。
+      applySlots((current) => {
+        const slot = current[key];
+        if (!slot) return current;
+        return {
+          ...current,
+          [key]: { ...slot, acknowledgedRevision: slot.saved?.revision ?? 0, notice: null },
+        };
+      });
+    },
+    [applySlots],
+  );
 
   /**
    * slot mutation 的统一失败映射（save/forget/allow 共用）：CAS 冲突重读并保留草稿；
@@ -345,23 +375,30 @@ export function usePersonaPreferences(
     [reload, patchSlot],
   );
 
-  /** 单键保存：CAS 携带草稿基线 revision（槽缺席=0）与本键在途/新 mutationId；成功后重读。 */
+  /**
+   * 单键保存：CAS 携带草稿基线 revision（槽缺席=0）与本键在途/新 mutationId；成功后重读。
+   * 成功后的草稿结算：草稿仍是刚保存的值 → 清空结算完成；保存期间在同一基线上又出现新编辑
+   * → 变基到本次成功写入的新基线（中间写入是自己的保存，变基不覆盖他窗值）并继续调度；
+   * 基线不一致的草稿保持原样，由分歧流程引导。
+   */
   const handleSavePreference = useCallback(
-    async (key: PersonaPreferenceKey): Promise<void> => {
-      const slot = slots[key];
+    async (key: PersonaPreferenceKey, trigger: UserActionTrigger = "button"): Promise<void> => {
+      const slot = slotsRef.current[key];
       const draft = slot?.draft;
       if (!slot || !draft || slot.pending || slot.forgetPending || slot.allowPending) return;
-      if (!initialized) {
+      if (!initializedRef.current) {
         patchSlot(key, { notice: { tone: "error", kind: "uninitialized" } });
         return;
       }
+      const attemptedValue = draft.value;
+      const attemptedSeedRevision = draft.seedRevision;
       patchSlot(key, { pending: true, notice: null });
       try {
         await runUserActionAsync({
           input: {
             featureId: "settings.drora",
             action: "save_persona_preference",
-            trigger: "button",
+            trigger,
           },
           operation: async () => {
             // 结果未知的上一次尝试在途：重试必须复用同一 mutationId（合同 §2/PM53）。
@@ -369,8 +406,8 @@ export function usePersonaPreferences(
             liveSaveMutationIdsRef.current[key] = mutationId;
             const result = await personaService.savePreference({
               key,
-              value: draft.value,
-              expectedRevision: draft.seedRevision,
+              value: attemptedValue,
+              expectedRevision: attemptedSeedRevision,
               mutationId,
             });
             if (!result.ok) {
@@ -378,17 +415,39 @@ export function usePersonaPreferences(
               return;
             }
             delete liveSaveMutationIdsRef.current[key];
+            // 通知先贴；草稿不在此时清空——保存期间可能已有新编辑，重读后统一结算。
             patchSlot(key, {
               notice: {
                 tone: "success",
                 kind: result.value.status === "saved" ? "saved" : "unchanged",
               },
-              // 确定性成功后草稿基线对齐服务值：清草稿，控件回到已保存值。
-              draft: null,
-              acknowledgedRevision: null,
             });
             // 保存成功后重读（spec §10）：以服务为权威刷新全部键的当前值。
             await reload();
+            // 草稿结算（见函数注释）：仍是刚保存的值→清空；同一基线上的新编辑→变基到
+            // 本次成功写入的新基线（中间写入是自己的保存）并继续调度；基线不一致→交分歧流程。
+            applySlots((current) => {
+              const fresh = current[key];
+              if (!fresh) return current;
+              let nextDraft = fresh.draft;
+              if (nextDraft && nextDraft.value === attemptedValue) {
+                nextDraft = null;
+              } else if (nextDraft && nextDraft.seedRevision === attemptedSeedRevision) {
+                nextDraft = {
+                  ...nextDraft,
+                  seedValue: fresh.saved?.value ?? "",
+                  seedRevision: fresh.saved?.revision ?? 0,
+                };
+              }
+              return {
+                ...current,
+                [key]: { ...fresh, draft: nextDraft, acknowledgedRevision: null },
+              };
+            });
+            const after = slotsRef.current[key];
+            if (after?.draft && isPreferenceSlotDirty(after) && !isSlotAutosavePaused(after)) {
+              schedulePreferenceSave(key);
+            }
           },
           completed: { resultSource: "authority_ack" },
           failureStage: "persona_commit",
@@ -406,18 +465,30 @@ export function usePersonaPreferences(
         patchSlot(key, { pending: false });
       }
     },
-    [slots, initialized, personaService, reload, patchSlot, applySlotMutationFailure],
+    [
+      personaService,
+      reload,
+      patchSlot,
+      applySlotMutationFailure,
+      applySlots,
+      schedulePreferenceSave,
+    ],
   );
+
+  useEffect(() => {
+    commitPreferenceRef.current = handleSavePreference;
+  }, [handleSavePreference]);
 
   /** 单键忘记：需确认（逻辑撤销范围见确认文案）；CAS 槽缺席=0；成功后重读。 */
   const handleForgetPreference = useCallback(
     async (key: PersonaPreferenceKey): Promise<void> => {
-      const slot = slots[key];
+      const slot = slotsRef.current[key];
       if (!slot || slot.forgetPending || slot.pending || slot.allowPending) return;
-      if (!initialized) {
+      if (!initializedRef.current) {
         patchSlot(key, { notice: { tone: "error", kind: "uninitialized" } });
         return;
       }
+      clearPrefTimer(key);
       setForgetCandidate(null);
       // 忘记使草稿失去意义：连同草稿与分歧承认一起清除。
       patchSlot(key, {
@@ -465,7 +536,7 @@ export function usePersonaPreferences(
         patchSlot(key, { forgetPending: false });
       }
     },
-    [slots, initialized, personaService, reload, patchSlot, applySlotMutationFailure],
+    [personaService, reload, patchSlot, applySlotMutationFailure, clearPrefTimer],
   );
 
   /**
@@ -475,9 +546,9 @@ export function usePersonaPreferences(
    */
   const handleAllowLearning = useCallback(
     async (key: PersonaPreferenceKey): Promise<void> => {
-      const slot = slots[key];
+      const slot = slotsRef.current[key];
       if (!slot || slot.allowPending || slot.pending || slot.forgetPending) return;
-      if (!initialized) {
+      if (!initializedRef.current) {
         patchSlot(key, { notice: { tone: "error", kind: "uninitialized" } });
         return;
       }
@@ -525,11 +596,11 @@ export function usePersonaPreferences(
         patchSlot(key, { allowPending: false });
       }
     },
-    [slots, initialized, personaService, reload, patchSlot, applySlotMutationFailure],
+    [personaService, reload, patchSlot, applySlotMutationFailure],
   );
 
   /**
-   * U/L 策略开关（spec §5）：两态按钮各自发起 setPersonalPolicy；当前值以
+   * U/L 策略开关（spec §5）：两态各自显式提交 setPersonalPolicy；当前值以
    * learningOverview.policy 为准（getPersonaLearningOverview 读路径）。
    * - 开启 L：同时携带 usePreferences=true（学习前置＝U&&L，一次 CAS 完成一致状态）；
    * - 关闭 L：保持 overview 观察到的 U 值不变（不知道 U 时按钮禁用，不用猜测值发请求）；
@@ -539,7 +610,7 @@ export function usePersonaPreferences(
   const handleSetPolicy = useCallback(
     async (usePreferences: boolean, autoLearn?: boolean): Promise<void> => {
       if (policy.pending) return;
-      if (!initialized) {
+      if (!initializedRef.current) {
         setPolicy((current) => ({
           ...current,
           notice: { tone: "error", kind: "uninitialized" },
@@ -559,7 +630,7 @@ export function usePersonaPreferences(
           input: {
             featureId: "settings.drora",
             action: "set_persona_policy",
-            trigger: "button",
+            trigger: "switch",
           },
           operation: async () => {
             const mutationId = livePolicyMutationIdRef.current ?? createMutationId();
@@ -637,7 +708,7 @@ export function usePersonaPreferences(
         setPolicy((current) => ({ ...current, pending: false, pendingTarget: null }));
       }
     },
-    [policy.pending, initialized, personaService, refreshLearningOverview],
+    [policy.pending, personaService, refreshLearningOverview],
   );
 
   /**
@@ -715,6 +786,7 @@ export function usePersonaPreferences(
     cancelPreferenceDraft,
     keepPreferenceDraft,
     handleSavePreference,
+    flushPreferenceSave,
     requestForget: setForgetCandidate,
     cancelForget,
     handleForgetPreference,

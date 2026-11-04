@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ModelInputMessage } from "@drora/contracts";
+import { PERSONA_CORE_LIMITS } from "@drora/shared";
 import {
   applyPersonaContribution,
   compilePersonaContribution,
@@ -34,7 +35,7 @@ describe("Persona core contract", () => {
     ["displayName", ""],
     ["displayName", "a".repeat(41)],
     ["displayName", "bad\nname"],
-    ["selfDescription", "a".repeat(301)],
+    ["selfDescription", "a".repeat(PERSONA_CORE_LIMITS.selfDescriptionMax + 1)],
     ["selfDescription", "bad\u0000description"],
     ["warmth", "unknown"],
     ["warmth", { toString: () => "warm" }],

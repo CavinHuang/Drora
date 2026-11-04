@@ -24,6 +24,8 @@ import {
   PERSONA_PREFERENCE_KEYS,
   PERSONA_PREFERENCE_LIMITS,
   PERSONA_POLICY_DEFAULTS,
+  PERSONA_PRESET_IDS,
+  PERSONA_PRESETS,
   PERSONA_PROTOCOL_CAPABILITY_CONTROL_V1,
   PERSONA_PROTOCOL_METHODS,
   PERSONA_RECEIPT_SCOPES,
@@ -97,7 +99,8 @@ describe("persona contract constants (Persona P0 切片 B 契约钉住)", () => 
     expect(PERSONA_CORE_LIMITS).toEqual({
       displayNameMin: 1,
       displayNameMax: 40,
-      selfDescriptionMax: 300,
+      // spec §13 第十五批修订：300→1000（陪伴向人设表达空间；核心段总预算 4000 不变）。
+      selfDescriptionMax: 1000,
       compiledContributionMax: 4000,
     });
   });
@@ -257,5 +260,78 @@ describe("persona P1b literals (学习预算/状态机单一出处——合同 �
     };
     expect(facts.disputed).toBe(true);
     expect(facts.pendingCandidate?.expectedGeneration).toBe(0);
+  });
+});
+
+describe("persona presets (spec §13 第十五批：内置人设预设单一出处)", () => {
+  const codePoints = (text: string): number => [...text].length;
+
+  it("六张内置预设、id 唯一、数组冻结", () => {
+    expect(PERSONA_PRESETS).toHaveLength(6);
+    expect(Object.isFrozen(PERSONA_PRESETS)).toBe(true);
+    const ids = new Set(PERSONA_PRESETS.map((preset) => preset.id));
+    expect(ids.size).toBe(PERSONA_PRESETS.length);
+    for (const id of Object.values(PERSONA_PRESET_IDS)) {
+      expect(ids.has(id), `缺少预设 ${id}`).toBe(true);
+    }
+  });
+
+  it("每张 core 通过字段上限与枚举校验（编译前校验的契约侧镜像）", () => {
+    for (const preset of PERSONA_PRESETS) {
+      const { core } = preset;
+      const name = core.displayName.normalize("NFC").trim();
+      expect(codePoints(name), `${preset.id} displayName`).toBeGreaterThanOrEqual(
+        PERSONA_CORE_LIMITS.displayNameMin,
+      );
+      expect(codePoints(name), `${preset.id} displayName`).toBeLessThanOrEqual(
+        PERSONA_CORE_LIMITS.displayNameMax,
+      );
+      const description = core.selfDescription.normalize("NFC");
+      expect(codePoints(description), `${preset.id} selfDescription`).toBeLessThanOrEqual(
+        PERSONA_CORE_LIMITS.selfDescriptionMax,
+      );
+      expect(["restrained", "balanced", "warm"]).toContain(core.warmth);
+      expect(["gentle", "balanced", "direct"]).toContain(core.directness);
+      expect(["off", "light"]).toContain(core.humor);
+      // 双语展示字段非空（UI 卡片直接消费）。
+      expect(preset.nameZh.length).toBeGreaterThan(0);
+      expect(preset.nameEn.length).toBeGreaterThan(0);
+      expect(preset.taglineZh.length).toBeGreaterThan(0);
+      expect(preset.taglineEn.length).toBeGreaterThan(0);
+      expect(preset.emoji.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("preferenceDefaults 四键全量且全为受控合法值（全量覆盖语义的资产前提）", () => {
+    for (const preset of PERSONA_PRESETS) {
+      const keys = Object.keys(preset.preferenceDefaults).sort();
+      expect(keys, `${preset.id} 四键全量`).toEqual([...Object.values(PERSONA_PREFERENCE_KEYS)].sort());
+      for (const [key, value] of Object.entries(preset.preferenceDefaults)) {
+        if (key === PERSONA_PREFERENCE_KEYS.preferredAddress) {
+          const address = value as string;
+          expect(codePoints(address), `${preset.id} preferredAddress`).toBeGreaterThanOrEqual(1);
+          expect(codePoints(address), `${preset.id} preferredAddress`).toBeLessThanOrEqual(
+            PERSONA_PREFERENCE_LIMITS.preferredAddressMax,
+          );
+        } else {
+          const allowed = PERSONA_PREFERENCE_ALLOWED_VALUES[
+            key as keyof typeof PERSONA_PREFERENCE_ALLOWED_VALUES
+          ] as readonly string[];
+          expect(allowed, `${preset.id} ${key}=${String(value)}`).toContain(value);
+        }
+      }
+    }
+  });
+
+  it("workmate 预设=产品默认核心（新装「使用中」基线）", () => {
+    const workmate = PERSONA_PRESETS.find(
+      (preset) => preset.id === PERSONA_PRESET_IDS.workmate,
+    );
+    expect(workmate?.core).toMatchObject({
+      displayName: "Drora",
+      warmth: "warm",
+      directness: "balanced",
+      humor: "light",
+    });
   });
 });

@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button.js";
  * （disputed，独立于 status，只经保存/忘记解决——不提供「解除争议」按钮）、抑制
  * （autoSuppressed，经 allowLearningForKey 解除——generation++，只接受之后的新机会）
  * 与待确认候选是分立事实，分行/分徽标如实展示，不合并成一个综合状态。
- * 从 PersonaPreferencesSection 拆出满足 max-file-lines；展示为纯函数组件（无状态）。
+ * 从偏好分区拆出满足 max-file-lines；展示为纯函数组件（无状态）。
  */
 
 type IntlLike = { formatMessage: (descriptor: { id: string }) => string };

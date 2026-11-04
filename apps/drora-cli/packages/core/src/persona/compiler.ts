@@ -3,6 +3,7 @@
 // P1a 交流默认的受控键/值/预算同样引用 shared 单一出处（合同 §1.2、spec §6 预算 2,000）。
 import {
   PERSONA_COMPILER_VERSION,
+  PERSONA_CORE_LIMITS,
   PERSONA_PREFERENCE_ALLOWED_VALUES,
   PERSONA_PREFERENCE_KEYS,
   PERSONA_PREFERENCE_LIMITS,
@@ -57,9 +58,15 @@ export function validatePersonaCoreFields(input: unknown): PersonaCoreFieldValid
     return { status: "invalid", field: "core" };
   }
   const fields = input as Record<string, unknown>;
-  const displayName = normalizeText(fields.displayName, 40, false);
+  // 上限单一出处＝shared PERSONA_CORE_LIMITS（spec §13 第十五批：300→1000 后此处曾残留
+  // 内联 300 导致校验与契约脱节，改为常量引用钉住单一出处）。
+  const displayName = normalizeText(fields.displayName, PERSONA_CORE_LIMITS.displayNameMax, false);
   if (!displayName) return { status: "invalid", field: "displayName" };
-  const selfDescription = normalizeText(fields.selfDescription, 300, true);
+  const selfDescription = normalizeText(
+    fields.selfDescription,
+    PERSONA_CORE_LIMITS.selfDescriptionMax,
+    true,
+  );
   if (selfDescription === undefined) return { status: "invalid", field: "selfDescription" };
   const warmth = fields.warmth;
   if (warmth !== "restrained" && warmth !== "balanced" && warmth !== "warm") {

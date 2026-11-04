@@ -108,3 +108,4 @@ packages/desktop/.e2e-home-*/
 
 # 独立 CLI 包级回归日志
 .drora-cli-test-results/
+.persona-eval-artifacts/

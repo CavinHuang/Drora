@@ -46,6 +46,11 @@ export {
   pausedPersonaLearningExtractor,
   validateExtractionDrafts,
 } from "./learning-extraction.js";
+export type {
+  ModelPersonaLearningExtractorOptions,
+  PersonaLearningModelCaller,
+} from "./learning-model-extraction.js";
+export { createModelPersonaLearningExtractor } from "./learning-model-extraction.js";
 export { createSessionStoreLearningSourceOwner } from "./learning-source-owner.js";
 export { getProductPersonaTemplate, type ProductPersonaTemplate } from "./product-template.js";
 export { asPersonaCapturePort, PersonaAppServiceImpl } from "./persona-app-service.js";

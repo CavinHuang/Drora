@@ -1117,7 +1117,7 @@ const enUS: Record<string, string> = {
   "quickPick.command.switchThemeToDark": "Switch theme to dark",
   "quickPick.command.switchThemeToLight": "Switch theme to light",
   "quickPick.command.mcpServers": "MCP Servers",
-  "quickPick.command.personalization": "Personalization",
+  "quickPick.command.personalization": "Custom Instructions",
   "quickPick.command.skills": "Skills",
   "quickPick.command.toggleSidebar": "Toggle sidebar",
   "quickPick.command.toggleTerminal": "Toggle terminal",
@@ -3599,7 +3599,7 @@ const enUS: Record<string, string> = {
   "settings.nativeSearchEnhancementsDescription":
     "Use enhanced Find and Grep in new sessions and sessions restored after an app restart. Active sessions keep their current setting; Find remains unchanged on Windows.",
   "settings.memory": "Memory",
-  "settings.personalization.title": "Personalization",
+  "settings.personalization.title": "Custom Instructions",
   "settings.personalization.description":
     "Add custom instructions to personalize Agent responses. Instructions apply to future conversations of the local Agent; remote devices need separate configuration.",
   "settings.personalization.placeholder": "Add custom instructions...",
@@ -3618,18 +3618,45 @@ const enUS: Record<string, string> = {
   // unavailable are three different facts; copy must not conflate them. The E switch
   // must say "applies to new or truly reloaded sessions".
   "settings.drora.title": "Drora Persona",
+  // Persona presets (spec §13 batch 15): overwrite semantics and timing must stay honest
+  // (effective on the next turn, not instantly).
+  "settings.drora.presets.title": "Persona presets",
+  "settings.drora.presets.description":
+    "Six built-in persona starting points, one click to switch; keep customizing below after applying",
+  "settings.drora.presets.active": "Active",
+  "settings.drora.presets.confirmTitle": "Switch persona preset",
+  "settings.drora.presets.confirmDescription":
+    "This replaces the five persona core fields with “{name}” and explicitly overwrites all four communication preferences (auto-learning stops for overwritten keys; change them below anytime).",
+  "settings.drora.presets.confirmAction": "Switch",
+  "settings.drora.presets.overwriteHint":
+    "Applying overwrites the persona core and the four communication preferences; takes effect on the next turn (no restart needed).",
+  "settings.drora.presets.result.applied": "Applied “{name}”; effective on the next turn.",
+  "settings.drora.presets.result.partial":
+    "Partially applied: persona core updated; failed preference keys: {keys} (retry below)",
+  "settings.drora.presets.result.failed":
+    "Apply failed: please retry later; unfinished steps are safe to retry.",
+  "settings.drora.presets.result.failedWithCode":
+    "Apply failed ({code}). Please retry later; unfinished steps are safe to retry.",
   "settings.drora.loading": "Loading Drora persona…",
   "settings.drora.unavailable": "Persona management is not supported on this connection.",
   "settings.drora.retry": "Retry",
   "settings.drora.refresh": "Reload",
+  "settings.drora.advanced.title": "Advanced",
+  "settings.drora.advanced.hint": "Preview · Application · Export · Restore defaults",
+  "settings.drora.revert": "Revert to the saved value",
+  "settings.drora.reset.title": "Restore product defaults",
+  "settings.drora.reset.description":
+    "Resets the five identity fields to the product defaults and creates a new revision. This does not change the execution permission, communication defaults or other settings.",
+  "settings.drora.preferences.preferredAddressInvalid":
+    "The address cannot be empty. Use Forget to clear it.",
   "settings.drora.execution.label": "Enable Drora persona in sessions",
   "settings.drora.execution.description":
     "Applies to new or truly reloaded sessions. Sessions already open keep the permission they were started with and are not changed by this switch.",
   "settings.drora.execution.privacy":
     "When enabled, Drora's personalized content is sent to the currently selected model and may be retained with the original diagnostics.",
-  "settings.drora.identity.title": "Identity",
+  "settings.drora.identity.title": "Who Drora is",
   "settings.drora.identity.description":
-    "Only the five controlled fields below are editable. Identity, principles and boundaries come from the product template and can be reviewed in the preview; free-form prompt editing is not available.",
+    "Name, self-description and three expression options, saved automatically: selects commit on change, text commits on blur. Identity, principles and boundaries come from the product template and can be reviewed under Advanced; free-form prompt editing is not available.",
   "settings.drora.identity.savedRevision": "Saved version: revision {revision}",
   "settings.drora.identity.uninitialized":
     "Not initialized yet; the built-in product persona is in use",
@@ -3721,9 +3748,9 @@ const enUS: Record<string, string> = {
   // completely" is forbidden); U has no global query method, so status text only describes
   // this session's latest operation and never claims "the current session is now off";
   // export shows "no data yet" and never initializes the persona for exporting.
-  "settings.drora.preferences.title": "Communication defaults",
+  "settings.drora.preferences.title": "How it talks",
   "settings.drora.preferences.description":
-    "The four items below are explicitly set communication defaults: saving and forgetting take effect on the next new turn, and turns already frozen stay unchanged. The concrete request at hand always takes precedence over these defaults.",
+    "Four communication defaults saved automatically: selects commit on change, the address commits on blur; forgetting stays explicit. They take effect on the next new turn, and turns already frozen stay unchanged. The concrete request at hand always takes precedence over these defaults.",
   "settings.drora.preferences.uninitializedHint":
     "The persona is not initialized yet; initialize it before saving or forgetting communication defaults, or changing the usage permission.",
   "settings.drora.preferences.loadFailed": "Failed to load communication defaults ({code}).",
@@ -3774,7 +3801,7 @@ const enUS: Record<string, string> = {
   "settings.drora.forget.confirmTitle": 'Forget "{key}"?',
   "settings.drora.forget.confirmDescription":
     "This is a logical undo: it clears the app-accessible saved value and candidates for this key. It does not delete chat history, project memory, or diagnostics, and it is not a media-level erase; turns already frozen stay unchanged.",
-  "settings.drora.policy.title": "Usage permission (preference injection)",
+  "settings.drora.policy.title": "Preference injection",
   "settings.drora.policy.description":
     "Communication defaults are only injected into new turns while this permission is on. A switch takes effect on the next new turn; turns already frozen stay unchanged. The current value is read from the service; changes made in other windows appear after a refresh.",
   "settings.drora.policy.enable": "Turn on",
@@ -3808,7 +3835,7 @@ const enUS: Record<string, string> = {
   // P1b automatic learning (spec §5/§8): independent authorization, off by default; covers
   // only the four communication defaults; no fabricated-experience page; budget caps are
   // frozen service constants; counters describe this process only, not a global fact.
-  "settings.drora.learning.title": "Automatic learning (inferred defaults)",
+  "settings.drora.learning.title": "Automatic learning",
   "settings.drora.learning.description":
     "When on, Drora gets bounded learning opportunities from ordinary successful turns and only infers the four communication defaults above. It creates no experiences or memory pages and never changes the core identity, tool permissions, or execution scope. Learning has a daily budget cap; turning it off stops new intake and submission and revokes unfinished learning work.",
   "settings.drora.learning.enable": "Turn on",

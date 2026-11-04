@@ -7,12 +7,24 @@ import {
   type PersonaOverviewInitialized,
   type PersonaProductTemplateSummary,
 } from "@drora/shared";
-import { runUserAction, runUserActionAsync } from "@/lib/userActionTelemetry.js";
+import {
+  runUserAction,
+  runUserActionAsync,
+  type UserActionTrigger,
+} from "@/lib/userActionTelemetry.js";
 
 /**
  * Drora 人格身份编辑的状态机（specs/drora-persona-system.md §10、合同 §2/§3）：
  * 已保存快照（服务权威）、局部草稿（seed+seedRevision 做 CAS 基线）、CAS 冲突保留草稿、
  * focus/显式刷新重读不覆盖脏草稿、确定性预览去抖。展示层（PersonaSettingsSection）只消费本 hook。
+ *
+ * 即时保存（spec §10 第十六批）：不再提供整块保存按钮——离散选择（warmth/directness/humor）
+ * 变更即提交，文本字段（displayName/selfDescription）失焦或停顿约 1 秒后提交，分区卸载前
+ * flush 未落盘文本。提交复用既有写路径与幂等契约（mutationId、CAS expectedRevision、
+ * outcome_unknown 同 ID 回放），只改触发时机不改语义。服务 revision ≠ 草稿基线（CAS 分歧
+ * 未解决）时暂停自动提交，由分歧面板引导；分歧中的后续编辑保持面板可见。未初始化不自动提交。
+ * 保存成功后按字段做三路合并再变基（草稿基线对齐新 revision，同时保留保存期间的新编辑），
+ * 编辑在写入在途期间不会丢失。
  */
 
 export type PersonaControlService = Pick<
@@ -67,6 +79,23 @@ export interface PersonaPreviewState {
   templateVersion: number;
   compilerVersion: number;
 }
+
+const CORE_FIELD_KEYS = [
+  "displayName",
+  "selfDescription",
+  "warmth",
+  "directness",
+  "humor",
+] as const satisfies readonly (keyof PersonaEditableCore)[];
+type CoreFieldKey = (typeof CORE_FIELD_KEYS)[number];
+
+/** 离散选择字段：变更即提交（即时保存的「选择即存」路径，spec §10 第十六批）。 */
+const DISCRETE_CORE_FIELDS: readonly CoreFieldKey[] = ["warmth", "directness", "humor"];
+
+/** 文本字段自动提交的去抖间隔（spec §10「停顿约 1 秒」）。 */
+const AUTOSAVE_IDLE_MS = 1000;
+/** 写入在途时自动提交的顺延重试间隔（不并发两条写，顺延到在途完成后结算）。 */
+const AUTOSAVE_PENDING_RETRY_MS = 400;
 
 export function personaCoreEquals(left: PersonaEditableCore, right: PersonaEditableCore): boolean {
   return (
@@ -129,18 +158,50 @@ export function usePersonaCoreEditor(personaService: PersonaControlService) {
   // CAS 冲突、校验/未初始化拒绝）后清除，下一次用户提交换新 ID。按操作分别登记。
   const liveMutationIdsRef = useRef<{ update?: string; initialize?: string; reset?: string }>({});
 
+  // 即时保存的同步镜像：定时器/flush/卸载回调运行时读 ref 而不是闭包 state，
+  // 保证「改完立即提交」「停顿后提交」「卸载 flush」拿到的都是最新草稿与权威快照。
+  const draftRef = useRef<PersonaDraftState | null>(null);
+  const savedRef = useRef<PersonaSavedSnapshot | null>(null);
+  const savePendingRef = useRef(false);
+  const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const commitRef = useRef<(trigger?: UserActionTrigger) => Promise<void>>(async () => {});
+  const flushRef = useRef<(trigger?: UserActionTrigger) => Promise<void>>(async () => {});
+
+  const clearAutosaveTimer = useCallback(() => {
+    if (autosaveTimerRef.current !== null) {
+      clearTimeout(autosaveTimerRef.current);
+      autosaveTimerRef.current = null;
+    }
+  }, []);
+
+  const scheduleAutosave = useCallback(
+    (delay: number = AUTOSAVE_IDLE_MS) => {
+      clearAutosaveTimer();
+      autosaveTimerRef.current = setTimeout(() => {
+        autosaveTimerRef.current = null;
+        if (savePendingRef.current) {
+          // 写入在途：不并发第二条写，顺延到在途完成后结算（草稿仍在 ref 中，不会丢）。
+          scheduleAutosave(AUTOSAVE_PENDING_RETRY_MS);
+          return;
+        }
+        void flushRef.current("keyboard");
+      }, delay);
+    },
+    [clearAutosaveTimer],
+  );
+
   const draftDirty = draftState !== null && !personaCoreEquals(draftState.core, draftState.seed);
   const savedDiverged = draftDirty && saved !== null && saved.revision !== draftState.seedRevision;
   const showDivergence = savedDiverged && saved.revision !== acknowledgedRevision;
 
   /**
-   * 读取服务权威快照（getPersonaOverview + getPersonaCore）。
+   * 读取服务权威快照（getPersonaOverview + getPersonaCore），返回新快照供调用方变基。
    * reseed=true（保存/初始化/恢复默认之后，或显式放弃草稿）时草稿无条件跟随服务值；
    * reseed=false（focus/显式刷新）只在草稿未改动时静默跟随，脏草稿原样保留，
    * 由 revision 分歧面板提示（跨窗口以服务 revision 为权威，但不静默覆盖编辑）。
    */
   const reload = useCallback(
-    async (options: { reseed: boolean }): Promise<void> => {
+    async (options: { reseed: boolean }): Promise<PersonaSavedSnapshot | null> => {
       const generation = ++reloadGenRef.current;
       setLoadPhase("loading");
       setLoadErrorCode(null);
@@ -149,36 +210,41 @@ export function usePersonaCoreEditor(personaService: PersonaControlService) {
           personaService.getPersonaOverview(),
           personaService.getPersonaCore(),
         ]);
-        if (generation !== reloadGenRef.current) return;
+        if (generation !== reloadGenRef.current) return null;
         if (!overviewResult.ok) {
           setLoadPhase("error");
           setLoadErrorCode(overviewResult.code);
-          return;
+          return null;
         }
         if (!coreResult.ok) {
           setLoadPhase("error");
           setLoadErrorCode(coreResult.code);
-          return;
+          return null;
         }
         const nextSaved = toSavedSnapshot(overviewResult.value, coreResult.value);
         setSaved(nextSaved);
-        setDraftState((current) => {
-          const draftClean = !current || personaCoreEquals(current.core, current.seed);
-          if (options.reseed || draftClean) {
-            return {
-              core: nextSaved.core,
-              seed: nextSaved.core,
-              seedRevision: nextSaved.revision,
-            };
-          }
-          return current;
-        });
+        savedRef.current = nextSaved;
+        const current = draftRef.current;
+        const draftClean = !current || personaCoreEquals(current.core, current.seed);
+        if (options.reseed || draftClean) {
+          const reseeded = {
+            core: nextSaved.core,
+            seed: nextSaved.core,
+            seedRevision: nextSaved.revision,
+          };
+          draftRef.current = reseeded;
+          setDraftState(reseeded);
+        } else {
+          setDraftState(current);
+        }
         setLoadPhase("ready");
+        return nextSaved;
       } catch (cause) {
-        if (generation !== reloadGenRef.current) return;
+        if (generation !== reloadGenRef.current) return null;
         // 旧 CLI / 控制端口缺席 / 断线都落在 RPC 错误：按不可用诚实降级，不试发 persona 方法。
         setLoadPhase("error");
         setLoadErrorCode(cause instanceof Error ? cause.message : String(cause));
+        return null;
       }
     },
     [personaService],
@@ -232,81 +298,164 @@ export function usePersonaCoreEditor(personaService: PersonaControlService) {
     };
   }, [draftState?.core, personaService]);
 
-  const handleSave = useCallback(async () => {
-    if (!draftState || savePending) return;
-    if (!saved?.initialized) {
-      setNotice({ tone: "error", kind: "uninitialized" });
-      return;
-    }
-    setSavePending(true);
-    setNotice(null);
-    try {
-      await runUserActionAsync({
-        input: {
-          featureId: "settings.drora",
-          action: "save_persona_core",
-          trigger: "button",
-        },
-        operation: async () => {
-          // 结果未知的上一次尝试在途：重试必须复用同一 mutationId（合同 §2 幂等回放）。
-          const mutationId = liveMutationIdsRef.current.update ?? createMutationId();
-          liveMutationIdsRef.current.update = mutationId;
-          const result = await personaService.updatePersonaCore({
-            expectedRevision: draftState.seedRevision,
-            patch: { ...draftState.core },
-            mutationId,
-          });
-          if (!result.ok) {
-            if (result.code === PERSONA_ERROR_CODES.revisionConflict) {
-              // CAS 冲突：确定性拒绝（不写 receipt），清除在途 ID，保留草稿并拉取最新版本。
-              delete liveMutationIdsRef.current.update;
-              await reload({ reseed: false });
-              setNotice({ tone: "error", kind: "conflict" });
-            } else if (result.code === PERSONA_ERROR_CODES.uninitialized) {
-              delete liveMutationIdsRef.current.update;
-              setNotice({ tone: "error", kind: "uninitialized" });
-            } else if (result.code === PERSONA_ERROR_CODES.outcomeUnknown) {
-              // 结果未知：保留同一 mutationId，重试同 ID 幂等回放，不显示失败后换新 ID 重写。
-              setNotice({ tone: "info", kind: "outcomeUnknown" });
-            } else {
-              // 其余封闭错误码是确定性拒绝：清除在途 ID，下次提交换新 ID。
-              delete liveMutationIdsRef.current.update;
-              setNotice({ tone: "error", kind: "code", code: result.code });
+  /**
+   * 提交当前草稿（自动保存与显式重试共用同一条写路径）。触发时机由调度层决定：
+   * select=离散选择即存、keyboard=文本失焦/停顿/卸载 flush、button=保留给显式重试。
+   * 成功后重读并按字段三路合并变基：保存期间的新编辑不丢，脏合并结果重新调度提交。
+   */
+  const handleSave = useCallback(
+    async (trigger: UserActionTrigger = "keyboard"): Promise<void> => {
+      const draft = draftRef.current;
+      if (!draft || savePendingRef.current) return;
+      if (!savedRef.current?.initialized) {
+        // 未初始化不自动提交（spec §10 第十六批）；初始化是显式动作。
+        setNotice({ tone: "error", kind: "uninitialized" });
+        return;
+      }
+      savePendingRef.current = true;
+      setSavePending(true);
+      setNotice(null);
+      const savedCoreAtStart = { ...draft.core };
+      try {
+        await runUserActionAsync({
+          input: {
+            featureId: "settings.drora",
+            action: "save_persona_core",
+            trigger,
+          },
+          operation: async () => {
+            // 结果未知的上一次尝试在途：重试必须复用同一 mutationId（合同 §2 幂等回放）。
+            const mutationId = liveMutationIdsRef.current.update ?? createMutationId();
+            liveMutationIdsRef.current.update = mutationId;
+            const result = await personaService.updatePersonaCore({
+              expectedRevision: draft.seedRevision,
+              patch: { ...draft.core },
+              mutationId,
+            });
+            if (!result.ok) {
+              if (result.code === PERSONA_ERROR_CODES.revisionConflict) {
+                // CAS 冲突：确定性拒绝（不写 receipt），清除在途 ID，保留草稿并拉取最新版本；
+                // 分歧面板为唯一解决面，自动提交从此暂停（flush 的 diverged 守卫）。
+                delete liveMutationIdsRef.current.update;
+                await reload({ reseed: false });
+                setNotice({ tone: "error", kind: "conflict" });
+              } else if (result.code === PERSONA_ERROR_CODES.uninitialized) {
+                delete liveMutationIdsRef.current.update;
+                setNotice({ tone: "error", kind: "uninitialized" });
+              } else if (result.code === PERSONA_ERROR_CODES.outcomeUnknown) {
+                // 结果未知：保留同一 mutationId，重试同 ID 幂等回放，不显示失败后换新 ID 重写。
+                setNotice({ tone: "info", kind: "outcomeUnknown" });
+              } else {
+                // 其余封闭错误码是确定性拒绝：清除在途 ID，下次提交换新 ID。
+                delete liveMutationIdsRef.current.update;
+                setNotice({ tone: "error", kind: "code", code: result.code });
+              }
+              return;
             }
-            return;
-          }
-          delete liveMutationIdsRef.current.update;
-          setNotice(
-            result.value.status === "saved"
-              ? { tone: "success", kind: "saved" }
-              : { tone: "success", kind: "unchanged" },
-          );
-          // 保存成功后重读版本（spec §10），草稿基线对齐新 revision。
-          await reload({ reseed: true });
-        },
-        completed: { resultSource: "authority_ack" },
-        failureStage: "persona_commit",
-      });
-    } catch (cause) {
-      // RPC 层失败（断线/超时）同样结果未知：保留 mutationId 供重试同 ID 回放（合同 §2）。
-      setNotice({
-        tone: "error",
-        kind: "rpc",
-        message: cause instanceof Error ? cause.message : String(cause),
-      });
-    } finally {
-      setSavePending(false);
-    }
-  }, [draftState, savePending, saved?.initialized, personaService, reload]);
+            delete liveMutationIdsRef.current.update;
+            setNotice(
+              result.value.status === "saved"
+                ? { tone: "success", kind: "saved" }
+                : { tone: "success", kind: "unchanged" },
+            );
+            // 保存成功后重读版本（spec §10），草稿基线对齐新 revision；按字段三路合并保留
+            // 保存期间的新编辑（快速连续修改不丢），合并后仍脏则重新调度自动提交。
+            // 在途编辑必须在 reload 前捕获——reseed 会先重置草稿。
+            const draftDuringSave = draftRef.current;
+            const nextSaved = await reload({ reseed: true });
+            if (!nextSaved) return;
+            const mergedCore: PersonaEditableCore = { ...nextSaved.core };
+            if (draftDuringSave) {
+              for (const key of CORE_FIELD_KEYS) {
+                const duringValue = draftDuringSave.core[key];
+                if (duringValue !== savedCoreAtStart[key]) {
+                  // 在途编辑的值来自合法的 PersonaEditableCore；泛型键索引丢失字面量收窄，
+                  // 这里经 Record 视图回写（运行时值必为该字段的合法成员）。
+                  (mergedCore as Record<CoreFieldKey, string>)[key] = duringValue;
+                }
+              }
+            }
+            const rebased = {
+              core: mergedCore,
+              seed: nextSaved.core,
+              seedRevision: nextSaved.revision,
+            };
+            draftRef.current = rebased;
+            setDraftState(rebased);
+            if (!personaCoreEquals(rebased.core, rebased.seed)) {
+              scheduleAutosave();
+            }
+          },
+          completed: { resultSource: "authority_ack" },
+          failureStage: "persona_commit",
+        });
+      } catch (cause) {
+        // RPC 层失败（断线/超时）同样结果未知：保留 mutationId 供重试同 ID 回放（合同 §2）。
+        setNotice({
+          tone: "error",
+          kind: "rpc",
+          message: cause instanceof Error ? cause.message : String(cause),
+        });
+      } finally {
+        savePendingRef.current = false;
+        setSavePending(false);
+      }
+    },
+    [personaService, reload, scheduleAutosave],
+  );
 
-  const handleCancelDraft = useCallback(() => {
-    setDraftState((current) =>
-      current
-        ? { core: current.seed, seed: current.seed, seedRevision: current.seedRevision }
-        : current,
-    );
-    setNotice(null);
-    setAcknowledgedRevision(null);
+  useEffect(() => {
+    commitRef.current = handleSave;
+  }, [handleSave]);
+
+  /**
+   * 立即结算当前草稿（失焦/离散选择/卸载 flush 共用）。守卫顺序：在途并发、未初始化、
+   * 无实际改动、CAS 分歧未解决（自动提交暂停，分歧面板引导）。
+   */
+  const flushDraftSave = useCallback(
+    async (trigger: UserActionTrigger = "keyboard") => {
+      clearAutosaveTimer();
+      const draft = draftRef.current;
+      if (!draft || savePendingRef.current) return;
+      const savedNow = savedRef.current;
+      if (!savedNow?.initialized) return;
+      if (personaCoreEquals(draft.core, draft.seed)) return;
+      if (savedNow.revision !== draft.seedRevision) return;
+      await commitRef.current(trigger);
+    },
+    [clearAutosaveTimer],
+  );
+
+  useEffect(() => {
+    flushRef.current = flushDraftSave;
+  }, [flushDraftSave]);
+
+  // 分区卸载前提交未落盘文本（spec §10 第十六批）；定时器一并清理，防止卸载后触发。
+  useEffect(() => {
+    return () => {
+      clearAutosaveTimer();
+      const draft = draftRef.current;
+      if (!draft || savePendingRef.current) return;
+      const savedNow = savedRef.current;
+      if (!savedNow?.initialized) return;
+      if (personaCoreEquals(draft.core, draft.seed)) return;
+      if (savedNow.revision !== draft.seedRevision) return;
+      void commitRef.current("keyboard");
+    };
+  }, [clearAutosaveTimer]);
+
+  /** 单字段回退（替代整块「放弃修改」按钮，spec §10 第十六批）：该字段回到已保存值。 */
+  const revertField = useCallback((field: CoreFieldKey) => {
+    const current = draftRef.current;
+    if (!current) return;
+    const next = {
+      ...current,
+      core: { ...current.core, [field]: current.seed[field] } as PersonaEditableCore,
+    };
+    draftRef.current = next;
+    setDraftState(next);
+    // 其余字段若仍有未落盘改动则立即结算；全部干净时 flush 自行空转。
+    void flushRef.current("keyboard");
   }, []);
 
   const handleInitialize = useCallback(async () => {
@@ -356,7 +505,8 @@ export function usePersonaCoreEditor(personaService: PersonaControlService) {
   }, [initializePending, personaService, reload, draftDirty]);
 
   const handleResetDefaults = useCallback(async () => {
-    if (resetPending || !draftState) return;
+    const draftAtStart = draftRef.current;
+    if (resetPending || !draftAtStart) return;
     setResetPending(true);
     setNotice(null);
     try {
@@ -371,7 +521,7 @@ export function usePersonaCoreEditor(personaService: PersonaControlService) {
           const mutationId = liveMutationIdsRef.current.reset ?? createMutationId();
           liveMutationIdsRef.current.reset = mutationId;
           const result = await personaService.resetPersonaCore({
-            expectedRevision: draftState.seedRevision,
+            expectedRevision: draftAtStart.seedRevision,
             mutationId,
           });
           if (!result.ok) {
@@ -407,7 +557,7 @@ export function usePersonaCoreEditor(personaService: PersonaControlService) {
       setResetPending(false);
       setResetConfirmOpen(false);
     }
-  }, [resetPending, draftState, personaService, reload]);
+  }, [resetPending, personaService, reload]);
 
   const handleDiscardDraftAndReload = useCallback(async () => {
     setAcknowledgedRevision(null);
@@ -432,13 +582,13 @@ export function usePersonaCoreEditor(personaService: PersonaControlService) {
         trigger: "button",
       },
       operation: () => {
-        if (saved) setAcknowledgedRevision(saved.revision);
+        if (savedRef.current) setAcknowledgedRevision(savedRef.current.revision);
         setNotice(null);
       },
       completed: { resultSource: "local_commit" },
       failureStage: "local_commit",
     });
-  }, [saved]);
+  }, []);
 
   const handleRefresh = useCallback(() => {
     // 显式刷新（focus 重读不包遥测：那是被动重读，不是用户动作）。
@@ -454,11 +604,28 @@ export function usePersonaCoreEditor(personaService: PersonaControlService) {
     });
   }, [reload]);
 
-  const updateDraftField = useCallback((patch: Partial<PersonaEditableCore>) => {
-    setDraftState((current) =>
-      current ? { ...current, core: { ...current.core, ...patch } } : current,
-    );
-  }, []);
+  const updateDraftField = useCallback(
+    (patch: Partial<PersonaEditableCore>) => {
+      const current = draftRef.current;
+      if (!current) return;
+      const next = { ...current, core: { ...current.core, ...patch } };
+      draftRef.current = next;
+      // 分歧未解决时清除「保留草稿」承认：后续编辑保持分歧面板可见（spec §10 第十六批）。
+      const savedNow = savedRef.current;
+      if (savedNow && savedNow.revision !== current.seedRevision) {
+        setAcknowledgedRevision(null);
+      }
+      setDraftState(next);
+      // 离散选择即存（trigger=select）；文本字段去抖（trigger=keyboard），失焦由展示层 flush。
+      const discrete = DISCRETE_CORE_FIELDS.some((field) => field in patch);
+      if (discrete) {
+        void flushRef.current("select");
+      } else {
+        scheduleAutosave();
+      }
+    },
+    [scheduleAutosave],
+  );
 
   return {
     loadPhase,
@@ -478,7 +645,8 @@ export function usePersonaCoreEditor(personaService: PersonaControlService) {
     showDivergence,
     reload,
     handleSave,
-    handleCancelDraft,
+    flushDraftSave,
+    revertField,
     handleInitialize,
     handleResetDefaults,
     handleDiscardDraftAndReload,

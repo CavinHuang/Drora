@@ -97,6 +97,7 @@
 - **本仓行为**：本仓无 staging 集成分支（PR 直合 main），且 `origin` 指向上游官方仓 zai-org——`origin/main` 是**上游 main**，不是本仓产品 main。`firstPushBase` 在 `origin/staging` 存在且为 HEAD 祖先时用之，否则回退 `drora/main`（产品远端；`scripts/engineering-tests/scope.mjs:33-43`），不猜测其他分支、保持「无基线严格报错」语义。若照抄台账 8 的 `origin/main` 字面回退，merge-base 会退回上一上游锚点导致全量误选（即 pre-push 历史崩溃模式）。
 - **依据**：`scripts/engineering-tests/scope.mjs:33-43`（`firstPushBase` 实现与注释，自引「divergence 台账 8 / v3.17.1 N2」）；`docs/upstream-sync/2026-10-31-v3.17.1/tasks.md` S1 执行补记 N2 段（旧 `affected-unit-tests/scope.mjs` 随 UP05497 删除，本仓改动=台账 8 staging 回退，由本条在新链承继并修正回退目标）；`docs/ci/affected-unit-test-baseline.md`、`docs/testing/pre-push-hook.md`（N2 口径已同步）。
 - **下次同步注意**：上游再动 `engineering-tests/scope.mjs` 的基线解析时，`drora/main` 回退必须保留（或在本仓引入 staging 类集成分支后按台账 8 的注意项整体重审）；不得把回退目标改回 `origin/main`，也不得引入对 `origin/*`（=zai-org）引用的静默依赖。
+- **2026-11-05 补记（本条警告已兑现一次并修复）**：v3.17.2 合并（b3e44cb2a）确实把 `firstPushBase` 覆盖回上游形态（仅 origin/staging、缺失即报错），feat/mate-p1 首推时 `verify:pre-push` 的 engineering:affected 在「无法解析基线或提交 origin/staging」失败。已按本条裁定恢复回退（origin/staging 存在且为 HEAD 祖先时用之 → 否则 drora/main merge-base → 两者皆缺失保持严格报错；不采用 origin/main 字面回退），专项测试 `affected-engineering-test-cli` 25/25 全绿，首推基线解析实证=42bacc627（分支分叉点）。
 
 ## 台账 11：zcode-\* 官方通道别名保留（V3 审计补登记，2026-11-01）
 

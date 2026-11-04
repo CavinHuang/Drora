@@ -61,7 +61,12 @@ export function VoicePrivacyDisclosureDialog({
           >
             {intl.formatMessage({ id: "common.cancel" })}
           </Button>
-          <Button type="button" size="sm" data-testid="voice-privacy-acknowledge" onClick={onAcknowledge}>
+          <Button
+            type="button"
+            size="sm"
+            data-testid="voice-privacy-acknowledge"
+            onClick={onAcknowledge}
+          >
             {intl.formatMessage({ id: "voice.settings.privacy.acknowledge" })}
           </Button>
         </DialogFooter>

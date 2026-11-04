@@ -156,18 +156,7 @@ async function ensureShimFile(binDir: string, shim: NodeFallbackShimFile): Promi
     });
     // writeFile 的 mode 受 umask 影响，显式 chmod 保证可执行位。
     if (shim.executable) await chmod(temporaryPath, SHIM_EXECUTABLE_MODE);
-    try {
-      await rename(temporaryPath, shimPath);
-    } catch (renameError) {
-      // Windows 修复：rename 到已存在目标在 win32 报 EPERM/EEXIST（POSIX 是原子
-      // 覆盖）。并发场景目标已由另一 agent 写出且字节相同——"谁赢都正确"的语义
-      // 不变：确认目标存在即视为成功，只有目标确实缺失才上抛。
-      const code = (renameError as NodeJS.ErrnoException | null)?.code;
-      if ((code === "EPERM" || code === "EEXIST") && (await stat(shimPath)).isFile()) {
-        return;
-      }
-      throw renameError;
-    }
+    await rename(temporaryPath, shimPath);
   } catch (error) {
     await rm(temporaryPath, { force: true });
     throw error;

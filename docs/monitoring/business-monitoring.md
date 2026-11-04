@@ -80,30 +80,30 @@ UI store（当前模式唯一 owner）
 Agent 单轮消息完成事件的历史设计由 UI 侧 `finalizePromptTelemetry()` 聚合后，通过
 `reportAppTelemetryEvent()` 上报到 `/event/report`；当前 V4 主链路未调用该收口。
 
-| 字段                   | 类型          | 是否新增 | 说明                              | 口径 / 示例                                                                  |
-| ---------------------- | ------------- | -------- | --------------------------------- | ---------------------------------------------------------------------------- |
-| `time_to_first_token`  | string(float) | 否       | 从发送到首 token 的耗时，毫秒     | `firstTokenAt - sendTime`                                                    |
-| `waiting_ms`           | string(float) | 否       | 权限等待等用户等待耗时，毫秒      | 本轮各 tool permission request 到 response/终止的累计值                      |
-| `duration_ms`          | string(float) | 否       | 本轮墙钟总耗时，包含 `waiting_ms` | `finishedAt - sendTime`                                                      |
-| `request_time`         | string(float) | 否       | 用户发送时间戳                    | `sendTime`                                                                   |
-| `input_tokens`         | string(float) | 否       | 输入 token 数                     | 成功态有 usage 时上报                                                        |
-| `output_tokens`        | string(float) | 否       | 输出 token 数                     | 成功态有 usage 时上报                                                        |
-| `reasoning_tokens`     | string(float) | 否       | reasoning token 数                | 无值时为 `0`                                                                 |
-| `cached_input_tokens`  | string(float) | 否       | 命中缓存的输入 token 数           | 无值时为 `0`                                                                 |
-| `total_tokens`         | string(float) | 否       | 总 token 数                       | 成功态有 usage 时上报                                                        |
-| `agent_step_cnt`       | string(int)   | 否       | Agent 步骤数                      | 当前 message 生命周期内实际收口并上报的 `agent_step` 数                      |
-| `file_change_cnt`      | string(int)   | 否       | 变更文件数                        | 按本轮 fileChanges 去重 path                                                 |
-| `generated_code_lines` | string(int)   | 否       | 新增代码行数                      | 基于 before/after diff 统计 added                                            |
-| `ask_mode`             | string        | 否       | Agent 执行/权限模式               | `build` / `guarded` / `plan` / `yolo`，兼容 `edit` / `auto` / 空串           |
-| `retry_cnt`            | string(int)   | 是       | 本轮模型/API 重试次数             | 当前 completion 链路未稳定透出 retry 事件，先默认 `0`                        |
-| `tool_call_total`      | string(int)   | 是       | 本轮工具调用总数                  | 当前 message 内实际收口的 `tool_call` step 数                                |
-| `tool_call_failed`     | string(int)   | 是       | 本轮失败工具调用数                | 当前 message 内状态为 fail/timeout 或存在 error 的 `tool_call` step          |
-| `error_type`           | string        | 是       | 失败归类                          | 成功为空；有失败工具为 `TOOL_CALL_FAILED`；其它失败为 `UNKNOWN`              |
-| `error_msg`            | string        | 是       | 失败提示                          | 成功为空；失败原文非空时为 `[redacted]`，原文空时为空；归因使用 `error_type` |
-| `plan_status`          | string        | 是       | 用户发送本轮消息时的套餐身份      | 复用同轮 `send_btn` 冻结值，不在 completion 发生时重算                       |
-| `plan_product_id`      | string        | 是       | 当前套餐的后端稳定商品 ID         | 复用同轮 `send_btn` 冻结值；无法确认时为空字符串                             |
-| `workspace_kind`       | string        | 是       | 本轮 workspace 类型               | `local` / `remote`，由 workspace attachment 冻结                             |
-| `remote_kind`          | string        | 是       | 远程 workspace 类型               | `ssh` / `wsl` / `docker` / `server`；本地或无法解析时为空字符串              |
+| 字段                   | 类型          | 是否新增 | 说明                              | 口径 / 示例                                                         |
+| ---------------------- | ------------- | -------- | --------------------------------- | ------------------------------------------------------------------- |
+| `time_to_first_token`  | string(float) | 否       | 从发送到首 token 的耗时，毫秒     | `firstTokenAt - sendTime`                                           |
+| `waiting_ms`           | string(float) | 否       | 权限等待等用户等待耗时，毫秒      | 本轮各 tool permission request 到 response/终止的累计值             |
+| `duration_ms`          | string(float) | 否       | 本轮墙钟总耗时，包含 `waiting_ms` | `finishedAt - sendTime`                                             |
+| `request_time`         | string(float) | 否       | 用户发送时间戳                    | `sendTime`                                                          |
+| `input_tokens`         | string(float) | 否       | 输入 token 数                     | 成功态有 usage 时上报                                               |
+| `output_tokens`        | string(float) | 否       | 输出 token 数                     | 成功态有 usage 时上报                                               |
+| `reasoning_tokens`     | string(float) | 否       | reasoning token 数                | 无值时为 `0`                                                        |
+| `cached_input_tokens`  | string(float) | 否       | 命中缓存的输入 token 数           | 无值时为 `0`                                                        |
+| `total_tokens`         | string(float) | 否       | 总 token 数                       | 成功态有 usage 时上报                                               |
+| `agent_step_cnt`       | string(int)   | 否       | Agent 步骤数                      | 当前 message 生命周期内实际收口并上报的 `agent_step` 数             |
+| `file_change_cnt`      | string(int)   | 否       | 变更文件数                        | 按本轮 fileChanges 去重 path                                        |
+| `generated_code_lines` | string(int)   | 否       | 新增代码行数                      | 基于 before/after diff 统计 added                                   |
+| `ask_mode`             | string        | 否       | Agent 执行/权限模式                      | `build` / `guarded` / `plan` / `yolo`，兼容 `edit` / `auto` / 空串                                      |
+| `retry_cnt`            | string(int)   | 是       | 本轮模型/API 重试次数             | 当前 completion 链路未稳定透出 retry 事件，先默认 `0`               |
+| `tool_call_total`      | string(int)   | 是       | 本轮工具调用总数                  | 当前 message 内实际收口的 `tool_call` step 数                       |
+| `tool_call_failed`     | string(int)   | 是       | 本轮失败工具调用数                | 当前 message 内状态为 fail/timeout 或存在 error 的 `tool_call` step |
+| `error_type`           | string        | 是       | 失败归类                          | 成功为空；有失败工具为 `TOOL_CALL_FAILED`；其它失败为 `UNKNOWN`     |
+| `error_msg`            | string        | 是       | 失败提示                          | 成功为空；失败原文非空时为 `[redacted]`，原文空时为空；归因使用 `error_type`                        |
+| `plan_status`          | string        | 是       | 用户发送本轮消息时的套餐身份      | 复用同轮 `send_btn` 冻结值，不在 completion 发生时重算              |
+| `plan_product_id`      | string        | 是       | 当前套餐的后端稳定商品 ID         | 复用同轮 `send_btn` 冻结值；无法确认时为空字符串                    |
+| `workspace_kind`       | string        | 是       | 本轮 workspace 类型               | `local` / `remote`，由 workspace attachment 冻结                    |
+| `remote_kind`          | string        | 是       | 远程 workspace 类型               | `ssh` / `wsl` / `docker` / `server`；本地或无法解析时为空字符串     |
 
 实现位置：
 

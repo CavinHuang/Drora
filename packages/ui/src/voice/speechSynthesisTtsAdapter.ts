@@ -11,7 +11,12 @@
  */
 
 import { logger } from "@/logger.js";
-import type { VoiceTtsDoneReason, VoiceTtsHandle, VoiceTtsPort, VoiceTtsUtterance } from "./voiceTtsPort.js";
+import type {
+  VoiceTtsDoneReason,
+  VoiceTtsHandle,
+  VoiceTtsPort,
+  VoiceTtsUtterance,
+} from "./voiceTtsPort.js";
 
 export interface SpeechSynthesisVoiceLike {
   readonly name: string;
@@ -45,7 +50,9 @@ export interface SpeechSynthesisTtsAdapterDeps {
 
 const CANCELLED_ERROR_CODES = new Set(["canceled", "interrupted"]);
 
-export function createSpeechSynthesisTtsAdapter(deps: SpeechSynthesisTtsAdapterDeps = {}): VoiceTtsPort {
+export function createSpeechSynthesisTtsAdapter(
+  deps: SpeechSynthesisTtsAdapterDeps = {},
+): VoiceTtsPort {
   const getSpeechSynthesis =
     deps.getSpeechSynthesis ??
     (() => {

@@ -10,6 +10,8 @@ import semver from "semver";
 const { autoUpdater } = pkg;
 import {
   DEFAULT_LOCALE,
+  DEFAULT_DRORA_ENDPOINT_ORIGIN,
+  TEST_DRORA_ENDPOINT_ORIGIN,
   PlatformChannels,
   DRORA_VERSION,
   desktopMenuMessageIds,
@@ -22,16 +24,11 @@ import {
   type UpdateStatePayload,
 } from "@drora/shared";
 import { logger } from "./logger.js";
-import { applyDroraUpdateFeed } from "../drora-extensions/updateFeed.js";
-// 上游 v3.17.1 新增：Windows 下载包 Authenticode 校验（verifyUpdateCodeSignature 与安装前复查共用）。
-// 服务端 manifestUpdateProvider 链按 specs/update-feed-github.md 有意删除，不随本次合并恢复。
 import { verifyWindowsAuthenticodeSignature } from "../../scripts/powershell-command.mjs";
 
 export const CHECK_FOR_UPDATE_MENU_ID = "check-for-update";
 const AUTO_UPDATE_POLL_INTERVAL_MS = 15 * 60 * 1000;
 const AUTO_UPDATE_VISIBLE_POLL_INTERVAL_MS = 2 * 60 * 1000;
-const UPDATE_FEED_URL_ENV = "DRORA_UPDATE_FEED_URL";
-const UPDATE_FEED_URL_SWITCH = "--drora-update-feed-url";
 const DEV_AUTO_UPDATE_ENV = "DRORA_AUTO_UPDATE_DEV";
 const DEV_AUTO_UPDATE_SWITCH = "--drora-auto-update-dev";
 const DEV_AUTO_UPDATE_VERSION_ENV = "DRORA_AUTO_UPDATE_DEV_VERSION";
@@ -99,8 +96,6 @@ type UpdateDownloadedInfoLike = {
   > | null;
 };
 
-type RuntimeUpdateFeedSource = { url: string };
-
 type AutoUpdaterMenuState = UpdateStatePayload;
 let menuState: AutoUpdaterMenuState = { kind: "idle", enabled: true };
 
@@ -122,7 +117,6 @@ interface InitAutoUpdaterOptions {
   onQuitAndInstallFailed?: (error: unknown) => void;
   settingService?: SettingServiceLike;
   locale?: Locale;
-  updateFeedSource?: RuntimeUpdateFeedSource;
   deviceMid?: string;
   resolveEndpointOrigin?: () => string | Promise<string>;
 }
@@ -746,63 +740,6 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object";
 }
 
-function redactUpdateFeedUrlForLog(value: string): string {
-  try {
-    const url = new URL(value);
-    url.username = "";
-    url.password = "";
-    if (url.search) {
-      url.search = "?<redacted>";
-    }
-    url.hash = "";
-    return url.toString();
-  } catch {
-    return "<invalid-url>";
-  }
-}
-
-function readSwitchValue(argv: readonly string[], switchName: string): string | undefined {
-  const equalsPrefix = `${switchName}=`;
-  for (let index = 0; index < argv.length; index += 1) {
-    const arg = argv[index];
-    // 协议注册使用 -- 分隔外部 URL；其后的内容不能重新解释为应用开关。
-    if (arg === "--") break;
-    if (!arg) {
-      continue;
-    }
-    if (arg.startsWith(equalsPrefix)) {
-      return arg.slice(equalsPrefix.length).trim() || undefined;
-    }
-    if (arg === switchName) {
-      const next = argv[index + 1];
-      if (next && !next.startsWith("--")) {
-        return next.trim() || undefined;
-      }
-      return undefined;
-    }
-  }
-  return undefined;
-}
-
-export function resolveUpdateFeedSourceFromStartupConfig(
-  options: {
-    argv?: readonly string[];
-    env?: Record<string, string | undefined>;
-  } = {},
-): RuntimeUpdateFeedSource | undefined {
-  // Windows 深链中的引号可拆出额外 argv。正式包必须忽略调试更新源，
-  // 不能让不可信启动参数（或继承的环境变量）接管安装包下载来源。
-  if (app.isPackaged) return undefined;
-  const argv = options.argv ?? process.argv;
-  const env = options.env ?? process.env;
-  const feedUrl = readSwitchValue(argv, UPDATE_FEED_URL_SWITCH) ?? env[UPDATE_FEED_URL_ENV]?.trim();
-  return feedUrl
-    ? {
-        url: feedUrl,
-      }
-    : undefined;
-}
-
 async function resolveUpdateReleaseChannel(
   settingService: SettingServiceLike | undefined,
 ): Promise<ElectronReleaseChannel> {
@@ -838,13 +775,6 @@ async function syncAutoUpdateCheckChannelFromSettings(
   // 如果 begin 阶段仍用默认 stable 作为 expected channel，冷启动 preview 结果会被误判为 stale。
   availableUpdateChannel = nextChannel;
   activeAutoUpdateCheckChannel = nextChannel;
-}
-
-// Drora 更新源走 GitHub Release（specs/update-feed-github.md）：服务端 manifest provider
-// （上游 applyManifestUpdateProvider / ManifestUpdateProvider / deviceMid 遥测链）按 spec 有意删除。
-// 上游 v3.17.1 对该函数的 endpointOrigin 收紧与 manifestUrl 打包态禁用改动随删除一并不吸收。
-function applyReleaseFeed(options: InitAutoUpdaterOptions): void {
-  applyDroraUpdateFeed(autoUpdater, options.updateFeedSource?.url);
 }
 
 function pickFallbackReleaseNotesMarkdown(
@@ -1671,7 +1601,6 @@ export async function initAutoUpdater(options: InitAutoUpdaterOptions = {}): Pro
     autoUpdater.verifyUpdateCodeSignature = (_publisherNames, filePath) =>
       verifyWindowsAuthenticodeSignature(filePath);
   }
-  applyReleaseFeed(options);
 
   const triggerCheckForUpdates = (reason: string) => {
     if (quitAndInstallState !== "idle") return;

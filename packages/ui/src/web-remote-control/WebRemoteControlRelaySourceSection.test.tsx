@@ -47,9 +47,8 @@ vi.mock("@/components/ui/toast.js", () => ({
   toast: vi.fn(),
 }));
 
-const { WebRemoteControlRelaySourceSection } = await import(
-  "./WebRemoteControlRelaySourceSection.js"
-);
+const { WebRemoteControlRelaySourceSection } =
+  await import("./WebRemoteControlRelaySourceSection.js");
 
 function renderSection(onRestart: () => void = vi.fn()) {
   return render(<WebRemoteControlRelaySourceSection onRestart={onRestart} />);
@@ -110,9 +109,9 @@ describe("WebRemoteControlRelaySourceSection", () => {
     await waitFor(() => {
       expect(screen.queryByTestId("web-remote-control-relay-source-error")).toBeTruthy();
     });
-    expect(
-      screen.getByTestId("web-remote-control-relay-source-error").textContent,
-    ).toContain("webRemoteControl.relaySource.originRequired");
+    expect(screen.getByTestId("web-remote-control-relay-source-error").textContent).toContain(
+      "webRemoteControl.relaySource.originRequired",
+    );
     expect(updateSettingsMock).not.toHaveBeenCalled();
     expect(stopWebRemoteControlMock).not.toHaveBeenCalled();
     expect(onRestart).not.toHaveBeenCalled();
@@ -131,9 +130,9 @@ describe("WebRemoteControlRelaySourceSection", () => {
     await waitFor(() => {
       expect(screen.queryByTestId("web-remote-control-relay-source-error")).toBeTruthy();
     });
-    expect(
-      screen.getByTestId("web-remote-control-relay-source-error").textContent,
-    ).toContain("webRemoteControl.relaySource.originInvalid");
+    expect(screen.getByTestId("web-remote-control-relay-source-error").textContent).toContain(
+      "webRemoteControl.relaySource.originInvalid",
+    );
     expect(updateSettingsMock).not.toHaveBeenCalled();
   });
 

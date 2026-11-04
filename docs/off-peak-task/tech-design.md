@@ -23,20 +23,20 @@
 
 > 完整 D1–D44（含每条的备选与否决理由）见 `decisions.md`。以下是决定最终架构形状的条目：
 
-| 决策                               | 一句话                                                                                                                                                                                                                                                                      |
-| ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **任务本质**（D28，取代 D5/D23）   | Automations 体系下的**一次性后台任务**：表单创建、列表管理、派发时新建 session；UI 一切以 Figma 定稿为准，composer 月亮开关/锁定范式作废                                                                                                                                    |
-| **排队与并发归服务端**（D18/D20）  | 全局 FIFO、每用户并发额度全在服务端；客户端不承载任何调度策略                                                                                                                                                                                                               |
-| **任务生命周期五接口**（D39）      | availability → 取号 `POST /ticket`(→ticket_id) → 批量 `POST /ticket/status` → `POST /messages` → settle；服务端 ready 写成本地 schedulable；本地 running 在 sendPrompt ACK 后写入，不能与 active 按时间严格等同                                                             |
-| **到期停止自动续跑**（2026-10-21） | 每张 active ticket 最多 3h；到期 `3106` 后失败收口，不自动补号；新票仅由用户手动创建、Continue 或重试                                                                                                                                                                       |
-| **每请求可重排队**（D19）          | 排队协议收敛在 idle plan provider 适配层；等待不计失败、不设上限，agent loop 无感                                                                                                                                                                                           |
-| **idle plan**（D11/D16/D33/D44）   | 自动派发 turn 精确选择隐藏 Built-in `builtin:offpeak-idle-plan`，通过标准 Registry/ModelFactory 创建 Active Model；permission 在普通 session 内处理且聚合态保持 running，不做批准后中途切 provider                                                                          |
-| **计费边界**（D23/D33）            | 运行时 Session Selection 维护续跑归属；临时闲时选择与凭据不落普通 session entry，接纳用户消息后续跑用用户选择                                                                                                                                                               |
-| **终态核销**（D22）                | settle 幂等上报 + outbox 补报，服务端静默超时回收兜底                                                                                                                                                                                                                       |
-| **灰度开关**（D31）                | 入口曝光由共用 `GET /api/v1/client/configs` 的 `offPeak.enable_offpeak_task` 下发；模型列表来自 Built-in `builtin:offpeak-idle-plan`。有效开启 = 开关 true 且 Built-in 模型列表非空；准入仍以服务端为准                                                                     |
-| **额度快照**（D39）                | 专用 `GET /ticket/availability` 返回 `can_take_number` 与 `next_take_at`；UI 提前置灰并到点重查，实际 `POST /ticket` 仍是竞态下最终权威                                                                                                                                     |
-| **砍与新开**（D1/D8/D17）          | 免费池无余额概念、无沙盒（映射现有权限模式）；ticket 生命周期与 messages 能力为 Off-Peak 专用，客户端同时提供 mock                                                                                                                                                          |
-| **会话内创建**（D49，推翻 D30-4）  | `OffPeakCreate`/`OffPeakList` 与 `Cron*` 兄弟工具族并列（统一创建入口，agent 按语义分流）；经新协议方法 `offPeak/create`/`offPeak/list` 桥到既有 `OffPeakTaskService.createTask`，与表单同一条取号链路；工具面由 host 下发 `offPeakToolEnabled` 控制（缺省不下发 = 不注册） |
+| 决策                                      | 一句话                                                                                                                                                                                                          |
+| ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **任务本质**（D28，取代 D5/D23）          | Automations 体系下的**一次性后台任务**：表单创建、列表管理、派发时新建 session；UI 一切以 Figma 定稿为准，composer 月亮开关/锁定范式作废                                                                        |
+| **排队与并发归服务端**（D18/D20）         | 全局 FIFO、每用户并发额度全在服务端；客户端不承载任何调度策略                                                                                                                                                   |
+| **任务生命周期五接口**（D39）             | availability → 取号 `POST /ticket`(→ticket_id) → 批量 `POST /ticket/status` → `POST /messages` → settle；服务端 ready 写成本地 schedulable；本地 running 在 sendPrompt ACK 后写入，不能与 active 按时间严格等同 |
+| **到期停止自动续跑**（2026-10-21） | 每张 active ticket 最多 3h；到期 `3106` 后失败收口，不自动补号；新票仅由用户手动创建、Continue 或重试                                                                                                          |
+| **每请求可重排队**（D19）                 | 排队协议收敛在 idle plan provider 适配层；等待不计失败、不设上限，agent loop 无感                                                                                                                               |
+| **idle plan**（D11/D16/D33/D44）          | 自动派发 turn 精确选择隐藏 Built-in `builtin:offpeak-idle-plan`，通过标准 Registry/ModelFactory 创建 Active Model；permission 在普通 session 内处理且聚合态保持 running，不做批准后中途切 provider              |
+| **计费边界**（D23/D33）                   | 运行时 Session Selection 维护续跑归属；临时闲时选择与凭据不落普通 session entry，接纳用户消息后续跑用用户选择                                     |
+| **终态核销**（D22）                       | settle 幂等上报 + outbox 补报，服务端静默超时回收兜底                                                                                                                                                           |
+| **灰度开关**（D31）                       | 入口曝光由共用 `GET /api/v1/client/configs` 的 `offPeak.enable_offpeak_task` 下发；模型列表来自 Built-in `builtin:offpeak-idle-plan`。有效开启 = 开关 true 且 Built-in 模型列表非空；准入仍以服务端为准         |
+| **额度快照**（D39）                       | 专用 `GET /ticket/availability` 返回 `can_take_number` 与 `next_take_at`；UI 提前置灰并到点重查，实际 `POST /ticket` 仍是竞态下最终权威                                                                         |
+| **砍与新开**（D1/D8/D17）                 | 免费池无余额概念、无沙盒（映射现有权限模式）；ticket 生命周期与 messages 能力为 Off-Peak 专用，客户端同时提供 mock                                                                                              |
+| **会话内创建**（D49，推翻 D30-4）         | `OffPeakCreate`/`OffPeakList` 与 `Cron*` 兄弟工具族并列（统一创建入口，agent 按语义分流）；经新协议方法 `offPeak/create`/`offPeak/list` 桥到既有 `OffPeakTaskService.createTask`，与表单同一条取号链路；工具面由 host 下发 `offPeakToolEnabled` 控制（缺省不下发 = 不注册） |
 
 **Provider/计费边界（当前实现）**：session 模型栏始终展示用户 workspace 常驻模型；idle plan
 仅是自动派发 turn 的 Active Model。不能再使用“凡是人触发就一定切用户 key”的旧概括：
@@ -725,7 +725,7 @@ flowchart TD
 | 提交                | 先查 availability（仅成功返回 true 放行）→ `POST /ticket`；取号成功才落库           | 生成 ticket 并返回 state/position；服务端额度是权威 | 查询失败/加载中禁入；`429/3103 + next_take_at` → 不落 task，刷新 availability |
 | 批量同步            | 有非终态 ticket 才 `POST /ticket/status`；共享 timer 按 nextPollAfter               | 返回 ticket state + position                        | 失败 10 秒起指数退避；`not_found` 当前不自动 retake                           |
 | 发起执行            | `schedulable=1` 的 task 被 scheduler 认领；host `sendPrompt` ACK 后本地 markRunning | ready ticket 的首个 messages 请求激活为 active      | messages 若 `429/3105`，适配层等待；UI 此时仍显示 running                     |
-| 运行中              | 每次请求携带 ticket id；容量排队不消耗普通重试预算                                  | active 3h 到期后 messages 返回 `400/3106`           | CLI 报 ticket_needed，Host 记录失败并取消原驻留执行，不申请新票               |
+| 运行中              | 每次请求携带 ticket id；容量排队不消耗普通重试预算                                  | active 3h 到期后 messages 返回 `400/3106`           | CLI 报 ticket_needed，Host 记录失败并取消原驻留执行，不申请新票                        |
 | 终态                | 本地落终态（核销见 7.7/D22）                                                        | 释放并发占用；仅未激活票不再计入当日取号额度        | 客户端崩溃：服务端靠超时回收并发；客户端靠 `recoverInterrupted` 重新排队      |
 | Permission approval | 无 Off-Peak 专用状态/切换逻辑；批准后同一自动 turn 继续                             | 无额外 ticket 动作                                  | 仍使用同一个 idle Active Model；配额提示未实现                                |
 

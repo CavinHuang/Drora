@@ -75,13 +75,7 @@ export function createComputerUseBridgeGlobals(input: {
     },
   };
 
-  // 符号字面量保持官方原样（见文件头注释）：市场安装的官方 client 用 zcode.* 键取
-  // bridge。与 browser-bridge 同规则双挂 Drora 侧符号（drora.*）：本仓测试与 SDK 包
-  // 作用在同一个 bridge 上，双挂即完整覆盖，任一侧改名都不会断链。
-  return {
-    [NODE_REPL_CUA_BRIDGE_SYMBOL]: bridge,
-    [Symbol.for("drora.node-repl.computer-use-bridge")]: bridge,
-  };
+  return { [NODE_REPL_CUA_BRIDGE_SYMBOL]: bridge };
 }
 
 async function sendCuaBrokerRequest(

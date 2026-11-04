@@ -16,7 +16,10 @@
  */
 
 import { logger } from "@/logger.js";
-import { VOICE_ASR_SPONTANEOUS_END_SETTLE_MS, VOICE_ASR_STOP_SETTLE_TIMEOUT_MS } from "./voiceTuning.js";
+import {
+  VOICE_ASR_SPONTANEOUS_END_SETTLE_MS,
+  VOICE_ASR_STOP_SETTLE_TIMEOUT_MS,
+} from "./voiceTuning.js";
 import {
   VoiceAsrError,
   type VoiceAsrErrorCode,

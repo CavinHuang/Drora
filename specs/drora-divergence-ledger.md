@@ -122,3 +122,15 @@
 - ~~**分享文案下载链接指向官方站（V3 审计 B）**~~ **已裁定关闭（2026-11-01）**：用户裁定分享与远程控制整体保持官方原实现，官方链接维持现状——见台账 12。
 - **relay 校验工具的 `.zcode/toolchain-env.sh` 路径（V3 审计 C，low）**：`packages/relay-v2-server/tools/verify-same-origin.mjs:266,315-322` 寻找 `repoRoot/.zcode/toolchain-env.sh`——本仓 `.zcode/` 为 gitignore 运行时目录，钉版工具链入口实为 `scripts/mise-toolchain-env.mjs`。官方仓/worktree 布局残留，仅影响工具失败提示文案（找不到时回退手动指引，不致误判）；下次同步 relay 工具时顺带对齐。
 - **drora-site-plugin 裸读 env 键（V3 审计 D，low）**：`apps/drora-cli/packages/drora-site-plugin/scripts/drora-site.mjs:145-146` 以裸字面量读 `DRORA_OFFICIAL_ENDPOINT`/`_TOKEN` 而非引用 `shared/src/runtimeEnv.ts` 常量——该脚本为零依赖 .mjs，引入 `@drora/shared` 会破坏其独立运行性；登记为接受的偏差（生产方 bootstrap 侧仍走常量单一出处）。
+
+## 台账 14：上游 v3.17.2 开源裁测 vs 本仓保留测试运行网（2026-11-04 登记）
+
+- **能力范围**：上游 Source-Sync `zcode-open-source-v1` 起裁掉 packages 单测（ui/test 1146→115、services/test 291→5、provider/server 系全删），desktop E2E 保留。
+- **裁定**：D1 跟随上游删除（工作树已执行，−2000+ 文件）；**本仓自研路径与改造保留集**继续以双显式清单运转（drora 276 条/fork-isolated 4 条，vitest.config 双清单结构与 AGENTS.md 描述保 ours）。上游 zcode-cua vitest 工程路径引用不适用（本仓为冻结还原 0.6.3+自研常量，无该配置文件，沿用 v3.17.1 裁决）。
+- **下次同步注意**：上游测试面变更不再逐文件对账，仅核 engineering 清单与 desktop E2E；本仓 drora 清单收缩后基线 1881 用例为回归底线。
+
+## 台账 15：zcode-cua 冻结区 Helper 身份常量（2026-11-04 v3.17.2 补记）
+
+- **能力范围**：`packages/zcode-cua/broker-helper-constants.js|d.ts`、broker.js|d.ts、index.d.ts、package.json 与 zcode-cua-plugin 三文件、third-party 清单——zone take-theirs 曾覆盖为上游原生值（HELPER_APP_NAME="ZCode Computer Use.app"、BUNDLE_ID=dev.zcode.cua-helper、包名 @drora/zcode-cua 0.6.5）。
+- **裁定**：15 文件恢复本仓 HEAD（Helper Drora 化裁定 2026-09-28 的单一出处，R3 冻结 0.6.3+本仓常量），仅并入上游新增 `HELPER_GHOST_CURSOR_OVERLAY_ARG`（值一致）与 broker re-export 三处增量；包名 `@drora/drora-cua` 全仓统一（改名引擎的 @drora/zcode-cua 名不采纳，58 文件收敛）。
+- **下次同步注意**：上游 zcode-cua 再演进时，Helper 身份五常量与包名以本仓为权威；新增 re-export/常量可并入但值域按本仓命名。

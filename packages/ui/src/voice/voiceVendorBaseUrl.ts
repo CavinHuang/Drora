@@ -18,7 +18,9 @@ export interface VoiceVendorBaseUrlValidation {
 
 function isLoopishHost(hostname: string): boolean {
   const host = hostname.replace(/^\[|\]$/gu, "").toLowerCase();
-  return host === "localhost" || host === "127.0.0.1" || host === "::1" || host.endsWith(".localhost");
+  return (
+    host === "localhost" || host === "127.0.0.1" || host === "::1" || host.endsWith(".localhost")
+  );
 }
 
 /**
@@ -26,7 +28,9 @@ function isLoopishHost(hostname: string): boolean {
  * （自托管 OpenAI 兼容网关场景，§9.6.1 备选②）。空串返回 ok（档「未配置」语义由
  * isVoiceVendorConfigComplete 三元非空判定负责，此处只校验形态）。
  */
-export function validateVoiceVendorBaseUrl(baseUrl: string | null | undefined): VoiceVendorBaseUrlValidation {
+export function validateVoiceVendorBaseUrl(
+  baseUrl: string | null | undefined,
+): VoiceVendorBaseUrlValidation {
   const trimmed = baseUrl?.trim() ?? "";
   if (trimmed.length === 0) {
     return { ok: true };

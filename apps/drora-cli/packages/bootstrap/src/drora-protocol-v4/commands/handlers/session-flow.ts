@@ -82,10 +82,7 @@ async function sendText(
       }
     : rawPayload;
   // canonical intent 必须和 admission 看同一份净荷，否则 transcript 会留下没有凭据的加速标记。
-  // 上游 v3.17.1：intentEnvelope 统一携带规范化后的 payload，不再依赖 dropsHighspeed 分支。
   const intentEnvelope = { ...envelope, payload } as CommandEnvelope;
-  // W03 §5.3：idle 直发也要在提交给模型前复验 evidence（失败=ACK failed guard.evidence*）。
-  await verifyEvidenceOrThrow(host, envelope.sessionId!, payload.evidenceRefs);
   const attachments = await mapAttachmentRefsToTurnAttachments(record.app, payload.attachments);
   const submittedExecutionState = resolveSubmittedExecutionState(record, payload);
   const submissionIntent = (options: Parameters<typeof inputIntentMetadata>[1]) =>

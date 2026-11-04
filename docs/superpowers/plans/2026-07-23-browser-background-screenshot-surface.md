@@ -89,7 +89,6 @@
 ### Task 1: 冻结 BCP-213 与跨进程平台合同
 
 **Files:**
-
 - Modify: `docs/testing/browser-use-coverage-matrix.md:108-111`
 - Modify: `packages/shared/src/platform.ts:52-68`
 - Modify: `packages/shared/src/platform.ts:535-566`

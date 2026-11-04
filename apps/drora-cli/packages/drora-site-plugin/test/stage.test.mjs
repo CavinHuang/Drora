@@ -1,47 +1,12 @@
 // packStage / checkStage 测试：在临时目录里搭 stage，检查产物包内容、契约检查和本地启动检查。
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { chmod, mkdir, mkdtemp, readFile, symlink, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import { gunzipSync } from "node:zlib";
 
 import { checkStage, classifyBinary, packStage } from "../scripts/stage.mjs";
-
-/**
- * Windows 修复：不用外部 `tar` 校验包内容。本机实证（中文 Windows）：无论 GNU tar
- * 还是 System32 bsdtar，经管道输出文件名都会被 ANSI 代码页转码（中文变 ???）且行尾
- * 为 CRLF，utf8 解码必错。tar 是 packStage 自己在 Node 里写出来的（tarEntries+
- * zlib），这里直接解包读 512 字节头的 ustar 条目，跨平台确定。
- */
-function readTarEntries(gzipBody) {
-  const tar = gunzipSync(gzipBody);
-  const entries = [];
-  let pendingPaxPath;
-  for (let offset = 0; offset + 512 <= tar.length; ) {
-    const block = tar.subarray(offset, offset + 512);
-    if (block.every((byte) => byte === 0)) break;
-    const name = block.subarray(0, 100).toString("utf8").replace(/\0.*$/s, "");
-    const prefix = block.subarray(345, 500).toString("utf8").replace(/\0.*$/s, "");
-    const mode = parseInt(block.subarray(100, 108).toString("utf8").replace(/\0.*$/s, ""), 8) || 0;
-    const sizeField = block.subarray(124, 136).toString("utf8").replace(/[\0 ]/g, "");
-    const size = parseInt(sizeField, 8) || 0;
-    const type = block[156];
-    const payload = tar.subarray(offset + 512, offset + 512 + size);
-    if (type === 0x78) {
-      // PAX 扩展头：长名/非 ASCII 名在 `path=` 记录里，作用于下一个条目。
-      const pathMatch = payload.toString("utf8").match(/(?:^|\n)\d+ path=([^\n]*)/);
-      pendingPaxPath = pathMatch?.[1];
-    } else if (type === 0x30 || type === 0) {
-      const ustarName = prefix ? `${prefix}/${name}` : name;
-      entries.push({ mode, name: pendingPaxPath ?? ustarName, size });
-      pendingPaxPath = undefined;
-    }
-    offset += 512 + Math.ceil(size / 512) * 512;
-  }
-  return entries;
-}
 
 async function stage(files) {
   const dir = await mkdtemp(join(tmpdir(), "drora-site-stage-"));
@@ -95,9 +60,8 @@ test("pack writes the stage as a gzip tar and skips local-only files", async () 
   assert.equal(packed.result.files, 5);
   assert.equal(packed.result.linuxBinaries, 1);
 
-  // Windows 修复：见文件头 readTarEntries 说明——tar 名单与模式位改为在 Node 内解包校验。
-  const entries = readTarEntries(packed.body);
-  const names = entries.map((entry) => entry.name).sort();
+  const listing = execFileSync("tar", ["-tvzf", out], { encoding: "utf8" });
+  const names = execFileSync("tar", ["-tzf", out], { encoding: "utf8" }).trim().split("\n").sort();
   assert.deepEqual(names, [
     "lib/addon.node",
     `public/${"a".repeat(120)}.html`,
@@ -105,12 +69,9 @@ test("pack writes the stage as a gzip tar and skips local-only files", async () 
     "server.js",
     "start.sh",
   ]);
-  const modeOf = (name) => entries.find((entry) => entry.name === name)?.mode.toString(8);
-  assert.equal(modeOf("lib/addon.node"), "755");
-  // Windows：chmod 不产生可执行位、stat 读不到 0111，脚本按设计落 644（打包器注释：
-  // 二进制靠内容探测给 755，不依赖可执行位）。POSIX 上 chmod 生效为 755。
-  assert.equal(modeOf("server.js"), process.platform === "win32" ? "644" : "755");
-  assert.equal(modeOf("start.sh"), "644");
+  assert.match(listing, /^-rwxr-xr-x.*lib\/addon\.node$/m);
+  assert.match(listing, /^-rwxr-xr-x.*server\.js$/m);
+  assert.match(listing, /^-rw-r--r--.*start\.sh$/m);
 });
 
 test("pack lists every contract problem and builds no package", async () => {

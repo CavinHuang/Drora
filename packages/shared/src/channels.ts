@@ -312,7 +312,6 @@ export const PlatformChannels = {
   SyncWindowTabs: "drora:sync-window-tabs",
   /** Renderer → Main：同步当前窗口可供 Web 远程控制切换的 workspace */
   SyncWebRemoteControlWorkspaces: "drora:sync-web-remote-control-workspaces",
-  /** Main → Renderer：手机端请求重连当前窗口里的远程 workspace */
   /** Main → Renderer：手机请求置顶/归档任务或新建本地项目，Renderer 按侧栏同一路径执行 */
   WebRemoteControlRendererAction: "drora:web-remote-control-renderer-action",
   /** Renderer → Main：同步当前窗口的未读 task 数 */
@@ -476,6 +475,8 @@ export const PlatformChannels = {
    * main 用 BrowserGuestManager attach 该 guest（fire-and-forget）。CDP-on-guest pivot。
    */
   BrowserViewAttachGuest: "drora:browser-view-attach-guest",
+  /** 可信宿主发起导航；main 将本地 HTML 转成有目录边界的预览地址。 */
+  BrowserViewLoadUrl: "drora:browser-view-load-url",
   /** Renderer → Main：重建 `<webview>` 前主动断开旧 guest 的 CDP。 */
   BrowserViewDownloadStarted: "drora:browser-view-download-started",
   BrowserViewDetachGuest: "drora:browser-view-detach-guest",

@@ -226,60 +226,63 @@ describe("生产行为组：1 MiB 硬闸（spec §3/§5.2 规则 3）", () => {
     // 正常尺寸帧继续透传：预算丢弃是逐帧行为，不是断连
     device.send({ type: "data", payload: "small-after-drop" });
     await expect
-      .poll(
-        () => messages(terminal).some((message) => message.payload === "small-after-drop"),
-        { timeout: 2_000 },
-      )
+      .poll(() => messages(terminal).some((message) => message.payload === "small-after-drop"), {
+        timeout: 2_000,
+      })
       .toBe(true);
   });
 });
 
 describe("生产行为组：慢连接背压（评审 ws-backpressure）", () => {
-  it("对端 socket 暂停后泵帧：超高水位的慢连接被服务端断开，服务仍存活可服务", { timeout: 30_000 }, async () => {
-    const relay = await startRelay();
-    const { sid } = await registerDevice(relay, "machine");
-    const device = await authAndAck(relay, sid, "device");
-    const terminal = await authAndAck(relay, sid, "terminal");
-    await expect
-      .poll(() => messages(device).some((message) => message.type === "pair_status_ack"), {
-        timeout: 2_000,
-      })
-      .toBe(true);
+  it(
+    "对端 socket 暂停后泵帧：超高水位的慢连接被服务端断开，服务仍存活可服务",
+    { timeout: 30_000 },
+    async () => {
+      const relay = await startRelay();
+      const { sid } = await registerDevice(relay, "machine");
+      const device = await authAndAck(relay, sid, "device");
+      const terminal = await authAndAck(relay, sid, "terminal");
+      await expect
+        .poll(() => messages(device).some((message) => message.type === "pair_status_ack"), {
+          timeout: 2_000,
+        })
+        .toBe(true);
 
-    // 暂停 device 底层 socket：对端停读 → 服务端 socket 写缓冲（bufferedAmount）无界增长
-    // （ws 无公开访问器，测试借私有 _socket 触发与运行时评审实验同款场景）
-    const deviceSocket = (device.ws as unknown as { _socket: import("node:net").Socket })._socket;
-    deviceSocket.pause();
-    try {
-      // 泵帧预算 ~19.2MB（400×48KB）>> 4MiB 高水位。逐批让出事件循环：背压触发依赖
-      // 中继事件循环推进（服务端每转发一帧才累加 bufferedAmount），固定同步泵在全量
-      // 套件并行负载下会顶到外层 timeout（隔离跑 1.8s、并行跑曾 20s 超时的根因）。
-      // 服务端 terminate 慢连接时 terminal 也按 §6.5 收 DEVICE_OFFLINE+close，
-      // 循环条件随之收敛，无需跑满预算。
-      const frame = "z".repeat(48 * 1024);
-      for (let i = 0; i < 400 && terminal.ws.readyState === WebSocket.OPEN; i += 1) {
-        terminal.send({ type: "data", payload: frame });
-        if (i % 20 === 19) {
-          await new Promise<void>((resolve) => setTimeout(resolve, 5));
+      // 暂停 device 底层 socket：对端停读 → 服务端 socket 写缓冲（bufferedAmount）无界增长
+      // （ws 无公开访问器，测试借私有 _socket 触发与运行时评审实验同款场景）
+      const deviceSocket = (device.ws as unknown as { _socket: import("node:net").Socket })._socket;
+      deviceSocket.pause();
+      try {
+        // 泵帧预算 ~19.2MB（400×48KB）>> 4MiB 高水位。逐批让出事件循环：背压触发依赖
+        // 中继事件循环推进（服务端每转发一帧才累加 bufferedAmount），固定同步泵在全量
+        // 套件并行负载下会顶到外层 timeout（隔离跑 1.8s、并行跑曾 20s 超时的根因）。
+        // 服务端 terminate 慢连接时 terminal 也按 §6.5 收 DEVICE_OFFLINE+close，
+        // 循环条件随之收敛，无需跑满预算。
+        const frame = "z".repeat(48 * 1024);
+        for (let i = 0; i < 400 && terminal.ws.readyState === WebSocket.OPEN; i += 1) {
+          terminal.send({ type: "data", payload: frame });
+          if (i % 20 === 19) {
+            await new Promise<void>((resolve) => setTimeout(resolve, 5));
+          }
         }
+
+        // 慢连接被服务端 terminate：等价一次普通断连（非 1000 正常关闭码）
+        deviceSocket.resume(); // 放开读侧让客户端能观察到断开
+        expect(await device.closed).not.toBe(1000);
+      } finally {
+        deviceSocket.destroy();
       }
 
-      // 慢连接被服务端 terminate：等价一次普通断连（非 1000 正常关闭码）
-      deviceSocket.resume(); // 放开读侧让客户端能观察到断开
-      expect(await device.closed).not.toBe(1000);
-    } finally {
-      deviceSocket.destroy();
-    }
-
-    // device 断开按 §6.5 清 owner：terminal 收 DEVICE_OFFLINE 关闭，连接集合出清
-    await expect
-      .poll(async () => (await health(relay)).connections, { timeout: 3_000, interval: 50 })
-      .toBe(0);
-    // 服务端仍存活可服务：healthz 正常、新 token 签发与设备重连照常
-    expect((await health(relay)).devices).toBe(1);
-    const reconnected = await authAndAck(relay, sid, "device");
-    expect(messages(reconnected)[0]).toMatchObject({ type: "auth_ack", pair_status: "waiting" });
-  });
+      // device 断开按 §6.5 清 owner：terminal 收 DEVICE_OFFLINE 关闭，连接集合出清
+      await expect
+        .poll(async () => (await health(relay)).connections, { timeout: 3_000, interval: 50 })
+        .toBe(0);
+      // 服务端仍存活可服务：healthz 正常、新 token 签发与设备重连照常
+      expect((await health(relay)).devices).toBe(1);
+      const reconnected = await authAndAck(relay, sid, "device");
+      expect(messages(reconnected)[0]).toMatchObject({ type: "auth_ack", pair_status: "waiting" });
+    },
+  );
 });
 
 describe("生产行为组：优雅停机与持久化（spec §5.3/§7）", () => {
@@ -345,134 +348,142 @@ describe("生产行为组：优雅停机与持久化（spec §5.3/§7）", () =>
     expect(messages(ghost).at(-1)).toMatchObject({ type: "error", code: "AUTH_FAILED" });
   });
 
-  it("停机死线用真实墙钟：虚拟时钟冻结下对静默连接 stop 仍能在宽限后完成（评审 shutdown-wallclock）", { timeout: 20_000 }, async () => {
-    // 恒定时钟注入：旧实现（死线用注入 now）下 now() < deadline 恒真，flush 循环永不退出
-    const relay = await startRelay({
-      now: () => 1_700_000_000_000,
-      authTimeoutMs: 60_000, // 隔离变量：认证超时不得在测试窗口内替停机收走连接
-    });
-    const token = await issueToken(relay, "device");
-    // 原始 socket 完成升级后保持静默：不回关闭握手，逼停机走满 5s 宽限强制 terminate 路径
-    const socket = connect(relay.port, "127.0.0.1");
-    socket.write(
-      `GET ${"/api/v1/remote/ws2"}?token=${encodeURIComponent(token)} HTTP/1.1\r\n` +
-        "Host: 127.0.0.1\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n" +
-        "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n\r\n",
-    );
-    await once(socket, "data"); // 101 响应：升级回调已同步完成、连接已入集合
-
-    const startedAt = Date.now();
-    await relay.handle.stop();
-    const elapsed = Date.now() - startedAt;
-    // 宽限 5s + 轮询粒度余量：冻结时钟下旧实现会挂起至用例超时
-    expect(elapsed).toBeGreaterThanOrEqual(4_500);
-    expect(elapsed).toBeLessThan(15_000);
-    socket.destroy();
-  });
-
-  it("upgrade 与 stop 竞态：token 消费后、连接入集合前停机 → 复查分支回 INTERNAL + close，不漏停机通知（评审 upgrade-stop-race）", { timeout: 15_000 }, async () => {
-    // 手工装配最小网关：注入的 TokenStore 在第二次 consume 内同步触发 stop——精确复现
-    // 「外层停机检查已过、upgrade 回调把连接加入集合前 stop 已扫完连接集合」的竞态窗口。
-    // 先留一条已建立连接：stop 的 flush 等待使其尚未走到 wsServer.close（否则 ws 库自身的
-    // CLOSING 状态会先回 HTTP 503，网关升级回调根本不执行）。
-    const logger = createRelayLogger({ level: "error", trace: false, write: () => {} });
-    const realTokens = createTokenStore();
-    const config: RelayConfig = {
-      bindHost: "127.0.0.1",
-      listenPort: 0,
-      dbPath: ":memory:",
-      jwtMode: "decode",
-      jwtIdClaims: ["sub", "id"],
-      jwtRealmMode: "iss",
-      authTimeoutMs: 15_000,
-      idleTimeoutMs: 120_000,
-      deviceTtlDays: 180,
-      corsEnabled: false,
-      logLevel: "error",
-      msgTrace: false,
-    };
-    const devices = createSqliteDeviceStore({ dbPath: ":memory:" });
-    const registry = createPairingRegistry(
-      createPairingRegistryEvents({ logger, now: Date.now }),
-    );
-    let gatewayRef: ReturnType<typeof createWsGateway> | undefined;
-    let stopPromise: Promise<void> | undefined;
-    let consumeCount = 0;
-    const tokens = {
-      issue: (userId: string, role: "device" | "terminal") => realTokens.issue(userId, role),
-      consume: (token: string) => {
-        const identity = realTokens.consume(token);
-        consumeCount += 1;
-        if (consumeCount === 2 && identity !== undefined && gatewayRef !== undefined) {
-          stopPromise = gatewayRef.stop();
-        }
-        return identity;
-      },
-    };
-    const gateway = createWsGateway({ config, logger, tokens, devices, registry });
-    gatewayRef = gateway;
-
-    const server = createServer();
-    server.on("upgrade", (request, socket, head) => gateway.handleUpgrade(request, socket, head));
-    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
-    const { port } = server.address() as AddressInfo;
-    const wsUrl = (token: string): string =>
-      `ws://127.0.0.1:${port}/api/v1/remote/ws2?token=${encodeURIComponent(token)}`;
-
-    const openWithEvents = async (): Promise<{
-      events: Array<Record<string, unknown>>;
-      closed: Promise<number>;
-      ws: WebSocket;
-    }> => {
-      const events: Array<Record<string, unknown>> = [];
-      let resolveClosed!: (code: number) => void;
-      const closed = new Promise<number>((resolve) => {
-        resolveClosed = resolve;
+  it(
+    "停机死线用真实墙钟：虚拟时钟冻结下对静默连接 stop 仍能在宽限后完成（评审 shutdown-wallclock）",
+    { timeout: 20_000 },
+    async () => {
+      // 恒定时钟注入：旧实现（死线用注入 now）下 now() < deadline 恒真，flush 循环永不退出
+      const relay = await startRelay({
+        now: () => 1_700_000_000_000,
+        authTimeoutMs: 60_000, // 隔离变量：认证超时不得在测试窗口内替停机收走连接
       });
-      const ws = new WebSocket(wsUrl(realTokens.issue("alice", "device").token));
-      ws.on("error", () => {});
-      ws.on("message", (data) =>
-        events.push(JSON.parse(data.toString()) as Record<string, unknown>),
+      const token = await issueToken(relay, "device");
+      // 原始 socket 完成升级后保持静默：不回关闭握手，逼停机走满 5s 宽限强制 terminate 路径
+      const socket = connect(relay.port, "127.0.0.1");
+      socket.write(
+        `GET ${"/api/v1/remote/ws2"}?token=${encodeURIComponent(token)} HTTP/1.1\r\n` +
+          "Host: 127.0.0.1\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n" +
+          "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n\r\n",
       );
-      ws.on("close", (code) => resolveClosed(code));
-      await once(ws, "open");
-      return { events, closed, ws };
-    };
+      await once(socket, "data"); // 101 响应：升级回调已同步完成、连接已入集合
 
-    // 第一条连接先建立（第 1 次 consume，不触发停机）
-    const existing = await openWithEvents();
+      const startedAt = Date.now();
+      await relay.handle.stop();
+      const elapsed = Date.now() - startedAt;
+      // 宽限 5s + 轮询粒度余量：冻结时钟下旧实现会挂起至用例超时
+      expect(elapsed).toBeGreaterThanOrEqual(4_500);
+      expect(elapsed).toBeLessThan(15_000);
+      socket.destroy();
+    },
+  );
 
-    // 竞态连接（不 await open）：其升级在 consume（第 2 次）内同步触发 stop，
-    // ws 的升级回调执行时 shuttingDown 已翻转、连接集合扫描已完成
-    const racedEvents: Array<Record<string, unknown>> = [];
-    let resolveRacedClosed!: (code: number) => void;
-    const racedClosed = new Promise<number>((resolve) => {
-      resolveRacedClosed = resolve;
-    });
-    const racedWs = new WebSocket(wsUrl(realTokens.issue("alice", "device").token));
-    racedWs.on("error", () => {});
-    racedWs.on("message", (data) =>
-      racedEvents.push(JSON.parse(data.toString()) as Record<string, unknown>),
-    );
-    racedWs.on("close", (code) => resolveRacedClosed(code));
+  it(
+    "upgrade 与 stop 竞态：token 消费后、连接入集合前停机 → 复查分支回 INTERNAL + close，不漏停机通知（评审 upgrade-stop-race）",
+    { timeout: 15_000 },
+    async () => {
+      // 手工装配最小网关：注入的 TokenStore 在第二次 consume 内同步触发 stop——精确复现
+      // 「外层停机检查已过、upgrade 回调把连接加入集合前 stop 已扫完连接集合」的竞态窗口。
+      // 先留一条已建立连接：stop 的 flush 等待使其尚未走到 wsServer.close（否则 ws 库自身的
+      // CLOSING 状态会先回 HTTP 503，网关升级回调根本不执行）。
+      const logger = createRelayLogger({ level: "error", trace: false, write: () => {} });
+      const realTokens = createTokenStore();
+      const config: RelayConfig = {
+        bindHost: "127.0.0.1",
+        listenPort: 0,
+        dbPath: ":memory:",
+        jwtMode: "decode",
+        jwtIdClaims: ["sub", "id"],
+        jwtRealmMode: "iss",
+        authTimeoutMs: 15_000,
+        idleTimeoutMs: 120_000,
+        deviceTtlDays: 180,
+        corsEnabled: false,
+        logLevel: "error",
+        msgTrace: false,
+      };
+      const devices = createSqliteDeviceStore({ dbPath: ":memory:" });
+      const registry = createPairingRegistry(
+        createPairingRegistryEvents({ logger, now: Date.now }),
+      );
+      let gatewayRef: ReturnType<typeof createWsGateway> | undefined;
+      let stopPromise: Promise<void> | undefined;
+      let consumeCount = 0;
+      const tokens = {
+        issue: (userId: string, role: "device" | "terminal") => realTokens.issue(userId, role),
+        consume: (token: string) => {
+          const identity = realTokens.consume(token);
+          consumeCount += 1;
+          if (consumeCount === 2 && identity !== undefined && gatewayRef !== undefined) {
+            stopPromise = gatewayRef.stop();
+          }
+          return identity;
+        },
+      };
+      const gateway = createWsGateway({ config, logger, tokens, devices, registry });
+      gatewayRef = gateway;
 
-    // 复查分支生效：竞态连接收到 INTERNAL 后才 close（等价停机语义，非裸断开）
-    expect(await racedClosed).not.toBe(1000);
-    expect(racedEvents).toEqual([
-      { type: "error", code: "INTERNAL", server_ts: expect.any(Number) },
-    ]);
-    // 既有连接走正常停机路径：INTERNAL 在前
-    expect(await existing.closed).not.toBe(1000);
-    expect(existing.events[0]).toMatchObject({ type: "error", code: "INTERNAL" });
-    // stop 正常完成：竞态连接由复查分支收尾，flush/terminate 阶段无悬挂
-    expect(stopPromise).toBeDefined();
-    await stopPromise;
+      const server = createServer();
+      server.on("upgrade", (request, socket, head) => gateway.handleUpgrade(request, socket, head));
+      await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+      const { port } = server.address() as AddressInfo;
+      const wsUrl = (token: string): string =>
+        `ws://127.0.0.1:${port}/api/v1/remote/ws2?token=${encodeURIComponent(token)}`;
 
-    existing.ws.terminate();
-    racedWs.terminate();
-    server.close();
-    devices.close();
-  });
+      const openWithEvents = async (): Promise<{
+        events: Array<Record<string, unknown>>;
+        closed: Promise<number>;
+        ws: WebSocket;
+      }> => {
+        const events: Array<Record<string, unknown>> = [];
+        let resolveClosed!: (code: number) => void;
+        const closed = new Promise<number>((resolve) => {
+          resolveClosed = resolve;
+        });
+        const ws = new WebSocket(wsUrl(realTokens.issue("alice", "device").token));
+        ws.on("error", () => {});
+        ws.on("message", (data) =>
+          events.push(JSON.parse(data.toString()) as Record<string, unknown>),
+        );
+        ws.on("close", (code) => resolveClosed(code));
+        await once(ws, "open");
+        return { events, closed, ws };
+      };
+
+      // 第一条连接先建立（第 1 次 consume，不触发停机）
+      const existing = await openWithEvents();
+
+      // 竞态连接（不 await open）：其升级在 consume（第 2 次）内同步触发 stop，
+      // ws 的升级回调执行时 shuttingDown 已翻转、连接集合扫描已完成
+      const racedEvents: Array<Record<string, unknown>> = [];
+      let resolveRacedClosed!: (code: number) => void;
+      const racedClosed = new Promise<number>((resolve) => {
+        resolveRacedClosed = resolve;
+      });
+      const racedWs = new WebSocket(wsUrl(realTokens.issue("alice", "device").token));
+      racedWs.on("error", () => {});
+      racedWs.on("message", (data) =>
+        racedEvents.push(JSON.parse(data.toString()) as Record<string, unknown>),
+      );
+      racedWs.on("close", (code) => resolveRacedClosed(code));
+
+      // 复查分支生效：竞态连接收到 INTERNAL 后才 close（等价停机语义，非裸断开）
+      expect(await racedClosed).not.toBe(1000);
+      expect(racedEvents).toEqual([
+        { type: "error", code: "INTERNAL", server_ts: expect.any(Number) },
+      ]);
+      // 既有连接走正常停机路径：INTERNAL 在前
+      expect(await existing.closed).not.toBe(1000);
+      expect(existing.events[0]).toMatchObject({ type: "error", code: "INTERNAL" });
+      // stop 正常完成：竞态连接由复查分支收尾，flush/terminate 阶段无悬挂
+      expect(stopPromise).toBeDefined();
+      await stopPromise;
+
+      existing.ws.terminate();
+      racedWs.terminate();
+      server.close();
+      devices.close();
+    },
+  );
 });
 
 describe("生产行为组：设备备份（spec §7）", () => {

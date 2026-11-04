@@ -320,13 +320,13 @@ off-peak wrapper's `streamText` is an async generator that calls the handle insi
 the first `next()`, after it has waited for a ticket, and only the invocation context is carried
 across that boundary (`runWithModelInvocationContext` re-enters it for every `next()`).
 
-| Runtime                                                                                                  | Port                                                                        | Effect                                                                                                                                |
-| -------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| a workflow subagent (`taskType` `workflow_child` or `nested_workflow_child`)                             | the driver's per-subagent wrapper over the run's seat gate and the governor | takes a seat when the run's own bound was lowered under it ("Retuning a live run"), then queues at the governor's gate; feeds signals |
-| the main agent, and its tools and sidecars                                                               | the governor's **observer**                                                 | never queues, never waits for cooldown; counts in flight and feeds signals                                                            |
-| a subagent of the main agent (`taskType` `subagent_child`, the `Agent` tool), and its tools and sidecars | the governor's **session subagent pool**, one per parent session            | queues at the governor's gate and waits for cooldown like a workflow run; feeds signals                                               |
-| a subagent of the legacy `Workflow` tool                                                                 | none                                                                        | ungoverned: no gate, no signals                                                                                                       |
-| a snippet evaluation (`EvalWorkflowSnippet`)                                                             | none                                                                        | its driver has no ask path                                                                                                            |
+| Runtime | Port | Effect |
+|---|---|---|
+| a workflow subagent (`taskType` `workflow_child` or `nested_workflow_child`) | the driver's per-subagent wrapper over the run's seat gate and the governor | takes a seat when the run's own bound was lowered under it ("Retuning a live run"), then queues at the governor's gate; feeds signals |
+| the main agent, and its tools and sidecars | the governor's **observer** | never queues, never waits for cooldown; counts in flight and feeds signals |
+| a subagent of the main agent (`taskType` `subagent_child`, the `Agent` tool), and its tools and sidecars | the governor's **session subagent pool**, one per parent session | queues at the governor's gate and waits for cooldown like a workflow run; feeds signals |
+| a subagent of the legacy `Workflow` tool | none | ungoverned: no gate, no signals |
+| a snippet evaluation (`EvalWorkflowSnippet`) | none | its driver has no ask path |
 
 The main agent is an observer because its turn must never block behind workflow traffic,
 and it still feeds the controller because the provider sees its requests too: a 429 on the
@@ -677,17 +677,17 @@ person fix this before the run can continue", and reads a separate table,
 same function, so a failure the runner retries can never reach the driver as a stop, and a
 failure the runner declines is one the driver will stop on.
 
-| Input, in order                                                                                                                                                                                                    | Decision                         |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------- |
-| reason `cancelled`                                                                                                                                                                                                 | `cancelled`                      |
-| provider code in the quota set (`1005`, `1308`, `1310`, `1313`, `1316`–`1321`, `2056`, `20097`, `insufficient_quota`, `credit_balance_exhausted`, the spend- and usage-limit codes)                                | `stop`, kind `quota`             |
-| reason `auth_failed`                                                                                                                                                                                               | `stop`, kind `auth`              |
-| reason `provider_not_configured`, or an error code in the not-configured family (`provider_not_found`, `provider_not_configured`, `model_config_missing`, `invalid_model_selection`, `model_request_auth_missing`) | `stop`, kind `not_configured`    |
-| error code `model_not_found`                                                                                                                                                                                       | `stop`, kind `model_unavailable` |
-| reason `context_exceeded`                                                                                                                                                                                          | `context_exceeded`               |
-| reason `invalid_request`, unless the code is `invalid_model_response`                                                                                                                                              | `stop`, kind `invalid_request`   |
-| reason `unknown` with a provider code (a code the classifier does not know, such as `1113`), the 10th time in a row within one request                                                                             | `stop`, kind `other`             |
-| anything else: rate limits, overload, 5xx, timeouts, network and TLS errors, an unknown provider code fewer than 10 times in a row, a response the adapter could not parse                                         | `retry`                          |
+| Input, in order | Decision |
+|---|---|
+| reason `cancelled` | `cancelled` |
+| provider code in the quota set (`1005`, `1308`, `1310`, `1313`, `1316`–`1321`, `2056`, `20097`, `insufficient_quota`, `credit_balance_exhausted`, the spend- and usage-limit codes) | `stop`, kind `quota` |
+| reason `auth_failed` | `stop`, kind `auth` |
+| reason `provider_not_configured`, or an error code in the not-configured family (`provider_not_found`, `provider_not_configured`, `model_config_missing`, `invalid_model_selection`, `model_request_auth_missing`) | `stop`, kind `not_configured` |
+| error code `model_not_found` | `stop`, kind `model_unavailable` |
+| reason `context_exceeded` | `context_exceeded` |
+| reason `invalid_request`, unless the code is `invalid_model_response` | `stop`, kind `invalid_request` |
+| reason `unknown` with a provider code (a code the classifier does not know, such as `1113`), the 10th time in a row within one request | `stop`, kind `other` |
+| anything else: rate limits, overload, 5xx, timeouts, network and TLS errors, an unknown provider code fewer than 10 times in a row, a response the adapter could not parse | `retry` |
 
 Under `unbounded`, `retry` means retry; `stop` and `context_exceeded` mean the attempt loop
 ends and the turn rejects.

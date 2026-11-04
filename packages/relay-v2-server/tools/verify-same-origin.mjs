@@ -161,9 +161,7 @@ function startStaticServer(distRoot) {
         response.end("method not allowed");
         return;
       }
-      const pathname = decodeURIComponent(
-        new URL(request.url ?? "/", "http://localhost").pathname,
-      );
+      const pathname = decodeURIComponent(new URL(request.url ?? "/", "http://localhost").pathname);
       // 防目录穿越：resolve 后必须仍在 distRoot 内
       const requested = resolve(join(resolvedRoot, `.${pathname}`));
       if (requested !== resolvedRoot && !requested.startsWith(resolvedRoot + sep)) {
@@ -335,24 +333,22 @@ async function ensureWebDist(repoRoot, webRoot) {
     );
   }
   const quoted = `'${envScriptResolved.replaceAll("'", `'\\''`)}'`;
-  const child = spawn(
-    "bash",
-    ["-c", `source ${quoted} && pnpm build:web-remote-control:v4`],
-    {
-      cwd: repoRoot,
-      env: {
-        ...process.env,
-        VITE_DRORA_ENDPOINT_ORIGIN: SELF_HOSTED_ORIGIN,
-        DRORA_ENDPOINT_ORIGIN: SELF_HOSTED_ORIGIN,
-      },
-      stdio: ["ignore", "pipe", "pipe"],
+  const child = spawn("bash", ["-c", `source ${quoted} && pnpm build:web-remote-control:v4`], {
+    cwd: repoRoot,
+    env: {
+      ...process.env,
+      VITE_DRORA_ENDPOINT_ORIGIN: SELF_HOSTED_ORIGIN,
+      DRORA_ENDPOINT_ORIGIN: SELF_HOSTED_ORIGIN,
     },
-  );
+    stdio: ["ignore", "pipe", "pipe"],
+  });
   const chunks = [];
   child.stdout.on("data", (chunk) => chunks.push(chunk));
   child.stderr.on("data", (chunk) => chunks.push(chunk));
   const exit = await withTimeout(
-    new Promise((resolveExit) => child.once("exit", (code, signal) => resolveExit({ code, signal }))),
+    new Promise((resolveExit) =>
+      child.once("exit", (code, signal) => resolveExit({ code, signal })),
+    ),
     300_000,
     "vite build 未在时限内结束",
   );
@@ -417,11 +413,7 @@ async function main() {
 
     // ① 页面 200：/remote/v4/ 与无尾斜杠均需可达（spec §8.1）
     for (const pagePath of ["/remote/v4/", "/remote/v4"]) {
-      const response = await withTimeout(
-        fetch(`${front}${pagePath}`),
-        10_000,
-        `GET ${pagePath}`,
-      );
+      const response = await withTimeout(fetch(`${front}${pagePath}`), 10_000, `GET ${pagePath}`);
       const body = await response.text();
       assert(response.status === 200, `页面 ${pagePath} 应 200，实得 ${response.status}`);
       assert(
@@ -499,7 +491,11 @@ async function main() {
     out(`[9/9] ⑤ 产物烘焙非官方域通过（扫描 ${assets.length} 个文本资产）`);
     out("同源链路验证通过：页面/资产 200 + 无凭据 401 + healthz 五字段 + 非官方域烘焙");
   } finally {
-    if (relayChild !== undefined && relayChild.exitCode === null && relayChild.signalCode === null) {
+    if (
+      relayChild !== undefined &&
+      relayChild.exitCode === null &&
+      relayChild.signalCode === null
+    ) {
       relayChild.kill("SIGKILL");
     }
     if (frontServer !== undefined) await closeServer(frontServer).catch(() => {});

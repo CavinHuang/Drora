@@ -1,4 +1,8 @@
-import { sessionLifecycleParamsSchema, sessionLifecycleSnapshotSchema } from "@drora/shared";
+import {
+  sessionLifecycleActivationParamsSchema,
+  sessionLifecycleParamsSchema,
+  sessionLifecycleSnapshotSchema,
+} from "@drora/shared";
 import { querySessionDebug } from "./session-debug.js";
 import { offPeakControlParamsSchema, offPeakControlResultSchema } from "@drora/shared";
 import { createNodeNetworkCapture } from "@drora/shared/node";
@@ -739,16 +743,21 @@ export class DroraProtocolAgentServer {
           await getSessionLifecycle(this.context).getState(sessionId),
         );
       }
-      case droraProtocolMethods.sessionLifecycleEnsureReady:
-      case droraProtocolMethods.sessionLifecycleStop:
-      case droraProtocolMethods.sessionLifecycleRestart: {
+      case droraProtocolMethods.sessionLifecycleStop: {
         const { sessionId } = parseParams(sessionLifecycleParamsSchema, request.params);
+        await getSessionLifecycle(this.context).stop(sessionId);
+        return { completed: true as const };
+      }
+      case droraProtocolMethods.sessionLifecycleEnsureReady:
+      case droraProtocolMethods.sessionLifecycleRestart: {
+        const { sessionId, workspace } = parseParams(
+          sessionLifecycleActivationParamsSchema,
+          request.params,
+        );
         const lifecycle = getSessionLifecycle(this.context);
         if (request.method === droraProtocolMethods.sessionLifecycleEnsureReady)
-          await lifecycle.ensureReady(sessionId);
-        else if (request.method === droraProtocolMethods.sessionLifecycleStop)
-          await lifecycle.stop(sessionId);
-        else await lifecycle.restart(sessionId);
+          await lifecycle.ensureReady(sessionId, workspace);
+        else await lifecycle.restart(sessionId, workspace);
         return { completed: true as const };
       }
       case droraProtocolMethods.sessionResume:
@@ -910,6 +919,7 @@ export class DroraProtocolAgentServer {
         this.context.sessionWorkspaceRoutingEnabled ||=
           params.hostCapabilities?.sessionWorkspaceRouting === true;
         return {
+          sessionLifecycleWorkspace: true,
           sessionWorkspaceRouting: true,
           independentPlanState: true,
           historyFirst: true,

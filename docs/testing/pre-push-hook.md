@@ -13,7 +13,7 @@ Git push ref 输入 → 清理 Git local env → 工作区与目标检查
 - hook 继续通过 DRORA_PRE_PUSH_STDIN 传递 ref 和 SHA，架构检查与工程测试使用真实推送基线。
 - 架构基线优先级：显式参数或环境变量、CI 变量、push remote SHA、upstream merge-base、
   默认分支 merge-base、HEAD。首次推送优先 origin/staging。具体实现见 scripts/architecture/git-base.mjs。
-- 无效的显式架构基线仍失败。工程测试保留 remote SHA / 首推 staging merge-base / 手动 upstream 的基线语义；无效基线不能静默跳过。Drora 适配（台账 8 / v3.17.1 N2）：首推基线在 `origin/staging` 存在且为祖先时用之，否则回退 `drora/main`——本仓无 staging 集成分支，且 origin 指向上游官方仓，用 `origin/main` 会与上游 merge-base 退回全量误选；实现见 `scripts/engineering-tests/scope.mjs` 的 `firstPushBase`。
+- 无效的显式架构基线仍失败。工程测试保留 remote SHA / 首推 staging merge-base / 手动 upstream 的基线语义；无效基线不能静默跳过。
 - Git local env 必须先清理，避免工程测试的临时 Git 仓库误操作当前仓库。
 - 过时文档措辞检查（`pnpm docs:stale-phrases:check`，`scripts/check-stale-doc-phrases.mjs`）：规则改了以后，旧说法常留在复述这条规则的其他文档里。脚本登记已作废的说法，扫描 `docs/` 与 `apps/drora-cli/docs/` 的 Markdown，出现即失败并指向现行规则；`docs/plans/`、`docs/v4-refactor/` 是历史记录，不检查。改规则时把旧说法加进登记表。
 - 远程目标清单一致性检查（`pnpm check:e2e-remote-targets`）直接比较内部队列声明与公开 JSON，不依赖 affected 的 import 图。只有私有 harness 目录不存在时跳过；有队列时清单缺失、损坏或漂移均阻止 push，且检查不改写文件。

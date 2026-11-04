@@ -204,9 +204,7 @@ export async function loadProjectMemoryIndexContent(
   if (retrievalBranch !== "default-index") return undefined;
   const fileSystemPort = runtime.fileSystemPort;
   if (!fileSystemPort || !memoryRoot) return undefined;
-  // 修复：memoryRoot 已统一为正斜杠规范形态，join 会再引入反斜杠（Windows），
-  // 令 fs 键、read-state 记录与提示词路径三者形态漂移；规范形态下拼接沿用 "/"。
-  const indexPath = `${memoryRoot}/${MEMORY_INDEX_FILE_NAME}`;
+  const indexPath = join(memoryRoot, MEMORY_INDEX_FILE_NAME);
   try {
     const read = await fileSystemPort.readTextFile({ path: indexPath });
     const formattedContent = formatProjectMemoryIndexContent(read.content);

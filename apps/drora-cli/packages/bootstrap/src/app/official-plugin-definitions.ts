@@ -518,6 +518,47 @@ export const OFFICIAL_PLUGIN_DEFINITIONS: readonly OfficialPluginDefinition[] = 
     ],
     version: "0.4.2",
   },
+  {
+    // Drora Sites（技术方案 4）：Skill 指导 Agent 把项目改造并打包成 runner 可直接运行的产物包，
+    // 再用 scripts/drora-site.mjs（CLI）上传发布；commands/ 是 /site-* 斜杠命令。
+    // 0.4.0 起自带 Sites 面板（UI plugin）：MCP server 与面板页面构建进 dist/，只给面板用，模型看不到
+    // （docs/site/sites-panel.md）。默认开启，用户不必先去设置里打开就能让 Agent 部署站点。
+    componentTypes: ["ui"],
+    name: "drora-site",
+    defaultEnabled: true,
+    listing: {
+      author: ZAI_AUTHOR,
+      category: "productivity",
+      displayName: "Drora Sites",
+      displayName_i18n: { "zh-CN": "Drora Sites" },
+      description_i18n: {
+        "zh-CN": "把 Web 项目改造为可在云端 Linux 运行的部署包，一个 start.sh 即可启动。",
+      },
+      examplePrompts: ["Deploy this project as a website"],
+      examplePrompts_i18n: { "zh-CN": ["把这个项目部署成网站"] },
+      icon: `${OFFICIAL_PLUGIN_ASSETS_BASE_URL}/drora-site/icon.png`,
+    },
+    rootCandidates: [
+      "packages/drora-site-plugin",
+      "../drora-site-plugin",
+      "../../drora-site-plugin",
+      "../../../drora-site-plugin",
+    ],
+    requiredSeedPaths: [
+      "commands/site-deploy.md",
+      "scripts/drora-site.mjs",
+      "scripts/stage.mjs",
+      "skills/site-deploy/SKILL.md",
+      "skills/site-deploy/templates/static.sh",
+      "skills/site-deploy/templates/static-server.mjs",
+      "skills/site-deploy/templates/node.sh",
+      "skills/site-deploy/templates/python.sh",
+      // 缺了会 seed 出能看到面板入口却启动不了 MCP server 的残缺插件。
+      "dist/server.mjs",
+      "dist/ui/panel.html",
+    ],
+    version: "0.4.2",
+  },
 ];
 
 // 在 official plugin 定义里标了 defaultEnabled: true 的, 拼成 `<name>@<marketplace>` 形式,

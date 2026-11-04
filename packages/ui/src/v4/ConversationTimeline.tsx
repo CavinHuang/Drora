@@ -2144,7 +2144,7 @@ function ConversationTimelineImpl({
           // V4 已自管 prepend、吸底和记忆锚点；和其它虚拟列表一致，应从内容子树禁用锚点候选。
           style={{ overflowAnchor: "none" }}
         >
-          {renderUnitCount === 0 && !headerSlot && !footerSlot ? (
+          {renderUnitCount === 0 && !headerSlot ? (
             <div
               className={cn(
                 centeredEmptyLayout

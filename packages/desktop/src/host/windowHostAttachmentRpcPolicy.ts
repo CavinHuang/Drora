@@ -166,14 +166,7 @@ export function exposeWindowHostAttachmentServices(params: {
   params.services.exposeOnChannelServer(
     params.server,
     resolveAttachmentOverrides(params.services, params.clientMode, params.overrides),
-    // 别名开关与白名单同时生效：collection.ts 会先按 allowedChannels 过滤再挂 zcode-* 别名。
-    params.officialChannelAliases
-      ? {
-          allowedChannels: resolveWindowHostServiceExposurePolicy(params.clientMode)
-            ?.allowedChannels,
-          officialChannelAliases: true,
-        }
-      : resolveWindowHostServiceExposurePolicy(params.clientMode),
+    resolveWindowHostServiceExposurePolicy(params.clientMode),
   );
   if (params.clientMode === "web-remote-replayable") {
     const controllerServices =

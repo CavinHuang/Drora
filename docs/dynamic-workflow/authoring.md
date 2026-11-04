@@ -69,19 +69,19 @@ segments. Both are injected into the compiler under one file name,
 `workflow-facade.d.ts`; five modules decide "is this a facade call" by that file name, so a
 declaration that lives anywhere else is an ordinary script declaration.
 
-| Segment   | Declares                                                  | In the full facade | In the snippet facade                              |
-| --------- | --------------------------------------------------------- | ------------------ | -------------------------------------------------- |
-| actor     | `Node<T>`, `AgentPersona`, `Agent`, `agent()`             | yes                | no                                                 |
-| args      | `args`                                                    | yes                | yes (always `{}`)                                  |
-| run       | `run`                                                     | yes                | yes (a throwaway `dwfeval-…` id, no `resumedFrom`) |
-| log       | `log()`                                                   | yes                | yes                                                |
-| report    | `report()`                                                | yes                | no                                                 |
-| artifact  | `ArtifactRef`, the option and spec types, `artifact.*`    | yes                | no                                                 |
-| phase     | `phase()`                                                 | yes                | no                                                 |
-| world     | `GrepMatch`, `GitStatus`, `GitCommit`, `files.*`, `git.*` | yes                | yes                                                |
-| world-run | `WorldRunResult`, `world.run`                             | yes                | yes                                                |
-| stream    | `Channel<T>`, `channel()`, `future()`                     | yes                | yes                                                |
-| hole      | `hole()`                                                  | yes                | no                                                 |
+| Segment | Declares | In the full facade | In the snippet facade |
+|---|---|---|---|
+| actor | `Node<T>`, `AgentPersona`, `Agent`, `agent()` | yes | no |
+| args | `args` | yes | yes (always `{}`) |
+| run | `run` | yes | yes (a throwaway `dwfeval-…` id, no `resumedFrom`) |
+| log | `log()` | yes | yes |
+| report | `report()` | yes | no |
+| artifact | `ArtifactRef`, the option and spec types, `artifact.*` | yes | no |
+| phase | `phase()` | yes | no |
+| world | `GrepMatch`, `GitStatus`, `GitCommit`, `files.*`, `git.*` | yes | yes |
+| world-run | `WorldRunResult`, `world.run` | yes | yes |
+| stream | `Channel<T>`, `channel()`, `future()` | yes | yes |
+| hole | `hole()` | yes | no |
 
 The doc comments are the reference half of the contract and nothing more: what a member
 does, what it returns, when it rejects or fails the run, its caps, and the compile-time
@@ -313,11 +313,11 @@ The contract differs from `git.*` on purpose:
 - **Output is declared at the call site with `opts.output`.** One mode applies to both
   streams:
 
-  | `output`           | `stdout` / `stderr`               | Limit on what the process prints            |
-  | ------------------ | --------------------------------- | ------------------------------------------- |
-  | `"full"` (default) | the whole stream                  | 16 MiB per stream; over it the call rejects |
-  | `"discard"`        | always `""`                       | none; the process runs to exit              |
-  | `{ tail: n }`      | the last `n` bytes of each stream | none; `n` is an integer, 1 ≤ n ≤ 16 MiB     |
+  | `output` | `stdout` / `stderr` | Limit on what the process prints |
+  |---|---|---|
+  | `"full"` (default) | the whole stream | 16 MiB per stream; over it the call rejects |
+  | `"discard"` | always `""` | none; the process runs to exit |
+  | `{ tail: n }` | the last `n` bytes of each stream | none; `n` is an integer, 1 ≤ n ≤ 16 MiB |
 
   In `"full"` mode a stream over 16 MiB rejects the call with `WorldReadCapExceeded` and a
   message naming the next move (`output: { tail: n }` or `"discard"`, quiet the output, or
@@ -1353,11 +1353,11 @@ Node has the wrong fidelity: `files.glob` returns workspace-relative sorted path
 reject, `GrepMatch` has a shape, and the compiler options are the run's. A snippet that
 passes pastes into a workflow verbatim.
 
-| Input       | Meaning                                                                                                                                                                                                                                                            |
-| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `code`      | the snippet, written against the snippet facade                                                                                                                                                                                                                    |
-| `path`      | or: a file holding the snippet, read whole (relative to the working directory or absolute); exactly one of `code` and `path`, with separate refusals for both and for neither (`docs/dynamic-workflow/launch.md`, "The `CreateWorkflow` tool", "Input and output") |
-| `timeoutMs` | wall clock for the whole snippet; default 60 000, accepted between 1 000 and 600 000                                                                                                                                                                               |
+| Input | Meaning |
+|---|---|
+| `code` | the snippet, written against the snippet facade |
+| `path` | or: a file holding the snippet, read whole (relative to the working directory or absolute); exactly one of `code` and `path`, with separate refusals for both and for neither (`docs/dynamic-workflow/launch.md`, "The `CreateWorkflow` tool", "Input and output") |
+| `timeoutMs` | wall clock for the whole snippet; default 60 000, accepted between 1 000 and 600 000 |
 
 After resolution the input also carries `script`, always equal to the resolved `code`. The
 model's schema does not list it, and a value the model supplies is overwritten. It is there

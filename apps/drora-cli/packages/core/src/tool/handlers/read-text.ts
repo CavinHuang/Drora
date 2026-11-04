@@ -153,7 +153,7 @@ function readTextRangeResultToOutput({
       throwReadOutputTokenBudgetError(tokenCount, filePath);
     }
     const fallback = createTokenCapPartialView(read, tokenCount, filePath);
-    if (fallback) return { filePath: modelPath, type: "text", ...fallback };
+    if (fallback) return { filePath, type: "text", ...fallback };
     throwReadOutputTokenBudgetError(tokenCount, filePath);
   }
 
@@ -237,12 +237,11 @@ function createTokenCapPartialView(
   const shownLines = byCharacters ? view.split("\n").length : lineCount;
   // 修复原因：提示固定写 "lines 1-N"，视图不从第 1 行开始时行号和下一页 offset 都错。
   const lastShownLine = read.startLine + shownLines - 1;
-  // 修复：partial 视图横幅是模型面提示，路径统一正斜杠形态，与 ReadTextOutput 一致。
   const tokens = `${tokenCount} tokens, cap ${READ_MAX_OUTPUT_TOKENS}`;
   const partialViewNotice =
     !byCharacters && lastShownLine < read.totalLines
-      ? `${READ_TRUNCATION_BANNER_PREFIX}${filePath.replaceAll("\\", "/")}: showing lines ${read.startLine}-${lastShownLine} of ${read.totalLines} total (${tokens}). Call ${READ_TOOL_NAME} with offset=${lastShownLine + 1} limit=${shownLines} for the next page, or ${SEARCH_TOOL_NAME} to find a specific section. Do NOT answer from this page alone if the answer may be further in the file.]`
-      : `${READ_TRUNCATION_BANNER_PREFIX}${filePath.replaceAll("\\", "/")}: showing the first ${view.length} of ${content.length} characters (${tokens}); this file has very long lines and cannot be paginated by line. Use ${SEARCH_TOOL_NAME} to find a specific section, or ${READ_TOOL_NAME} with offset/limit to page through it. Do NOT answer from this excerpt alone if the answer may be elsewhere in the file.]`;
+      ? `${READ_TRUNCATION_BANNER_PREFIX}${filePath}: showing lines ${read.startLine}-${lastShownLine} of ${read.totalLines} total (${tokens}). Call ${READ_TOOL_NAME} with offset=${lastShownLine + 1} limit=${shownLines} for the next page, or ${SEARCH_TOOL_NAME} to find a specific section. Do NOT answer from this page alone if the answer may be further in the file.]`
+      : `${READ_TRUNCATION_BANNER_PREFIX}${filePath}: showing the first ${view.length} of ${content.length} characters (${tokens}); this file has very long lines and cannot be paginated by line. Use ${SEARCH_TOOL_NAME} to find a specific section, or ${READ_TOOL_NAME} with offset/limit to page through it. Do NOT answer from this excerpt alone if the answer may be elsewhere in the file.]`;
   return {
     content: view,
     numLines: shownLines,

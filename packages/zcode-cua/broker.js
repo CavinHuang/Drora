@@ -38,3 +38,5 @@ export {
   isBrokerMethod,
   isReadOnlyBrokerMethod,
 } from "./broker/protocol.js";
+
+export { HELPER_GHOST_CURSOR_OVERLAY_ARG } from "./broker-helper-constants.js";

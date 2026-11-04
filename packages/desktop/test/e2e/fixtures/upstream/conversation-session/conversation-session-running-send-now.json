@@ -79,6 +79,7 @@
           "The user sent a new message while you were working:"
         ],
         "lastUserMessageIncludes": ["E2E_RUNNING_SEND_NOW_HEAD"],
+        "lastUserMessageIncludes": ["E2E_RUNNING_SEND_NOW_HEAD"],
         "lastUserMessageExcludes": ["E2E_RUNNING_SEND_NOW_HEAD_BASE"]
       },
       "response": {

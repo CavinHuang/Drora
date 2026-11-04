@@ -81,9 +81,7 @@ export interface ToolBriefPlanner {
   resetSessionState(): void;
 }
 
-export function createToolBriefPlanner(
-  deps: ToolBriefPlannerDeps,
-): ToolBriefPlanner {
+export function createToolBriefPlanner(deps: ToolBriefPlannerDeps): ToolBriefPlanner {
   const now = deps.now ?? (() => Date.now());
   const seenToolCallIds = new Set<string>();
   /**
@@ -136,10 +134,7 @@ export function createToolBriefPlanner(
     // 规则 3：距全局最近播报 <minGapMs 的候选直接丢弃（不排队，§4.2-3）。
     for (const [toolName, pending] of Array.from(pendingByTool)) {
       const base = lastBriefAtByTool.get(toolName);
-      if (
-        base != null &&
-        now() - base < TOOL_BRIEF_THRESHOLDS.sameToolMergeWindowMs
-      ) {
+      if (base != null && now() - base < TOOL_BRIEF_THRESHOLDS.sameToolMergeWindowMs) {
         continue; // 合并窗内：保留最新目标，等窗过期（不删除 pending）。
       }
       pendingByTool.delete(toolName);
@@ -152,10 +147,7 @@ export function createToolBriefPlanner(
       // 规则 6：每 turn 上限（上交时递增；上限判定在候选生成处前置挡掉）。
       // 终审角落修复：按 drain 时刻的当前 turn 计数（跨 turn 挂起候选归属新 turn）。
       const countTurnId = currentTurnId ?? pending.turnId;
-      announcedCountByTurn.set(
-        countTurnId,
-        (announcedCountByTurn.get(countTurnId) ?? 0) + 1,
-      );
+      announcedCountByTurn.set(countTurnId, (announcedCountByTurn.get(countTurnId) ?? 0) + 1);
       deps.consumeBrief(pending.briefId, pending.toolName, pending.target);
     }
   };
@@ -164,12 +156,12 @@ export function createToolBriefPlanner(
     consumeToolCallSnapshot(rows, opts) {
       const prime = opts?.prime === true;
       const snapshotTurnIds = new Set<string>();
-    for (const row of rows) {
-      currentTurnId = row.turnId;
-      snapshotTurnIds.add(row.turnId);
-      if (seenToolCallIds.has(row.toolCallId)) {
-        continue; // 规则 1：进度级更新不生成候选。
-      }
+      for (const row of rows) {
+        currentTurnId = row.turnId;
+        snapshotTurnIds.add(row.turnId);
+        if (seenToolCallIds.has(row.toolCallId)) {
+          continue; // 规则 1：进度级更新不生成候选。
+        }
         seenToolCallIds.add(row.toolCallId);
         // §9.7.7-3 prime：终态行只进 seen 不生成候选（首帧/切回存量不播——「从无到有」
         // 以本 planner 会话视图为界）；非终态行（inputStreaming/pendingApproval/running）

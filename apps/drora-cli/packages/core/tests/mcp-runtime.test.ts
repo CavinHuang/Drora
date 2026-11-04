@@ -6,6 +6,7 @@ import {
   type McpConnectionSnapshot,
   type McpPort,
   type PermissionBrokerPort,
+  type PermissionBrokerRequest,
   type SessionEventStorePort,
   type SessionId,
 } from "@drora/contracts";
@@ -272,26 +273,19 @@ describe("AgentRuntime MCP integration", () => {
     expect(toolNames).toContain("mcp__local__ping");
   });
 
-  // Drora 安全分歧（specs/agent-write-safety.md 洞 1a/§5 收口口径）：上游 v3.16.1 的
-  // mode.plan.mcp 分支会放行「未自报 destructive」的 MCP 工具；Drora 认为服务端自报的
-  // readOnlyHint/destructiveHint 都不是信任锚，已删除该分支。本用例按分歧后的语义断言：
-  // plan 模式下自报 readOnlyHint 的普通 MCP 调用被静默拒绝（不触达 server、不弹权限窗），
-  // 拒绝原因以 tool 错误消息回流给模型，Turn 正常收口。
-  it("denies MCP tools self-reporting readOnlyHint in plan mode without calling the server", async () => {
+  // 修复原因：Plan 曾直接放行非 destructive MCP，比 build 更宽；现在单次询问且不提供始终允许。
+  it("asks once before non-read-only MCP tools run in plan mode", async () => {
     const sessionId = createSessionId("runtime-mcp-plan-mode");
     const eventStore = createTestSessionEventStore();
     let modelCallCount = 0;
     let mcpCallCount = 0;
     let admissionRefreshes = 0;
-    let permissionRequestCount = 0;
+    const permissionRequests: PermissionBrokerRequest[] = [];
 
     const permissionBroker: PermissionBrokerPort = {
-      async requestPermission() {
-        permissionRequestCount++;
-        return {
-          decision: "deny",
-          reason: "permission broker should not be called for plan-mode MCP deny",
-        };
+      async requestPermission(request) {
+        permissionRequests.push(request);
+        return { decision: "allow", reason: "Approved once" };
       },
     };
 
@@ -406,42 +400,25 @@ describe("AgentRuntime MCP integration", () => {
     const result = await runtime.executeTurn("use mcp while planning");
 
     expect(result.response).toBe("done");
-    // 服务端与权限窗都不能被触达：拒绝发生在 plan 模式判定层。
-    expect(mcpCallCount).toBe(0);
-    expect(permissionRequestCount).toBe(0);
+    expect(mcpCallCount).toBe(1);
+    expect(permissionRequests).toHaveLength(1);
+    expect(permissionRequests[0]).toMatchObject({
+      optionsPolicy: "no-always-allow",
+      ruleId: "mode.plan.mcp",
+      toolName: "mcp__local__lookup",
+    });
     expect(modelCallCount).toBe(2);
     expect(admissionRefreshes).toBe(1);
     await runtime.executeTurn("next user prompt");
     expect(admissionRefreshes).toBe(2);
   });
 
-  it.each([
-    ["user_steer", false],
-    ["user_steer", true],
-    ["coordinator_steer", false],
-    ["coordinator_steer", true],
-  ] as const)(
-    "refreshes admission only for user guide: %s, attachment: %s",
-    async (inputPresentation, withAttachment) => {
-      const toolStarted = deferred<void>();
-      const releaseTool = deferred<void>();
-      let refreshes = 0;
-      let modelSteps = 0;
-      // Drora 安全分歧适配（specs/agent-write-safety.md 洞 1a / 验收行 S03-P1-8）：
-      // 上游 v3.17.1 该用例在 plan 模式执行 MCP 工具（依赖已删除的 mode.plan.mcp 直通）。
-      // Drora 语义下 plan 模式普通 MCP 一律 deny，工具不执行、steer 用例前提不成立。
-      // 这里改用 build 模式 + 放行 broker，让 MCP 工具真正在飞，保留本用例的
-      // 真实目的：user_steer 的 guide 输入刷新 workspace trust admission，
-      // coordinator_steer 不刷新。
-      const permissionBroker: PermissionBrokerPort = {
-        async requestPermission() {
-          return { decision: "allow", reason: "test broker approves mcp ping" };
-        },
-      };
       const runtime = createTestAgentRuntime(
         createSessionId(`mcp-admission-${inputPresentation}`),
         {
-          mode: "build",
+          // 用 yolo 让 MCP 工具免审批执行；本用例只验证 admission 刷新，不验证权限。
+          // 原先借 plan 放行 readOnlyHint MCP，plan 现在交给原模式判定，build 会请求审批。
+          mode: "yolo",
           mcp: { enabled: true, servers: { local: { type: "stdio", command: "node" } } },
         },
         {

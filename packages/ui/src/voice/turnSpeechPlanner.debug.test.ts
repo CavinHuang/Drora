@@ -4,7 +4,10 @@ import {
   createTurnSpeechPlanner,
   createVoiceSessionAnnouncementControl,
 } from "./turnSpeechPlanner.js";
-import type { VoiceAnnouncementClaimPort, VoiceAnnouncementLease } from "./voiceAnnouncementClaim.js";
+import type {
+  VoiceAnnouncementClaimPort,
+  VoiceAnnouncementLease,
+} from "./voiceAnnouncementClaim.js";
 import type {
   VoiceTtsDoneReason,
   VoiceTtsHandle,
@@ -115,7 +118,13 @@ function createHarness(): Harness {
     getAnnouncementVoiceConfig: () => ({ lang: "zh-CN", rate: 1 }),
     cancelTask: () => undefined,
   });
-  return { tts, planner, setFocusedTail: (tail) => { focusedTail = tail; } };
+  return {
+    tts,
+    planner,
+    setFocusedTail: (tail) => {
+      focusedTail = tail;
+    },
+  };
 }
 
 async function flushMicrotasks(): Promise<void> {

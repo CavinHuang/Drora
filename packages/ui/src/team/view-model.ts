@@ -176,7 +176,7 @@ export function mapTeamProjectionToViewModel(team: TeamProjectionState): TeamPan
   return {
     teamId: team.teamId,
     ...(team.name === undefined ? {} : { name: team.name }),
-  ...(team.managerName === undefined ? {} : { managerName: team.managerName }),
+    ...(team.managerName === undefined ? {} : { managerName: team.managerName }),
     status: team.status,
     ...(team.permissionMode === undefined ? {} : { permissionMode: team.permissionMode }),
     members: team.members.map((member) => ({

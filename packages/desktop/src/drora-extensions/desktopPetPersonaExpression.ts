@@ -25,10 +25,7 @@ export interface DesktopPetPersonaExpression {
   readonly celebrates: false;
 }
 
-const LABELS: Record<
-  Locale,
-  Record<DesktopPetPersonaExpression["mode"], string>
-> = {
+const LABELS: Record<Locale, Record<DesktopPetPersonaExpression["mode"], string>> = {
   "zh-CN": {
     idle: "待命",
     working: "专注处理中",

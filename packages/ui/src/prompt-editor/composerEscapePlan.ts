@@ -29,8 +29,7 @@ export interface ComposerEscapePlan {
 }
 
 export function resolveComposerEscapePlan(input: ComposerEscapePlanInput): ComposerEscapePlan {
-  const ignore =
-    input.key !== "Escape" || input.defaultPrevented || input.insideDialog;
+  const ignore = input.key !== "Escape" || input.defaultPrevented || input.insideDialog;
   return {
     ignore,
     tryVoice: !ignore,

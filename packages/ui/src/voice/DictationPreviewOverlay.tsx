@@ -45,7 +45,8 @@ export function DictationPreviewOverlay({
   const { intl } = useDroraIntl();
   // notice 分支不依赖绑定归属（修复轮 F1：notice 写入与回 idle 同批、bound 已清空，
   // 若按 bound 门控则六种提示零可见帧）；partial/active 段仍要求绑定 pane（§5.2/FD-6）。
-  const active = bound && (inputLeg === "requestingMic" || inputLeg === "recording" || inputLeg === "injecting");
+  const active =
+    bound && (inputLeg === "requestingMic" || inputLeg === "recording" || inputLeg === "injecting");
   const showPartial = active && inputLeg === "recording" && partialText.trim().length > 0;
   if (!active && notice == null) {
     return null;
@@ -60,10 +61,7 @@ export function DictationPreviewOverlay({
     >
       {active ? (
         <div className="flex items-center gap-2">
-          <span
-            aria-hidden
-            className="size-2 shrink-0 animate-pulse rounded-full bg-destructive"
-          />
+          <span aria-hidden className="size-2 shrink-0 animate-pulse rounded-full bg-destructive" />
           <span className="text-ui-base text-foreground">
             {inputLeg === "requestingMic"
               ? intl.formatMessage({ id: "voice.dictation.requestingMic" })

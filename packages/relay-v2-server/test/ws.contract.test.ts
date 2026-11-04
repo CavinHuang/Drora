@@ -208,8 +208,9 @@ describe("WS 组：auth 矩阵（spec §5.2 消息规则）", () => {
       .poll(() => messages(accepted).at(-1)?.type, { timeout: 2_000, interval: 20 })
       .toBe("auth_ack");
     const list = await api(relay, PATHS.list.path, { jwt: JWT_ALICE });
-    expect((list.body as { data: Array<{ meta: { name?: string } }> }).data[0]?.meta.name)
-      .toHaveLength(256);
+    expect(
+      (list.body as { data: Array<{ meta: { name?: string } }> }).data[0]?.meta.name,
+    ).toHaveLength(256);
   });
 });
 

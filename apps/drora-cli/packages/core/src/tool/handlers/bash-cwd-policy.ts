@@ -64,7 +64,7 @@ export function decideBashCwdPolicy(input: BashCwdPolicyInput): BashCwdPolicyDec
       nextWorkingDirectory:
         relativePath === ""
           ? input.workspaceRoot
-          : `${input.workspaceRoot}/${relativePath.split(boundary.pathApi.sep).join("/")}`,
+          : boundary.pathApi.join(input.workspaceRoot, relativePath),
     };
   }
 

@@ -44,7 +44,11 @@ function countEnglishWords(text: string): number {
   return trimmed.split(/\s+/u).length;
 }
 
-function exactHit(candidates: readonly string[], normalized: string, caseInsensitive: boolean): boolean {
+function exactHit(
+  candidates: readonly string[],
+  normalized: string,
+  caseInsensitive: boolean,
+): boolean {
   return candidates.some((candidate) => {
     const target = caseInsensitive ? candidate.toLowerCase() : candidate;
     return target === normalized;
@@ -73,7 +77,8 @@ export function classifyVoiceDictationFinal(
     return { action: "cancelTask" };
   }
 
-  const interruptRules = VOICE_INTERRUPT_WORDS[rulesLocale] ?? VOICE_INTERRUPT_WORDS[VOICE_INTERRUPT_FALLBACK];
+  const interruptRules =
+    VOICE_INTERRUPT_WORDS[rulesLocale] ?? VOICE_INTERRUPT_WORDS[VOICE_INTERRUPT_FALLBACK];
   if (interruptRules && exactHit(interruptRules.exact, normalized, caseInsensitive)) {
     return { action: "interruptAnnouncement" };
   }

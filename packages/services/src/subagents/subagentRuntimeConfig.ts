@@ -51,9 +51,7 @@ async function listDocuments(root: string): Promise<string[]> {
  */
 async function supersedeCaseVariantKeys(next: Profiles, path: string): Promise<void> {
   const lower = path.toLowerCase();
-  const candidates = [...next.keys()].filter(
-    (key) => key !== path && key.toLowerCase() === lower,
-  );
+  const candidates = [...next.keys()].filter((key) => key !== path && key.toLowerCase() === lower);
   if (candidates.length === 0) return;
   const identity = await stat(path).catch(() => undefined);
   if (!identity) return;

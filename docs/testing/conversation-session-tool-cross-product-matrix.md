@@ -79,13 +79,13 @@ tool calls emitted: T1, T2, ... Tn
   -> next provider request in the same product turn
 ```
 
-| Case ID | Tool shape                       | Guide timing                                      | 关键断言                                                                                                                                          | 状态                                  |
-| ------- | -------------------------------- | ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
-| GTB-01  | single readonly `Read` success   | tool call 前已 admission                          | `ToolCallResult` 先于 `TurnSteerDrained`，drain 后才发下一 provider request                                                                       | pending：GS/P06 controlled-stream     |
-| GTB-02  | two parallel readonly tool calls | 两个 sibling 执行期间已有 guide                   | 单个 sibling 完成不 drain；全部 results 提交后按 admission FIFO 一次取出全部已等待的 guide                                                        | missing                               |
-| GTB-03  | deterministic failed tool result | tool call 前或执行中已有 guide                    | failed result 仍是 batch terminal 的组成部分；失败事实先提交，再 drain 已等待的 guide                                                             | missing                               |
-| GTB-04  | text-only model step，no tool    | guide 已 admission                                | text-only assistant 先提交；随后按 admission FIFO 一次取出全部已等待的 guide，逐条以 user role 追加并在同一 active turn 发起下一 provider request | core covered；desktop pending：GS/P06 |
-| GTB-05  | two guides + two tool batches    | 两条 guide 均在第一个 batch terminal 前 admission | 第一个 batch 后按 admission FIFO 一次取出两条，成为相邻 guided row 并共用首条开启的工作段；第二个 batch 没有残留 guide                            | missing                               |
+| Case ID | Tool shape | Guide timing | 关键断言 | 状态 |
+| --- | --- | --- | --- | --- |
+| GTB-01 | single readonly `Read` success | tool call 前已 admission | `ToolCallResult` 先于 `TurnSteerDrained`，drain 后才发下一 provider request | pending：GS/P06 controlled-stream |
+| GTB-02 | two parallel readonly tool calls | 两个 sibling 执行期间已有 guide | 单个 sibling 完成不 drain；全部 results 提交后按 admission FIFO 一次取出全部已等待的 guide | missing |
+| GTB-03 | deterministic failed tool result | tool call 前或执行中已有 guide | failed result 仍是 batch terminal 的组成部分；失败事实先提交，再 drain 已等待的 guide | missing |
+| GTB-04 | text-only model step，no tool | guide 已 admission | text-only assistant 先提交；随后按 admission FIFO 一次取出全部已等待的 guide，逐条以 user role 追加并在同一 active turn 发起下一 provider request | core covered；desktop pending：GS/P06 |
+| GTB-05 | two guides + two tool batches | 两条 guide 均在第一个 batch terminal 前 admission | 第一个 batch 后按 admission FIFO 一次取出两条，成为相邻 guided row 并共用首条开启的工作段；第二个 batch 没有残留 guide | missing |
 
 剪枝：`Write/Edit/Bash/WebFetch/AskUserQuestion/Agent` 等具体工具继续由本矩阵原有
 compact/fork/goal 叉乘证明 tool block 稳定性；guide 只增加 batch-ordering invariant。interaction

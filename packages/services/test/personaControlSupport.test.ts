@@ -12,12 +12,18 @@ import {
 //   schema 收到未知键会解析失败），缺失值在新 CLI 侧按 false。
 
 type FakeClient = {
-  request: (method: string, params?: unknown, schema?: unknown, options?: unknown) => Promise<unknown>;
+  request: (
+    method: string,
+    params?: unknown,
+    schema?: unknown,
+    options?: unknown,
+  ) => Promise<unknown>;
 };
 
-function fakeClient(
-  respond: (method: string) => Promise<unknown>,
-): { client: FakeClient; calls: string[] } {
+function fakeClient(respond: (method: string) => Promise<unknown>): {
+  client: FakeClient;
+  calls: string[];
+} {
   const calls: string[] = [];
   return {
     calls,
@@ -66,7 +72,9 @@ describe("supportsPersonaControlV1（能力缓存按连接实例）", () => {
   });
 
   it("不同 CLI 连接实例各自查询（不共享缓存，模拟重连后的新实例）", async () => {
-    const first = fakeClient(async () => droraRuntimeCapabilitiesSchema.parse({ personaControlV1: true }));
+    const first = fakeClient(async () =>
+      droraRuntimeCapabilitiesSchema.parse({ personaControlV1: true }),
+    );
     const second = fakeClient(async () => droraRuntimeCapabilitiesSchema.parse({}));
     await expect(supportsPersonaControlV1(first.client)).resolves.toBe(true);
     await expect(supportsPersonaControlV1(second.client)).resolves.toBe(false);

@@ -149,15 +149,15 @@ fact 只从当前进程的 live ingest 产生：
 
 下表描述桌面 UI reporter；扫码远控的两个业务事件由执行服务在 live 执行中产生，与 foreground 无关。
 
-| 事件                 | foreground                        | 切走后的 background        | initial/recovery       |
-| -------------------- | --------------------------------- | -------------------------- | ---------------------- |
-| `send_btn`           | 本地桌面 command 被 UI 接纳时一次 | queued promotion 不重报    | 不报                   |
-| `message_completion` | 报                                | 已有本地 seed 的轮次继续报 | 不报                   |
-| `agent_step`         | 报                                | 已有本地 seed 的轮次继续报 | 不报                   |
-| `plan_request`       | 报                                | 报                         | 不报                   |
-| `context_compaction` | terminal 到达时可见才报           | 不报                       | 不报                   |
-| 六项 UI ARMS         | 报                                | 不报                       | 不报                   |
-| `chat_error_banner`  | banner 实际可见才报               | 不报                       | 恢复后首次真实可见可报 |
+| 事件 | foreground | 切走后的 background | initial/recovery |
+| --- | --- | --- | --- |
+| `send_btn` | 本地桌面 command 被 UI 接纳时一次 | queued promotion 不重报 | 不报 |
+| `message_completion` | 报 | 已有本地 seed 的轮次继续报 | 不报 |
+| `agent_step` | 报 | 已有本地 seed 的轮次继续报 | 不报 |
+| `plan_request` | 报 | 报 | 不报 |
+| `context_compaction` | terminal 到达时可见才报 | 不报 | 不报 |
+| 六项 UI ARMS | 报 | 不报 | 不报 |
+| `chat_error_banner` | banner 实际可见才报 | 不报 | 恢复后首次真实可见可报 |
 
 `send_btn` 的发送时间来自 UI 原始动作。已有 session 的 direct/queued command 在本地接纳后上报；
 draft 首发等待 create ACK 得到 sessionId 后上报，但沿用原始 input/send 时间。相同 commandId 的重试、

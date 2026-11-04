@@ -59,7 +59,8 @@ export function filterVoicesForAnnouncement(
   voices: readonly SpeechSynthesisVoiceLike[],
 ): SpeechSynthesisVoiceLike[] {
   const filtered = voices.filter(
-    (voice) => voice.lang.toLowerCase().startsWith("zh") || voice.lang.toLowerCase().startsWith("en"),
+    (voice) =>
+      voice.lang.toLowerCase().startsWith("zh") || voice.lang.toLowerCase().startsWith("en"),
   );
   return filtered.length > 0 ? filtered : [...voices];
 }

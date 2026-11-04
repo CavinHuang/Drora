@@ -1,3 +1,4 @@
+import type { DraftPluginUiOpenRequest } from "@/plugin-ui/contract.js";
 /* oxlint-disable eslint(max-lines) -- Drora Agent store 类型和默认状态集中导出，避免切片间重复定义共享结构。 */
 /**
  * Drora Session Store 类型定义、接口、常量与默认值工厂
@@ -181,6 +182,10 @@ export interface WorkspaceDroraUIState {
    * V4 pane 独占预热会话，配置界面只发布失效版本。
    */
   draftRuntimeInvalidationVersion: number;
+  pluginUiOpenVersion: number;
+  pluginUiOpenRequest:
+    | (DraftPluginUiOpenRequest & { requestId: number; invalidationVersion: number })
+    | null;
   composerTextInsertVersion: number;
   /**
    * composer 正文插入通道的多槽形态（specs/voice-agent-integration.md §9.9.2-H4，
@@ -252,6 +257,12 @@ export interface DroraSessionStoreState {
     workspaceIdentity?: string,
   ) => void;
   invalidateDraftRuntime: (workspacePath: string, workspaceIdentity?: string) => void;
+  requestPluginUiOpen: (request: DraftPluginUiOpenRequest) => void;
+  clearPluginUiOpenRequest: (
+    workspacePath: string,
+    requestId: number,
+    workspaceIdentity?: string,
+  ) => void;
   requestComposerTextInsert: (
     workspacePath: string,
     text: string,
@@ -535,6 +546,8 @@ export function createDefaultWorkspaceState(
     workspaceInit: { ...DEFAULT_WORKSPACE_INIT_STATE },
     draftRuntime: { status: "idle", error: null },
     draftRuntimeInvalidationVersion: 0,
+    pluginUiOpenVersion: 0,
+    pluginUiOpenRequest: null,
     composerTextInsertVersion: 0,
     composerTextInsertRequests: {},
     timelineBottomRequestVersion: 0,

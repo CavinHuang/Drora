@@ -13,9 +13,7 @@ describe("appendComposerText", () => {
   it("appends with exactly one space when the tail is not whitespace", () => {
     expect(appendComposerText("用户已输入", "第一句。")).toBe("用户已输入 第一句。");
     // 英文收尾（中英混排粘连防护）。
-    expect(appendComposerText("const x = 1", "then run tests")).toBe(
-      "const x = 1 then run tests",
-    );
+    expect(appendComposerText("const x = 1", "then run tests")).toBe("const x = 1 then run tests");
   });
 
   it("does not add another space when the tail is already whitespace", () => {

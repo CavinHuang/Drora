@@ -20,9 +20,7 @@ function makeUnit(overrides: {
   return {
     turnId: overrides.turnId,
     latestAssistantTextRow:
-      overrides.hasLatest === false
-        ? undefined
-        : { state, text: overrides.texts?.join("") ?? "" },
+      overrides.hasLatest === false ? undefined : { state, text: overrides.texts?.join("") ?? "" },
     assistantTextRows: (overrides.texts ?? []).map((text) => ({ text })),
   };
 }

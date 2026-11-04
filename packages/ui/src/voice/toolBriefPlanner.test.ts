@@ -1,8 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import {
-  createToolBriefPlanner,
-  type ToolCallBriefSource,
-} from "./toolBriefPlanner.js";
+import { createToolBriefPlanner, type ToolCallBriefSource } from "./toolBriefPlanner.js";
 
 /**
  * 工具简报六规则守护（specs/voice-agent-integration.md §4.2 / §9.6.7-1 / §9.6.8-S5 /
@@ -100,22 +97,15 @@ describe("toolBriefPlanner 六规则（§4.2 EG-1）", () => {
     harness.advance(10_000); // 合并窗过期
     harness.feed([source({ toolCallId: "tc-f", target: "f.ts" })]);
     // §4.2-4「只播最新」：窗内合并未播的 e.ts 被更新的 f.ts 覆盖，不补播。
-    expect(harness.briefs.map((brief) => brief.target)).toEqual([
-      "a.ts",
-      "f.ts",
-    ]);
+    expect(harness.briefs.map((brief) => brief.target)).toEqual(["a.ts", "f.ts"]);
   });
 
   it("规则2：合并窗过期后同名工具生成新简报", () => {
     const harness = createHarness();
-    harness.feed([
-      source({ toolCallId: "tc-1", toolName: "Edit", target: "a.ts" }),
-    ]);
+    harness.feed([source({ toolCallId: "tc-1", toolName: "Edit", target: "a.ts" })]);
     harness.advance(10_001);
     harness.advance(5_000); // 满足最小间隔
-    harness.feed([
-      source({ toolCallId: "tc-2", toolName: "Edit", target: "b.ts" }),
-    ]);
+    harness.feed([source({ toolCallId: "tc-2", toolName: "Edit", target: "b.ts" })]);
     expect(harness.briefs).toHaveLength(2);
     expect(harness.briefs[1]?.target).toBe("b.ts");
   });
@@ -125,14 +115,10 @@ describe("toolBriefPlanner 六规则（§4.2 EG-1）", () => {
     harness.feed([source({ toolCallId: "tc-1", target: "a.ts" })]);
     expect(harness.briefs).toHaveLength(1);
     harness.advance(1_000); // <5s
-    harness.feed([
-      source({ toolCallId: "tc-2", toolName: "Bash", target: "build" }),
-    ]);
+    harness.feed([source({ toolCallId: "tc-2", toolName: "Bash", target: "build" })]);
     expect(harness.briefs).toHaveLength(1); // 间隔不足 → 丢弃不排队
     harness.advance(5_000); // 距上次播报 ≥5s
-    harness.feed([
-      source({ toolCallId: "tc-3", toolName: "Bash", target: "test" }),
-    ]);
+    harness.feed([source({ toolCallId: "tc-3", toolName: "Bash", target: "test" })]);
     expect(harness.briefs).toHaveLength(2);
     expect(harness.briefs[1]?.target).toBe("test");
   });
@@ -168,9 +154,7 @@ describe("toolBriefPlanner 六规则（§4.2 EG-1）", () => {
     expect(harness.briefs).toHaveLength(6);
     harness.resetSessionState(); // wiring 在 conversationKey 变化时调用：清全部四结构
     harness.advance(5_000);
-    harness.feed([
-      source({ toolCallId: "tc-new", toolName: "ToolNew", turnId: "turn-2" }),
-    ]);
+    harness.feed([source({ toolCallId: "tc-new", toolName: "ToolNew", turnId: "turn-2" })]);
     expect(harness.briefs).toHaveLength(7);
     // seen 已清：同一 toolCallId 在新会话视图重新「从无到有」。
     harness.advance(5_000);
@@ -183,10 +167,7 @@ describe("toolBriefPlanner 六规则（§4.2 EG-1）", () => {
   it("规则⑤：开关关闭 → 零简报（seen 照常消化，避免开启瞬间旧行涌入）", () => {
     const harness = createHarness();
     harness.setEnabled(false);
-    harness.feed([
-      source({ toolCallId: "tc-1" }),
-      source({ toolCallId: "tc-2" }),
-    ]);
+    harness.feed([source({ toolCallId: "tc-1" }), source({ toolCallId: "tc-2" })]);
     expect(harness.briefs).toHaveLength(0);
     harness.setEnabled(true);
     harness.feed([source({ toolCallId: "tc-3" })]);
@@ -202,67 +183,40 @@ describe("toolBriefPlanner 六规则（§4.2 EG-1）", () => {
 
   it("规则2×3 偏差区间（C1 修复钉死）：a 播出后 6s（全局间隔已满足但 <10s 合并窗）同类候选不播", () => {
     const harness = createHarness();
-    harness.feed([
-      source({ toolCallId: "tc-1", toolName: "Edit", target: "a.ts" }),
-    ]);
-    expect(harness.briefs).toEqual([
-      expect.objectContaining({ target: "a.ts" }),
-    ]);
+    harness.feed([source({ toolCallId: "tc-1", toolName: "Edit", target: "a.ts" })]);
+    expect(harness.briefs).toEqual([expect.objectContaining({ target: "a.ts" })]);
     // 修复前缺陷：minGap（5s）满足时窗内候选被立即上交 → 机关枪。修复后合并窗
     // （基准=a.ts 播出时刻）真实强制：6s 候选保留 pending 不上交。
     harness.advance(6_000); // ≥minGap(5s) 但 <sameToolMergeWindow(10s)
-    harness.feed([
-      source({ toolCallId: "tc-2", toolName: "Edit", target: "b.ts" }),
-    ]);
+    harness.feed([source({ toolCallId: "tc-2", toolName: "Edit", target: "b.ts" })]);
     expect(harness.briefs.map((brief) => brief.target)).toEqual(["a.ts"]);
     // 10s 窗过期后的下一次快照驱动上交（目标=最新到达者）。
     harness.advance(5_000); // 距 a.ts 播出 11s ≥10s，距上次播报 ≥5s
-    harness.feed([
-      source({ toolCallId: "tc-3", toolName: "Edit", target: "c.ts" }),
-    ]);
-    expect(harness.briefs.map((brief) => brief.target)).toEqual([
-      "a.ts",
-      "c.ts",
-    ]);
+    harness.feed([source({ toolCallId: "tc-3", toolName: "Edit", target: "c.ts" })]);
+    expect(harness.briefs.map((brief) => brief.target)).toEqual(["a.ts", "c.ts"]);
   });
 
   it("规则合并：窗内合并 + 间隔丢弃叠加时只播满足条件的最新目标", () => {
     const harness = createHarness();
-    harness.feed([
-      source({ toolCallId: "tc-1", toolName: "Edit", target: "a.ts" }),
-    ]);
+    harness.feed([source({ toolCallId: "tc-1", toolName: "Edit", target: "a.ts" })]);
     harness.advance(3_000); // 合并窗内（3s <10s）→ 保留 pending 不播（minGap 亦不足）
-    harness.feed([
-      source({ toolCallId: "tc-2", toolName: "Edit", target: "b.ts" }),
-    ]);
+    harness.feed([source({ toolCallId: "tc-2", toolName: "Edit", target: "b.ts" })]);
     expect(harness.briefs.map((brief) => brief.target)).toEqual(["a.ts"]);
     // 窗过期（距 a.ts 播出 11s）→ 上交最新目标（b.ts 被 c.ts 替换，不补播）。
     harness.advance(8_000);
-    harness.feed([
-      source({ toolCallId: "tc-3", toolName: "Edit", target: "c.ts" }),
-    ]);
-    expect(harness.briefs.map((brief) => brief.target)).toEqual([
-      "a.ts",
-      "c.ts",
-    ]);
+    harness.feed([source({ toolCallId: "tc-3", toolName: "Edit", target: "c.ts" })]);
+    expect(harness.briefs.map((brief) => brief.target)).toEqual(["a.ts", "c.ts"]);
   });
 
   it("规则2：窗内 pending 在窗过期后的无新候选快照中也上交（drain 由快照驱动）", () => {
     const harness = createHarness();
-    harness.feed([
-      source({ toolCallId: "tc-1", toolName: "Edit", target: "a.ts" }),
-    ]);
+    harness.feed([source({ toolCallId: "tc-1", toolName: "Edit", target: "a.ts" })]);
     harness.advance(6_000);
-    harness.feed([
-      source({ toolCallId: "tc-2", toolName: "Edit", target: "b.ts" }),
-    ]);
+    harness.feed([source({ toolCallId: "tc-2", toolName: "Edit", target: "b.ts" })]);
     expect(harness.briefs).toHaveLength(1); // 窗内：保留 pending
     harness.advance(5_000); // 窗过期，但本轮快照无新 toolCallId
     harness.feed([]); // 空快照仍触发 drain → 上交 pending 最新目标
-    expect(harness.briefs.map((brief) => brief.target)).toEqual([
-      "a.ts",
-      "b.ts",
-    ]);
+    expect(harness.briefs.map((brief) => brief.target)).toEqual(["a.ts", "b.ts"]);
   });
 
   it("规则6 归属（终审角落）：跨 turn 挂起的 pending 上交时计入当前 turn 账面", () => {
@@ -288,9 +242,7 @@ describe("toolBriefPlanner 六规则（§4.2 EG-1）", () => {
     // turn-2 账面只有 5，第 7 条会通过（共 8 条）。
     for (let i = 1; i <= 5; i++) {
       harness.advance(5_100);
-      harness.feed([
-        source({ toolCallId: "tc-b" + i, toolName: "Bash" + i, turnId: "turn-2" }),
-      ]);
+      harness.feed([source({ toolCallId: "tc-b" + i, toolName: "Bash" + i, turnId: "turn-2" })]);
     }
     expect(harness.briefs).toHaveLength(7);
     harness.advance(5_100);
@@ -305,7 +257,12 @@ describe("toolBriefPlanner 会话边界（§9.7.7）", () => {
     harness.feed(
       [
         ...Array.from({ length: 10 }, (_, i) =>
-          source({ toolCallId: `tc-done-${i}`, toolName: `Done${i}`, turnId: "turn-1", status: "success" }),
+          source({
+            toolCallId: `tc-done-${i}`,
+            toolName: `Done${i}`,
+            turnId: "turn-1",
+            status: "success",
+          }),
         ),
         source({ toolCallId: "tc-live", toolName: "Live", turnId: "turn-1", status: "running" }),
       ],
@@ -362,9 +319,7 @@ describe("toolBriefPlanner 会话边界（§9.7.7）", () => {
     // turn-1 配额耗尽（6 条，互异 toolName 隔离合并窗）。
     for (let i = 0; i < 6; i += 1) {
       harness.advance(5_000);
-      harness.feed([
-        source({ toolCallId: `tc-1-${i}`, toolName: `T1_${i}`, turnId: "turn-1" }),
-      ]);
+      harness.feed([source({ toolCallId: `tc-1-${i}`, toolName: `T1_${i}`, turnId: "turn-1" })]);
     }
     expect(harness.briefs).toHaveLength(6);
     // turn-1 行退出快照：turn-1 键被修剪（键集 ⊆ 快照 turnId 集 ∪ {currentTurnId}）。

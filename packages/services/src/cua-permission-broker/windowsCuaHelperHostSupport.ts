@@ -1,6 +1,7 @@
 import { fork as nodeFork, type ForkOptions } from "node:child_process";
 
 import {
+  HELPER_GHOST_CURSOR_OVERLAY_ARG,
   mintBrokerSocketPath,
   probeHelperHealth,
   type HelperHealth,
@@ -14,17 +15,11 @@ import type { WindowsCuaRuntime } from "#src/cua-permission-broker/windowsCuaDev
 
 export const CONTROL_PROTOCOL = WINDOWS_DEV_CONTROL_PROTOCOL;
 export const ADDON_ENV = HELPER_ADDON_ENV;
-// 跨段中间态（v3.17.1 S3 修复轮 2026-11-01）：上游 v3.17.1 的 services 直接从
-// `@zcode/zcode-cua/broker` 导入 HELPER_GHOST_CURSOR_OVERLAY_ARG，该导出来自 zcode-cua
-// 0.6.5 占位包（上游 target 树 c7d409e 的 broker.js/broker-helper-constants.js 新增
-// re-export）。本仓 zcode-cua 仍为 0.6.3，该包属台账 UP05433–UP05436（S6 段、cua-limited
-// zone），本段不改产包以免 S6 apply 漂移阻断，故此处临时本地声明，S6 落地 0.6.5 导出后
-// 必须回切为 producer 导入。字面量已对两处产方二次校验：zcode-cua-helper
-// src/broker/helperConstants.ts 的 HELPER_GHOST_CURSOR_OVERLAY_ARG 与 zcode-cua 还原
-// launcher helper-launcher.ts 的 bh，均为 "--ghost-cursor-overlay"。
-const HELPER_GHOST_CURSOR_OVERLAY_ARG = "--ghost-cursor-overlay";
 /** ghost overlay 恒开 argv（spec §4.9，Windows 产品链对齐 macOS）。 */
 export const GHOST_CURSOR_OVERLAY_ARG = HELPER_GHOST_CURSOR_OVERLAY_ARG;
+// v3.17.2 回切（2026-11-04）：zcode-cua 占位包随上游更新，broker re-export 在场，
+// HELPER_GHOST_CURSOR_OVERLAY_ARG 恢复从 producer 导入；v3.17.1 S3 的本地临时
+// 声明（原注释所述中间态）已移除，回切义务就此关闭。
 
 export interface WindowsCuaChild {
   readonly pid?: number;

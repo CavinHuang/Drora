@@ -385,7 +385,10 @@ export function createTurnSpeechPlanner(deps: TurnSpeechPlannerDeps): TurnSpeech
     }
     // §7.1/§9.9.4-L9 voice.tts debug 句界槽位（生产不落盘）：载荷只含 id/序号/计数，
     // 零播报文本（播报正文不落任何日志级别，§7.1 隐私边界）。
-    logger.debug("voice.tts", "sentence.boundary", { index: leg.sentenceIndex, total: leg.sentenceCount });
+    logger.debug("voice.tts", "sentence.boundary", {
+      index: leg.sentenceIndex,
+      total: leg.sentenceCount,
+    });
     if (leg.phase === "annPaused") {
       // §4.7 句粒度暂停在句界生效：pause(effective) 时序槽位。
       logger.debug("voice.tts", "pause", { phase: "effective", index: leg.sentenceIndex });
@@ -475,7 +478,10 @@ export function createTurnSpeechPlanner(deps: TurnSpeechPlannerDeps): TurnSpeech
         announcedTurnId = turnId;
         if (opts?.uninterruptibleLength != null && opts.uninterruptibleLength > 0) {
           // 权限段专用起播：整段 uninterruptible（§3.3，段 = 一次权限请求的完整播报）。
-          permissionWindow = { start: 0, end: Math.min(opts.uninterruptibleLength, speakQueue.length) };
+          permissionWindow = {
+            start: 0,
+            end: Math.min(opts.uninterruptibleLength, speakQueue.length),
+          };
           control.setUninterruptible(true);
         } else {
           permissionWindow = null;

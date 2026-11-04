@@ -2091,9 +2091,6 @@ export function createLocalServices(options: {
       return null;
     }
     if (!appPath) return null;
-    // Helper 启动参数统一由 buildHelperOpenArgs 构造，避免多处手写导致漏传或漂移。
-    // 设置页只读权限探测不承载 PiP，不传 --launcher-pid 和 --pip-mode；
-    // exit-log 使用 .settings.exit.log。新增参数应定义在 HelperLaunchSpec 中供调用方共用。
     // 第十五轮 token 模式：产品态 helperMain 强制 --token-file（LaunchServices 不透传
     // env）。铸造 token → 一次性文件交付 → 60s 后回收（helper 读取后也会自删）。
     const token = randomBytes(32).toString("hex");
@@ -2101,19 +2098,21 @@ export function createLocalServices(options: {
     const { writeOneShotHelperTokenFile, scheduleHelperTokenFileCleanup } =
       await import("@drora/drora-cua/broker/server");
     const tokenFile = await writeOneShotHelperTokenFile({ socketPath, token });
+    // Helper 启动参数统一由 buildHelperOpenArgs 构造，避免多处手写导致漏传或漂移。
+    // 设置页只读权限探测不承载 PiP，不传 --launcher-pid 和 --pip-mode；
+    // exit-log 使用 .settings.exit.log。新增参数应定义在 HelperLaunchSpec 中供调用方共用。
     // ghostCursorOverlay 必须传：overlay 是进程级开关，Helper 常驻，设置页先拉起后
     // 真实 CUA 动作会复用同一进程 —— 漏传则整轮操作没有虚拟光标（2026-10-27 本机实测，
     // 第 6 次 argv 漏传，见 docs/cua/producer/ghost-cursor-revival-and-polish.md §0）。
-    // PiP 不同：它依赖 --launcher-pid 的生命周期绑定，按原设计仍不传 --pip-mode；上游
-    // 此处连 --launcher-pid 也不传，但 Drora 的 launcherPid 属第十五轮 token/信任链
-    // （产品态 helperMain 靠它做启动器签名与 peer 验证），经包装器继续传递。
-    const args = buildStandaloneCuaHelperLaunchArgs({
+    // PiP 不同：它依赖 --launcher-pid 的生命周期绑定，按原设计仍不传。
+    const args = buildHelperOpenArgs({
       appPath,
       socketPath,
-      tokenFile,
-      env: process.env,
-      launcherPid: process.pid,
+      exitLogPath: `${socketPath}.settings.exit.log`,
       ghostCursorOverlay: true,
+      ...(isCuaLocalDevelopmentRuntime(process.env)
+        ? { allowUnsignedLauncherLocalDev: true, allowExternalBrokerClientLocalDev: true }
+        : {}),
     });
     try {
       await promisify(execFile)("/usr/bin/open", args, { timeout: 5_000 });
@@ -2513,6 +2512,12 @@ export function createLocalServices(options: {
       return !(await taskIndexRepo.getProjectRepository()).hasProjectWorkspace(target);
     },
     prepareProjectExecution,
+    prepareForkCreation: async (target) => {
+      (await taskIndexRepo.getProjectRepository()).reserveCreatedTask({
+        task: { ...target, taskId: target.sessionId },
+        parentTaskId: target.parentSessionId,
+      });
+    },
     prepareSessionCreation: async (target) => {
       const prepared = (await taskIndexRepo.getProjectRepository()).reserveCreatedTask({
         task: { ...target, taskId: target.sessionId },

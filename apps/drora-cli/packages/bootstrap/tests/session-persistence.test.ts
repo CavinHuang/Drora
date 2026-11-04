@@ -139,7 +139,7 @@ describe("session persistence", () => {
         ]);
       } finally {
         store.close();
-        await rmTestTreeWithRetry(tempRoot);
+        await rm(tempRoot, { recursive: true, force: true });
       }
     },
   );
@@ -418,7 +418,7 @@ describe("session persistence", () => {
     } finally {
       await app?.close?.();
       store.close();
-      await rmTestTreeWithRetry(tempRoot);
+      await rm(tempRoot, { force: true, recursive: true });
     }
   });
 
@@ -515,7 +515,7 @@ describe("session persistence", () => {
     } finally {
       await app?.close?.();
       store.close();
-      await rmTestTreeWithRetry(tempRoot);
+      await rm(tempRoot, { force: true, recursive: true });
     }
   });
 
@@ -1700,7 +1700,7 @@ describe("session persistence", () => {
       expect(toolResultPayload.result.truncated).toBe(true);
     } finally {
       store.close();
-      await rmTestTreeWithRetry(tempRoot);
+      await rm(tempRoot, { recursive: true, force: true });
     }
   });
 
@@ -2177,15 +2177,11 @@ describe("session persistence", () => {
       await resumedApp.close?.();
     } finally {
       store.close();
-      await rmTestTreeWithRetry(tempRoot);
+      await rm(tempRoot, { recursive: true, force: true });
     }
   });
 
-    // 修复（平台标注）：这些用例通过 createDroraApp 钉 POSIX shell 探测（PATH/SHELL 假环境
-  // 里找 zsh/bash 并注入快照与 resume 提醒）。bash-shell-provider 按真实平台分流，
-  // win32 走 Git Bash/legacy 探测分支，POSIX 假环境在 Windows 上不可达；POSIX 探测
-  // 逻辑由 adapters 侧单测覆盖，这里按平台跳过而不是伪造平台。
-  it.skipIf(process.platform === "win32")("initializes the Bash shell snapshot before direct app prompt submission", async () => {
+  it("initializes the Bash shell snapshot before direct app prompt submission", async () => {
     const tempRoot = await mkdtemp(join(tmpdir(), "drora-direct-shell-snapshot-"));
     const shellDir = join(tempRoot, "bin");
     const zshPath = join(shellDir, "zsh");

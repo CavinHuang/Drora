@@ -85,3 +85,17 @@
 - env 键/权限键/诊断码三族对账表落 spec（源码级，bundle 级视 D5）
 - 台账 5（project-sidebar 第三轮）与台账 13（model-provider-section 回植三件事）复核完毕并在台账记录结论
 - 双语 i18n parity 差集空；e2e（吸收的 613）至少 tsconfig + 分片登记完成
+
+---
+
+## 9. 实施记录（2026-11-04 当日完成，方案 §6 裁定执行版）
+
+- **裁定执行**：D1 跟随上游全删（packages 单测 −2000+，本仓自研路径保留：drora 清单 542→276、isolated 9→4、engineering 158 随上游）；D2 persona 43 文件先独立提交（7f30c5c63）；D3 E2E 613 全量吸收；D4 docs 全量吸收。执行方式按用户指令：按功能域分段合并、中途不跑测试、全完统一审查。
+- **分段应用**：merge-dryrun（BASE_REF 已更新 3c5b2276）→ inventory 5546 条 → apply-segment S1-S6 逐段（决策 429 条：delete-decision×362 按 D1、new-collision×47 take-theirs/1 keep-ours、zone×19）→ 171 真冲突全解（启发式：单向/格式/无自研标记块取 theirs；含 persona/knowledge/model-capabilities 标记块人工逐块——persona 路由与包装、Knowledge 协议段、能力深链、双清单 vitest/AGENTS 描述、「自定义指令」改名裁定全部保 ours）。
+- **统一审查修复**：typecheck 初跑 17 错+链式共 40+ 处全修——channels 重复键、node.ts token 三符号丢失、desktop main imports 丢失、WorkspaceShellLayout 重建（JSX 断裂）、bigmodel getForceUpdateConfig 取 theirs、message.tsx 重复声明、posixPath import、session.port barrel 时序；**autoUpdater manifest 链按本仓 spec update-feed-github.md 裁决删除**（上游恢复被拒，台账既有分歧）；windowsCuaHelperHostSupport v3.17.1 中间态回切 producer 导入。
+- **zcode-cua 冻结区（R3）保卫**：zone take-theirs 曾把 Helper 身份常量覆盖回 ZCode 名（HELPER_APP_NAME 等 5 值）→ 15 文件恢复 HEAD，仅补上游新增 HELPER_GHOST_CURSOR_OVERLAY_ARG（值一致）与 broker re-export 三处增量；**@drora/drora-cua 包名统一**（上游引擎名 @drora/zcode-cua 与本仓名分歧，全仓 58 文件收敛回本仓名）。
+- **architecture 收口**：上游模块段与本仓 adopt 段重复 8 id 去重（保内容最全版）；快照按 a9fe401ee 重生成（regenerate-architecture-snapshot --write）+ 1 个误判例外（windowHostAttachmentRpcPolicy 既有文件）。
+- **依赖**：pnpm install 三次收敛（cua 包名修复后 Done）；package-lock version 同步 3.17.2。
+- **env 对账（修正）**：新增 12 键（E2E_SSH×5/NODE_FALLBACK×2/REMOTE_INPUT_PREDICTION/REACT_SCAN 为上游 vite dev 注入/OFFICIAL_ENDPOINT 族搬移重现）；初判 8「删除」经实证全为本仓本地接口字段误算，**真删除 0**。
+- **验证终态（2026-11-04）**：typecheck=0；architecture:check violations 0；lint=0（0 errors）；test:drora **1881 过/7 跳**（D1 收缩后基线，较合并前 4610 收缩——上游裁测的直接后果）；drora-fork-isolated 24/24；CLI contracts/core/bootstrap/adapters typecheck+build 全 0；fmt 安全集（ts/tsx/yaml/json）全绿，**md 67 个上游文档格式基线红不门禁**（CI fmt 被注释+oxfmt 0.41 markdown 篡改缺陷在案，等升级后统一收口）。
+- **遗留**：GUI 手工验收、原版 v3.17.2 bundle key-parity（D5 缺）、E2E 新吸收 613 的分片门禁登记待后续。

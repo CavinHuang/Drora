@@ -17,6 +17,7 @@ import {
   restoreTargetNodePtyPrebuild,
 } from "./scripts/node-pty-package-assets.mjs";
 import { cleanupPackagedSourcemaps } from "./scripts/packaged-sourcemap-cleanup.mjs";
+import { pruneIncompatiblePlatformPackages } from "./scripts/packaged-platform-dependency-prune.mjs";
 import { getTargetPlatform } from "./scripts/target-platform.mjs";
 import {
   resolveDesktopArtifactSuffix,
@@ -480,6 +481,11 @@ async function stripPackagedSourcemapReferences(context) {
         targetPlatformKey: targetPlatform.key,
         runAsarCommand,
       }),
+    pruneStagingDirectory:
+      targetPlatform.key === "win32-x64" &&
+      process.env.DRORA_PRUNE_PACKAGED_PLATFORM_DEPENDENCIES === "1"
+        ? (stagingDir) => pruneIncompatiblePlatformPackages(stagingDir, targetPlatform)
+        : null,
   });
 }
 
@@ -1004,14 +1010,10 @@ export default {
     },
   ],
   mac: {
-    // 路线 A 分发 profile（无签名身份分发）：经 LSEnvironment 让 LaunchServices
-    // 发射链与子进程携带 adhoc 分布标记；正式签名构建移除该键即可回到严格校验。
-    // 第四十四轮修复：此处曾写成两个 extendInfo 键（JS 同名键后者静默覆盖前者），
-    // 导致 LSEnvironment 从未落进 Info.plist——desktopCuaHelperInstaller 与
-    // helper-host 的 DRORA_CUA_HELPER_ADHOC_DISTRIBUTION==="1" 判定全部失效，
-    // adhoc 包的 Helper 校验被错误地按严格模式 fail-closed。两个信息必须合并在
-    // 同一个 extendInfo 对象里。
     minimumSystemVersion: "13.0.0",
+    target: ["dmg", "zip"],
+    category: "public.app-category.developer-tools",
+    artifactName: buildDesktopArtifactName("mac"),
     // macOS 语言包是 en.lproj / zh_CN.lproj，沿用顶层 "en-US" 会一个都匹配不上被全部删掉，
     // Chromium 自带文案随之丢失（视频控件菜单只剩图标、播放速度子菜单空白）。
     electronLanguages: ["en", "zh_CN"],

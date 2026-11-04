@@ -39,3 +39,5 @@ forceUpdate.ts 后，为避免 UI 侧复制第二份实现，把该函数及其�
 1. 全仓无 forceUpdate 残留引用（typecheck 证明）。
 2. `pnpm typecheck`、`pnpm lint` 回基线；desktop 构建成功。
 3. production 打包启动不再请求 client/configs 做强更判断。
+
+> 2026-11-04 注记（v3.17.2 合并）：上游 v3.17.2 演进恢复了 `getForceUpdateConfig` 客户端配置读取链（bigmodelCodingPlanSubscriptionProvider），与本 spec 当年的删除面并存——以最新上游为权威保留恢复版，本 spec 保留为历史裁定记录。同合并中，update-feed-github spec 的 dev 覆盖链（updateFeed.ts/resolver/env 开关）已按删除面补删收口（1b76eaaea 后续修正）。

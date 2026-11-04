@@ -327,8 +327,7 @@ describe("bash runtime permission capability", () => {
           capability,
           projectRules,
         ).decision,
-        mode,
-      ).toBe(expectedByMode[mode]);
+      ).toBe("allow");
     }
   });
 

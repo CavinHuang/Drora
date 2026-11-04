@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { createServer, default as http } from "node:http";
+import { createServer } from "node:http";
 
 import { createEndpointFetch, main, normalizePrefix } from "../scripts/drora-site.mjs";
 import { packStage } from "../scripts/stage.mjs";
@@ -384,12 +384,7 @@ test("local and auth errors", async () => {
   assert.equal(offline.error.code, "NETWORK_ERROR");
 });
 
-// win32 跳过：本用例的全部断言在本机通过（HTTP over 命名管道功能正常），但进程
-// 退出时命中 Node 的 teardown 断言崩溃（Assertion failed: env_->execution_async_id()
-// == 0，CallbackScope 析构时序，本机 Node 24 复现，--test-force-exit 与销毁
-// globalAgent/连接均无法规避），整个测试文件被记为失败。POSIX CI 继续覆盖该用例。
-const maybeTest = process.platform === "win32" ? test.skip : test;
-maybeTest("createEndpointFetch talks HTTP over the endpoint socket", async () => {
+test("createEndpointFetch talks HTTP over the endpoint socket", async () => {
   const dir = await mkdtemp(join(tmpdir(), "drora-site-ep-"));
   const socketPath = join(dir, "endpoint.sock");
   const seen = [];
@@ -410,14 +405,6 @@ maybeTest("createEndpointFetch talks HTTP over the endpoint socket", async () =>
     });
   });
   await new Promise((resolve) => server.listen(socketPath, resolve));
-  // Windows 修复：http 客户端的 keep-alive 管道 socket 在 server.close 后仍滞留，
-  // 进程退出时 libuv/http 的回调清理顺序触发 Node 断言崩溃（env_->execution_async_id
-  // 断言，表现为文件级 'test failed'）。登记并显式销毁全部连接后再收尾。
-  const sockets = new Set();
-  server.on("connection", (socket) => {
-    sockets.add(socket);
-    socket.on("close", () => sockets.delete(socket));
-  });
   try {
     const fetchImpl = createEndpointFetch(socketPath);
     const res = await fetchImpl(
@@ -437,10 +424,6 @@ maybeTest("createEndpointFetch talks HTTP over the endpoint socket", async () =>
     assert.equal((await fetchImpl("http://drora-official-endpoint/empty")).status, 204);
   } finally {
     await new Promise((resolve) => server.close(resolve));
-    for (const socket of sockets) socket.destroy();
-    // Windows 修复续：客户端侧的 keep-alive socket 挂在全局 http agent 上，
-    // 进程退出时的清理顺序仍会触发 Node 断言；显式销毁 agent 的全部 socket。
-    http.globalAgent.destroy();
   }
 });
 

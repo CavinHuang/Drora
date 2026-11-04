@@ -10,6 +10,7 @@ type DesktopBrowserPlatformBridge = Pick<
   | "onBrowserViewCloseTab"
   | "onBrowserViewSuspend"
   | "onBrowserViewRestore"
+  | "browserViewLoadUrl"
   | "browserViewAttachGuest"
   | "browserViewDetachGuest"
   | "browserViewCloseTab"
@@ -44,6 +45,7 @@ export const desktopBrowserPlatformBridge = {
   onBrowserViewCloseTab: (handler) => window.drora.onBrowserViewCloseTab?.(handler) ?? (() => {}),
   onBrowserViewSuspend: (handler) => window.drora.onBrowserViewSuspend?.(handler) ?? (() => {}),
   onBrowserViewRestore: (handler) => window.drora.onBrowserViewRestore?.(handler) ?? (() => {}),
+  browserViewLoadUrl: (payload) => window.drora.browserViewLoadUrl!(payload),
   browserViewAttachGuest: (payload) =>
     window.drora.browserViewAttachGuest?.(payload) ??
     Promise.resolve({ ok: false, reason: "not-found", recoveryRequested: false }),

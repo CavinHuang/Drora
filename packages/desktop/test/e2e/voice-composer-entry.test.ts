@@ -54,7 +54,9 @@ async function openVoiceSettingsSection() {
 }
 
 describe("语音听写 composer 入口（§9.2 / FD-5）", () => {
-  let rendererSizeSnapshot: Awaited<ReturnType<typeof setCurrentElectronRendererContentSize>> | undefined;
+  let rendererSizeSnapshot:
+    | Awaited<ReturnType<typeof setCurrentElectronRendererContentSize>>
+    | undefined;
 
   after(async () => {
     if (rendererSizeSnapshot) {
@@ -108,11 +110,9 @@ describe("语音听写 composer 入口（§9.2 / FD-5）", () => {
       timeout: 15000,
       reverse: true,
     });
-    await expect($(sel("voice-entry-toggle"))).toHaveAttribute(
-      "data-state",
-      "checked",
-      { containing: true },
-    );
+    await expect($(sel("voice-entry-toggle"))).toHaveAttribute("data-state", "checked", {
+      containing: true,
+    });
 
     // 返回 composer：入口渲染（默认宽度）。
     await clickTestIdByDom(TID_SETTINGS_BACK_BUTTON, {

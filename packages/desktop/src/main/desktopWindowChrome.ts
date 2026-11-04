@@ -50,6 +50,7 @@ const ALLOWED_EMBEDDED_BROWSER_PROTOCOLS = new Set([
   "http:",
   "https:",
   "drora-browser-restore:",
+  "drora-html:",
 ]);
 const ALLOWED_EMBEDDED_BROWSER_NEW_WINDOW_PROTOCOLS = new Set(["http:", "https:"]);
 const EXTERNAL_BROWSER_DISPOSITIONS = new Set(["background-tab"]);

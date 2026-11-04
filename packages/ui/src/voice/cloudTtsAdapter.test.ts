@@ -116,7 +116,7 @@ function createHarness(threshold = 3): Harness {
       config = next;
     },
     setFetchError: (error) => {
-    fetchError = error;
+      fetchError = error;
     },
     adapter,
     lastPlayback: () => playback[playback.length - 1] as FakePlayback,
@@ -260,7 +260,9 @@ describe("createCloudTtsAdapter（mock HTTP 契约）", () => {
 describe("resolveTtsEngineChoice（§9.6.5-2 引擎解析）", () => {
   it("keeps speechSynthesis for engine=system (未配置/默认行为完全不变)", () => {
     expect(resolveTtsEngineChoice({ engine: "system", vendorConfigComplete: true })).toBe("system");
-    expect(resolveTtsEngineChoice({ engine: "system", vendorConfigComplete: false })).toBe("system");
+    expect(resolveTtsEngineChoice({ engine: "system", vendorConfigComplete: false })).toBe(
+      "system",
+    );
   });
 
   it("selects cloud only when engine=cloud and the TTS vendor record is complete", () => {

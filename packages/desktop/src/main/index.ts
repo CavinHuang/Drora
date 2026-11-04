@@ -1,5 +1,9 @@
 import { createDroraDesktopPetExtension } from "../drora-extensions/desktopPet.js";
 import { createCaptchaSolver } from "./captchaSolverWindow.js";
+import {
+  BROWSER_LOCAL_PREVIEW_PRIVILEGES,
+  installBrowserLocalPreview,
+} from "@desktop/main/browser-local-preview/index.js";
 import { createRemoteConversationTelemetryDispatcher } from "@drora/shared/conversation-telemetry";
 import { installRequestSecurityDiagnostics } from "./request-security-edition/index.js";
 import { createLocalTtftExporter } from "./localTtftExporter.js";
@@ -296,7 +300,10 @@ import {
   installPluginSandboxHost,
 } from "./pluginSandbox/index.js";
 
-registerLocalMediaPreviewScheme(protocol, [PLUGIN_SANDBOX_PRIVILEGED_SCHEME]);
+registerLocalMediaPreviewScheme(protocol, [
+  PLUGIN_SANDBOX_PRIVILEGED_SCHEME,
+  BROWSER_LOCAL_PREVIEW_PRIVILEGES,
+]);
 const localMediaPreviewPathRegistry = createLocalMediaPreviewPathRegistry();
 
 // e2e 由 Chromedriver 管理远程调试端口；如果这里继续固定到 9229，
@@ -1100,6 +1107,7 @@ app
   .whenReady()
   .then(() => powerMonitor.on("resume", () => void webRemoteControlManager.refreshNotifications()));
 app.on("will-quit", () => webRemoteControlManager.disposeNotifications());
+
 
 function resolveExternalWorkspaceConfirmationCopy() {
   const effectiveLocale =
@@ -2196,6 +2204,7 @@ app.whenReady().then(async () => {
       ? { registryMaxEntries: Number(process.env.DRORA_E2E_PLUGIN_SANDBOX_MAX_ENTRIES) }
       : {}),
   });
+  installBrowserLocalPreview(session.fromPartition(EMBEDDED_BROWSER_PARTITION));
   installBrowserRestoreBootstrapProtocol(
     session.fromPartition(EMBEDDED_BROWSER_PARTITION).protocol,
   );

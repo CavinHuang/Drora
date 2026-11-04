@@ -305,7 +305,9 @@ describe("persona presets (spec §13 第十五批：内置人设预设单一出�
   it("preferenceDefaults 四键全量且全为受控合法值（全量覆盖语义的资产前提）", () => {
     for (const preset of PERSONA_PRESETS) {
       const keys = Object.keys(preset.preferenceDefaults).sort();
-      expect(keys, `${preset.id} 四键全量`).toEqual([...Object.values(PERSONA_PREFERENCE_KEYS)].sort());
+      expect(keys, `${preset.id} 四键全量`).toEqual(
+        [...Object.values(PERSONA_PREFERENCE_KEYS)].sort(),
+      );
       for (const [key, value] of Object.entries(preset.preferenceDefaults)) {
         if (key === PERSONA_PREFERENCE_KEYS.preferredAddress) {
           const address = value as string;
@@ -324,9 +326,7 @@ describe("persona presets (spec §13 第十五批：内置人设预设单一出�
   });
 
   it("workmate 预设=产品默认核心（新装「使用中」基线）", () => {
-    const workmate = PERSONA_PRESETS.find(
-      (preset) => preset.id === PERSONA_PRESET_IDS.workmate,
-    );
+    const workmate = PERSONA_PRESETS.find((preset) => preset.id === PERSONA_PRESET_IDS.workmate);
     expect(workmate?.core).toMatchObject({
       displayName: "Drora",
       warmth: "warm",

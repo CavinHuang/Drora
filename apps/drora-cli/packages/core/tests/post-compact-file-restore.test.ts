@@ -1,4 +1,3 @@
-import { resolve } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import type { ReadTextOutput } from "@drora/contracts";
 import type { RuntimeMessageEntry } from "../src/agent/message-history.js";
@@ -292,9 +291,7 @@ describe("post-compact file restore paths and read state", () => {
         },
       ],
       readFiles,
-      // 修复：补回按解析后的绝对路径比对读取状态（Windows 上为盘符形态）；
-      // 播种键随解析形态构造，POSIX 上即原字面量。
-      readFileState: createState([entry(resolve(preservedFile), { sourceTool: "Read" })]),
+      readFileState: createState([entry(preservedFile, { sourceTool: "Read" })]),
       workingDirectory: root,
     });
 

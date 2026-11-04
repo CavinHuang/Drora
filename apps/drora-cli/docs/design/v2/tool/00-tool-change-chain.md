@@ -34,99 +34,13 @@ Memory 后台循环（Extraction、Dream）用同一个 `toolBatchModelEntries` 
 单条 context 超过 10000 字符时先落盘，附件里只放 `<persisted-output>` 外壳；落盘失败时截到 10000 字符并附原因
 （规则见 hooks.md「聚合规则」）。
 
-## 官方命令环境包装保留 Bash 后台能力（2026-10-28）
+## 草稿 MCP UI 完全访问（2026-10-19）
 
-Bash handler → `withOfficialCommandEnv` 注入会话环境 → 原执行器
-`runBashWithBackgroundLifecycle` → 原有后台任务登记、输出与完成通知。
-包装层复用 core 公开的能力接口与检测函数，只在底层支持时暴露对应方法；显式后台和超时转后台
-均保留原模式、取消信号、事件回调、结果与错误。后台状态仍由原执行器唯一管理。
-`ExecutionPort` 接口之外的能力有两个，`runBashWithBackgroundLifecycle` 与
-`waitForBackgroundTask`，两者都必须透传：后者缺失时后台追踪退回 1 秒轮询，
-Bash 完成通知会晚于同一轮 tool-loop 的下一次模型请求。
-`env.base: "empty"` 不注入，端点不可用时沿用既有执行策略。
-回归覆盖包装后的真实生命周期入口与后台等待入口。桌面 E2E 复跑：background 26/26 通过，
-background-bash-output 7/7 通过，bash-direct-output 6/8 通过——`BDO05` 的前台与后台 5 GiB
-边界因可用磁盘低于 12 GiB 的前置条件未执行，其中后台变体会经过本链路，仍待在空间充足的机器上补跑。
-日志证据是 Bash 的 `background_task.tracking.started` 恢复为 `hasDirectWaiter: true`。
-不改变工具 schema、权限、模型结果格式或 App 协议。
-
-## Bash sed 只读权限收口（2026-10-28）
-
-`sed` 脚本可执行外部命令或写文件，shell AST 与参数白名单不能单独证明其只读。共享 readonly
-policy 只开放数字行号打印和标准输入替换两个完整脚本子集；复用 AST argv，不重新解析 shell 文本。
-参数、完整脚本和文件参数同时通过白名单后，才授予 `readOnly`、`concurrentSafe` 和免审批能力。
-链路仍为 Bash AST → readonly policy → runtime capability → PermissionService → executor：
-Plan（旧 `mode=plan` 与独立 `planEnabled=true`）按既有规则拒绝非只读 Bash；普通 Build
-默认请求审批，Plan 关闭后的其他模式和显式授权继续遵循原权限规则。管道、命令链和已支持
-wrapper 中的 sed 也必须通过同一白名单，项目 allow 不能解除 Plan 对非只读 Bash 的限制。
-`-e`/`-f`/`-i`、未知参数、执行/写入脚本和脚本后的 option 形参数不自动放行；保留展示层的原地修改识别。
-不改 Bash schema、执行命令、权限事件结构或桌面/手机投影；Plan 拒绝时沿用 PermissionDenied，
-不发 PermissionRequested、不调用 ExecutionPort。文件查看继续优先用 Read。
-回归覆盖安全打印/替换、脚本执行/写入、参数与转义边界、独立 Plan、显式 allow、Build 审批及 cat/grep 放行，
-并通过真实 executor 验证拒绝事件和执行端零调用。运行时验收在临时目录检查文件副作用。
-完整边界见 [Bash](04-bash.md) 与 [AST 权限语义](../../../bash-tool-ast-permission-semantics.md)。
-
-## 会话 ID 兼容（2026-10-28）
-
-普通新建恢复 `sess_${crypto.randomUUID()}`（UUID v4）；已持久化的 `session_` 身份不变。
-Composer session mention → runtime reference reminder → ReadSessionContext schema
-→ 原 ID 的 SessionStore 查询 → 原 ID 的工具结果，兼容两种前缀。
-邮箱目录仍按原 ID 隔离；保留路径安全校验、权限、工具超时与返回结构。
-回归覆盖两种历史后缀、混合引用去重、非法 ID 拒绝、准确读取及完整重启后继续对话。
-完整规格见根目录 `docs/session-context-tool.md` 的 Session identity compatibility。
-
-## 共享 CLI 的工具请求归属（2026-10-27）
-
-定时、闲时工具沿用模型输入、权限、结果和持久化契约。协议 port 从自身 session record
-取得 workspace，经协商的 `sessionWorkspaceRouting` 能力附加到 Host 请求；列表、删除、
-更新和自暂停也必须携带归属，不能使用物理连接首次绑定的目录。缺少自身 workspace 时
-明确失败；旧 Host 未协商能力时保持原参数。Host 用已登记的 session/workspace 校验路由，
-不接受共享连接中的未知归属。工具执行与桌面 continuous、手机 replayable 投影 owner 不变。
-回归包含两类 port 的新旧协议、共享 CLI 的独立审批和真实 Bash cwd 写入；完整设计见
-[共享 CLI](../../../../../../docs/shared-task-cli.md)。
-
-## Read 读取状态与 compaction 文件恢复（2026-10-22）
-
-Read 返回 `file_unchanged` 时不再记录读取状态快照；hydrator 跳过这类结果（含旧数据里已存的快照），
-由之前那次真实读取恢复视图。compaction 文件恢复改为在 summary 之后重读整个当前文件：只选 Read / Write /
-Edit 的记录，不走工具调用流程（无 hook、无工具事件、不弹窗），只跳过读权限 deny 规则：执行器新增
-`areReadsDeniedWithoutPrompt`，与工具调用共用同一个模式与规则判定（`checkStaticToolPermission`），一批文件只加载
-一次规则。规则按原始字符串匹配，所以读取状态另记工具输入的原始写法（`requestedPath`，Read / Write /
-Edit 写读取状态时记下；冷恢复取自 tool part 的输入，不写进快照），补回时它和规范化路径各判定一次，任一命中 deny 就跳过。补回结果写入 live 读取状态表，不落盘。Read 的 schema、权限声明、模型可见结果文本和 UI/V4 投影不变；compaction 后补回附件
-的内容变为文件当前内容，只影响新产生的 compaction，已持久化的不改写。规则见
-[rewind-compact.md](../rewind-compact.md) 与 [17-read-file-state-resume.md](17-read-file-state-resume.md)。
-
-## MCP 手动信任（2026-10-23）
-
-工作区直接 MCP 声明 → bootstrap 当前声明快照 → 用户域逐条信任 → MCP port 准入 →
-连接池/stdio/HTTP/SSE → 工具与资源。未信任不连接、不发凭据、不注册可调用工具；
-每次连接准入重读声明和信任；连接内调用只查 gate 内存。会话内自动重连沿用原授权，撤销或配置变化在新建/重启会话的连接准入时生效。
-桌面和手机设置经同一目标 Host 发送精确摘要，不新增模型可调用授权工具。
-完整合同见根目录 `docs/runtime-tools/mcp-status-list-control-plane.md`「手动信任」。
-显式 default/connect 工作区切换先使旧设置 gate 失效；只读 status 不切换 gate，不清理其他工作区连接。命令、环境变量与隔离字段在审核和执行之间保持一致。
-坏声明逐条拒绝，空 `.drora` map 沿用 `.agents` fallback；订阅释放不经过执行授权，用户来源由装配层保留。
-工作区 MCP 准入沿用 Hooks 的会话内非阻断提示：gate 重读当前声明 → 会话事件 → V4 快照 → composer 图标弹层；
-设置授权后只刷新同 workspace 的待审核投影，不自动连接。展示与忽略不改变工具执行授权。
-提示读取只在初始化、新用户输入消费、恢复和显式授权变化时发生；普通模型续步与内部续跑不读取提示配置。
-新用户输入包含用户 guide/steer；首输入复用初始化读取。配置加载器保留；提示刷新不改变现有连接的准入结果。
-准入提示更新不计为会话活动；冷恢复和授权通知均不得改写 sessions-index 活动时间。
-
-## node_repl 无进展提示（2026-10-26）
-
-只改 node-repl-host 内部：`tools/call(js)` 按 `session_id + turn_id` 计同码、同结果与本 turn 调用量，
-命中档位时在 `toMcpRunResult` 之后的 content 末尾追加一行「You may end this turn.」提示。
-schema、权限、超时、isError、图片顺序、core 的 model-anomaly 与 UI/V4 投影均不变。
-宿主行为变化，node-repl-host 升到 0.6.2（package、manifest、seed 定义、SEA 清单、serverInfo）。
-合同见根目录 `docs/mcp-stateless-node-repl.md`「无进展提示」。回归：`no-progress-guard.test.ts`
-与 `mcp-server.test.ts` 的 MCP 调用序列。
-
-## 插件 Agent 源文件定位（2026-10-20）
-
-`Agent` 的插件 profile 沿用组件发现结果中的实际源路径：插件目录 / manifest 目录
-→ `PluginComponentItem { name, path }` → `loadPluginAgentTemplates` → 名称空间与裸名别名
-→ Agent 工具执行。frontmatter `name` 与文件名可不同；名称不得重新转换为文件路径。
-缺少路径的描述性组件不加载，源文件不可读保留诊断；不新增路径兜底或独立注册表。
-工具 schema、权限、执行快照和 UI/V4 投影不变。详见 [插件 Agents 规范](../plugin-compat.md#agents)。
+审批卡 → 现有 interaction broker → runtime 授权 → 授权事件 → V4 投影 → 所属草稿 Composer。
+未持久化草稿不写 session 子行；授权与首发/外部活动持久化交错时复用已有持久化 Promise。
+重试固定原授权事件与目标集合，正式会话保留原事务；首发按当前权限保存同一 session。
+工具 schema、执行权限策略、外键与 continuous/replayable 交付不变。测试覆盖真实 SQLite、
+并发持久化、发布重试、草稿身份与首发，产品合同见根目录 `docs/plugins/draft-mcp-ui-session-spec.md`。
 
 ## Automation 自暂停工具 CronPauseSelf（2026-10-16）
 
@@ -2089,3 +2003,19 @@ node_repl browser-client → protocol broker → 已有 browserExecute 反向协
 Browser control scope 的 admission 失败可由下一次业务请求用原 ID 重试；未知结果保留释放责任，
 只清除失败 flight。关闭优先于新 admission，不自动重放业务命令。Host ambient 无实例 ID 的
 只读 list 汇总同一会话路由的受控页面；模型 execute、取消、释放仍严格隔离实例。
+
+### 草稿 MCP UI 会话清理
+
+V4 `deleteSession` 复用 `closeSessionRuntime` 的统一生命周期 owner：先通知删除并摘除运行实例，再取消该 session 的 UI 工具调用、撤销实例凭证和 App tool 注册，等待 session 前缀的资源退订完成后关闭 App。按实例发起的异步退订不能代替这个等待，否则多 server 退订会与 pool lease 释放竞争。不能依赖共享 MCP 连接退出清理；其他 session 可继续持有同一连接。回归在 `v4-cold-resume.test.ts` 覆盖删除中的调用和共享连接隔离。
+
+### Agent workspace 身份回归（2026-10-26）
+
+Bash 返回 resolvedCwd → 父 runtime 更新执行 cwd → Agent 创建 child 时分别继承稳定 workspace 身份与当前执行 cwd → SQLite 保留同 workspace 父子链 → 重启后目录 owner 校验及 V4 冷订阅。验证真实 cd、旧 child 错误 cwd、跨 workspace 拒绝；不改变 Bash 的 cd 语义或工具 schema。
+
+## MCP 启动失败诊断（2026-10-30）
+
+stdio stderr → adapter 有界缓冲与脱敏 → 已有 `McpServerStatus.error` → `mcp/list` → 设置详情。
+连接失败在传输错误后附带最近 stderr，去除 ANSI；HTTP/SSE 不附带 stdio 信息。
+界面处理建议只按已有 `failureKind` 国际化，不按错误文本分流；`tools/call`、工具结果、
+权限、重试和错误分类不变。展示契约见根 `docs/settings-mcp-list.md`，CLI 回归在
+`packages/adapters/tests/mcp.test.ts`，App 使用候选 E2E，不恢复业务单测。

@@ -204,10 +204,15 @@ function resetStores(): void {
 let wsPath = "/ws";
 // §9.9.2-H4 多槽形态：听写绑定会话 sess-1，读该会话槽（槽键 = targetSessionId ?? ""）。
 // 融合：workspaceSlice 的多槽 store 已按 §9.9 rebase 干净落地，读法取 §9.9 形态。
-function lastInsertRequest(): { text: string; mode?: string; targetSessionId?: string | null } | null {
+function lastInsertRequest(): {
+  text: string;
+  mode?: string;
+  targetSessionId?: string | null;
+} | null {
   return (
-    useDroraSessionStore.getState().getWorkspaceState(wsPath).composerTextInsertRequests["sess-1"] ??
-    null
+    useDroraSessionStore.getState().getWorkspaceState(wsPath).composerTextInsertRequests[
+      "sess-1"
+    ] ?? null
   );
 }
 
@@ -755,7 +760,10 @@ describe("§9.9.4-L10/L1 起录链失败处置与用户取消出边", () => {
           lang: "zh-CN",
           requestStart: () => true,
           asrEngine: "remote",
-          vendor: { baseUrl: "https://api.siliconflow.cn/v1", model: "FunAudioLLM/SenseVoiceSmall" },
+          vendor: {
+            baseUrl: "https://api.siliconflow.cn/v1",
+            model: "FunAudioLLM/SenseVoiceSmall",
+          },
           getVendorApiKey: async () => "sk-test-key",
         }),
       );
@@ -797,9 +805,7 @@ describe("§9.9.4-L10/L1 起录链失败处置与用户取消出边", () => {
         ([scope, message]) => scope === "voice.asr" && String(message).includes("asr start failed"),
       );
       expect(startFails).toHaveLength(1);
-      expect(
-        warnSpy.mock.calls.some(([scope]) => scope === "voice.entry"),
-      ).toBe(false);
+      expect(warnSpy.mock.calls.some(([scope]) => scope === "voice.entry")).toBe(false);
     } finally {
       warnSpy.mockRestore();
     }

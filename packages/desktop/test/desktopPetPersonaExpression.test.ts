@@ -56,12 +56,7 @@ describe("P2 桌宠当前态表达映射（spec §11、PM18/58）", () => {
     // 同一 mode 下无论几条活动、什么外观，表达逐字一致。
     const single = expression("working");
     expect(single).toEqual(expression("working", "zh-CN"));
-    expect(Object.keys(single).sort()).toEqual([
-      "celebrates",
-      "label",
-      "mode",
-      "neutralEnding",
-    ]);
+    expect(Object.keys(single).sort()).toEqual(["celebrates", "label", "mode", "neutralEnding"]);
   });
 
   it("未知 locale 回退 en-US，不抛错（旧宿主兼容）", () => {

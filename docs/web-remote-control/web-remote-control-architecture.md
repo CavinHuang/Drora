@@ -411,7 +411,7 @@ Mobile web 连接流程：
 2. 通过 `WebRemoteControlTerminalTransport` 申请 role=terminal token，连接 ws2?token&mid，再发送 V2 auth_init(device_sid)；401 回登录，AUTH_FAILED 显示账号归属失败与切换账号动作。
 3. paired 后发送 `bootstrap-request`；v4 使用响应中的可选 `desktopAppVersion` 校验 URL。
    首次不一致时校正并导航，已进入页面时保留页面并提示确认后重新加载；旧桌面缺字段时保持原行为。
-   重连/回前台时即使 bridge 健康也重新校验，具体边界见 v4 版本同步守卫（OSS 多版本部署文档待补）。
+   重连/回前台时即使 bridge 健康也重新校验，具体边界见 [v4 版本同步](./remote-v4-static-deployment.md#v4-url-与桌面实际版本同步)。
 4. 优先采用 `mobileViewState ?? initialViewState` 中可 bridge 的 workspace；旧目标缺席或离线时，
    回退到第一个可 bridge 的 workspace。只有没有可 bridge 候选时才选择离线项。
 5. 若目标远程工作区尚不具备 bridge 条件，渲染 home-only `Root`，保留工作区列表与重连入口；

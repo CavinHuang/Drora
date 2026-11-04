@@ -180,7 +180,7 @@ Docker 准入不执行：该 auth/config case 不依赖 provider replay，也不
 
 | 字段             | 内容                                                                                    |
 | ---------------- | --------------------------------------------------------------------------------------- |
-| Spec             | `packages/desktop/test/e2e/jwt-expiry-reauthentication.test.ts`                         |
+| Spec             | `packages/desktop/test/e2e/jwt-expiry-reauthentication.test.ts`   |
 | Fixture manifest | `packages/desktop/test/e2e/fixtures/cases/auth-config/jwt-expiry-reauthentication.json` |
 | Provider fixture | 无，`providerRequestPolicy: "none"`                                                     |
 | 当前状态         | 候选 case，等待人工确认过期提示与重新登录入口后转正                                     |
@@ -258,7 +258,7 @@ Welcome 展示 Z.ai + BigModel 登录入口
 
 | 字段             | 内容                                                                            |
 | ---------------- | ------------------------------------------------------------------------------- |
-| Spec             | `packages/desktop/test/e2e/jwt-401-auto-logout.test.ts`                         |
+| Spec             | `packages/desktop/test/e2e/jwt-401-auto-logout.test.ts`   |
 | Fixture manifest | `packages/desktop/test/e2e/fixtures/cases/auth-config/jwt-401-auto-logout.json` |
 | Provider fixture | 无，`providerRequestPolicy: "none"`                                             |
 | 当前状态         | 候选 case，等待人工确认 401 触发提示、凭据清理和重启动作后转正                  |

@@ -54,7 +54,10 @@ export function WebRemoteControlRelaySourceSection({
   }, [savedRelayOrigin]);
 
   const summaryLabelId = useMemo(
-    () => (savedRelayOrigin ? "webRemoteControl.relaySource.custom" : "webRemoteControl.relaySource.official"),
+    () =>
+      savedRelayOrigin
+        ? "webRemoteControl.relaySource.custom"
+        : "webRemoteControl.relaySource.official",
     [savedRelayOrigin],
   );
 

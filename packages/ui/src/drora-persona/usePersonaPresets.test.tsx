@@ -33,7 +33,12 @@ function createService(overrides?: {
   listResult?:
     | { ok: false; code: string }
     | { ok: true; value: { preferences: Array<{ key: PersonaPreferenceKey; revision: number }> } };
-  saveResults?: Partial<Record<PersonaPreferenceKey, Array<{ ok: false; code: string } | { ok: true; value: { status: string } }>>>;
+  saveResults?: Partial<
+    Record<
+      PersonaPreferenceKey,
+      Array<{ ok: false; code: string } | { ok: true; value: { status: string } }>
+    >
+  >;
 }): {
   service: PersonaControlService;
   calls: { update: number; save: Map<PersonaPreferenceKey, number>; list: number; init: number };
@@ -132,10 +137,7 @@ describe("usePersonaPresets（spec §13 第十五批）", () => {
 
   it("core CAS 冲突：自动重读一次后成功；仍冲突则 failed 且不动偏好", async () => {
     const { service, calls } = createService({
-      updateResults: [
-        err(PERSONA_ERROR_CODES.revisionConflict),
-        ok({ status: "saved" }),
-      ],
+      updateResults: [err(PERSONA_ERROR_CODES.revisionConflict), ok({ status: "saved" })],
     });
     const { result } = renderHook(() => usePersonaPresets(service));
     let applied: Awaited<ReturnType<typeof result.current.applyPreset>>;
@@ -183,7 +185,10 @@ describe("usePersonaPresets（spec §13 第十五批）", () => {
     expect(applied!.coreUpdated).toBe(true);
     expect(applied!.appliedKeys).toHaveLength(3);
     expect(applied!.failedKeys).toEqual([
-      { key: PERSONA_PREFERENCE_KEYS.collaborationStyle, code: PERSONA_ERROR_CODES.revisionConflict },
+      {
+        key: PERSONA_PREFERENCE_KEYS.collaborationStyle,
+        code: PERSONA_ERROR_CODES.revisionConflict,
+      },
     ]);
   });
 
@@ -203,7 +208,10 @@ describe("usePersonaPresets（spec §13 第十五批）", () => {
     const workmate = PERSONA_PRESETS.find((preset) => preset.id === "workmate")!;
     expect(matchesPresetCore(workmate.core, workmate)).toBe(true);
     expect(
-      matchesPresetCore({ ...workmate.core, selfDescription: `${workmate.core.selfDescription}。` }, workmate),
+      matchesPresetCore(
+        { ...workmate.core, selfDescription: `${workmate.core.selfDescription}。` },
+        workmate,
+      ),
     ).toBe(false);
   });
 

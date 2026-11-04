@@ -794,8 +794,10 @@ describe("runtime context announcements", () => {
       ...config,
       memory: { cliStorageRoot, enabled: true, use: true },
     };
-    // 修复：Windows 的 join 产出反斜杠，与运行时读取的正斜杠规范键错开；按规范形态构造。
-    const indexPath = `${resolveProjectMemoryRoot({ cliStorageRoot, workspacePath: "/workspace" })}/MEMORY.md`;
+    const indexPath = join(
+      resolveProjectMemoryRoot({ cliStorageRoot, workspacePath: "/workspace" }),
+      "MEMORY.md",
+    );
     const oldIndex = "- [Old policy](old-policy.md) — announced before the restart";
     const newIndex = "- [New policy](new-policy.md) — written to disk after the announcement";
     const instructionTexts = (value: ReturnType<typeof createTestAgentRuntime>) =>

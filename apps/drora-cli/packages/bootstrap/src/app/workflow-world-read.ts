@@ -13,8 +13,14 @@
 //      因为只有这一侧能"不生产"——让 ripgrep 在 2000 条上停手，胜过物化一百万条再回头量。
 //   3. **git 的固定 argv**。构造在 workflow-git-world-read.ts（纯），spawn 在这里。
 
-import { posix as posixPath, win32 as win32Path } from "node:path";
+import {
+  isAbsolute as isAbsolutePath,
+  relative as relativePath,
+  resolve as resolvePath,
+  sep,
+} from "node:path";
 import type { ExecutionOutputLimit, ExecutionPort, FileSystemPort } from "@drora/contracts";
+import { posix as posixPath, win32 as win32Path } from "node:path";
 import { WORLD_READ_CAPS, WorkflowError, type WorldReadOp } from "@drora/dynamic-workflow";
 import {
   GIT_SHOW_PREFIX_ARGV,

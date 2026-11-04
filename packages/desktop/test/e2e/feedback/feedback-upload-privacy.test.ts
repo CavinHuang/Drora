@@ -141,9 +141,7 @@ describe("反馈上传授权（manual review）", () => {
       for await (const [index, field] of requestFields.entries()) {
         await expect(field).toHaveAttribute("required");
         await expect(field).toHaveAttribute("aria-required", "true");
-        // entries() 索引恒有效；expect-webdriverio 新 matcher 类型不接受 undefined（同
-        // manual-review/pending 副本 69daa438c 的既有修法）。
-        await expect(field).toHaveAttribute("aria-label", fieldLabels[index]!);
+        await expect(field).toHaveAttribute("aria-label", fieldLabels[index] ?? "");
       }
       await expect(
         dialog.$(`button=${locale === "zh-CN" ? "提交需求" : "Submit request"}`),

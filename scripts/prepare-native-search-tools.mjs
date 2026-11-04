@@ -58,11 +58,17 @@ export async function prepareNativeSearchTools({
     throw new Error(`Unsupported native search artifact source: ${String(source)}`);
   }
 
+  // 来源已判定为 repository，生成 plan 时必须固定同一来源：否则默认内网地址可解析的环境会
+  // 重新推断为 intranet，返回的 plan 带上 downloadUrl，与实际字节来源不一致。
   const plan =
-    // env 必须透传：显式 NATIVE_SEARCH_TOOLS_ARTIFACT_SOURCE=repository 时计划不得再
-    // 按调用方进程环境推断出 intranet 并携带下载地址（上游 v3.17.1 契约）。
     prebuiltPlan ??
-    resolveNativeSearchPrebuiltPlan({ platform, arch, outputDir, dependenciesDir, env });
+    resolveNativeSearchPrebuiltPlan({
+      platform,
+      arch,
+      outputDir,
+      dependenciesDir,
+      env: { ...env, NATIVE_SEARCH_TOOLS_ARTIFACT_SOURCE: "repository" },
+    });
 
   console.log("==> Preparing native search tools from repository archives");
   console.log(`    platform: ${plan.platformKey}`);

@@ -113,6 +113,7 @@ nodes:
         symbol: "buildGenUiStateKey"
     invariants:
       - "Desktop Host owns widget state even when HTML execution files belong to a remote Host."
+
   - id: "capability.tool-search"
     kind: "capability"
     label: "Provider-aware deferred ToolSearch"

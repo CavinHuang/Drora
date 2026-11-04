@@ -116,8 +116,7 @@ export function restorePostCompactFiles(
         sessionId: runtime.sessionId,
         workspaceRoot: runtime.workspaceRoot,
       }),
-      // 修复：memoryRoot 已归一为正斜杠；排除表与 read-state 记录的路径形态必须一致。
-      ...(runtime.memoryRoot ? [`${runtime.memoryRoot}/${MEMORY_INDEX_FILE_NAME}`] : []),
+      ...(runtime.memoryRoot ? [join(runtime.memoryRoot, MEMORY_INDEX_FILE_NAME)] : []),
       ...(instructions
         ? normalizedInstructionSources(instructions).map((source) => source.filePath)
         : []),

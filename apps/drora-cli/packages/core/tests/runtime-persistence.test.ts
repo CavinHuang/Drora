@@ -2754,8 +2754,7 @@ describe("AgentRuntime session persistence", () => {
       const messages = requests[1]!;
       const toolIndex = messages.findIndex((message) => message.role === "tool");
       const toolText = providerContentToText(messages[toolIndex]!.content);
-      // 修复：横幅路径已归一为正斜杠（模型面形态）。
-      const banner = `[Truncated: PARTIAL view — ${filePath.replaceAll("\\", "/")}: showing lines 1-`;
+      const banner = `[Truncated: PARTIAL view — ${filePath}: showing lines 1-`;
       expect(toolText.startsWith("1\t1:")).toBe(true);
       if (mcs) {
         // MCS：tool_result 只有正文，提示是紧随其后的 system 消息。

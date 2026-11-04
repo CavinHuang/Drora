@@ -20,7 +20,12 @@
 
 import { logger } from "@/logger.js";
 import { VOICE_TTS_CLOUD_CONSECUTIVE_FAILURES } from "./voiceTuning.js";
-import type { VoiceTtsDoneReason, VoiceTtsHandle, VoiceTtsPort, VoiceTtsUtterance } from "./voiceTtsPort.js";
+import type {
+  VoiceTtsDoneReason,
+  VoiceTtsHandle,
+  VoiceTtsPort,
+  VoiceTtsUtterance,
+} from "./voiceTtsPort.js";
 
 /** 厂商档三元组（wiring 从 appSettings+凭据服务组装注入，无具名 import）。@lintignore */
 export interface RemoteTtsVendorConfig {
@@ -170,18 +175,18 @@ export function createCloudTtsAdapter(deps: CloudTtsAdapterDeps): CloudTtsPort {
           settle(handle, "error");
           return;
         }
-          let blob: Blob;
-          try {
-            const body: Record<string, unknown> = {
-              model: config.model,
-              input: u.text,
-              speed: clampTtsSpeed(u.rate),
-            };
-            // §9.7.3：body.voice 改读 u.vendorVoice（云音色独立命名空间；缺省省略字段
-            // = 厂商默认音色）。u.voice（system 音色名）零消费——跨命名空间冲突消除。
-            if (u.vendorVoice) {
-              body.voice = u.vendorVoice;
-            }
+        let blob: Blob;
+        try {
+          const body: Record<string, unknown> = {
+            model: config.model,
+            input: u.text,
+            speed: clampTtsSpeed(u.rate),
+          };
+          // §9.7.3：body.voice 改读 u.vendorVoice（云音色独立命名空间；缺省省略字段
+          // = 厂商默认音色）。u.voice（system 音色名）零消费——跨命名空间冲突消除。
+          if (u.vendorVoice) {
+            body.voice = u.vendorVoice;
+          }
           const response = await doFetch(`${config.baseUrl.replace(/\/+$/u, "")}/audio/speech`, {
             method: "POST",
             headers: {
@@ -243,4 +248,3 @@ export function createCloudTtsAdapter(deps: CloudTtsAdapterDeps): CloudTtsPort {
     },
   };
 }
-

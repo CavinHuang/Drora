@@ -31,15 +31,8 @@ async function resolvePushBase(root, head, remote) {
 }
 
 async function firstPushBase(root, head) {
-  // 首次推送没有 remote SHA；上游硬性要求 origin/staging（其 CI 约定）。
-  // Drora 适配（divergence 台账 8 / v3.17.1 N2）：本仓无 staging 集成分支，且
-  // origin=zai-org（上游官方仓），等价物是产品远端 drora/main——绝不能用
-  // origin/main（那是上游 main，merge-base 会退回上一上游锚点导致全量误选，
-  // 与 pre-push 历史崩溃同模式）。staging 存在时仍优先。
-  const stagingRef = (await isAncestor(root, "origin/staging", head).catch(() => false))
-    ? "origin/staging"
-    : "drora/main";
-  const staging = await commit(root, stagingRef);
+  // 首次推送没有 remote SHA；只使用已确认的集成分支，缺失时严格报错，不猜测其他分支。
+  const staging = await commit(root, "origin/staging");
   return (await git(root, ["merge-base", staging, head])).toString().trim();
 }
 

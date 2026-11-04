@@ -11,30 +11,29 @@ S4 计划 §5 要求分别验证后台滚轮消息与 SB 码族的真实可达�
 已有 fixture hook 不能证明真实应用会消费这些消息，接入前必须先做探针取证。
 
 方法论复用 S3 gtk3 探针：受控 fixture + 状态文件 oracle（`scroll_offset=N`）
-
-- 逐组合记录投递前后 offset 差值。每轮投递前把探针 console 置前台并校验
-  `GetForegroundWindow ≠ 目标根窗`（前台姿态下重试 8 次，全部组合 bg=true），
-  保证结论是**后台可达性**而不是前台行为。
++ 逐组合记录投递前后 offset 差值。每轮投递前把探针 console 置前台并校验
+`GetForegroundWindow ≠ 目标根窗`（前台姿态下重试 8 次，全部组合 bg=true），
+保证结论是**后台可达性**而不是前台行为。
 
 组合矩阵：5 宿主（wpf / winui3 / winforms / qt6 / gtk3）× 7 组合：
 
-| 组合                          | 目标 HWND                          | 消息                                               |
-| ----------------------------- | ---------------------------------- | -------------------------------------------------- |
-| root_vsb_line / root_vsb_page | 根窗                               | WM_VSCROLL + SB_LINEDOWN×3 / SB_PAGEDOWN×1         |
-| child_vsb_line                | 视口中心最深子窗                   | WM_VSCROLL + SB_LINEDOWN×3                         |
-| sbar_vsb_line                 | 类名 `ScrollBar` 的子窗控件        | 同上（宿主不存在则 no_target）                     |
-| vsty_vsb_line                 | 带 WS_VSCROLL 样式位的窗口（含根） | 同上                                               |
-| root_wheel / child_wheel      | 根窗 / 最深子窗                    | WM_MOUSEWHEEL（delta=-120×3，lParam=中心屏幕坐标） |
+| 组合 | 目标 HWND | 消息 |
+| ---- | --------- | ---- |
+| root_vsb_line / root_vsb_page | 根窗 | WM_VSCROLL + SB_LINEDOWN×3 / SB_PAGEDOWN×1 |
+| child_vsb_line | 视口中心最深子窗 | WM_VSCROLL + SB_LINEDOWN×3 |
+| sbar_vsb_line | 类名 `ScrollBar` 的子窗控件 | 同上（宿主不存在则 no_target） |
+| vsty_vsb_line | 带 WS_VSCROLL 样式位的窗口（含根） | 同上 |
+| root_wheel / child_wheel | 根窗 / 最深子窗 | WM_MOUSEWHEEL（delta=-120×3，lParam=中心屏幕坐标） |
 
 ## 2. 结论总表
 
-| 宿主     | SB 码族 → 根窗                    | SB 码族 → 子窗                           | 滚轮族 | 判定                          |
-| -------- | --------------------------------- | ---------------------------------------- | ------ | ----------------------------- |
-| wpf      | **消费**（line 3→48、page 1→96）  | 消费（同根窗，单 HWND）                  | 忽略   | SB 码族后台可达               |
-| winui3   | **消费**（line 3→48、page 1→100） | 忽略（投给 DesktopChildSiteBridge 无效） | 忽略   | SB 码族后台可达（仅根窗目标） |
-| winforms | 忽略                              | 忽略                                     | 忽略   | 后台滚动不可达（见 §3）       |
-| qt6      | 忽略                              | 忽略                                     | 忽略   | 后台滚动不可达                |
-| gtk3     | 忽略                              | 忽略                                     | 忽略   | 后台滚动不可达                |
+| 宿主 | SB 码族 → 根窗 | SB 码族 → 子窗 | 滚轮族 | 判定 |
+| ---- | -------------- | -------------- | ------ | ---- |
+| wpf | **消费**（line 3→48、page 1→96） | 消费（同根窗，单 HWND） | 忽略 | SB 码族后台可达 |
+| winui3 | **消费**（line 3→48、page 1→100） | 忽略（投给 DesktopChildSiteBridge 无效） | 忽略 | SB 码族后台可达（仅根窗目标） |
+| winforms | 忽略 | 忽略 | 忽略 | 后台滚动不可达（见 §3） |
+| qt6 | 忽略 | 忽略 | 忽略 | 后台滚动不可达 |
+| gtk3 | 忽略 | 忽略 | 忽略 | 后台滚动不可达 |
 
 （数值为 scroll_offset 差值；wpf hook 的 LINE=16px、PAGE=96px，winui3 hook
 的 LINE=16px、PAGE=100px——3×16=48、1×96/100 与消费语义吻合。）
@@ -63,11 +62,11 @@ S4 计划 §5 要求分别验证后台滚轮消息与 SB 码族的真实可达�
 
 ## 4. 接入决策（按证据三档）
 
-| 档                    | 宿主                     | 路由                                                                             |
-| --------------------- | ------------------------ | -------------------------------------------------------------------------------- |
-| 接入（SB 码族投根窗） | wpf / winui3             | broker scroll 中间级：deliverable → WM_VSCROLL/HSCROLL×amount（amount=消息条数） |
-| 结构性不可用          | winforms / qt6 / gtk3    | not_sent → D1 自动升级前台（物理 lane SendInput 滚轮）                           |
-| 矩阵必丢              | Chromium 直接宿主 / 内嵌 | 分类矩阵滚轮列已标 dropped → 升级前台（既有口径）                                |
+| 档 | 宿主 | 路由 |
+| -- | ---- | ---- |
+| 接入（SB 码族投根窗） | wpf / winui3 | broker scroll 中间级：deliverable → WM_VSCROLL/HSCROLL×amount（amount=消息条数） |
+| 结构性不可用 | winforms / qt6 / gtk3 | not_sent → D1 自动升级前台（物理 lane SendInput 滚轮） |
+| 矩阵必丢 | Chromium 直接宿主 / 内嵌 | 分类矩阵滚轮列已标 dropped → 升级前台（既有口径） |
 
 - `element_index` 目标维持既有 `element_scroll`（UIA ScrollPattern）首选，
   中间级只是坐标 raw 路由的后台化（auto 兜底顺序不变）。

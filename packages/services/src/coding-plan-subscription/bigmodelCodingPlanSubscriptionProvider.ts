@@ -212,6 +212,26 @@ interface BigModelCustomerInfoResponse {
   }> | null;
 }
 
+function unwrapClientConfigForceUpdate(
+  payload: DroraClientConfigEnvelope,
+): ForceUpdateConfig | null {
+  if (payload.code !== undefined && payload.code !== 0) {
+    throw new Error(payload.msg?.trim() || "Drora client config request failed");
+  }
+
+  const forceUpdate = payload.data?.configs?.forceUpdate;
+  if (!forceUpdate) {
+    return null;
+  }
+
+  const minimalVersion = forceUpdate.minimalVersion;
+  if (typeof minimalVersion !== "string" || minimalVersion.trim() === "") {
+    return null;
+  }
+
+  return { minimalVersion: minimalVersion.trim() };
+}
+
 export class BigModelCodingPlanSubscriptionProvider {
   protected readonly apiClient: ApiClient;
   protected readonly credentialService: Pick<ICredentialService, "load">;
@@ -479,6 +499,11 @@ export class BigModelCodingPlanSubscriptionProvider {
       throw new Error("Request verification configuration is invalid");
     }
     return readValidatedRequestVerificationConfig(payload.data?.configs);
+  }
+
+  async getForceUpdateConfig(): Promise<ForceUpdateConfig | null> {
+    const payload = await this.getClientConfigs();
+    return unwrapClientConfigForceUpdate(payload);
   }
 
   async preview(request: CodingPlanPreviewRequest): Promise<CodingPlanPreviewResponse> {

@@ -1,4 +1,3 @@
-import { resolve } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import {
   createRootTraceContext,
@@ -204,8 +203,7 @@ describe("compaction restore under a Read deny rule written as a relative path",
       expect(texts[0]).toContain("export const plain = 1;");
       expect(texts.join("\n")).not.toContain("TOKEN=1");
       expect(restore.readFileStateEntries.map((entry) => entry.path)).toEqual([
-        // 修复：读取状态记录的是解析后的绝对路径（Windows 上为盘符形态），期望按 resolve 构造。
-        resolve(workspace, "plain.ts"),
+        `${workspace}/plain.ts`,
       ]);
       // 写回的记录保留原始写法，下一次 compaction 仍按它判定。
       expect(restore.readFileStateEntries.map((entry) => entry.requestedPath)).toEqual([

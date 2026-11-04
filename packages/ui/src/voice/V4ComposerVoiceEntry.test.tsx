@@ -38,7 +38,11 @@ const { settingsState, stableServices, fakePlatform } = vi.hoisted(() => {
         schemaVersion: 1,
         capabilities: {
           "decision-jev": { enabled: false, providerKind: "typesafe", baseUrl: "", modelId: "" },
-          embedding: { enabled: false, mode: "local", localModelId: "local-bge-small-zh-v1.5-int8" },
+          embedding: {
+            enabled: false,
+            mode: "local",
+            localModelId: "local-bge-small-zh-v1.5-int8",
+          },
           asr: { engine: "webSpeech", baseUrl: "", modelId: "" },
           tts: { engine: "system", baseUrl: "", modelId: "", voice: "" },
           "image-generation": { enabled: false, baseUrl: "", modelId: "" },
@@ -119,12 +123,8 @@ vi.mock("@/store/droraSessionStore.js", () => ({
 
 // ControlHintTooltip 依赖 Radix TooltipProvider：mock 为直通容器。
 vi.mock("@/ControlHintTooltip.js", () => ({
-  ControlHintTooltip: ({
+  ControlHintTooltip: ({ children }: { children: import("react").ReactNode; title: string }) =>
     children,
-  }: {
-    children: import("react").ReactNode;
-    title: string;
-  }) => children,
 }));
 
 const { V4ComposerVoiceEntry } = await import("./V4ComposerVoiceEntry.js");
@@ -202,9 +202,7 @@ describe("V4ComposerVoiceEntry 组件级渲染（修复轮 F1/F2 回归）", () 
       inputLeg: "idle",
       notice: { code: "permission", at: Date.now() },
     });
-    harness.rerender(
-      <V4ComposerVoiceEntry sessionId="sess-1" workspacePath="/ws" />,
-    );
+    harness.rerender(<V4ComposerVoiceEntry sessionId="sess-1" workspacePath="/ws" />);
     // 提示条在 idle 态渲染（修复前渲染门只认 recording → 零可见帧）。
     expect(harness.queryByTestId("voice-privacy-disclosure-dialog")).toBeNull();
     expect(document.body.textContent).toContain("voice.dictation.error.permission");
@@ -220,9 +218,7 @@ describe("V4ComposerVoiceEntry 组件级渲染（修复轮 F1/F2 回归）", () 
       boundSessionId: null,
       notice: { code: "permission", at: Date.now() },
     });
-    harness.rerender(
-      <V4ComposerVoiceEntry sessionId="sess-1" workspacePath="/ws" />,
-    );
+    harness.rerender(<V4ComposerVoiceEntry sessionId="sess-1" workspacePath="/ws" />);
     expect(document.body.textContent).toContain("voice.dictation.error.permission");
   });
 
@@ -232,17 +228,13 @@ describe("V4ComposerVoiceEntry 组件级渲染（修复轮 F1/F2 回归）", () 
       inputLeg: "idle",
       notice: { code: "network", at: Date.now() },
     });
-    harness.rerender(
-      <V4ComposerVoiceEntry sessionId="sess-1" workspacePath="/ws" />,
-    );
+    harness.rerender(<V4ComposerVoiceEntry sessionId="sess-1" workspacePath="/ws" />);
     expect(document.body.textContent).toContain("voice.dictation.error.network");
     // TTL 6s 到期：重渲染翻转 + 清 store（下次渲染彻底消失）。
     vi.advanceTimersByTime(6_000);
     expect(voiceStore.getState().notice).toBeNull();
     // act 外的定时器回调需要显式重渲染同步 UI。
-    harness.rerender(
-      <V4ComposerVoiceEntry sessionId="sess-1" workspacePath="/ws" />,
-    );
+    harness.rerender(<V4ComposerVoiceEntry sessionId="sess-1" workspacePath="/ws" />);
     expect(harness.container.textContent).not.toContain("voice.dictation.error.network");
   });
 

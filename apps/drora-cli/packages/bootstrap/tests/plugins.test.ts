@@ -614,10 +614,7 @@ describe("Drora plugins", () => {
             id: "drora-plugins-official",
             isOfficial: true,
             name: "drora-plugins-official",
-            // 修复（断言随实现更新）：v3.17.1 S2 合并把 drora-site-plugin 并入官方
-            // 插件包，官方市场条目 15→16。
-            // 同上：官方市场 15→16（drora-site-plugin）。
-        pluginCount: 16,
+            pluginCount: 15,
             source: {
               source: "url",
               url: "https://cdn-zcode.z.ai/zcode/official-plugin/marketplace.json",
@@ -2403,7 +2400,7 @@ describe("Drora plugins", () => {
       expect(
         overview.marketplaces.find((marketplace) => marketplace.id === "drora-plugins-official"),
       ).toMatchObject({
-        pluginCount: 16,
+        pluginCount: 15,
         source: {
           source: "url",
           url: "https://cdn-zcode.z.ai/zcode/official-plugin/marketplace.json",

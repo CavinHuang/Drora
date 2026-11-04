@@ -1,7 +1,6 @@
 import { readFile, readdir } from "node:fs/promises";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { discoverNodeUnitTestFiles } from "../node-unit-test-files.mjs";
 
 const repoRoot = fileURLToPath(new URL("../../", import.meta.url));
 const references = (text) =>
@@ -56,27 +55,10 @@ export function inspectRetiredAppUnitEvidence(markdown, { engineeringTests = new
   return errors;
 }
 
-// Drora 保留面（D01）：engineering 上游工程清单 + drora 显式保留清单 +
-// drora-isolated 串行隔离清单 + node:test 发现集。四处任一在册即为仍执行的
-// 证据，不适用 App 退役标记规则。
-export async function loadRetainedTestFiles(root = repoRoot) {
-  const readManifest = async (name) => {
-    try {
-      return JSON.parse(await readFile(resolve(root, name), "utf8"));
-    } catch {
-      return [];
-    }
-  };
-  const [engineering, drora, isolated] = await Promise.all([
-    readManifest("scripts/engineering-test-files.json"),
-    readManifest("scripts/drora-test-files.json"),
-    readManifest("scripts/drora-isolated-test-files.json"),
-  ]);
-  return new Set([...engineering, ...drora, ...isolated, ...discoverNodeUnitTestFiles(root)]);
-}
-
 export async function inspectCoverageMatrices(root = repoRoot) {
-  const engineeringTests = await loadRetainedTestFiles(root);
+  const engineeringTests = new Set(
+    JSON.parse(await readFile(resolve(root, "scripts/engineering-test-files.json"), "utf8")),
+  );
   const directory = resolve(root, "docs/testing");
   const files = (await readdir(directory))
     .filter((file) => /coverage.*matrix.*\.md$/u.test(file))

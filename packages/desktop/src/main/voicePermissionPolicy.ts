@@ -93,16 +93,18 @@ export function applyVoiceMicPermissionPolicy(
     // 保持无 handler 时代的自动批准现状（见模块注释：避免与本策略无关的功能回归）。
     callback(true);
   });
-  targetSession.setPermissionCheckHandler((_webContents, permission, _requestingOrigin, details) => {
-    if (permission === "media") {
-      // check 侧是单数 mediaType（'video' | 'audio' | 'unknown'）；unknown 按纯音频放行
-      //（与 request 侧空数组同口径，保持无 handler 时代的批准现状）。
-      const allowed = details.mediaType == null || details.mediaType === "audio";
-      if (!allowed) {
-        logger.warn("[voicePermission] media check denied", { mediaType: details.mediaType });
+  targetSession.setPermissionCheckHandler(
+    (_webContents, permission, _requestingOrigin, details) => {
+      if (permission === "media") {
+        // check 侧是单数 mediaType（'video' | 'audio' | 'unknown'）；unknown 按纯音频放行
+        //（与 request 侧空数组同口径，保持无 handler 时代的批准现状）。
+        const allowed = details.mediaType == null || details.mediaType === "audio";
+        if (!allowed) {
+          logger.warn("[voicePermission] media check denied", { mediaType: details.mediaType });
+        }
+        return allowed;
       }
-      return allowed;
-    }
-    return true;
-  });
+      return true;
+    },
+  );
 }

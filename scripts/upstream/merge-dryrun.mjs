@@ -16,7 +16,7 @@ const getArg = (n) => {
   const i = args.indexOf(`--${n}`);
   return i >= 0 ? args[i + 1] : undefined;
 };
-const BASE_REF = "aac4755666d09fdcd70272fcf063c077a639015f";
+const BASE_REF = "3c5b227649371507ddc4eb46ac5133afe6db1cab";
 const THEIRS_REF = "upstream/main";
 const baseDir = getArg("base-dir") ?? "/tmp/golden/base-transformed";
 const theirsDir = getArg("theirs-dir") ?? "/tmp/dryrun/theirs";

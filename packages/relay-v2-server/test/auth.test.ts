@@ -150,9 +150,9 @@ describe("decode 模式（spec §6.2：本地解 payload，不验签）", () => 
     await expect(
       auth.authenticate(`Bearer ${makeJwt({ sub: "", id: "", iss: "https://a" })}`),
     ).resolves.toEqual(invalid);
-    await expect(
-      auth.authenticate(`Bearer ${makeJwt({ iss: "https://a" })}`),
-    ).resolves.toEqual(invalid);
+    await expect(auth.authenticate(`Bearer ${makeJwt({ iss: "https://a" })}`)).resolves.toEqual(
+      invalid,
+    );
   });
 
   it("JWT_ID_CLAIMS 可配（如 uid 优先）", async () => {
@@ -210,9 +210,9 @@ describe("decode 模式（spec §6.2：本地解 payload，不验签）", () => 
     expect(viaRealmColon).toEqual(ok("x:y:c"));
     expect(viaRealmColon).not.toEqual(viaSubColon);
     // 多重冒号同理拒绝（按最后一个分隔符唯一可逆的性质不被破坏）
-    await expect(auth.authenticate(`Bearer ${makeJwt({ sub: "a:b:c", iss: "x" })}`)).resolves.toEqual(
-      invalid,
-    );
+    await expect(
+      auth.authenticate(`Bearer ${makeJwt({ sub: "a:b:c", iss: "x" })}`),
+    ).resolves.toEqual(invalid);
     // explicit realm 同防线：identity 含 ":" 拒绝，正常值不受影响
     const explicitOk = createJwtAuth({
       config: baseConfig({ jwtRealmMode: "explicit", jwtRealm: "zai" }),
@@ -293,7 +293,9 @@ describe("introspect 模式（spec §6.2：端点是身份与有效性的权威�
       invalid,
     );
 
-    const auth = introspectAuth(fetchStub(() => Response.json({ id: "u2" }, { status: 200 })).fetch);
+    const auth = introspectAuth(
+      fetchStub(() => Response.json({ id: "u2" }, { status: 200 })).fetch,
+    );
     await expect(auth.authenticate(undefined)).resolves.toEqual(invalid);
     await expect(auth.authenticate("Bearer a.b")).resolves.toEqual(invalid);
   });
@@ -313,18 +315,18 @@ describe("introspect 模式（spec §6.2：端点是身份与有效性的权威�
     ).resolves.toEqual(invalid);
     // 反例：失败体若恰好携带字符串 id，无业务校验时会被 identityFromClaims 放行——
     // 显式业务 code/成功标志校验必须先于身份提取（评审缺口：不得以「无身份 claim」为唯一失败路径）
-    await expect(
-      authenticateWith({ code: 1001, success: false, id: "u9" }),
-    ).resolves.toEqual(invalid);
+    await expect(authenticateWith({ code: 1001, success: false, id: "u9" })).resolves.toEqual(
+      invalid,
+    );
     await expect(
       authenticateWith({ code: 1001, success: false, data: { id: "u9" } }),
     ).resolves.toEqual(invalid);
     // success 缺省而 code 非 0：按客户端先例（code !== 0 即失败）同样拒绝
     await expect(authenticateWith({ code: 500, id: "u9" })).resolves.toEqual(invalid);
     // 边界：code:0 + success:true 的成功信封照常放行（失败判据不误伤合法信封）
-    await expect(authenticateWith({ code: 0, success: true, data: { id: "u10" } })).resolves.toEqual(
-      ok("https://zai:u10"),
-    );
+    await expect(
+      authenticateWith({ code: 0, success: true, data: { id: "u10" } }),
+    ).resolves.toEqual(ok("https://zai:u10"));
   });
 });
 

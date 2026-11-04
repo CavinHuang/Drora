@@ -8,16 +8,16 @@
 
 ## 基线结论（三连跑稳定复现）
 
-| 用例                                            | stage | gating | 结果                    | 说明                                                                |
-| ----------------------------------------------- | ----- | ------ | ----------------------- | ------------------------------------------------------------------- |
-| P1 双窗口并发后台右击                           | S4.1  | 否     | pass                    | 双 delivered、双 path=post_message、零焦点违规                      |
-| P2 同窗口并发双击 ×2                            | S4.1  | 否     | pass                    | clicks 恰好 +2、无双击拆单、无 busy 拒绝                            |
-| P3 后台 PostMessage + 前台升级并发              | S4.1  | 否     | pass                    | 双送达；后台臂零焦点事件                                            |
-| P4 WM_CHAR 打字 + 异窗点击并发                  | S4.2  | 否     | FAIL（text_not_landed） | 预期红：type(event) 当前只有前台路径，S4.2 中间级落地后转绿（锚点） |
-| P5 双 paste 并发（进程内）                      | now   | 是     | pass                    | 串行完成、双读取确认、无 pasteboard_changed_during_paste 误判       |
-| P6 同 Helper 双 session 并行元素点击            | now   | 是     | pass                    | Goal_2 主路径端到端见证（双 ax delivered、零 busy）                 |
-| P7 双窗口并发 UIA 元素点击（单 session 双臂）   | now   | 是     | pass                    | pattern 调用不走门闩的并行性锚（v3 移出 single-flight 的回归见证）  |
-| P8 同窗口并发元素（AX）+坐标（PostMessage）点击 | S4.1  | 否     | pass                    | counter/clicks 各恰好 +1，双通道交错无丢动作                        |
+| 用例 | stage | gating | 结果 | 说明 |
+| ---- | ----- | ------ | ---- | ---- |
+| P1 双窗口并发后台右击 | S4.1 | 否 | pass | 双 delivered、双 path=post_message、零焦点违规 |
+| P2 同窗口并发双击 ×2 | S4.1 | 否 | pass | clicks 恰好 +2、无双击拆单、无 busy 拒绝 |
+| P3 后台 PostMessage + 前台升级并发 | S4.1 | 否 | pass | 双送达；后台臂零焦点事件 |
+| P4 WM_CHAR 打字 + 异窗点击并发 | S4.2 | 否 | FAIL（text_not_landed）| 预期红：type(event) 当前只有前台路径，S4.2 中间级落地后转绿（锚点） |
+| P5 双 paste 并发（进程内） | now | 是 | pass | 串行完成、双读取确认、无 pasteboard_changed_during_paste 误判 |
+| P6 同 Helper 双 session 并行元素点击 | now | 是 | pass | Goal_2 主路径端到端见证（双 ax delivered、零 busy） |
+| P7 双窗口并发 UIA 元素点击（单 session 双臂） | now | 是 | pass | pattern 调用不走门闩的并行性锚（v3 移出 single-flight 的回归见证） |
+| P8 同窗口并发元素（AX）+坐标（PostMessage）点击 | S4.1 | 否 | pass | counter/clicks 各恰好 +1，双通道交错无丢动作 |
 
 **busyTotal = 0（全部用例、全部轮次）**。
 
@@ -49,7 +49,7 @@
 - focus watcher 复用：后台臂 posture（哨兵前台）+ attempt 窗口内目标 pid
   事件即违规；attemptStart 收窄到并发派发段（arms 工厂是准备段，曾因包含
   工厂期窗口把夹具自身显示激活误判为 P1 违规，两轮假红后修正）；
-- helper stderr 结构化诊断（paste_provided\*）进证据 sidecar——P5 类超时的
+- helper stderr 结构化诊断（paste_provided*）进证据 sidecar——P5 类超时的
   唯一运行时取证通道；
 - winforms 夹具新增 `CUA_E2E_WINDOW_X/Y` 位置偏移：双实例固定 (4,4) 完全
   重叠时 z-order 顶层窗消费彼此的坐标点击（P1 取证证伪重叠形态），第二

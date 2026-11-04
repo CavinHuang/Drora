@@ -2,12 +2,6 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("electron", () => ({ webContents: { getAllWebContents: () => [] } }));
 import { BrowserGuestManager } from "../../../../../packages/desktop/src/main/browserView/browserGuestManager.js";
 
-// 修复（跨段中间态自门控）：本用例钉的是 desktop v3.17.1 的 BrowserGuestManager
-// 资源身份 API（getBackendIdentity）。desktop 段（S4）尚未合并时该 API 不存在，
-// 这里按 API 可用性自门控跳过；S4 落地后自动恢复执行，不需要手工回改。
-const desktopBackendIdentityReady =
-  typeof BrowserGuestManager.prototype.getBackendIdentity === "function";
-
 function setup() {
   const manager = new BrowserGuestManager();
   const backend = manager.getBackendIdentity(1);
@@ -26,7 +20,7 @@ function setup() {
   return { manager, context, exec };
 }
 
-describe.skipIf(!desktopBackendIdentityReady)("Main browser scope owner", () => {
+describe("Main browser scope owner", () => {
   it("资源身份按窗口稳定，Host 重建无需更换", () => {
     const s = setup();
     expect(s.manager.getBackendIdentity(1)).toEqual(s.manager.getBackendIdentity(1));
@@ -125,7 +119,7 @@ describe.skipIf(!desktopBackendIdentityReady)("Main browser scope owner", () => 
   });
 });
 
-it.skipIf(!desktopBackendIdentityReady)("Host 桥重建后仍向同一 Main owner 释放旧作用域", async () => {
+it("Host 桥重建后仍向同一 Main owner 释放旧作用域", async () => {
   const { createBrowserControlMainBridge } =
     await import("../../../../../packages/desktop/src/host/browserControlMainBridge.js");
   const manager = new BrowserGuestManager();
@@ -162,12 +156,7 @@ it.skipIf(!desktopBackendIdentityReady)("Host 桥重建后仍向同一 Main owne
   manager.disposeAll();
 });
 
-it.each(
-  // 同一自门控：desktop API 未就绪时枚举空集，S4 落地后自动恢复。
-  desktopBackendIdentityReady
-    ? (["desktop-continuous", "web-remote-replayable"] as const)
-    : ([] as const),
-)(
+it.each(["desktop-continuous", "web-remote-replayable"] as const)(
   "ambient 只读视图可见当前会话的 scoped 页面，执行隔离不放宽：%s",
   async (clientMode) => {
     const s = setup();

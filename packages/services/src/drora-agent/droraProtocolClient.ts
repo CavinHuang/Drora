@@ -1,6 +1,9 @@
 import {
   droraProtocolMethods,
   sessionLifecycleParamsSchema,
+  sessionLifecycleActivationParamsSchema,
+  droraRuntimeCapabilitiesSchema,
+  type DroraWorkspaceRef,
   sessionLifecycleSnapshotSchema,
   sessionLifecycleResultSchema,
 } from "@drora/shared";
@@ -89,14 +92,12 @@ export class DroraProtocolClient implements IDisposable {
         sessionLifecycleSnapshotSchema,
         { lifecycle: "observation" },
       ),
-    ensureReady: async (sessionId: string): Promise<void> => {
-      await this.request(
+    ensureReady: (sessionId: string, workspace?: DroraWorkspaceRef) =>
+      this.requestSessionActivation(
         droraProtocolMethods.sessionLifecycleEnsureReady,
-        sessionLifecycleParamsSchema.parse({ sessionId }),
-        sessionLifecycleResultSchema,
-        { invalidateConnectionOnTimeout: false },
-      );
-    },
+        sessionId,
+        workspace,
+      ),
     stop: async (sessionId: string): Promise<void> => {
       await this.request(
         droraProtocolMethods.sessionLifecycleStop,
@@ -105,15 +106,40 @@ export class DroraProtocolClient implements IDisposable {
         { invalidateConnectionOnTimeout: false },
       );
     },
-    restart: async (sessionId: string): Promise<void> => {
-      await this.request(
+    restart: (sessionId: string, workspace?: DroraWorkspaceRef) =>
+      this.requestSessionActivation(
         droraProtocolMethods.sessionLifecycleRestart,
-        sessionLifecycleParamsSchema.parse({ sessionId }),
-        sessionLifecycleResultSchema,
-        { invalidateConnectionOnTimeout: false },
-      );
-    },
+        sessionId,
+        workspace,
+      ),
   };
+
+  private async requestSessionActivation(
+    method:
+      | typeof droraProtocolMethods.sessionLifecycleEnsureReady
+      | typeof droraProtocolMethods.sessionLifecycleRestart,
+    sessionId: string,
+    workspace?: DroraWorkspaceRef,
+  ) {
+    if (workspace) {
+      // 旧 CLI 的严格参数不接受 workspace；不能退回会丢失归属的重启，也不能重启整个进程。
+      const capabilities = await this.request(
+        droraProtocolMethods.runtimeCapabilities,
+        {},
+        droraRuntimeCapabilitiesSchema,
+        // 能力查询是观察请求，等待超时不能淘汰共享 CLI 连接。
+        { lifecycle: "observation" },
+      );
+      if (!capabilities.sessionLifecycleWorkspace)
+        throw new Error("fault.sessionLifecycle.unsupported");
+    }
+    return this.request(
+      method,
+      sessionLifecycleActivationParamsSchema.parse({ sessionId, workspace }),
+      sessionLifecycleResultSchema,
+      { invalidateConnectionOnTimeout: false },
+    );
+  }
 
   readonly storageStartup: DroraStorageStartupGate;
   private readonly pending = new Map<string, PendingRequest<unknown>>();

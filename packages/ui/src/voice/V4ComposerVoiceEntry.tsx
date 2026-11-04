@@ -21,10 +21,7 @@ import { useOptionalPlatform } from "@/hooks/usePlatform.js";
 import { useOptionalServices } from "@/hooks/useServices.js";
 import { useDroraIntl } from "@/i18n/IntlProvider.js";
 import { useDroraSessionStore } from "@/store/droraSessionStore.js";
-import {
-  isVoiceLastDictationFresh,
-  useVoiceSessionStore,
-} from "@/store/voiceSessionStore.js";
+import { isVoiceLastDictationFresh, useVoiceSessionStore } from "@/store/voiceSessionStore.js";
 import { VOICE_LAST_DICTATION_TTL_MS, VOICE_NOTICE_VISIBLE_TTL_MS } from "./voiceTuning.js";
 import { DictationPreviewOverlay } from "./DictationPreviewOverlay.js";
 import { VoicePrivacyDisclosureDialog } from "./VoicePrivacyDisclosureDialog.js";
@@ -65,8 +62,14 @@ function V4ComposerVoiceEntryMounted({
   isWebRemoteControl = false,
 }: V4ComposerVoiceEntryProps) {
   const { intl } = useDroraIntl();
-  const { view, acknowledgePrivacy, cancelPrivacyAcknowledgement, privacyDialogOpen, dictation, tooltip } =
-    useVoiceComposerEntry({ sessionId, workspacePath, workspaceIdentity, isWebRemoteControl });
+  const {
+    view,
+    acknowledgePrivacy,
+    cancelPrivacyAcknowledgement,
+    privacyDialogOpen,
+    dictation,
+    tooltip,
+  } = useVoiceComposerEntry({ sessionId, workspacePath, workspaceIdentity, isWebRemoteControl });
   const snapshot = useVoiceDictationSnapshot();
   const [pulseHighlighted, setPulseHighlighted] = useState(false);
   const [lastDictationExpired, setLastDictationExpired] = useState(false);
@@ -149,8 +152,7 @@ function V4ComposerVoiceEntryMounted({
   const micAriaId = recording ? "voice.entry.mic.stop.aria" : "voice.entry.mic.start.aria";
 
   const lastDictationFresh =
-    !lastDictationExpired &&
-    isVoiceLastDictationFresh(useVoiceSessionStore.getState(), Date.now());
+    !lastDictationExpired && isVoiceLastDictationFresh(useVoiceSessionStore.getState(), Date.now());
   const restoreLastDictation = () => {
     // §5.4 FD-4：恢复目标 = 触发恢复的 mic 入口所在会话（原绑定会话已消失或消费门
     // 不匹配时不指向旧目标）；恢复以新 requestId 走 mode="append"；成功即清暂存由
@@ -232,9 +234,12 @@ function V4ComposerVoiceEntryMounted({
           §9.9.4-L6：sr-only 指示同轨 owner——同会话双 pane 不双显。 */}
       {recording ? (
         <span className="sr-only">
-          {intl.formatMessage({ id: "voice.dictation.recordingIndicatorAria" }, {
-            session: sessionId ?? intl.formatMessage({ id: "voice.dictation.draftSessionName" }),
-          })}
+          {intl.formatMessage(
+            { id: "voice.dictation.recordingIndicatorAria" },
+            {
+              session: sessionId ?? intl.formatMessage({ id: "voice.dictation.draftSessionName" }),
+            },
+          )}
         </span>
       ) : null}
       <VoicePrivacyDisclosureDialog

@@ -223,9 +223,6 @@ importers:
       '@drora/contracts':
         specifier: workspace:*
         version: link:../contracts
-      '@drora/drora-cua':
-        specifier: workspace:*
-        version: link:../../../../packages/zcode-cua
       '@drora/dynamic-workflow':
         specifier: workspace:*
         version: link:../dynamic-workflow
@@ -238,6 +235,9 @@ importers:
       '@drora/shared':
         specifier: workspace:*
         version: link:../../../../packages/shared
+      '@drora/drora-cua':
+        specifier: workspace:*
+        version: link:../../../../packages/zcode-cua
       '@modelcontextprotocol/client':
         specifier: 2.0.0
         version: 2.0.0
@@ -474,9 +474,6 @@ importers:
       '@drora/contracts':
         specifier: workspace:*
         version: link:../contracts
-      '@drora/drora-cua':
-        specifier: workspace:*
-        version: link:../../../../packages/zcode-cua
       '@drora/dynamic-workflow':
         specifier: workspace:*
         version: link:../dynamic-workflow
@@ -486,6 +483,9 @@ importers:
       '@drora/shared-types':
         specifier: workspace:*
         version: link:../shared-types
+      '@drora/drora-cua':
+        specifier: workspace:*
+        version: link:../../../../packages/zcode-cua
       cheerio:
         specifier: ^1.0.0
         version: 1.2.0
@@ -681,12 +681,12 @@ importers:
       '@drora/core':
         specifier: workspace:*
         version: link:../core
-      '@drora/drora-cua':
-        specifier: workspace:*
-        version: link:../../../../packages/zcode-cua
       '@drora/shared':
         specifier: workspace:*
         version: link:../../../../packages/shared
+      '@drora/drora-cua':
+        specifier: workspace:*
+        version: link:../../../../packages/zcode-cua
       '@modelcontextprotocol/server':
         specifier: 2.0.0
         version: 2.0.0
@@ -996,9 +996,6 @@ importers:
       '@drora/client':
         specifier: workspace:*
         version: link:../client
-      '@drora/drora-cua':
-        specifier: workspace:*
-        version: link:../zcode-cua
       '@drora/e2e-report':
         specifier: workspace:*
         version: link:../e2e-report
@@ -1023,6 +1020,9 @@ importers:
       '@drora/ui':
         specifier: workspace:*
         version: link:../ui
+      '@drora/drora-cua':
+        specifier: workspace:*
+        version: link:../zcode-cua
       '@fiahfy/icns':
         specifier: ^0.0.7
         version: 0.0.7
@@ -1408,15 +1408,9 @@ importers:
       '@drora/model-option-map':
         specifier: workspace:*
         version: link:../model-option-map
-      '@types/node':
-        specifier: ^25.5.0
-        version: 25.6.0
       typescript:
         specifier: ^6.0.2
         version: 6.0.2
-      vitest:
-        specifier: ^4.1.1
-        version: 4.1.7(patch_hash=11fdb66aa985e1d77e68752deeb7c1130ae33c9a4e2968f23aae8adaf8bc9ba0)(@opentelemetry/api@1.9.1)(@types/node@25.6.0)(@vitest/coverage-v8@4.1.7)(jsdom@29.1.1(@noble/hashes@1.8.0))(msw@2.13.3(@types/node@25.6.0)(typescript@6.0.2))(vite@8.0.8(@types/node@25.6.0)(esbuild@0.27.7)(jiti@2.7.0)(tsx@4.21.0)(yaml@2.9.0))
 
   packages/relay-v2-server:
     dependencies:
@@ -1563,9 +1557,6 @@ importers:
       '@agentclientprotocol/sdk':
         specifier: ^0.21.1
         version: 0.21.1(zod@4.6.5)
-      '@drora/drora-cua':
-        specifier: workspace:*
-        version: link:../zcode-cua
       '@drora/provider':
         specifier: workspace:*
         version: link:../provider
@@ -1578,6 +1569,9 @@ importers:
       '@drora/shared':
         specifier: workspace:*
         version: link:../shared
+      '@drora/drora-cua':
+        specifier: workspace:*
+        version: link:../zcode-cua
       '@larksuiteoapi/node-sdk':
         specifier: 1.64.0
         version: 1.64.0
@@ -2243,14 +2237,8 @@ importers:
   packages/zcode-cua:
     dependencies:
       '@modelcontextprotocol/sdk':
-        specifier: 1.29.0
+        specifier: ^1.27.1
         version: 1.29.0(zod@4.6.5)
-      express:
-        specifier: ^5.2.1
-        version: 5.2.1
-      zod:
-        specifier: 4.6.5
-        version: 4.6.5
 
   packages/zcode-cua-helper:
     dependencies:
@@ -10944,8 +10932,8 @@ packages:
     engines: {node: ^20.19.0 || >=22.12.0}
     hasBin: true
 
-  oxlint-plugin-react-doctor@0.9.21:
-    resolution: {integrity: sha512-6uezGzM98w3qS3q89NpfFm5melOhCoIsixc+C5bNQx7p4IZvfK/lkSrud3xmjNCu14N3WCSnPOXz0fRjmJWipQ==}
+  oxlint-plugin-react-doctor@0.9.22:
+    resolution: {integrity: sha512-kf9MwCpK3YlAWYUyX5Zx7XYrdIbA/4lQD2QREIqC8DvmNb2I+wP8zyjL4NeGl2FO2EC1sLuYvW8ir4Ooq1Xd2A==}
     engines: {node: ^20.19.0 || >=22.13.0}
 
   oxlint@1.81.0:
@@ -11474,8 +11462,8 @@ packages:
   react-devtools-core@7.0.1:
     resolution: {integrity: sha512-C3yNvRHaizlpiASzy7b9vbnBGLrhvdhl1CbdU6EnZgxPNbai60szdLtl+VL76UNOt5bOoVTOz5rNWZxgGt+Gsw==}
 
-  react-doctor@0.9.21:
-    resolution: {integrity: sha512-ahV3umcswkGThtDng2tBpJSwRLz+B9t2H9iAXglgwsbRa++g7sJGKy46sYIf56eGQpAJAKUy0ak4dfzz638+5Q==}
+  react-doctor@0.9.22:
+    resolution: {integrity: sha512-SyZOIl61VMCZ3sN7v7Vr2zCsPlyy7nNnBshtIrl0B/X+uY+rL9MGfyNhTmp/FLXfuDKEv61Y6xMguya7vn1Ulg==}
     engines: {node: ^20.19.0 || >=22.13.0}
     hasBin: true
 
@@ -23306,7 +23294,7 @@ snapshots:
       '@oxfmt/binding-win32-ia32-msvc': 0.47.0
       '@oxfmt/binding-win32-x64-msvc': 0.47.0
 
-  oxlint-plugin-react-doctor@0.9.21:
+  oxlint-plugin-react-doctor@0.9.22:
     dependencies:
       '@shaderfrog/glsl-parser': 7.0.1
       '@typescript-eslint/types': 8.72.1
@@ -23916,7 +23904,7 @@ snapshots:
       - bufferutil
       - utf-8-validate
 
-  react-doctor@0.9.21(@opentelemetry/core@2.12.0(@opentelemetry/api@1.9.1))(eslint@10.14.0(jiti@2.7.0))(react@19.2.7):
+  react-doctor@0.9.22(@opentelemetry/core@2.12.0(@opentelemetry/api@1.9.1))(eslint@10.14.0(jiti@2.7.0))(react@19.2.7):
     dependencies:
       '@astrojs/compiler': 4.0.0
       '@sentry/node': 10.78.0(@opentelemetry/core@2.12.0(@opentelemetry/api@1.9.1))
@@ -23931,7 +23919,7 @@ snapshots:
       oxc-parser: 0.148.0
       oxc-resolver: 11.24.2
       oxlint: 1.81.0
-      oxlint-plugin-react-doctor: 0.9.21
+      oxlint-plugin-react-doctor: 0.9.22
       playwright-core: 1.64.1
       prompts: 2.4.2
       typescript: 5.9.3
@@ -24047,7 +24035,7 @@ snapshots:
       preact: 10.29.8
       prompts: 2.4.2
       react: 19.2.7
-      react-doctor: 0.9.21(@opentelemetry/core@2.12.0(@opentelemetry/api@1.9.1))(eslint@10.14.0(jiti@2.7.0))(react@19.2.7)
+      react-doctor: 0.9.22(@opentelemetry/core@2.12.0(@opentelemetry/api@1.9.1))(eslint@10.14.0(jiti@2.7.0))(react@19.2.7)
       react-dom: 19.2.7(react@19.2.7)
       react-grab: 0.1.37(react@19.2.7)
     optionalDependencies:

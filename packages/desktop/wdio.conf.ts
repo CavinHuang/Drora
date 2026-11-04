@@ -30,18 +30,10 @@ import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 import { tmpdir } from "node:os";
-import { startE2EChromedriverServer } from "./scripts/e2e-chromedriver-server.mjs";
-// 修复原因（v3.17.1 合并，2026-11-01 CI 实证）：Electron 41→44 后，
-// resolveE2EChromedriverExecutable 按精确 Chromium 构建号（152.0.7977.130）拼
-// @puppeteer/browsers 缓存路径，但非容器 CI/本地分支没有任何预取步骤执行下载
-// （容器模式才有），驱动目录不存在 → spawn ENOENT（R1-R9/Actual Electron 四项）。
-// 接线上游随本次合并引入的 chromedriver-preflight（精确版本缺失时按同
-// MAJOR.MINOR.BUILD 回退解析并安装），CHROMEDRIVER_PATH 显式覆盖仍最优先。
 import {
-  cachedChromedriverPath,
-  prepareChromedriver,
-} from "./scripts/chromedriver-preflight.mjs";
-import { detectBrowserPlatform } from "@puppeteer/browsers";
+  resolveE2EChromedriverExecutable,
+  startE2EChromedriverServer,
+} from "./scripts/e2e-chromedriver-server.mjs";
 import {
   captureWorkspaceSources,
   withE2ESourceEvidence,
@@ -123,6 +115,8 @@ import { getE2EProviderEndpointEnv } from "#e2e/helpers/e2e-provider-endpoint";
 import { prepareOAuthCompletionRaceFixture } from "./test/e2e/helpers/oauth-completion-race-fixture.js";
 import { prepareWebRemoteControlAuthGateFixture } from "./test/e2e/helpers/web-remote-control-auth-gate-fixture.js";
 import { prepareAccessToken401Fixture } from "./test/e2e/helpers/access-token-401-fixture.js";
+import { prepareOfficialMcpAuthRoutingFixture } from "#e2e/helpers/mcp-official-auth-routing-fixture";
+import { prepareMcpFailureGuidanceFixture } from "#e2e/helpers/mcp-failure-guidance-fixture";
 import { createE2EReplayFixtureVariables } from "./test/e2e/helpers/e2e-runtime-paths.js";
 import { stageE2EAppOutput } from "./test/e2e/helpers/e2e-app-output-stage.js";
 import { withE2EDesktopBuildLock } from "./scripts/ensure-e2e-desktop-build.mjs";
@@ -656,6 +650,8 @@ let stopOAuthCompletionRaceFixture: (() => Promise<void>) | null = null;
 let stopTtftOtlpFixture: (() => Promise<void>) | null = null;
 let stopWebRemoteControlAuthGateFixture: (() => Promise<void>) | null = null;
 let stopAccessToken401Fixture: (() => Promise<void>) | null = null;
+let stopOfficialMcpAuthRoutingFixture: (() => Promise<void>) | null = null;
+let stopMcpFailureGuidanceFixture: (() => Promise<void>) | null = null;
 let pluginCdnZipFixtureServer: PluginCdnZipFixtureServer | null = null;
 let upstreamE2EBaseUrl: string = e2eProviderPreset.baseUrl;
 let e2eRunnerExitWatchdog: ReturnType<typeof setTimeout> | null = null;
@@ -4973,6 +4969,18 @@ export const config: WebdriverIO.Config = {
           settingsFile: E2E_APP_SETTINGS_FILE,
           workspacePath: resolve(E2E_HOME_DIR, "DroraProject"),
         });
+        stopOfficialMcpAuthRoutingFixture = await prepareOfficialMcpAuthRoutingFixture({
+          specs,
+          credentialsFile: E2E_APP_CREDENTIALS_FILE,
+          settingsFile: E2E_APP_SETTINGS_FILE,
+          workspacePath: resolve(E2E_HOME_DIR, "DroraProject"),
+        });
+        stopMcpFailureGuidanceFixture = await prepareMcpFailureGuidanceFixture({
+          specs,
+          credentialsFile: E2E_APP_CREDENTIALS_FILE,
+          settingsFile: E2E_APP_SETTINGS_FILE,
+          workspacePath: resolve(E2E_HOME_DIR, "DroraProject"),
+        });
         // resetHome 之后、Electron 启动之前安装，Main -> Host -> Agent 才会同时继承
         // case-owned PATH；其他 spec 由 helper 保持 no-op。
         await installBashPrefixPermissionPnpmShim({
@@ -4983,35 +4991,12 @@ export const config: WebdriverIO.Config = {
         // 根因：WDIO 先探测再释放端口，随后 ChromeDriver 绑定时曾被占用；驱动自己分配并持有端口。
         // 每个 worker 独占一份，Electron 冷重启继续连接这份驱动，不增加启动重试。
         try {
-          // 驱动解析顺序：CHROMEDRIVER_PATH 显式覆盖 > preflight 缓存 > 预取安装。
-          // 非容器分支此前只有第三态的路径计算而无安装，Electron 44 后必 ENOENT。
-          const e2eDriverCacheDir = containerE2E ? E2E_BROWSER_DRIVER_CACHE_DIR : tmpdir();
-          const e2eDriverPlatform = detectBrowserPlatform();
-          if (!e2eDriverPlatform) throw new Error("ChromeDriver platform detection failed");
-          let e2eDriverPath = process.env.CHROMEDRIVER_PATH;
-          if (!e2eDriverPath) {
-            try {
-              e2eDriverPath = await cachedChromedriverPath({
-                cacheDir: e2eDriverCacheDir,
-                electronVersion: ELECTRON_VERSION,
-                platform: e2eDriverPlatform,
-              });
-            } catch {
-              await prepareChromedriver({
-                cacheDir: e2eDriverCacheDir,
-                electronVersion: ELECTRON_VERSION,
-                platform: e2eDriverPlatform,
-              });
-              e2eDriverPath = await cachedChromedriverPath({
-                cacheDir: e2eDriverCacheDir,
-                electronVersion: ELECTRON_VERSION,
-                platform: e2eDriverPlatform,
-              });
-            }
-          }
-          if (!e2eDriverPath) throw new Error("ChromeDriver path unresolved");
           e2eChromedriverServer ??= await startE2EChromedriverServer({
-            executablePath: e2eDriverPath,
+            executablePath: resolveE2EChromedriverExecutable({
+              explicitPath: process.env.CHROMEDRIVER_PATH,
+              electronVersion: ELECTRON_VERSION,
+              cacheDir: containerE2E ? E2E_BROWSER_DRIVER_CACHE_DIR : tmpdir(),
+            }),
             logPath: resolve(e2eReporter.artifactDir, `chromedriver-${cid}.log`),
           });
           Object.assign(_config, {
@@ -5110,6 +5095,10 @@ export const config: WebdriverIO.Config = {
           stopWebRemoteControlAuthGateFixture = null;
           await stopAccessToken401Fixture?.();
           stopAccessToken401Fixture = null;
+          await stopOfficialMcpAuthRoutingFixture?.();
+          stopOfficialMcpAuthRoutingFixture = null;
+          await stopMcpFailureGuidanceFixture?.();
+          stopMcpFailureGuidanceFixture = null;
           currentE2EBeforeSessionError = null;
           e2eFailureArtifacts = null;
           currentE2EWorkerSessionSpecs = [];
@@ -5192,6 +5181,10 @@ export const config: WebdriverIO.Config = {
           stopWebRemoteControlAuthGateFixture = null;
           await stopAccessToken401Fixture?.();
           stopAccessToken401Fixture = null;
+          await stopOfficialMcpAuthRoutingFixture?.();
+          stopOfficialMcpAuthRoutingFixture = null;
+          await stopMcpFailureGuidanceFixture?.();
+          stopMcpFailureGuidanceFixture = null;
           await stopPluginCdnZipFixture();
         } finally {
           await cleanupE2EElectronProcesses("onComplete");

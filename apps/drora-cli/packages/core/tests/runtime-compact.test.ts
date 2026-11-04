@@ -1726,13 +1726,13 @@ describe("AgentRuntime manual compact", () => {
     const requests: Array<Array<{ role: string; content: string }>> = [];
     let normalResponseCount = 0;
     const files = {
-      current: resolve(`${workspace}/src/current.ts`),
-      range: resolve(`${workspace}/src/range.ts`),
-      large: resolve(`${workspace}/src/large.ts`),
-      written: resolve(`${workspace}/src/written.ts`),
-      unreadable: resolve(`${workspace}/src/unreadable.ts`),
-      bashBackfill: resolve(`${workspace}/src/bash-backfill.ts`),
-      instructions: resolve(`${workspace}/AGENTS.md`),
+      current: `${workspace}/src/current.ts`,
+      range: `${workspace}/src/range.ts`,
+      large: `${workspace}/src/large.ts`,
+      written: `${workspace}/src/written.ts`,
+      unreadable: `${workspace}/src/unreadable.ts`,
+      bashBackfill: `${workspace}/src/bash-backfill.ts`,
+      instructions: `${workspace}/AGENTS.md`,
       plan: resolveApprovedPlanFilePath({ sessionId, workspaceRoot: workspace }),
       memory: "/Users/dev/.codex/memories/private-note.md",
     };
@@ -1930,8 +1930,7 @@ describe("AgentRuntime manual compact", () => {
       old_string: "'disk'",
     });
     expect(edit.success).toBe(true);
-    // 修复：替身文件键已归一为正斜杠；解析后的 Windows 路径按同一形态查找。
-    expect(fileSystemPort.files[files.written.replaceAll("\\", "/")]).toBe("export const written = 'edited';\n");
+    expect(fileSystemPort.files[files.written]).toBe("export const written = 'edited';\n");
   });
 
   it("skips files denied by read rules and reads ask-rule files without prompting", async () => {
@@ -1939,8 +1938,8 @@ describe("AgentRuntime manual compact", () => {
     const workspace = "/tmp/drora-runtime-compact-read-state-permission";
     const store = createRecordingSessionStore();
     const eventStore = createTestSessionEventStore();
-    const denied = resolve(`${workspace}/src/denied.ts`);
-    const asked = resolve(`${workspace}/src/asked.ts`);
+    const denied = `${workspace}/src/denied.ts`;
+    const asked = `${workspace}/src/asked.ts`;
     const fileSystemPort = new MemoryFileSystem({
       [denied]: "export const denied = 'secret';\n",
       [asked]: "export const asked = 'visible';\n",
@@ -2022,7 +2021,7 @@ describe("AgentRuntime manual compact", () => {
     const sessionId = createSessionId("runtime-compact-read-state-abort");
     const workspace = "/tmp/drora-runtime-compact-read-state-abort";
     const store = createRecordingSessionStore();
-    const file = resolve(`${workspace}/src/current.ts`);
+    const file = `${workspace}/src/current.ts`;
     const controller = new AbortController();
     class AbortingFileSystem extends MemoryFileSystem {
       override async readTextFileRange(
@@ -2120,7 +2119,7 @@ describe("AgentRuntime manual compact", () => {
       },
     };
 
-    const filePath = resolve("/tmp/drora-runtime-compact-read-state-resume/src/current.ts");
+    const filePath = "/tmp/drora-runtime-compact-read-state-resume/src/current.ts";
     const fileSystemPort = new MemoryFileSystem({ [filePath]: "export const persisted = 42;\n" });
     const runtime = createTestAgentRuntime(
       sessionId,

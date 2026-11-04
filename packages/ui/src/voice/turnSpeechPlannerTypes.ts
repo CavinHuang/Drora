@@ -19,7 +19,12 @@ export interface TurnSpeechPlannerDeps {
    * §6.1 音色/语速 + 播报语言（§9.7.5 lang 键 / §9.7.3 vendorVoice 双轨）；
    * 缺省跟随 navigator.language（系统默认音色/厂商默认音色/语速 1）。
    */
-  getAnnouncementVoiceConfig?(): { lang: string; voice?: string; vendorVoice?: string; rate?: number };
+  getAnnouncementVoiceConfig?(): {
+    lang: string;
+    voice?: string;
+    vendorVoice?: string;
+    rate?: number;
+  };
   /** 层③「停掉任务」→ 既有 v4 stop（带 expectedForegroundExecutionId）；Phase 1b 接线。 */
   cancelTask?(): void;
   /**

@@ -199,9 +199,7 @@ describe("official command endpoint", () => {
     expect(seen!.url).toBe("/api/v1/sites/1/deployments/2/package?x=1");
     expect(seen!.headers.authorization).toBe("Bearer drora-jwt");
     expect(seen!.headers["x-bigmodel-authorization"]).toBe("Bearer maas");
-    // 修复：端点头随仓库改名规则输出 X-Drora-App-Version（endpoint.ts:141）；
-    // 上游断言的 x-zcode-app-version 是改名漏网，按本仓名对齐。
-    expect(seen!.headers["x-drora-app-version"]).toBe("3.16.0");
+    expect(seen!.headers["x-zcode-app-version"]).toBe("3.16.0");
     expect(seen!.headers["content-type"]).toBe("application/gzip");
     expect(seen!.headers["content-length"]).toBe(String(pkg.length));
     expect(seen!.headers["transfer-encoding"]).toBeUndefined();

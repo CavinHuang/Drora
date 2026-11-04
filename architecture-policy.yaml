@@ -552,6 +552,9 @@ modules:
     roots:
       - apps/drora-cli/packages/bootstrap/src/session-execution
       - apps/drora-cli/packages/bootstrap/tests/session-execution
+      - apps/drora-cli/packages/core/src/runtime/permission-full-access.ts
+      - apps/drora-cli/packages/core/tests/permission-full-access.test.ts
+      - apps/drora-cli/packages/bootstrap/tests/draft-permission-full-access.test.ts
     managed: true
     requires:
       - shared
@@ -559,6 +562,7 @@ modules:
     publicEntrypoints:
       - apps/drora-cli/packages/bootstrap/src/session-execution/index.ts
       - apps/drora-cli/packages/bootstrap/src/session-execution/contract.ts
+      - apps/drora-cli/packages/core/src/runtime/permission-full-access.ts
     layers:
       app: .
     owner: conversation
@@ -729,8 +733,6 @@ modules:
     layers: { app: . }
     owner: agent
 
-  # remote-input-prediction：手机远控输入预测（v4 线格式、Host 侧开关、CLI 只读查询）。
-  # 规格：docs/web-remote-control/mobile-input-prediction.md。
   - id: remote-input-prediction
     roots:
       - packages/shared/src/drora-protocol-v4/input-prediction
@@ -843,6 +845,7 @@ modules:
       - apps/drora-cli/tools/prompt-trajectory/src/tool-search-comparison.ts
     layers: { domain: . }
     owner: agent
+
   - id: window-topic-resource-relay
     roots:
       - packages/desktop/src/host/topic-resource-relay
@@ -1422,6 +1425,21 @@ modules:
     layers:
       app: .
     owner: drora
+
+  # 上游 v3.17.2 新增模块（随上游 adopt）。
+  # 内置浏览器本地 HTML 的受控文件读取边界。
+  - id: browser-local-preview
+    roots:
+      - packages/desktop/src/main/browser-local-preview
+    managed: true
+    requires: [shared]
+    publicEntrypoints:
+      - packages/desktop/src/main/browser-local-preview/index.ts
+      - packages/desktop/src/main/browser-local-preview/contract.ts
+    layers:
+      adapters: .
+    owner: desktop
+
 global:
   # 临时时间戳（2026-09-10）：unmanaged-new-file 只约束此日期之后首次入库的文件。
   # 基于领先 staging 很多的分支开工时，merge-base 之前的"新增"文件不应被追溯。
@@ -1436,6 +1454,10 @@ global:
   acceptedUpstreamSnapshot: scripts/architecture/upstream-snapshot.json
 
 exceptions:
+  - id: window-host-attachment-rpc-policy-existing-edit
+    rule: unmanaged-new-file
+    paths: [packages/desktop/src/host/windowHostAttachmentRpcPolicy.ts]
+    reason: 既有文件（v3.16.1 起在库，base/HEAD 均存在）随上游 v3.17.2 内容更新；快照按 a9fe401ee 重生成后条目计数变化引发误判，接管 desktop host 目录不在本轮范围。
   - id: session-features-attribution-header-edit
     rule: unmanaged-new-file
     paths: [apps/drora-cli/packages/adapters/src/model/runner-attribution.ts]
@@ -1474,10 +1496,6 @@ exceptions:
     paths:
       [apps/drora-cli/packages/drora-site-plugin/skills/site-deploy/templates/static-server.mjs]
     reason: site-deploy 技能复制进用户部署包的静态站服务器模板，只在 Sites runner 的容器里由 start.sh 执行；仓库代码不 import 它，也不属于任何运行时模块。同目录的 start.sh 模板是 shell，不受本规则约束。
-  - id: opensource-cua-test-project-config
-    rule: unmanaged-new-file
-    paths: [packages/zcode-cua/vitest.config.ts]
-    reason: 该文件只装配测试项目，开源占位版本用于保持根单测入口可运行；不包含 producer 运行逻辑，不为同目录实现文件开放例外。
   - id: project-location-cache-recovery-existing-edit
     rule: unmanaged-new-file
     paths:
@@ -1486,6 +1504,12 @@ exceptions:
       - packages/services/src/model-provider/accountProjectTokenClient.ts
       - packages/services/src/credential/credentialService.ts
     reason: 已有项目 Token 与凭据存储增加派生缓存的局部恢复端口，并把换证请求失败按固定类别分码（ZCT-2111046389485834240）；保持原有 owner 和共享文件锁，不接管全目录。
+  - id: plugin-agent-permission-mode-restrict-only-existing-edit
+    rule: unmanaged-new-file
+    paths:
+      - packages/shared/src/subagent-profile.ts
+      - packages/shared/src/subagent-profile-parser.ts
+    reason: 已准入的存量文件为插件 agent 的 permissionMode 只能收紧（ZP-20261028-13）增加进程内 profile 标记字段并更新注释；跨进程 schema 与解析行为不变，接管 shared 目录不在本次范围内。
   - id: test-ids-subpath-import-unmanaged-edit
     rule: unmanaged-new-file
     paths:
@@ -1617,10 +1641,6 @@ exceptions:
     rule: max-file-lines
     paths: [packages/ui/src/team/TeamPanel.tsx]
     reason: TeamPanel 是 team 的唯一显示面（状态头/动作区/任务板/成员卡/消息尾窗共享同一投影模型与命令上抛链）；2026-10-18 审查修复兑现设计 §3.3.2 全部承诺（attention 卡/头像点/依赖缩进/artifactRefs/尾窗）后超线，拆文件会割裂单一派生通道。
-  - id: persona-preferences-section-size
-    rule: max-file-lines
-    paths: [packages/ui/src/drora-persona/PersonaPreferencesSection.tsx]
-    reason: 偏好区是四键槽/策略/学习概览/导出的唯一显示面（spec §9/§10，797 行基线上加 15 行）；spec §13 第十五批的 refreshKey 重读是预设覆盖四键后的呈现侧最小配合，拆文件会把同一槽状态机复制两份，模块化拆分留后续批次。
   - id: turn-speech-planner-size
     rule: max-file-lines
     paths: [packages/ui/src/voice/turnSpeechPlanner.ts]
@@ -1642,10 +1662,6 @@ exceptions:
     rule: disable-count
     paths: [packages/ui/src/team/TeamPanel.tsx]
     reason: 上一条豁免的对应 lint disable（与 genUiTweakRuntime 同款成对登记）。
-  - id: settings-machine-unmanaged-edit
-    rule: unmanaged-new-file
-    paths: [packages/ui/src/settings/SettingsMachine.tsx]
-    reason: Admitted upstream file edited only to remove settings notices; adopting packages/ui/src/settings needs a separate module boundary refactor.
   - id: workflow-amend-provider-boundary-unmanaged-edit
     rule: unmanaged-new-file
     paths:

@@ -98,7 +98,7 @@
 - **依据**：`scripts/engineering-tests/scope.mjs:33-43`（`firstPushBase` 实现与注释，自引「divergence 台账 8 / v3.17.1 N2」）；`docs/upstream-sync/2026-10-31-v3.17.1/tasks.md` S1 执行补记 N2 段（旧 `affected-unit-tests/scope.mjs` 随 UP05497 删除，本仓改动=台账 8 staging 回退，由本条在新链承继并修正回退目标）；`docs/ci/affected-unit-test-baseline.md`、`docs/testing/pre-push-hook.md`（N2 口径已同步）。
 - **下次同步注意**：上游再动 `engineering-tests/scope.mjs` 的基线解析时，`drora/main` 回退必须保留（或在本仓引入 staging 类集成分支后按台账 8 的注意项整体重审）；不得把回退目标改回 `origin/main`，也不得引入对 `origin/*`（=zai-org）引用的静默依赖。
 
-## 台账 11：zcode-* 官方通道别名保留（V3 审计补登记，2026-11-01）
+## 台账 11：zcode-\* 官方通道别名保留（V3 审计补登记，2026-11-01）
 
 - **能力**：`packages/shared/src/channels.ts` 的 `OFFICIAL_RPC_CHANNEL_ALIAS_PREFIX = "zcode-"`（单一出处，消费链 channels.ts → services/collection.ts → desktop/src/host/index.ts）：窗口 Host 除 `drora-*` 通道外同时注册 `zcode-*` 别名，供**官方托管手机页**按官方通道名调用（冻结快照实证：`packages/mobile-web/src/recovered/remote/v4/3.14.3/assets/index-*.js` 调用 `zcode-task/zcode-agent/zcode-session`）。
 - **登记原因**：原登记文件 `specs/mobile-web-remote.md` 已于 2026-10-22（d1a46eafe，移除自研 Relay 复刻）删除；别名是**官方互操作 wire 契约**而非品牌残留，必须留在台账防止后续同步误改名；`windowHostAttachmentRpcPolicy.ts:138` 等注释的 spec 引用自本条承接。
@@ -134,3 +134,9 @@
 - **能力范围**：`packages/zcode-cua/broker-helper-constants.js|d.ts`、broker.js|d.ts、index.d.ts、package.json 与 zcode-cua-plugin 三文件、third-party 清单——zone take-theirs 曾覆盖为上游原生值（HELPER_APP_NAME="ZCode Computer Use.app"、BUNDLE_ID=dev.zcode.cua-helper、包名 @drora/zcode-cua 0.6.5）。
 - **裁定**：15 文件恢复本仓 HEAD（Helper Drora 化裁定 2026-09-28 的单一出处，R3 冻结 0.6.3+本仓常量），仅并入上游新增 `HELPER_GHOST_CURSOR_OVERLAY_ARG`（值一致）与 broker re-export 三处增量；包名 `@drora/drora-cua` 全仓统一（改名引擎的 @drora/zcode-cua 名不采纳，58 文件收敛）。
 - **下次同步注意**：上游 zcode-cua 再演进时，Helper 身份五常量与包名以本仓为权威；新增 re-export/常量可并入但值域按本仓命名。
+
+## 台账 16：Drora Mate 个人助理层为有意自研扩展（2026-11-04 登记）
+
+- **能力**：`specs/drora-personal-assistant.md`——常驻 Router（assistant preset，无 bash/写盘工具）、准入域模型（off/observe/auto × explicit/inferred）、AssistantTicketService 工单台账（单一写者）、派发桥三模式（createSession/附着/建队）、Source 注册表（复用 bots channelRuntime 与 automations）、watchdog 编排、ui-mate 四面 UI。全部为**新文件新模块**：`packages/services/src/assistant-tickets/`、`packages/shared/src/contracts/assistant.ts`（`drora.mate.*` 键单出处）、`packages/ui/src/mate/`（module id=ui-mate）；还原目录零改动。
+- **登记原因**：上游无对应能力（TRAE宝/DeepSeek dsh-superagent 为外部产品，非 ZCode 上游面），本层为有意扩展而非缺口。**既有面零触及**：Mode B 采用 prompt 驱动建队（走既有 stage→人批流程），原设计的 TeamHub `assistant_dispatch` cause 枚举已取消；TeamHub/CLI core 全程零改动。
+- **下次同步注意**：①上游 subagent/agent 工具面（v3.17.2 已整并，b3e44cb2a）后续若演进至覆盖常驻编排/准入/工单能力，按 AGENTS.md 覆盖判断五要素（持久化/权限/取消恢复/身份隔离/平台能力）评估迁官方并移除自研重复；②`contracts/assistant.ts` 与 services 域 schema 为自研新增，上游同步不自动携带，改名/移动须全链 grep 生产消费；③assistantActivity 快照字段经 host 侧 overlay 合成（`windowHostControllerService` teamActivity 同位）——该挂载点为上游同步人工重放点。

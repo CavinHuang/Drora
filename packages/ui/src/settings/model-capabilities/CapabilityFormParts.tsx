@@ -321,6 +321,8 @@ export function CapabilityTextValueRow({
 export interface CapabilityProviderOption {
   providerId: string;
   label: string;
+  /** baseUrl+API Key 齐全（缺 = 出站会 fail-closed，下拉文案标注）。 */
+  connectionComplete: boolean;
 }
 
 /**
@@ -335,17 +337,18 @@ export function useCapabilityProviderOptions(): CapabilityProviderOption[] {
     const view = read.state.status === "ready" ? read.state.view : null;
     if (!view) return [];
     return view.providers
-      .filter((provider) => {
+      .filter((provider) => provider.enabled)
+      .map((provider) => {
         const access = provider.effectiveConfig?.access;
-        const hasConnection = Boolean(
+        const connectionComplete = Boolean(
           provider.effectiveConfig?.api?.baseUrl && access?.type === "api-key" && access.apiKey,
         );
-        return provider.enabled && hasConnection;
-      })
-      .map((provider) => ({
-        providerId: provider.providerId,
-        label: provider.providerName ?? provider.providerId,
-      }));
+        return {
+          providerId: provider.providerId,
+          label: provider.providerName ?? provider.providerId,
+          connectionComplete,
+        };
+      });
   }, [read.state]);
 }
 
@@ -419,7 +422,9 @@ export function CapabilityProviderRefRow({
           <SelectContent>
             {options.map((option) => (
               <SelectItem key={option.providerId} value={option.providerId}>
-                {option.label}
+                {option.connectionComplete
+                  ? option.label
+                  : `${option.label}（缺 API Key / Base URL，选中后无法出站）`}
               </SelectItem>
             ))}
           </SelectContent>

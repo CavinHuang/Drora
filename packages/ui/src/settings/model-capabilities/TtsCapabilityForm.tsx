@@ -180,6 +180,15 @@ export function TtsCapabilityForm() {
             value={entry?.modelId ?? ""}
             onSave={handleModelSave}
             testIdValue="tts"
+            datalist={{
+              id: "model-capability-tts-model-presets",
+              values: [
+                "FunAudioLLM/CosyVoice2-0.5B",
+                "zh_female_wanwanxiaohe_moon_bigtts",
+                "zh_female_xiaohe_uranus_bigtts",
+                "zh_female_shuangkuaisisi_moon_bigtts",
+              ],
+            }}
           />
           <CapabilityTextValueRow
             labelId="settings.modelCapability.tts.voice.title"

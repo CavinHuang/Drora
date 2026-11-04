@@ -277,12 +277,15 @@ export function CapabilityTextValueRow({
   value,
   onSave,
   testIdValue,
+  datalist,
 }: {
   labelId: string;
   placeholderId: string;
   value: string;
   onSave: (value: string) => void;
   testIdValue: string;
+  /** 可选输入建议（datalist 仅建议不校验，照 CapabilityBaseUrlRow 先例）。 */
+  datalist?: { id: string; values: readonly string[] };
 }) {
   const { intl } = useDroraIntl();
   const [draft, setDraft] = useState(value);
@@ -294,20 +297,30 @@ export function CapabilityTextValueRow({
     <SettingsRow
       label={intl.formatMessage({ id: labelId })}
       control={
-        <Input
-          className="w-72"
-          value={draft}
-          placeholder={intl.formatMessage({ id: placeholderId })}
-          aria-label={intl.formatMessage({ id: labelId })}
-          data-testid={testId(TID_MODEL_CAPABILITY_MODEL_INPUT, testIdValue)}
-          onChange={(event) => setDraft(event.target.value)}
-          onBlur={() => {
-            const next = draft.trim();
-            if (next !== value) {
-              onSave(next);
-            }
-          }}
-        />
+        <>
+          {datalist ? (
+            <datalist id={datalist.id}>
+              {datalist.values.map((preset) => (
+                <option key={preset} value={preset} />
+              ))}
+            </datalist>
+          ) : null}
+          <Input
+            className="w-72"
+            value={draft}
+            placeholder={intl.formatMessage({ id: placeholderId })}
+            aria-label={intl.formatMessage({ id: labelId })}
+            data-testid={testId(TID_MODEL_CAPABILITY_MODEL_INPUT, testIdValue)}
+            list={datalist?.id}
+            onChange={(event) => setDraft(event.target.value)}
+            onBlur={() => {
+              const next = draft.trim();
+              if (next !== value) {
+                onSave(next);
+              }
+            }}
+          />
+        </>
       }
     />
   );

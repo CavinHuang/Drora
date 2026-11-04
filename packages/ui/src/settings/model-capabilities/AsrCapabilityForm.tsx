@@ -162,6 +162,10 @@ export function AsrCapabilityForm() {
             value={entry?.modelId ?? ""}
             onSave={handleModelSave}
             testIdValue="asr"
+            datalist={{
+              id: "model-capability-asr-model-presets",
+              values: ["FunAudioLLM/SenseVoiceSmall", "TeleAI/TeleSpeechASR"],
+            }}
           />
           <CapabilityBaseUrlRow
             labelId="settings.modelCapability.asr.baseUrlOverride.title"

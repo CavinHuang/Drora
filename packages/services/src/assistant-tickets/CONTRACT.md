@@ -15,9 +15,13 @@ Mode A 直派（v4 createSession/sendText，commandId=ticketId 幂等）+ sqlite
 - turn 事件归账（01 §3）：服务工厂暴露 host 内部入口 `applyTicketTurnEvent`
   （不在 IAssistantTicketService，renderer 不可达）——状态机 running/done+output_summary
   （120 截断）/failed+reason+mandate 撤销、usage 差值行写 usage_log、updated_ms 单调
-  丢弃迟到重放，服务测试锁定。**帧接线（droraAgentService.onDynamicConversationFrame →
-  解析 session/event·snapshot）随 PR-1A 后续批次交付**，真实链路当前仍停在派发后状态
-  （coverage matrix 已如实声明）。
+  丢弃迟到重放，服务测试锁定。**帧接线已交付**（2026-11-05）：派发成功即经
+  `setAssistantFrameSource` 端口订阅 `droraAgentService.onDynamicConversationFrame`
+  （workspace 目标与派发同形），帧→`parseTicketFrameEvents` 防御式解析（userInput 行=
+  turn_started；assistantText 行 streaming/complete/failed/interrupted=started/completed/
+  failed/cancelled；state.updated·usage/snapshot·usage=usage_snapshot，cumulative 嵌套
+  解包）→ ledger 归账；工单终态或 stopMandate 自动退订。服务测试 22 项锁定（含 4 项
+  帧接线用例：订阅同形/状态机推进/usage 差值/stop 退订/异常帧空数组）。
 - 并发幂等（PR-1B 三审发现 7）：同 decisionId 并发放行由 approve 事务内按 decision_id
   查重（alreadyExisted 臂跳过派发）+ ticket(decision_id) UNIQUE 索引双防线闭合。
 - observe=全量零执行：explicit 出决策卡、inferred 记 would-accept；

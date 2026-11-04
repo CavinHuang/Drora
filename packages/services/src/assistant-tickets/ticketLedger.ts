@@ -26,7 +26,9 @@ export type AssistantTicketTurnEventKind =
   | "turn_started"
   | "turn_completed"
   | "turn_failed"
-  | "turn_cancelled";
+  | "turn_cancelled"
+  /** 仅记账不改状态（conversation 帧 state.updated 带 usage；解析层 01 §3）。 */
+  | "usage_snapshot";
 
 export interface AssistantTicketTurnEventInput {
   readonly ticketId: string;
@@ -54,12 +56,14 @@ export interface TicketLedgerDeps {
 }
 
 export function createTicketLedger(deps: TicketLedgerDeps): {
-  applyTicketTurnEvent(input: AssistantTicketTurnEventInput): void;
+  /** 归账一条事件；返回本条是否使工单进入终态（帧接线据此退订）。 */
+  applyTicketTurnEvent(input: AssistantTicketTurnEventInput): boolean;
 } {
   const { db, publish } = deps;
 
-  function applyTicketTurnEvent(input: AssistantTicketTurnEventInput): void {
+  function applyTicketTurnEvent(input: AssistantTicketTurnEventInput): boolean {
     try {
+      let becameTerminal = false;
       db.transaction((raw) => {
         const row = raw
           .prepare("SELECT status, usage_accum, updated_ms FROM ticket WHERE id = ?")
@@ -118,7 +122,20 @@ export function createTicketLedger(deps: TicketLedgerDeps): {
         const terminal =
           row.status === ASSISTANT_TICKET_STATUSES.done ||
           row.status === ASSISTANT_TICKET_STATUSES.failed;
-        const nextStatus = terminal ? row.status : resolveEventStatus(input.kind);
+        const nextStatus =
+          input.kind === "usage_snapshot"
+            ? row.status
+            : terminal
+              ? row.status
+              : resolveEventStatus(input.kind);
+        if (
+          !terminal &&
+          nextStatus !== row.status &&
+          (nextStatus === ASSISTANT_TICKET_STATUSES.done ||
+            nextStatus === ASSISTANT_TICKET_STATUSES.failed)
+        ) {
+          becameTerminal = true;
+        }
         let outputSummary: string | null = null;
         let failReason: string | null = null;
         if (!terminal) {
@@ -151,8 +168,10 @@ export function createTicketLedger(deps: TicketLedgerDeps): {
         }
       });
       publish();
+      return becameTerminal;
     } catch (error) {
       logger.error("assistant-tickets turn 事件归账异常", error);
+      return false;
     }
   }
 
@@ -175,4 +194,133 @@ function truncateOutputSummary(summary: string | undefined): string | null {
   if (summary === undefined) return null;
   const firstLine = summary.includes("\n") ? summary.slice(0, summary.indexOf("\n")) : summary;
   return firstLine.slice(0, ASSISTANT_SNAPSHOT_LIMITS.briefPreviewMax);
+}
+
+// ---------------------------------------------------------------------------
+// 帧解析（01 §3 映射表的实现侧）。输入是 droraAgentService.onDynamicConversationFrame
+// 发出的 ConversationTopicWireCandidate——上游在 fire 前已经
+// conversationTopicWireCandidateSchema.safeParse 校验（droraAgentService.ts:2826），
+// 这里做防御式字段读取（不用 zod 重验）：帧非法时返回空数组，绝不抛错。
+// ---------------------------------------------------------------------------
+
+interface FrameUsageCumulative {
+  inputTokens?: unknown;
+  outputTokens?: unknown;
+  cacheReadTokens?: unknown;
+  cacheWriteTokens?: unknown;
+}
+
+function readUsage(
+  patchUsage: FrameUsageCumulative | undefined,
+): AssistantTicketTurnEventInput["usage"] | undefined {
+  if (typeof patchUsage !== "object" || patchUsage === null) return undefined;
+  const num = (v: unknown): number | undefined =>
+    typeof v === "number" && Number.isFinite(v) ? v : undefined;
+  // wire 形态是 sessionUsageStateSchema：累计值嵌套在 cumulative 键下
+  // （snapshot.ts:195-212）；直接平铺形态仅测试便利，两种都收。
+  const cumulativeRaw = (patchUsage as { cumulative?: unknown }).cumulative;
+  const source =
+    typeof cumulativeRaw === "object" && cumulativeRaw !== null
+      ? (cumulativeRaw as FrameUsageCumulative)
+      : patchUsage;
+  const inputTokens = num(source.inputTokens);
+  const outputTokens = num(source.outputTokens);
+  if (inputTokens === undefined && outputTokens === undefined) return undefined;
+  return {
+    inputTokens: inputTokens ?? 0,
+    outputTokens: outputTokens ?? 0,
+    cacheReadTokens: num(source.cacheReadTokens) ?? 0,
+    cacheWriteTokens: num(patchUsage.cacheWriteTokens) ?? 0,
+  };
+}
+
+/**
+ * 把一帧 conversation wire candidate 解析为零或多条归账事件（按帧序排列）。
+ * 映射（01 §3）：row.appended/row.upserted 的 userInput 行 → turn_started（我们派发的
+ * brief 进转录即轮起点）；assistantText 行 state=streaming → turn_started、complete →
+ * turn_completed（outputSummary=行文本）、failed → turn_failed、interrupted →
+ * turn_cancelled（用户 stop 的诚实留痕）；state.updated 带 usage → usage_snapshot
+ * （仅记账）；snapshot 载荷（resync）→ usage_snapshot（usage 累计是全量快照值，
+ * 差值由台账单调/差值纪律消化）。
+ */
+export function parseTicketFrameEvents(
+  candidate: unknown,
+  sessionId: string,
+): AssistantTicketTurnEventInput[] {
+  const events: AssistantTicketTurnEventInput[] = [];
+  if (typeof candidate !== "object" || candidate === null) return events;
+  const frame = candidate as {
+    topic?: unknown;
+    sentAt?: unknown;
+    payload?: {
+      kind?: unknown;
+      snapshot?: { usage?: FrameUsageCumulative; rows?: unknown };
+      deltas?: unknown;
+    };
+  };
+  if (frame.topic !== `conversation/${sessionId}`) return events;
+  const atMs =
+    typeof frame.sentAt === "number" && Number.isFinite(frame.sentAt) ? frame.sentAt : Date.now();
+  const payload = frame.payload;
+  if (typeof payload !== "object" || payload === null) return events;
+
+  if (payload.kind === "snapshot") {
+    const usage = readUsage(payload.snapshot?.usage);
+    if (usage) events.push({ ticketId: "", atMs, kind: "usage_snapshot", usage });
+    return events;
+  }
+  if (payload.kind !== "deltas" || !Array.isArray(payload.deltas)) return events;
+
+  let pendingUsage: AssistantTicketTurnEventInput["usage"] | undefined;
+  for (const delta of payload.deltas) {
+    if (typeof delta !== "object" || delta === null) continue;
+    const d = delta as {
+      op?: unknown;
+      row?: { kind?: unknown; state?: unknown; text?: unknown };
+      patch?: { usage?: FrameUsageCumulative };
+    };
+    if (d.op === "state.updated" && typeof d.patch === "object" && d.patch !== null) {
+      const usage = readUsage(d.patch.usage);
+      if (usage) pendingUsage = usage;
+      continue;
+    }
+    if (
+      (d.op === "row.appended" || d.op === "row.upserted") &&
+      typeof d.row === "object" &&
+      d.row !== null
+    ) {
+      const rowKind = d.row.kind;
+      const rowState = d.row.state;
+      const text = typeof d.row.text === "string" ? d.row.text : undefined;
+      if (rowKind === "userInput") {
+        events.push({ ticketId: "", atMs, kind: "turn_started" });
+      } else if (rowKind === "assistantText") {
+        if (rowState === "streaming") {
+          events.push({ ticketId: "", atMs, kind: "turn_started" });
+        } else if (rowState === "complete") {
+          events.push({ ticketId: "", atMs, kind: "turn_completed", outputSummary: text });
+        } else if (rowState === "failed") {
+          events.push({
+            ticketId: "",
+            atMs,
+            kind: "turn_failed",
+            failReason: "assistant_row_failed",
+          });
+        } else if (rowState === "interrupted") {
+          events.push({
+            ticketId: "",
+            atMs,
+            kind: "turn_cancelled",
+            failReason: "assistant_row_interrupted",
+          });
+        }
+      }
+    }
+  }
+  // usage 事件排在行事件之后：本轮 token 累计发生在这些行产生之后，差值归账不丢账。
+  if (pendingUsage) {
+    events.push({ ticketId: "", atMs, kind: "usage_snapshot", usage: pendingUsage });
+  }
+  // ticketId 留空由调用方回填（parse 层只认 sessionId；ticket↔session 映射属服务闭包）。
+  return events;
 }

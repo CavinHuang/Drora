@@ -20,7 +20,9 @@ import {
 import {
   createAssistantTicketsService,
   setAssistantDispatchPort,
+  setAssistantFrameSource,
 } from "../src/assistant-tickets/assistantTicketsService.js";
+import { parseTicketFrameEvents } from "../src/assistant-tickets/ticketLedger.js";
 
 const LOCAL_IDENTITY = "local-user";
 
@@ -494,5 +496,239 @@ describe("approveDecision 并发幂等（PR-1B 三审发现 7：事务内按 dec
     } finally {
       setAssistantDispatchPort(null);
     }
+  });
+});
+
+describe("帧接线（01 §3：订阅生命周期+归账映射）", () => {
+  // 帧时刻用真实时基：台账单调纪律以工单 updated_ms（Date.now() 域）为基准，小 sentAt 会被正确丢弃。
+  const t0 = Date.now();
+  /** 组装一帧合法形态的 conversation wire candidate（上游 safeParse 后的形状）。 */
+  function frame(sessionId: string, payload: unknown, sentAt = 1_000): unknown {
+    return {
+      topic: `conversation/${sessionId}`,
+      subscriptionId: "sub-1",
+      fromSeq: 1,
+      toSeq: 2,
+      sentAt,
+      payload,
+    };
+  }
+
+  it("派发成功→自动挂订阅；帧行事件归账状态机（userInput→running，assistantText complete→done+output_summary）并自动退订", async () => {
+    const { service } = createService();
+    const recorded = await service.recordTrigger({
+      text: "接线验收",
+      simulated: ASSISTANT_STRENGTHS.explicit,
+      targetWorkspaceIdentity: "ws-a",
+    });
+    if (!recorded.ok) return;
+    const snapshot = await service.getSnapshot();
+    const decision = snapshot.decisions[0];
+
+    const watched: Array<{ sessionId: string; identity: string | undefined }> = [];
+    const disposed: string[] = [];
+    const sinks = new Map<string, (candidate: unknown) => void>();
+    setAssistantDispatchPort(async (request) => ({
+      ok: true,
+      value: { ticketId: request.ticketId, sessionId: `sess-${request.ticketId.slice(0, 6)}` },
+    }));
+    setAssistantFrameSource({
+      subscribe(sessionId, identity, onFrame) {
+        watched.push({ sessionId, identity });
+        sinks.set(sessionId, onFrame);
+        return { dispose: () => disposed.push(sessionId) };
+      },
+    });
+    try {
+      const approved = await service.approveDecision({
+        decisionId: decision.id,
+        targetWorkspaceIdentity: "ws-a",
+      });
+      expect(approved.ok).toBe(true);
+      if (!approved.ok) return;
+      const sessionId = approved.value.sessionId;
+      // 订阅目标与派发目标同形（identity 贯穿）。
+      expect(watched).toEqual([{ sessionId, identity: "ws-a" }]);
+
+      const sink = sinks.get(sessionId);
+      expect(sink).toBeDefined();
+      if (!sink) return;
+
+      // userInput 行 → running。
+      sink(
+        frame(
+          sessionId,
+          {
+            kind: "deltas",
+            deltas: [{ op: "row.appended", row: { id: 1, kind: "userInput", text: "接线验收" } }],
+          },
+          t0 + 100,
+        ),
+      );
+      let after = await service.getSnapshot();
+      expect(after.tickets.find((t) => t.id === approved.value.ticketId)?.status).toBe(
+        ASSISTANT_TICKET_STATUSES.running,
+      );
+
+      // assistantText complete → done + output_summary 首行截断；终态自动退订。
+      sink(
+        frame(
+          sessionId,
+          {
+            kind: "deltas",
+            deltas: [
+              {
+                op: "row.appended",
+                row: { id: 2, kind: "assistantText", state: "complete", text: "修好了\n细节如下" },
+              },
+            ],
+          },
+          t0 + 200,
+        ),
+      );
+      after = await service.getSnapshot();
+      const ticket = after.tickets.find((t) => t.id === approved.value.ticketId);
+      expect(ticket?.status).toBe(ASSISTANT_TICKET_STATUSES.done);
+      expect(ticket?.outputSummary).toBe("修好了");
+      expect(disposed).toEqual([sessionId]);
+    } finally {
+      setAssistantDispatchPort(null);
+      setAssistantFrameSource(null);
+    }
+  });
+
+  it("state.updated usage→usage_snapshot 差值记账（不改状态）；assistantText failed→failed+mandate 撤销", async () => {
+    const { service } = createService();
+    const recorded = await service.recordTrigger({
+      text: "usage 验收",
+      simulated: ASSISTANT_STRENGTHS.explicit,
+      targetWorkspaceIdentity: "ws-a",
+    });
+    if (!recorded.ok) return;
+    const snapshot = await service.getSnapshot();
+    const decision = snapshot.decisions[0];
+    setAssistantDispatchPort(async (request) => ({
+      ok: true,
+      value: { ticketId: request.ticketId, sessionId: `sess-${request.ticketId.slice(0, 6)}` },
+    }));
+    const sinks = new Map<string, (candidate: unknown) => void>();
+    setAssistantFrameSource({
+      subscribe(sessionId, _identity, onFrame) {
+        sinks.set(sessionId, onFrame);
+        return { dispose: () => sinks.delete(sessionId) };
+      },
+    });
+    try {
+      const approved = await service.approveDecision({
+        decisionId: decision.id,
+        targetWorkspaceIdentity: "ws-a",
+      });
+      if (!approved.ok) return;
+      const sessionId = approved.value.sessionId;
+      const sink = sinks.get(sessionId);
+      if (!sink) return;
+
+      // 轮内 usage：输入 100/输出 50 → 累进；状态不变（无行事件）。
+      sink(
+        frame(
+          sessionId,
+          {
+            kind: "deltas",
+            deltas: [
+              {
+                op: "state.updated",
+                patch: { usage: { cumulative: { inputTokens: 100, outputTokens: 50 } } },
+              },
+            ],
+          },
+          t0 + 300,
+        ),
+      );
+      let after = await service.getSnapshot();
+      let ticket = after.tickets.find((t) => t.id === approved.value.ticketId);
+      expect(ticket?.usage).toEqual({ inputTokens: 100, outputTokens: 50 });
+      expect(ticket?.status).toBe(ASSISTANT_TICKET_STATUSES.running);
+
+      // assistantText failed → failed + 退订。
+      sink(
+        frame(
+          sessionId,
+          {
+            kind: "deltas",
+            deltas: [
+              {
+                op: "row.upserted",
+                row: { id: 3, kind: "assistantText", state: "failed", text: "" },
+              },
+            ],
+          },
+          t0 + 400,
+        ),
+      );
+      after = await service.getSnapshot();
+      ticket = after.tickets.find((t) => t.id === approved.value.ticketId);
+      expect(ticket?.status).toBe(ASSISTANT_TICKET_STATUSES.failed);
+      expect(ticket?.failReason).toBe("assistant_row_failed");
+    } finally {
+      setAssistantDispatchPort(null);
+      setAssistantFrameSource(null);
+    }
+  });
+
+  it("stopMandate→退订该会话", async () => {
+    const { service } = createService();
+    const recorded = await service.recordTrigger({
+      text: "stop 验收",
+      simulated: ASSISTANT_STRENGTHS.explicit,
+      targetWorkspaceIdentity: "ws-a",
+    });
+    if (!recorded.ok) return;
+    const snapshot = await service.getSnapshot();
+    const decision = snapshot.decisions[0];
+    setAssistantDispatchPort(async (request) => ({
+      ok: true,
+      value: { ticketId: request.ticketId, sessionId: `sess-${request.ticketId.slice(0, 6)}` },
+    }));
+    const disposed: string[] = [];
+    setAssistantFrameSource({
+      subscribe(sessionId, _identity, _onFrame) {
+        return { dispose: () => disposed.push(sessionId) };
+      },
+    });
+    try {
+      const approved = await service.approveDecision({
+        decisionId: decision.id,
+        targetWorkspaceIdentity: "ws-a",
+      });
+      if (!approved.ok) return;
+      const stopped = await service.stopMandate({ ticketId: approved.value.ticketId });
+      expect(stopped.ok).toBe(true);
+      expect(disposed).toEqual([approved.value.sessionId]);
+    } finally {
+      setAssistantDispatchPort(null);
+      setAssistantFrameSource(null);
+    }
+  });
+
+  it("parseTicketFrameEvents：topic 不匹配/帧形态异常→空数组（不抛错）", () => {
+    expect(parseTicketFrameEvents(null, "s1")).toEqual([]);
+    expect(
+      parseTicketFrameEvents(
+        { topic: "conversation/other", payload: { kind: "deltas", deltas: [] } },
+        "s1",
+      ),
+    ).toEqual([]);
+    expect(
+      parseTicketFrameEvents({ topic: "conversation/s1", payload: { kind: "garbage" } }, "s1"),
+    ).toEqual([]);
+    expect(
+      parseTicketFrameEvents(
+        {
+          topic: "conversation/s1",
+          payload: { kind: "deltas", deltas: [null, 42, { op: "row.appended" }] },
+        },
+        "s1",
+      ),
+    ).toEqual([]);
   });
 });

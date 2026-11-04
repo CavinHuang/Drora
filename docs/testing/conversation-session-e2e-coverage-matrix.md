@@ -6227,7 +6227,10 @@ decided_by（PR-1A 行为变更，服务测试 13 项通过）；e2e 断言补�
 （观察行在「待决策」档不渲染，先断言缺席再切档）。
 Mate 单测（view-model/store/i18n 键守护 + 服务归账/并发幂等，drora 清单 44 项）通过。
 2026-11-05 三审查漏补记：服务侧 `applyTicketTurnEvent` 归账核心（状态机/usage 差值/
-output_summary 截断/单调丢弃）已交付并锁定（服务测试 18 项），**droraAgentService 帧
-接线仍随 PR-1A 后续批次**——真实链路工单尚无 running→done 推进源。候选仍为 pending，
-未 promotion、未 CI admission；真实 Host 派发、真实断连重订（fixture 仅模拟重推快照）、
-双语/主题矩阵未覆盖。
+output_summary 截断/单调丢弃）已交付并锁定（服务测试 18 项）。
+2026-11-05 P1 收尾补记：**帧接线已交付**——派发成功即订阅
+`onDynamicConversationFrame`（workspace 同形目标），帧解析（userInput/assistantText
+state 机/usage cumulative 解包）→ 归账，终态/stop 自动退订；服务测试 22 项（新增 4 项
+帧接线用例：订阅同形、状态机推进+自动退订、usage 差值+failed 撤销、stop 退订、异常帧
+空数组）。真实链路 running→done 推进源已闭合。候选仍为 pending，未 promotion、未
+CI admission；真实断连重订（fixture 仅模拟重推快照）、双语/主题矩阵未覆盖。

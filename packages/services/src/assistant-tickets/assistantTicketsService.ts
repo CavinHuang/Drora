@@ -18,7 +18,11 @@ import {
 } from "@drora/shared";
 import { createServiceLogger } from "../logger/serviceLogger.js";
 import { evaluateAdmission } from "./admissionGate.js";
-import { createTicketLedger, type AssistantTicketTurnEventInput } from "./ticketLedger.js";
+import {
+  createTicketLedger,
+  parseTicketFrameEvents,
+  type AssistantTicketTurnEventInput,
+} from "./ticketLedger.js";
 import {
   AssistantDatabase,
   openAssistantDatabase,
@@ -87,8 +91,10 @@ export function createAssistantTicketsService(
   const emitters = new Set<SnapshotEmitter>();
   /** decisionId → {ticketId, sessionId} 幂等登记（同卡二次放行返回首次结果）。 */
   const dispatchIndex = new Map<number, { ticketId: string; sessionId: string }>();
-  // turn 事件归账（01 §3；实现委托 ticketLedger.ts，publish 为提升声明可安全引用）。
+  /** turn 事件归账终点（01 §3；实现委托 ticketLedger.ts，publish 为提升声明可安全引用）。 */
   const ledger = createTicketLedger({ db, publish });
+  /** sessionId → 订阅句柄（派发成功即挂，终态/stop 即卸）。 */
+  const sessionWatches = new Map<string, { dispose(): void; ticketId: string }>();
 
   // ------------------------------------------------------------------
   // kv 配置（P1 全存台账 kv，不动 AppSettings——01 §1.4）
@@ -439,6 +445,13 @@ export function createAssistantTicketsService(
           return dispatchResult;
         }
         dispatchIndex.set(input.decisionId, dispatchResult.value);
+        // 帧接线（01 §3 订阅生命周期）：派发成功即订阅该会话帧；工单终态或用户 stop
+        // 时退订（watchTicket 内部按 becameTerminal 自动退订）。
+        watchTicket(
+          created.value.ticketId,
+          dispatchResult.value.sessionId,
+          created.value.targetIdentity,
+        );
         publish();
         return dispatchResult;
       } catch (error) {
@@ -495,6 +508,10 @@ export function createAssistantTicketsService(
 
     async stopMandate(input) {
       try {
+        // 订阅退订与台账更新解耦：先查 incarnation.sessionId 再在事务外退订。
+        const sessionRow = db.raw
+          .prepare("SELECT incarnation_current FROM ticket WHERE id = ?")
+          .get(input.ticketId) as { incarnation_current: string } | undefined;
         db.transaction((raw) => {
           const ticket = raw
             .prepare("SELECT mandate_id, status FROM ticket WHERE id = ?")
@@ -514,6 +531,10 @@ export function createAssistantTicketsService(
             )
             .run("stopped", nowMs(), "user_stop", ticket.mandate_id, "active");
         });
+        if (sessionRow) {
+          const incarnation = JSON.parse(sessionRow.incarnation_current) as { sessionId?: string };
+          if (incarnation.sessionId) unwatchSession(incarnation.sessionId);
+        }
         publish();
         return { ok: true, value: { ok: true } };
       } catch (error) {
@@ -616,8 +637,35 @@ export function createAssistantTicketsService(
   };
 
   // ------------------------------------------------------------------
-  // 内部：派发端口与失败落账（v4 通道接线在装配层；P1 单测注入 fake）
+  // 内部：帧接线与失败落账（帧源由装配层注入 setAssistantFrameSource；单测注入 fake）
   // ------------------------------------------------------------------
+
+  /** 派发成功后挂帧订阅（01 §3）：帧→解析→归账，终态自动退订；同 sessionId 防御性去重。 */
+  function watchTicket(ticketId: string, sessionId: string, workspaceIdentity: string): void {
+    if (!frameSource) return;
+    const existing = sessionWatches.get(sessionId);
+    if (existing) {
+      existing.dispose();
+      sessionWatches.delete(sessionId);
+    }
+    const handle = frameSource.subscribe(sessionId, workspaceIdentity || undefined, (candidate) => {
+      let becameTerminal = false;
+      for (const event of parseTicketFrameEvents(candidate, sessionId)) {
+        if (ledger.applyTicketTurnEvent({ ...event, ticketId })) {
+          becameTerminal = true;
+        }
+      }
+      if (becameTerminal) unwatchSession(sessionId);
+    });
+    sessionWatches.set(sessionId, { dispose: handle.dispose, ticketId });
+  }
+
+  function unwatchSession(sessionId: string): void {
+    const handle = sessionWatches.get(sessionId);
+    if (!handle) return;
+    sessionWatches.delete(sessionId);
+    handle.dispose();
+  }
 
   function markTicketFailed(ticketId: string, reason: string): void {
     try {
@@ -708,11 +756,34 @@ export type AssistantDispatchPort = (
   request: AssistantDispatchRequest,
 ) => Promise<AssistantDispatchResult>;
 
-/** 装配层注入点（node.ts setAssistantDispatchPort；服务工厂闭包经 getter 读取）。 */
+/** 装配层注入点（node.ts setAssistantDispatchPort；服务工厂闭包直读模块级变量）。 */
 let dispatchPort: AssistantDispatchPort | null = null;
 
 export function setAssistantDispatchPort(port: AssistantDispatchPort | null): void {
   dispatchPort = port;
+}
+
+// ---------------------------------------------------------------------------
+// 帧源端口：会话 conversation 帧的订阅句柄（装配层接 droraAgentService
+// onDynamicConversationFrame；本模块不 import drora-agent，与派发端口同一分层纪律）。
+// ---------------------------------------------------------------------------
+
+export interface AssistantFrameSourcePort {
+  /**
+   * 订阅一个会话的 conversation 帧。candidate 为上游 safeParse 通过的 wire 帧
+   * （droraAgentService.ts:2826 fire 前已验），callback 内部只做防御式解析。
+   */
+  subscribe(
+    sessionId: string,
+    workspaceIdentity: string | undefined,
+    onFrame: (candidate: unknown) => void,
+  ): { dispose(): void };
+}
+
+let frameSource: AssistantFrameSourcePort | null = null;
+
+export function setAssistantFrameSource(port: AssistantFrameSourcePort | null): void {
+  frameSource = port;
 }
 
 export type {

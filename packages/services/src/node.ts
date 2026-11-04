@@ -648,6 +648,7 @@ import {
   resolveAssistantDatabasePath,
 } from "./assistant-tickets/assistantDatabase.js";
 import { setAssistantDispatchPort } from "./assistant-tickets/assistantTicketsService.js";
+import { setAssistantFrameSource } from "./assistant-tickets/assistantTicketsService.js";
 import { createAssistantTicketsService } from "./assistant-tickets/assistantTicketsService.js";
 import { IAssistantTicketService } from "./assistant-tickets/assistantTickets.js";
 import { createHostCommandEnvelope } from "./drora-agent/droraV4HostCommand.js";
@@ -3408,6 +3409,23 @@ export function createLocalServices(options: {
     },
   );
   services.register(IAssistantTicketService, assistantTicketService);
+  // 帧源端口：ticketLedger 的真实事件源（01 §3）。workspace 目标与派发端口完全同形
+  // （conversationWorkspaceDir + identity||undefined）——resolveWorkspaceKey 两侧一致，
+  // 会话帧才会落进同一 emitter。candidate 上游 safeParse 已验，服务侧防御式解析。
+  setAssistantFrameSource({
+    subscribe(sessionId, workspaceIdentity, onFrame) {
+      const target = {
+        workspacePath: getConversationWorkspaceDir(),
+        ...(workspaceIdentity ? { workspaceIdentity } : {}),
+      };
+      // 帧按 topic=conversation/<sessionId> 过滤；过滤器由 ticketLedger.parseTicketFrameEvents
+      // 内部的 topic 相等判断承担（此处不做第二份过滤）。
+      const disposable = droraAgentService.onDynamicConversationFrame(target)((candidate) => {
+        onFrame(candidate);
+      });
+      return { dispose: () => disposable.dispose() };
+    },
+  });
   sqliteReposToClose.push({ close: () => assistantDatabase.close() });
 
   // 即使初始配置关闭也必须登记 lifecycle disposer：terminal fence 需要早于任意延迟 setting/acquire

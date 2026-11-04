@@ -46,6 +46,7 @@ const SETTINGS_SOURCE_SERVER_DETAILS_INTENT_KEY = "drora-settings-source-server-
 const SETTINGS_MODEL_PROVIDER_ID_INTENT_KEY = "drora-settings-model-provider-id-intent";
 const SETTINGS_MODEL_CAPABILITY_PURPOSE_INTENT_KEY =
   "drora-settings-model-capability-purpose-intent";
+const SETTINGS_MODEL_PROVIDER_ADD_INTENT_KEY = "drora-settings-model-provider-add-intent";
 const SETTINGS_SECTION_INTENT_EVENT = "drora:settings-section-intent",
   SETTINGS_LAST_SECTION_STORAGE_KEY = "drora-settings-last-section";
 const HIDDEN_SETTINGS_SECTIONS = new Set<SettingsSectionId>([
@@ -68,6 +69,8 @@ export interface SettingsSectionIntentEventDetail {
   modelProviderId?: string;
   /** 模型能力条目深链（specs/model-capabilities.md §12 F-5）：直达五条目之一。 */
   modelCapabilityPurpose?: string;
+  /** §13：直达供应商「添加」流程（能力条目空态引导跳转）。 */
+  modelProviderAdd?: boolean;
   sourceServerId?: string;
   sourceServerDetails?: boolean;
 }
@@ -80,6 +83,8 @@ export interface SettingsSectionIntentEventDetail {
 export interface SettingsModelProviderTarget {
   providerId?: string;
   capabilityPurpose?: string;
+  /** §13：直达供应商「添加」流程（模板选择器弹开）。 */
+  addProvider?: boolean;
 }
 
 function isSettingsSectionId(value: string): value is SettingsSectionId {
@@ -250,6 +255,7 @@ export function setPendingSettingsSectionIntent(
     pluginScopeKey?: string;
     modelProviderId?: string;
     modelCapabilityPurpose?: string;
+    modelProviderAdd?: boolean;
     sourceServerId?: string;
     sourceServerDetails?: boolean;
     usageTab?: SettingsUsageTabTarget;
@@ -311,6 +317,11 @@ export function setPendingSettingsSectionIntent(
     } else {
       window.sessionStorage.removeItem(SETTINGS_MODEL_CAPABILITY_PURPOSE_INTENT_KEY);
     }
+    if (options.modelProviderAdd) {
+      window.sessionStorage.setItem(SETTINGS_MODEL_PROVIDER_ADD_INTENT_KEY, "true");
+    } else {
+      window.sessionStorage.removeItem(SETTINGS_MODEL_PROVIDER_ADD_INTENT_KEY);
+    }
   } catch {
     // 忽略浏览器存储异常，不影响主流程。
   }
@@ -327,6 +338,7 @@ export function setPendingSettingsSectionIntent(
         usageTab: options.usageTab,
         modelProviderId: options.modelProviderId,
         modelCapabilityPurpose: options.modelCapabilityPurpose?.trim() || undefined,
+        modelProviderAdd: options.modelProviderAdd === true,
         ...(section === "remoteDevices" && options.sourceServerId?.trim()
           ? {
               sourceServerId: options.sourceServerId.trim(),
@@ -350,6 +362,7 @@ function clearPendingSettingsSectionIntent(): void {
     window.sessionStorage.removeItem(SETTINGS_USAGE_TAB_INTENT_KEY);
     window.sessionStorage.removeItem(SETTINGS_MODEL_PROVIDER_ID_INTENT_KEY);
     window.sessionStorage.removeItem(SETTINGS_MODEL_CAPABILITY_PURPOSE_INTENT_KEY);
+    window.sessionStorage.removeItem(SETTINGS_MODEL_PROVIDER_ADD_INTENT_KEY);
     window.sessionStorage.removeItem(SETTINGS_PLUGIN_TAB_INTENT_KEY);
     window.sessionStorage.removeItem(SETTINGS_PLUGIN_ORIGIN_INTENT_KEY);
     window.sessionStorage.removeItem(SETTINGS_PLUGIN_SCOPE_KEY_INTENT_KEY);
@@ -474,10 +487,16 @@ export function consumePendingSettingsModelProviderTarget():
     );
     window.sessionStorage.removeItem(SETTINGS_MODEL_PROVIDER_ID_INTENT_KEY);
     window.sessionStorage.removeItem(SETTINGS_MODEL_CAPABILITY_PURPOSE_INTENT_KEY);
-    // capability 深链优先：jevOff 横幅等运行时入口要直达「模型能力→知识评分」条目，
-    // 与供应商深链互斥（同一时刻只锚定一个目标，避免两个键残留互相覆盖）。
+    // capability/add 深链优先：jevOff 横幅、能力空态按钮等运行时入口要直达
+    // 「模型能力→知识评分」条目或供应商新建流程，与供应商深链互斥（同一时刻
+    // 只锚定一个目标，避免两个键残留互相覆盖）。
     if (capabilityPurpose?.trim()) {
       return { capabilityPurpose: capabilityPurpose.trim() };
+    }
+    const addIntent = window.sessionStorage.getItem(SETTINGS_MODEL_PROVIDER_ADD_INTENT_KEY);
+    window.sessionStorage.removeItem(SETTINGS_MODEL_PROVIDER_ADD_INTENT_KEY);
+    if (addIntent === "true") {
+      return { addProvider: true };
     }
     if (!providerId?.trim()) {
       return undefined;

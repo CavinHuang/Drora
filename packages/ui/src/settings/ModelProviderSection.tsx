@@ -300,6 +300,7 @@ export function ModelProviderSection({
   const [invalidProviderTarget, setInvalidProviderTarget] = useState(() => {
     const target = initialModelProviderTarget;
     if (!target) return false;
+    if (target.addProvider) return false;
     if (target.capabilityPurpose) {
       return !MODEL_CAPABILITY_NAV_PURPOSES.some(
         (candidate) => candidate === target.capabilityPurpose,
@@ -307,6 +308,9 @@ export function ModelProviderSection({
     }
     return !resolveCodingPlanIntentProviderId(target);
   });
+  const [templatePickerOpen, setTemplatePickerOpen] = useState(
+    () => initialModelProviderTarget?.addProvider === true,
+  );
   const [selectedNodeKey, setSelectedNodeKey] = useState<string | null>(() => {
     const target = initialModelProviderTarget;
     const purpose = target?.capabilityPurpose
@@ -314,6 +318,9 @@ export function ModelProviderSection({
       : undefined;
     if (purpose) {
       return createCapabilityNodeKey(purpose);
+    }
+    if (target?.addProvider) {
+      return null;
     }
     const providerId = resolveCodingPlanIntentProviderId(initialModelProviderTarget);
     return providerId ? resolveProviderFamilySideNodeKey(providerId) : null;
@@ -328,7 +335,6 @@ export function ModelProviderSection({
   // 登录/解绑后的 refreshCodingPlanProducts 契约调用（保持共享 helper 签名不变）。
   const [, setCodingPlanProductsRefreshToken] = useState(0);
   const [pendingCreatedProviderId, setPendingCreatedProviderId] = useState<string | null>(null);
-  const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
   const [creatingProvider, setCreatingProvider] = useState(false);
 
   useEffect(() => {
@@ -351,6 +357,13 @@ export function ModelProviderSection({
       // capability 深链优先于供应商深链（specs/model-capabilities.md §12 F-5）：
       // jevOff 横幅等运行时入口直达「模型能力」五条目之一；非法 purpose 走与
       // 未知供应商同款的 invalid 提示，不静默吞导航指令。
+      // §13 空态引导：直达供应商「添加」流程（模板选择器弹开，spec §13.4）。
+      if (target.addProvider) {
+        setInvalidProviderTarget(false);
+        setTemplatePickerOpen(true);
+        setSelectedNodeKey(null);
+        return true;
+      }
       if (target.capabilityPurpose) {
         const purpose = MODEL_CAPABILITY_NAV_PURPOSES.find(
           (candidate) => candidate === target.capabilityPurpose,
@@ -408,7 +421,9 @@ export function ModelProviderSection({
               ? {
                   providerId: detail.modelProviderId,
                 }
-              : undefined,
+              : detail?.modelProviderAdd
+                ? { addProvider: true }
+                : undefined,
         );
       }),
     [applyModelProviderTarget],

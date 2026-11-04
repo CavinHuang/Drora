@@ -6,9 +6,9 @@
 
 ### 1.1 preset 与宿主
 
-- 宿主：窗口 Local Host 内 **assistant 虚拟 workspace**（`workspaceIdentity="drora-mate"`；⚠️ `DroraAgentWorkspaceTarget.workspacePath` 为必填 string（droraAgentPluginParams.ts:9-14），虚拟 workspace 的 path 取值——候选：数据目录下 `mate-home/`——P2 开工首任务定案并回填本节）。会话经派发桥同一 v4 createSession 通道创建（01 号 §2 签名），`config` 注入 persona preset（persona 系统既有契约）。
-- system prompt 契约（persona 资产承载）：只路由不执行；路由注 ≤30 词；输出必须命中决策 schema（见 1.2）；不读代码/日志原文（评估只依赖候选卡与读指针）。
-- 无状态壳：轮转规则=每 N=10 张工单或会话上下文超阈值→归档旧会话、建新会话（同一 `mate-session-<seq>` 序列，台账浓缩上下文作新会话首条输入）；编排事实永不依赖会话记忆。
+- 宿主：窗口 Local Host 内 **assistant 虚拟 workspace**（`workspaceIdentity="drora-mate"`，常量 `ASSISTANT_IDENTITY` 单出处 contracts/assistant.ts）。**workspacePath 定案（2026-11-05，P2 开工首任务）**：取数据目录下真实目录 `~/.drora/workspace/mate-home`（`getDroraDataRootDir()/workspace/mate-home`，services `paths.ts` 新增 `getAssistantWorkspaceDir()` 单出处；惰性创建）。定案理由：①身份键规则 `workspaceIdentity?.trim()||workspacePath` 下 identity 才是隔离键，path 只承担 cwd 与 CLI 会话状态落位；②与既有共享对话目录 `workspace/default` 同族、不进任何用户仓库；③CLI 会话状态（workspace 内 .drora）天然与大副会话隔离。Spike 结论 (a)：会话经派发桥同一 v4 createSession 通道创建（01 号 §2 签名）。
+- **system prompt 契约修订（2026-11-05，与现实代码对齐）**：`createSessionRequestedConfigSchema`（create-session-config.ts）无 persona preset 字段，(a) 路线下契约以**候选卡首条输入的路由约言**承载（host 侧拼装：只路由不执行；路由注 ≤30 词；输出必须命中 1.2 决策 schema；不读代码/日志原文）；persona 控制面（personaControlV1）迁移留 P3+。
+- 无状态壳：轮转规则=每 N=10 张工单→归档旧会话、建新会话（同一 `mate-session-<seq>` 序列，seq 与当前 sessionId 记台账 kv；台账浓缩上下文作新会话首条输入）。**"会话上下文超阈值"分支 P2 不实现**——上下文规模是 CLI 内存事实，host 无可测信号（禁超时兜底），挂 P4 watchdog 一并裁决；编排事实永不依赖会话记忆。
 
 ### 1.2 决策输出 schema（host 侧 zod 严格校验，`assistant-tickets/routerDecision.ts`）
 
@@ -65,14 +65,13 @@ sequenceDiagram
 
 ## 5. Mode B（建队）
 
-目标 workspace 建 lead 会话（v4 createSession）→ sendText 指示走 /team 流程起草（brief 含角色建议）→ 既有 staged→人批→spawnMembers 全链不动。工单状态归账追加**第三信号 teamActivity**（`sessions-index-team-activity.ts` 派生，订阅同 sessions-index 帧）；team 终态→ticket done。cause 枚举不引入（master plan §8.3）。
+目标 workspace 建 lead 会话（v4 createSession）→ sendText 指示走 /team 流程起草（brief 含角色建议）→ 既有 staged→人批→spawnMembers 全链不动。工单状态归账追加**第三信号 teamActivity**（`sessions-index-team-activity.ts` 派生，订阅同 sessions-index 帧；host 侧经 `setAssistantSessionsIndexPort` 注入的 watch 通道把被监听会话的 teamActivity 摘要喂给台账 `applyTicketTeamEvent`）；team `completed`→ticket done、`cancelled`→ticket failed（reason=team_cancelled，诚实留痕）、其余状态→running。cause 枚举不引入（master plan §8.3）。
 
 ## 6. assistantActivity（host 侧挂载）
 
-- 事实源=TicketService 快照；挂载点=host 任务行/会话索引 overlay（`windowHostControllerService.ts:128` teamActivity overlay 同位）：`sessionOverlay` 合成 `mate: {activeCount, pendingDecisions, updatedAtMs}`（有界、旧帧缺席合法）。
-- 手机=controller 快照透传自动携带；`mate/session-line.ts` 消费同字段挂左侧行（TaskListItem/task-row 接缝）。
+- 事实源=TicketService 快照；挂载点=host 任务行 overlay（`windowHostControllerService.ts:128` teamActivity overlay 同位）：`sessionOverlay` 合成 `mate: {activeCount, pendingDecisions, updatedAtMs}`（键 `SESSION_MATE_ACTIVITY_KEY` 在 contracts/assistant.ts 单出处；schema `sessions-index-mate-activity.ts`，controller task activity 可选字段）。**落地确认（2026-11-05）**：走主路径——mate 仅搭载 controller/tasks-index 任务行 activity（host→client wire），CLI→host 的 sessions-index wire 不加字段，CLI 零改动成立，风险表回退方案不触发。
+- workspace 归属：按工单 `target_workspace_identity` 聚合（活动=dispatched/running；待决策=decision_card×gate 未决），桌面与手机经 controller 快照透传同字段；`mate/session-line.ts` 消费同字段挂左侧行（TaskListItem/task-row 接缝，随 Surface 批次交付）。
 - 双链路同验用例：desktop continuous 实时变化 vs 手机 replayable 回放一致；重连 resync 后一致。
-- 回退（风险表）：若 overlay 面不满足列表渲染需要→仅任务行 overlay 不进 sessions-index，spec §11.4 随之修。
 
 ## 7. Surface C 与 /mate
 

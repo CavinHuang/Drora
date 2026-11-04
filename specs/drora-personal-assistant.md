@@ -1,9 +1,11 @@
 # Drora Mate（个人助理「大副」）设计 spec
 
 - 日期：2026-11-04
-- 状态：P1 实现中——PR-1A 服务核心与 PR-1B UI 面已交付（feat/mate-p1），实现与本文
-  的偏差按 00-master-plan §8/§9 与 ui-mate CONTRACT.md 登记；ticketLedger 帧接线随
-  PR-1A 后续批次（见 ui-mate CONTRACT.md 与 coverage matrix）。
+- 状态：P2 实现中——P1 已交付（feat/mate-p1：PR-1A 服务核心 + PR-1B UI 面 + ticketLedger
+  帧接线，见 ui-mate CONTRACT.md 与 coverage matrix）。P2 host 内核（Router 决策 schema
+  与候选卡循环 / Mode B·C / 代际锚校验 / W1·W2 写域 / assistantActivity host 挂载）随
+  feat/mate-p2 交付；Surface A·C、/mate 入口与阶段地图由后续批次接力。实现与本文的偏差
+  按 00-master-plan §8/§9 与 assistant-tickets CONTRACT.md 登记。
 - 基线：main @ 42bacc627（upstream **v3.17.2 已整并**：b3e44cb2a 六段合并 + a9fe401ee 源同步）。
   本 spec §3/§7 引用的四个接缝路径（`apps/drora-cli/packages/core/src/team/hub.ts`、
   `drora-protocol-v4/sessions-index.ts`、services 的 drora-session 与 bot-project-runtime）
@@ -24,7 +26,7 @@ preset 无 bash、无写盘工具，只做路由、派发、盯单、汇报。
 | 产品名   | Drora Mate / 大副（i18n：zh「大副」/ en "Mate"）                                                                                                               |
 | 服务模块 | `packages/services/src/assistant-tickets/`                                                                                                                     |
 | UI 模块  | `ui-mate/` 新文件族（复用 teamActivity 三面接缝先例）                                                                                                          |
-| 协议     | `packages/shared/src/drora-protocol-v4/assistant.ts`（新文件）                                                                                                 |
+| 协议     | P2 起为 `packages/shared/src/drora-protocol-v4/sessions-index-mate-activity.ts`（assistantActivity wire schema；原设想的 `assistant.ts` v4 命令族随 S2-T0 (a) 路线不设立）        |
 | 契约常量 | `packages/shared/src/contracts/assistant.ts`（新文件）                                                                                                         |
 | 命令入口 | `/mate`（CLI `.drora/commands` 自定义命令 + UI 导航端口）                                                                                                      |
 | 设置键   | `drora.mate.*`（P4 启用，01 §1.4）；持久化=数据目录 `mate/` 下库文件 `mate.sqlite`（contracts/assistant.ts ASSISTANT_STORAGE_KEYS 单一出处；00 §8.5 命名统一） |
@@ -86,9 +88,12 @@ remoteSessionId?, anchor}` + generations 历史（每条带 cause:
 - **Report / Outbox**：同 ticket 严格有序投递；请求 id=ticketId，只投一次。
 
 落点：P1 域 schema 位于 services 模块（host 侧 parse，UI type-only 引用）；
-`drora-protocol-v4/assistant.ts`（`ASSISTANT_V4_COMMAND_TYPES`）视 P2 Spike S2-T0 而定——
-(a) 结构化文本路线下 v4 命令族全程不需要；
+S2-T0 结论为 **(a) 结构化文本**（persona preset 会话 + system prompt 约定 schema 输出 +
+host 侧 zod 校验，零 CLI 改动）——v4 命令族全程不需要，`ASSISTANT_V4_COMMAND_TYPES`
+不设立；spec §7 的 mate_\* 工具白名单仅在 (b) 路线启用，(a) 路线 Router 无自定义工具。
 env/`_meta`/持久化前缀常量在 `contracts/assistant.ts` 单出处。
+P2 起派发幂等键升级：commandId=`<ticketId>-<投递序号>`（kv 计数器；P1 恒取 ticketId
+仅单发成立），anchor=最后一次成功 sendText 的 commandId（CLI inputId）。
 
 ## 6. 准入（off / observe / auto × explicit / inferred）
 
@@ -117,8 +122,12 @@ Mate 不持有跨项目大 Team。派发桥（services 层，模型不可见）�
 
 Mate 工具白名单（assistant preset，无 bash/写盘）：`mate_projects`（只读）、
 `mate_dispatch`、`mate_report_read`（截断+读指针分页）、`mate_reply`（走 outbox）。
-派发桥独占：identity/lease 解析、createSession/attach、幂等投递、report 归账、权限档映射
-（Mandate scope → TeamHub 批准时权限档，默认 build/guarded）、成本挂账。
+**P2 落地注记（(a) 路线）**：Router 无自定义工具面，白名单随 (b) 路线（若启用）一并
+落地；Router 的 system prompt 契约以候选卡首条输入的路由约言承载（host 侧拼装、
+CLI 零改动；createSessionRequestedConfigSchema 无 persona preset 字段，persona 控制面
+迁移留 P3+）。派发桥独占：identity/lease 解析、createSession/attach、幂等投递、
+report 归账、权限档映射（Mandate scope → TeamHub 批准时权限档，默认 build/guarded）、
+成本挂账。
 
 ```mermaid
 sequenceDiagram
@@ -149,6 +158,9 @@ Mate 带证据选择，派发桥校验后生效）；Tier3 决策卡问人（低
 **锚校验与换代**：anchor=最后一条已投递消息 id/轮次锚（CAS 双基准先例）。投递前校验，
 失配即当代失效。换代在事务内先归档旧代再立新代；凭台账（brief+汇报+工件）重派新代并
 携带浓缩上下文，未汇报增量如实标注。
+**P2 落地注记**：anchor=最后一次成功 sendText 的 commandId（=`<ticketId>-<投递序号>`）；
+投递前经 host 会话索引对账（`reconcileSessionsIndexV4` 存在/删除语义）校验锚仍可寻位；
+换代续用同一 worktree/分支，usage_accum 按 ticketId 记账不改写。
 
 | 会话变化           | 检测（全部事件驱动） | 处置                             |
 | ------------------ | -------------------- | -------------------------------- |
@@ -166,14 +178,14 @@ Mate 带证据选择，派发桥校验后生效）；Tier3 决策卡问人（低
 
 三层边界：会话内串行（CommandInbox 唯一入口，既有）；工单间并行（默认）；工作区内协调
 写域（不串行，无全局锁，无硬上限——软预算默认同 workspace 活动工单 3，超出排队+告知卡；
-**P1 简化（00 §2 前置 commit）：软预算=1（budgetMaxActivePerWorkspace:1，实现
-assistantTicketsService DEFAULT_CONFIG），无 worktree**）。
+**P2 起恢复 3（contracts ASSISTANT_DEFAULTS 单出处），超预算 approve 进入 queued 状态、
+释放即 FIFO 派发（kv cursor）；P1 曾简化为 1（已随 P2 改回）**）。
 
 | 档  | 机制                                                                       | 适用/默认                                                                                      |
 | --- | -------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| W1  | 每工单 `git worktree .drora/mate/<id>` + 分支 `mate/<id>`，交付走 PR/patch | Mode A 默认（**P2 起**；P1 无 worktree——写域=同 workspace 会话，决策/汇报卡明示「P1 未隔离」） |
-| W2  | 写域声明+派发桥比对同 workspace 其他活动工单，重叠→排队/问人               | 非 git 或用户关闭 W1                                                                           |
-| W3  | 附着用户会话不隔离（那是用户自己的工作目录）                               | Mode C；仍检查与 W1/W2 工单冲突                                                                |
+| W1  | 每工单 `git worktree .drora/mate/<id>` + 分支 `mate/<id>`，交付走 PR/patch | Mode A 默认（**P2 已落地**；终态清理 worktree 保留分支，失败清理动作入 fail_reason 附属日志；换代重派前已检出则续用） |
+| W2  | 写域声明+派发桥比对同 workspace 其他活动工单，重叠→排队/问人               | 非 git 或用户关闭 W1（P2：重叠进 budget 队列）                                                 |
+| W3  | 附着用户会话不隔离（那是用户自己的工作目录）                               | Mode C；仍检查与 W1/W2 工单冲突（P2：冲突进 budget 队列）                                      |
 
 不变式：Mate 派生活动工单两两写域不相交；工单终态即清理 worktree（保留分支），失败清理
 动作如实入台账；换代重派续用同一 worktree/分支，不重复 `worktree add`。
@@ -197,9 +209,14 @@ useModelCapabilities 同构形态，00 §8 二审 B2）。
    切 auto 入口）。
 3. **Surface C 工单详情**：时间线/汇报/证据/成本四页签；代际时间线用 mate scope 的
    timeline token（不挪用 workflow 家族）。
-4. **Surface D 摘要行**：`assistantActivity` 有界字段，**host 侧任务行/会话索引 overlay 合成**
-   （`windowHostControllerService` 的 teamActivity overlay 同位先例；事实源=TicketService，
-   非 CLI 投影——保持 CLI 零改动；旧帧字段缺席合法、手机仅透传）；手机单列+drawer，
+4. **Surface D 摘要行**：`assistantActivity` 有界字段，**host 侧任务行 overlay 合成**
+   （`windowHostControllerService` 的 teamActivity overlay 同位；事实源=TicketService，
+   非 CLI 投影——保持 CLI 零改动；P2 已落地：`controller/tasks-index` 帧 task row
+   activity 携带可选 `mate: {activeCount, pendingDecisions, updatedAtMs}`（键
+   `SESSION_MATE_ACTIVITY_KEY` 在 contracts/assistant.ts 单出处，schema 在
+   drora-protocol-v4/sessions-index-mate-activity.ts），desktop 与手机经 controller
+   快照透传同源消费；CLI→host 的 sessions-index wire 不加字段，旧帧字段缺席合法；
+   `mate/session-line.ts` 接缝随 Surface 批次交付）；手机单列+drawer，
    推送=决策卡精简版，footerSlot 同源。
 
 状态灯映射：待决策=destructive 级提示、运行中=warning、观察=foreground-subtlest 空心、
@@ -228,7 +245,7 @@ desktop-continuous：Router 会话实时流。web-remote-replayable：手机只�
 | ---- | ----------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | W0   | 本 spec + 差异台账                                                      | 评审通过                                                                                                                                                    |
 | P1   | 准入域模型（含 Mandate）+ observe + 手动放行直派（Mode A）+ 观察记录 UI | 本地双触发（点名=explicit→决策卡放行 / 未指名=inferred→would-accept）→会话执行→完成记录含实耗；im/手机 Source 后移 P3；typecheck/lint/architecture:check 绿 |
-| P2   | assistant preset + Mode B/C + 代际 + Surface A/C                        | E2E：候选卡→建议→人放行；follow-up 直投；换代重派标注增量；手机快照透传；双链路各验一遍                                                                     |
+| P2   | assistant preset + Mode B/C + 代际 + Surface A/C                        | E2E：候选卡→建议→人放行；follow-up 直投；换代重派标注增量；手机快照透传；双链路各验一遍。P2 host 内核已交付（feat/mate-p2）：Router 决策 schema+候选卡循环、Mode B/C 派发、代际锚校验、W1/W2、assistantActivity host 挂载及单测；Surface A/C 与 /mate 随接力批次验收 |
 | P3   | Source 插件化（github）+ Tier1 直通                                     | GitHub 点名建单；同 ticket follow-up 直投不过 Router                                                                                                        |
 | P4   | watchdog + auto 门                                                      | 停滞被标记并通知；auto 需信任条达标+确认 dialog                                                                                                             |
 

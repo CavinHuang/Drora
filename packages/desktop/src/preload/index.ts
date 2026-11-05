@@ -1,5 +1,5 @@
 import { installPluginSandboxHostBridge } from "./pluginSandbox/hostBridge.js";
-import { DESKTOP_PET_CONTRACT } from "@drora/shared";
+import { DESKTOP_PET_CONTRACT, MATE_PET_COMMANDS } from "@drora/shared";
 import {
   databaseStartupControlSchema,
   databaseStartupStateSchema,
@@ -717,6 +717,18 @@ contextBridge.exposeInMainWorld("drora", {
       callback(target);
     ipcRenderer.on(PlatformChannels.DesktopPetOpenTask, handler);
     return () => ipcRenderer.removeListener(PlatformChannels.DesktopPetOpenTask, handler);
+  },
+  /** 发布 Mate 桌宠接缝投影（spec §11 P3；Main 只转发给宠物窗/tray 窗） */
+  publishMatePet: (projection: import("@drora/shared").MatePetProjection) =>
+    ipcRenderer.send(MATE_PET_COMMANDS.channels.publish, projection),
+  /** 注册 Mate 导航端口事件（菜单「打开大副」/tray 点卡直达/decide 转发），返回 disposer */
+  onMatePetEvent: (
+    callback: (event: import("@drora/shared").MatePetRendererEvent) => void,
+  ): (() => void) => {
+    const handler = (_event: unknown, event: import("@drora/shared").MatePetRendererEvent) =>
+      callback(event);
+    ipcRenderer.on(MATE_PET_COMMANDS.channels.rendererEvent, handler);
+    return () => ipcRenderer.removeListener(MATE_PET_COMMANDS.channels.rendererEvent, handler);
   },
   /** 打开外部 URL（用于 OAuth 跳转浏览器） */
   openExternal: (url: string) => ipcRenderer.send(PlatformChannels.OpenExternal, url),

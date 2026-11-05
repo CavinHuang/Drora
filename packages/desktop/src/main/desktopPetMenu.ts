@@ -14,6 +14,8 @@ export async function showDesktopPetMenu(options: {
   locale: Locale;
   library: ReturnType<typeof createDesktopPetLibrary>;
   toggleTray(): void;
+  /** Mate 桌宠接缝（03 详设 §6）：「打开大副」经 Main→Renderer 导航端口直达；缺席不渲染。 */
+  openMate?(): void;
   persist(patch: Partial<AppSettings>): Promise<void>;
   refresh(): Promise<void>;
   warn(error: unknown): void;
@@ -29,6 +31,10 @@ export async function showDesktopPetMenu(options: {
     ...library.pets.map((item) => ({ id: item.id, label: item.displayName })),
   ];
   Menu.buildFromTemplate([
+    // 排首：Mate 入口是接缝批新增的最高频动作（02 号 §7 /mate 直达同端口）。
+    ...(options.openMate
+      ? [{ label: zh ? "打开大副" : "Open Mate", click: () => options.openMate?.() }]
+      : []),
     { label: zh ? "任务活动" : "Task activity", click: options.toggleTray },
     {
       label: zh ? "选择宠物" : "Choose pet",

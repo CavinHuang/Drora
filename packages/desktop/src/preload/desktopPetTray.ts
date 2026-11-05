@@ -1,15 +1,38 @@
 import { ipcRenderer } from "electron";
 import {
   DESKTOP_PET_CONTRACT as C,
+  MATE_PET_COMMANDS,
   desktopPetTargetKey,
+  matePetProjectionSchema,
   type DesktopPetPresentation,
 } from "@drora/shared";
 import { desktopPetPersonaExpression } from "../drora-extensions/desktopPet.js";
+import { createMatePetTrayDom } from "./desktopPetMateTrayDom.js";
 
 export function createDesktopPetTray() {
   const activities = document.getElementById("activities")!;
   const empty = document.getElementById("empty")!;
   const zh = document.documentElement.lang.startsWith("zh");
+  // Mate 速览区（spec §11 P3；03 详设 §6）：分区标题/空态文案已内联在文档模板，
+  // 动作按钮文案按文档语言注入；命令经 MATE_PET_COMMANDS.command 回 Main（只转发）。
+  const mate = createMatePetTrayDom(
+    document,
+    { approve: zh ? "放行" : "Approve", ignore: zh ? "忽略" : "Ignore" },
+    {
+      onOpenTicket: (ticketId, targetWorkspaceIdentity) =>
+        ipcRenderer.send(MATE_PET_COMMANDS.channels.command, {
+          action: "open-ticket",
+          ticketId,
+          ...(targetWorkspaceIdentity ? { targetWorkspaceIdentity } : {}),
+        }),
+      onDecide: (decisionId, choice) =>
+        ipcRenderer.send(MATE_PET_COMMANDS.channels.command, { action: "decide", decisionId, choice }),
+    },
+  );
+  ipcRenderer.on(MATE_PET_COMMANDS.channels.render, (_event, raw: unknown) => {
+    const parsed = matePetProjectionSchema.safeParse(raw);
+    if (parsed.success) mate.render(parsed.data);
+  });
   let revision = "";
   document
     .getElementById("close-tray")

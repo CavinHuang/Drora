@@ -5,6 +5,7 @@ import { registerDesktopPetWindow } from "../main/desktopPetWindow.js";
 import { createDesktopPetLibrary } from "../main/desktopPetLibrary.js";
 import { decodeDesktopPetImage } from "../main/desktopPetImageDecoder.js";
 import { registerDesktopPetLibraryPort } from "../main/desktopPetLibraryPort.js";
+import { createMatePetBridge } from "../main/matePetBridge.js";
 
 /** 宠物由独立控制器持有；官方 Main 只转发设置和生命周期，不持有任务事实。 */
 export function createDroraDesktopPetExtension(dependencies: {
@@ -36,6 +37,14 @@ export function createDroraDesktopPetExtension(dependencies: {
         isMainWindow: dependencies.isMainWindow,
         saveSettings,
         logger: dependencies.logger,
+        // Mate 桌宠接缝（03 详设 §6）：桥只转发投影与导航事件（Main 不持工单事实）；
+        // 工厂注入依赖、控制器持有生命周期（onChange=render 由控制器内部挂接）。
+        createMatePetBridge: (input) =>
+          createMatePetBridge({
+            isMainWindow: dependencies.isMainWindow,
+            logger: dependencies.logger,
+            onChange: input.onChange,
+          }),
       });
       libraryPort = registerDesktopPetLibraryPort({
         library,

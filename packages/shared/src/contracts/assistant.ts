@@ -218,6 +218,38 @@ export const ASSISTANT_SNAPSHOT_LIMITS = {
 } as const;
 
 // ---------------------------------------------------------------------------
+// 桌宠接缝 IPC 通道（spec §11 P3 落地注记；03 详设 §6；照 PlatformChannels/
+// DESKTOP_PET_CONTRACT.channels 形态——字面量唯一出处，Main/renderer/pet/tray 四侧
+// 引用同一常量，禁止裸写）。数据=主窗口 renderer 发布有界 MatePetProjection（schema
+// 在 src/assistantPet.ts 单出处），Main 只转发（校验来源窗口）给宠物窗/tray 窗；
+// rendererEvent=Main→Renderer 导航端口（菜单「打开大副」/tray 点卡直达/气泡点击共用）。
+// pet/tray 不建第二 Host（03 详设 §6）。
+// ---------------------------------------------------------------------------
+
+export const MATE_PET_COMMANDS = {
+  channels: {
+    /** Renderer → Main：发布 MatePetProjection（仅桌面主窗口有发布方）。 */
+    publish: "drora:mate-pet-publish",
+    /** Main → Pet/Tray：推送 MatePetProjection 渲染帧（badge/速览区）。 */
+    render: "drora:mate-pet-render",
+    /** Pet/Tray → Main：速览/气泡动作（open-ticket / decide；Main 只转发给 renderer）。 */
+    command: "drora:mate-pet-command",
+    /** Main → Renderer：导航端口事件（open-mate / open-ticket / decide）。 */
+    rendererEvent: "drora:mate-pet-renderer-event",
+  },
+} as const;
+
+/** MatePetProjection 有界容量（schema 同值引用，防两处漂移；03 详设 §6 速览=精简）。 */
+export const MATE_PET_PROJECTION_LIMITS = {
+  /** 速览待决策卡条数上界。 */
+  pendingMax: 5,
+  /** 速览进行中工单条数上界。 */
+  activeMax: 5,
+  /** 单条文本（原文/汇报摘要）截断长度（code point，对齐 desktopPet preview 上限）。 */
+  textMax: 120,
+} as const;
+
+// ---------------------------------------------------------------------------
 // assistantActivity wire（spec §11.4 / 02 详设 §6；host 任务行 overlay 携带，
 // controller frame → 桌面与手机同源消费；旧帧字段缺席合法）
 // ---------------------------------------------------------------------------

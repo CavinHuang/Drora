@@ -266,6 +266,10 @@ declare global {
       onTaskNotificationClick(handler: (taskId: string) => void): () => void;
       /** 注册宠物点击打开任务的回调（仅桌面宠物链路），返回 disposer */
       onDesktopPetOpenTask?(handler: (target: DesktopPetTarget) => void): () => void;
+      /** 发布 Mate 桌宠接缝投影（spec §11 P3；Main 只转发给宠物窗/tray 窗）；旧 preload 下缺席 */
+      publishMatePet?(projection: import("@drora/shared").MatePetProjection): void;
+      /** 注册 Mate 导航端口事件（「打开大副」/tray 点卡/decide 转发），返回 disposer；旧 preload 下缺席 */
+      onMatePetEvent?(handler: (event: import("@drora/shared").MatePetRendererEvent) => void): () => void;
       /** 注册手机 workspace-reconnect-request 的窗口重连委托，返回 disposer */
       onWebRemoteControlReconnectWorkspace(
         callback: (request: { requestId: string; workspaceKey: string }) => Promise<{

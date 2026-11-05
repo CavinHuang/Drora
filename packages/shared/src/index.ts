@@ -13,6 +13,8 @@ export * from "./contracts/persona.js";
 export * from "./contracts/modelCapabilities.js";
 // Drora Mate 个人助理工单契约（specs/drora-personal-assistant.md 台账 16；仅追加）。
 export * from "./contracts/assistant.js";
+// Drora Mate 桌宠接缝 wire（spec §11 P3 落地注记；03 详设 §6；仅追加）。
+export * from "./assistantPet.js";
 
 export type {
   FileBinaryPreview,

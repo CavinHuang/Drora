@@ -5,7 +5,11 @@ import {
   PlatformChannels,
   desktopPetConfigurationSchema,
   desktopPetPointerSchema,
+  MATE_PET_COMMANDS,
+  matePetProjectionSchema,
+  EMPTY_MATE_PET_PROJECTION,
   type DesktopPetPresentation,
+  type MatePetProjection,
 } from "@drora/shared";
 import { createDesktopPetPlayer } from "./desktopPetPlayer.js";
 import { attachPetPointer } from "./desktopPetPointer.js";
@@ -13,11 +17,19 @@ import { createDesktopPetTray } from "./desktopPetTray.js";
 import { desktopPetPersonaExpression } from "../drora-extensions/desktopPet.js";
 
 let current: DesktopPetPresentation = { mode: "idle", activeCount: 0, attentionCount: 0 };
+let mate: MatePetProjection = EMPTY_MATE_PET_PROJECTION;
 let apply = () => {};
 ipcRenderer.on(PlatformChannels.DesktopPetRender, (_event, raw: unknown) => {
   const value = desktopPetPresentationSchema.safeParse(raw);
   if (value.success) {
     current = value.data;
+    apply();
+  }
+});
+ipcRenderer.on(MATE_PET_COMMANDS.channels.render, (_event, raw: unknown) => {
+  const value = matePetProjectionSchema.safeParse(raw);
+  if (value.success) {
+    mate = value.data;
     apply();
   }
 });
@@ -99,18 +111,70 @@ window.addEventListener("DOMContentLoaded", () => {
     player.setPointer(parsed.data);
     refreshHit();
   });
+  // Mate 桌宠接缝（spec §11 P3；03 详设 §6）：badge 待决策数优先（destructive 级），
+  // =0 回落既有活动数语义；气泡=新汇报一句话，点击直达对应工单（Main 转发 renderer），
+  // 展示层自动隐藏计时只是呈现节流，不承担任何同步语义。
+  const bubble = document.getElementById("mate-bubble") as HTMLButtonElement | null;
+  const bubbleText = document.getElementById("mate-bubble-text");
+  let shownBubbleKey: string | null = null;
+  let bubbleTimer: ReturnType<typeof setTimeout> | null = null;
+  const hideBubble = () => {
+    if (bubble) bubble.hidden = true;
+    if (bubbleTimer) {
+      clearTimeout(bubbleTimer);
+      bubbleTimer = null;
+    }
+  };
+  const zhLocale = document.documentElement.lang.startsWith("zh");
+  const mateBadgeTitle = zhLocale ? "大副待决策" : "Mate decisions";
+  if (bubble && bubbleText) {
+    bubble.addEventListener("click", () => {
+      const report = mate.latestReport;
+      if (report)
+        ipcRenderer.send(MATE_PET_COMMANDS.channels.command, {
+          action: "open-ticket",
+          ticketId: report.ticketId,
+          ...(report.targetWorkspaceIdentity ? { targetWorkspaceIdentity: report.targetWorkspaceIdentity } : {}),
+        });
+      hideBubble();
+    });
+  }
+  const applyMate = () => {
+    const pendingCount = mate.pendingDecisions.length;
+    const report = mate.latestReport;
+    if (report) {
+      const key = `${report.ticketId}:${report.updatedAtMs}`;
+      if (bubble && bubbleText && key !== shownBubbleKey) {
+        shownBubbleKey = key;
+        bubbleText.textContent = report.summary;
+        bubble.dataset.status = report.status;
+        bubble.hidden = false;
+        if (bubbleTimer) clearTimeout(bubbleTimer);
+        bubbleTimer = setTimeout(hideBubble, 8000);
+      }
+    } else hideBubble();
+    return pendingCount;
+  };
   apply = () => {
     const count = current.activities?.length ?? current.attentionCount + current.activeCount;
     const locale = document.documentElement.lang.startsWith("zh") ? "zh-CN" : "en-US";
     // P2 当前态表达（spec §11、PM58）：working=专注、attention=等待回应、error=遇到问题、
     // completed=中性结束（含中断，永不庆祝）；纯映射无失败计数与等待时长推断。
     const { label } = desktopPetPersonaExpression({ mode: current.mode, locale });
-    badge.textContent = String(count);
-    badge.dataset.mode = current.mode;
-    badge.title = label;
-    badge.setAttribute("aria-label", `${label} (${count})`);
+    const pendingCount = applyMate();
+    if (pendingCount > 0) {
+      badge.textContent = String(pendingCount);
+      badge.dataset.mode = "decision";
+      badge.title = mateBadgeTitle;
+      badge.setAttribute("aria-label", `${mateBadgeTitle} (${pendingCount})`);
+    } else {
+      badge.textContent = String(count);
+      badge.dataset.mode = current.mode;
+      badge.title = label;
+      badge.setAttribute("aria-label", `${label} (${count})`);
+    }
     pet.title = current.preview ?? label;
-    badge.hidden = count === 0;
+    badge.hidden = pendingCount === 0 && count === 0;
     pet.dataset.mode = current.mode;
     player.setMode(current.mode);
     refreshHit();

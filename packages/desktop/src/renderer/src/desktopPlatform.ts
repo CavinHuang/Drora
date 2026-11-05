@@ -108,6 +108,12 @@ export function createDesktopPlatform(options: {
       : undefined,
     showTaskNotification: (payload) => window.drora.showTaskNotification(payload),
     publishDesktopPet: (presentation) => window.drora.publishDesktopPet?.(presentation),
+    // Mate 桌宠接缝（spec §11 P3；03 详设 §6）：旧 preload 升级窗口无桥时降级为缺席
+    // （publish 可选调用、事件订阅返回空 disposer），不硬依赖。
+    publishMatePet: (projection) => window.drora.publishMatePet?.(projection),
+    onMatePetEvent: window.drora.onMatePetEvent
+      ? (handler) => window.drora.onMatePetEvent!(handler)
+      : () => () => undefined,
     manageDesktopPets: window.drora.manageDesktopPets
       ? (request) => window.drora.manageDesktopPets(request)
       : undefined,

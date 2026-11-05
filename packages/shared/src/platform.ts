@@ -977,6 +977,15 @@ export interface IPlatformService {
   onDesktopPetOpenTask?(
     handler: (target: import("./desktopPet.js").DesktopPetTarget) => void,
   ): () => void;
+  /**
+   * Desktop-only Mate 桌宠接缝（spec §11 P3 落地注记；03 详设 §6）：主窗口 renderer
+   * 发布有界 MatePetProjection（Main 只转发给宠物窗/tray 窗）；Web/手机无发布方。
+   */
+  publishMatePet?(projection: import("./assistantPet.js").MatePetProjection): void;
+  /** Main → Renderer 导航端口事件（菜单「打开大副」/tray 点卡直达/decide 转发）。 */
+  onMatePetEvent?(
+    handler: (event: import("./assistantPet.js").MatePetRendererEvent) => void,
+  ): () => void;
 
   /** 同步当前 UI 上下文，供宿主启动/日活事件使用；Web 可不实现。 */
   syncTelemetryContext?(context: TelemetryRendererContext): void;

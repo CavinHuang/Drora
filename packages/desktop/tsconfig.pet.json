@@ -9,6 +9,7 @@
   },
   "include": [
     "src/main/desktopPet*.ts",
+    "src/main/matePetBridge.ts",
     "src/preload/desktopPet*.ts",
     "src/shared/desktopPet*.ts",
     "src/drora-extensions/desktopPet.ts",

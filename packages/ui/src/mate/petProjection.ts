@@ -13,6 +13,7 @@
  */
 
 import {
+  ASSISTANT_SOURCE_KINDS,
   ASSISTANT_TICKET_STATUSES,
   MATE_PET_PROJECTION_LIMITS,
   type MatePetActiveTicket,
@@ -45,8 +46,11 @@ export function projectMatePet(snapshot: AssistantSnapshot): MatePetProjection {
       decisionId: decision.id,
       text: firstLine(decision.triggerText, MATE_PET_PROJECTION_LIMITS.textMax),
       // 决策卡快照行 sourceKind 是可选追加字段；缺席（旧库行）按 local 诚实降级——
-      // 本地双按钮是 P1 以来最常见触发面，不发明第四种来源。
-      sourceKind: (decision.sourceKind as MatePetPendingDecision["sourceKind"]) ?? "local",
+      // 本地双按钮是 P1 以来最常见触发面，不发明第四种来源。字面量单出处
+      // （contracts ASSISTANT_SOURCE_KINDS；spec §5 P3 落地注记）。
+      sourceKind:
+        (decision.sourceKind as MatePetPendingDecision["sourceKind"]) ??
+        ASSISTANT_SOURCE_KINDS.local,
       identity: findDecisionIdentity(snapshot, decision.triggerId),
     }));
   const activeTickets: MatePetActiveTicket[] = snapshot.tickets

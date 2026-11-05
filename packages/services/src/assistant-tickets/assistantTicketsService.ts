@@ -12,6 +12,7 @@ import {
   ASSISTANT_MODES,
   ASSISTANT_OUTCOMES,
   ASSISTANT_PERMISSION_TIERS,
+  ASSISTANT_SOURCE_KINDS,
   ASSISTANT_TICKET_STATUSES,
   type AssistantPermissionTier,
 } from "@drora/shared";
@@ -170,7 +171,9 @@ export function createAssistantTicketsService(
             )
             .run(
               triggerId,
-              "local",
+              // source_kind 字面量单出处（contracts ASSISTANT_SOURCE_KINDS；spec §5 P3
+              // 落地注记「消费方只引用本常量」——P3 收尾回填，值不变）。
+              ASSISTANT_SOURCE_KINDS.local,
               input.simulated,
               localIdentity,
               input.targetWorkspaceIdentity ?? null,

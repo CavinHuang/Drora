@@ -106,12 +106,15 @@ ticket.channel_ref）；Thread 直通 Tier1。
   renderer 不可自报 feishu/github 外部身份——防伪造；remoteSessionId 贯穿
   trigger.remote_session_id）。手机无独立入站消息总线（03 §3 探查回填：
   webRemoteControlSharedHostAttachments → host service connection 直调服务 channel），
-  UI 接线随 P3 下一棒。③ GitHub=comments 轮询（每 60s 一轮；ETag If-None-Match 304
+  UI 接线随后续 Source 配置 UI/手机入口批（排期未定，spec §14 P3 遗留登记——
+  当前手机无触发大副的 UI 入口）。③ GitHub=comments 轮询（每 60s 一轮；ETag If-None-Match 304
   省额 + comments id 单调游标 kv 双防重；点名=整词 @mentionName 且评论者 login 经 kv
   映射进 gate）；`/issues` 增量窗与 CI 结论裁剪（触发规则未定义/消费方 P4）。
   外部 id ↔ identity 映射存 kv source_identity_map（sourceConfig.ts 单出处；未映射原样
   透传由 gate 拒绝并记录）。Source kv 簿记（开关配置/游标/ETag）经装配层 kvGet/kvSet
-  （Router 轮转簿记同口径，非事务簿记；UI 配置面随 P3 下一棒，本阶段无写入口是诚实边界）。
+  （Router 轮转簿记同口径，非事务簿记；UI 配置面随后续 Source 配置 UI/手机入口批
+  ——排期未定，spec §14 P3 遗留登记；本阶段无写入口是诚实边界，kv 空值=三 Source
+  恒关）。
 - **Source 终态回复（P3）**：注册表订阅台账快照差分，工单首次进入 done/failed 且有
   channel_ref → `AssistantSourceReplyPort`（一句话+工单 id；fire-and-forget，失败/端口
   缺席诚实降级 warn，不重试不用超时兜底）。GitHub 端口=POST issue 评论

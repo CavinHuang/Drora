@@ -34,6 +34,11 @@ interface MateSource {
   - **结论（与详设原文「attachment 消息中 @大副→SourceEvent」的偏差与等价意图）**：详设假想的「attachment 消息事件面」在现实代码中不存在可拦截的 host 侧总线；等价意图=手机大副入口经既有 `IAssistantTicketService` channel（replayable attachment 同样透传窗口 Host 服务集合）进入，新增 channel 可见方法 `submitSourceEntry`（仅开放 sourceKind="phone"，identity=host 侧本机用户，renderer 不可自报外部身份），remoteSessionId 贯穿落 trigger.remote_session_id。手机端不建 runtime 红线满足：触发/决策/汇报全部经既有快照推送通道（onDidChange + assistantActivity 透传）。
 - 形态：attachment 消息中 @大副/私聊助理入口→SourceEvent（identity=手机账号绑定 identity；remoteSessionId 贯穿）；手机端不建 runtime（replayable 红线）——推送=决策卡精简版（controller 通知面既有推送通道复用）+footerSlot 摘要（assistantActivity 透传，02 号 §6）。
 - 手机 UI 形态：单列+drawer；`回放 · 未建 runtime` 徽标常驻任务中心头部。
+  **落地注记（2026-11-05，P3 收尾审查）**：本句 UI 形态 P3 未实现（任务中心头部徽标/
+  单列+drawer 改版无落码），与手机 UI 触发入口接线、Source 开关/身份映射配置写入口
+  一并登记为 spec §14 P3 遗留，去向=后续 Source 配置 UI/手机入口批（排期未定）；
+  手机当前对 Mate 仅有既有快照推送/任务行 activity 透传（无触发大副的 UI 入口，
+  channel 口 `submitSourceEntry` 备而未接）。
 
 ## 4. GitHub Source（`sources/github.ts`）
 
@@ -71,7 +76,9 @@ interface MateSource {
 - 导航端口（本节三件共用的 Main→Renderer 通道）：`MATE_PET_COMMANDS.rendererEvent`
   三事件 open-mate / open-ticket / decide——菜单「打开大副」、tray 点卡直达、气泡点击
   共用；renderer 侧执行既有 handleOpenMateSidePane + mateStore.selectTicket + service
-  动作（tray 放行=decide approve，默认 build 档，与面板放行同参同服务）。02 号 §7
+  动作（tray 放行=decide approve，与面板放行同参同服务——收尾注记 2026-11-05：待决策
+  投影行携带 Router 建议档 `suggestedTier` 供 decide 预填与速览展示，yolo 建议不透传、
+  建议缺席=默认 build，与面板 approveTier 预填同规则）。02 号 §7
   「CLI /mate 命令触发即开面板」依赖的 renderer 导航通道即本端口；CLI 命令执行体在
   host 进程，host→Main 的导航回调通道 03 未定义，本批不发明——/mate 文档片段保持
   P2 形态（提示词引导+人工打开面板），直连属后续批次。

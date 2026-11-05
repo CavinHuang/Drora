@@ -3,8 +3,9 @@
  *
  * kv 键单出处（本文件；模块内持久化字面量，仅 host 侧 mate.sqlite 自产自读，与
  * assistantConfig.ts ASSISTANT_KV_KEYS 同口径）。读路径=注册表 reconcile 与 Source 工厂；
- * **写路径在装配层**（node.ts kvSet，照 Router 轮转簿记先例；UI 配置面随 P3 下一棒——
- * 本阶段无写入口是诚实边界，测试直写 kv）。
+ * **写路径在装配层**（node.ts kvSet，照 Router 轮转簿记先例；UI 配置面随后续 Source
+ * 配置 UI/手机入口批——排期未定，spec §14 P3 遗留登记；本阶段无写入口是诚实边界，
+ * 测试直写 kv）。
  *
  * 坏/缺值逐键回落缺省（坏 JSON 不炸、缺 repo 不启用），照 readAssistantConfig 纪律。
  */

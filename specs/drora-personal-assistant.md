@@ -124,6 +124,13 @@ P2 起派发幂等键升级：commandId=`<ticketId>-<投递序号>`（kv 计数�
   保留（本地双按钮降级为测试工具，master plan §4.1）；手机端新增 channel 可见入口
   `submitSourceEntry`（仅开放 sourceKind="phone"，identity 由 host 侧取本机用户——
   renderer 不可自报 feishu/github identity，防身份伪造；remoteSessionId 贯穿）。
+  **收尾注记（2026-11-05，P3 修复批）**：`phone.enabled` 开关同时覆盖两条事件路径——
+  ①注册表运行态门（sourceRegistry reconcile 按 enabled 启停 emitPhoneInput 桥）；
+  ②`submitSourceEntry` 入口前置 `isSourceEnabled("phone")` 检查（关闭时拒绝，
+  错误码 `mate.source.disabled`，含直通臂——与飞书/GitHub「Source 停用=事件面全关」
+  语义对齐，不留半开门）。配置写入口（sourcesConfig/identityMap 的 kvSet 生产路径）
+  随 Source 配置 UI 批次（§14 P3 遗留登记；当前 kv 手改，kv 空=三 Source 恒关为
+  诚实缺省）。
 
 ## 7. 派发桥与三种打通模式
 
@@ -302,7 +309,11 @@ pet/tray 不建第二 Host：
   「P4 配额中心同一计数」——P4 事实源不存在，P3 不建第二计数器，气泡按事件驱动
   显示、不设配额闸）。
 - tray 速览几何复用 desktopPetInteractionLayout 330×400；速览内放行/忽略经 decide
-  事件回主窗口 renderer 执行（权限档=默认 build，与面板放行同参）。
+  事件回主窗口 renderer 执行。权限档与面板放行同参（收尾注记 2026-11-05）：待决策
+  投影行携带 Router 建议档 `suggestedTier`（可选；yolo 建议不透传、建议缺席=回落
+  build——与面板 approveTier 预填同规则），decide 执行体按其预填放行档，速览行
+  明示实际生效档位；Main 桥 decide 转发时从已校验投影查档，宠物窗命令 payload
+  不扩（不可信面最小化）。
 
 ## 12. 双链路语义
 
@@ -327,7 +338,7 @@ desktop-continuous：Router 会话实时流。web-remote-replayable：手机只�
 | W0   | 本 spec + 差异台账                                                      | 评审通过                                                                                                                                                    |
 | P1   | 准入域模型（含 Mandate）+ observe + 手动放行直派（Mode A）+ 观察记录 UI | 本地双触发（点名=explicit→决策卡放行 / 未指名=inferred→would-accept）→会话执行→完成记录含实耗；im/手机 Source 后移 P3；typecheck/lint/architecture:check 绿 |
 | P2   | assistant preset + Mode B/C + 代际 + Surface A/C                        | E2E：候选卡→建议→人放行；follow-up 直投；换代重派标注增量；手机快照透传；双链路各验一遍。**已实施（feat/mate-p2，两批）**：host 内核批=Router 决策 schema+候选卡循环、Mode B/C 派发、代际锚校验、W1/W2、assistantActivity host 挂载及单测；Surface 批=MateStatusStrip 状态条+Router 预填决策卡（dispatch/attach/hold/reject 四臂呈现与预填放行、failed 降级、queued 告知）、MateTicketDetail 四页签（时间线=代际站 mate-trace token/汇报/证据/成本）、工单行 queued/模式/代际徽标、MateSessionLine 任务行 mate 徽标（controller tasks-index 透传）、/mate 文档片段；服务快照 v2 补 `decisionId` 可选投影（证据页签关联）。单测与浏览器验收资产（fixture+`mate-surface-ac.test.mjs`）随批交付；真实 Host 端到端（候选卡→建议→人放行、换代重派、双链路）随总闸联调验收 |
-| P3   | Source 插件化（github）+ Tier1 直通                                     | GitHub 点名建单；同 ticket follow-up 直投不过 Router。**已实施（feat/mate-p3，host 批+接缝批）**：Source 注册表（assistant-tickets/sources/，按 kv 配置惰性启停）、飞书 Source（bots `assistantForwarder` 回调出口，bots 内部逻辑零改动）、手机 Source（channel 可见 `submitSourceEntry`，identity=host 本机用户防伪造，事件面见 03 详设 §3 探查回填）、GitHub Source（comments 轮询 ETag+游标，点名=整词 @+名单映射）、Thread 直通（channel_ref 命中→followUp 直投，不过 gate 不过 Router）、工单终态 Source 回复端口；桌宠接缝（MATE_PET_COMMANDS 单出处、Main 桥只转发、菜单「打开大副」/tray 速览 Y+N/badge 待决策数/汇报气泡、rendererEvent 导航端口三点共用）、UI 呈现（决策卡/观察行来源徽标=decision.sourceKind、工单详情直通通道站、双语 i18n）。验收：场景 1-4 服务链路由 host 批单测锁定（assistantSourceIngest/assistantSourceRegistry.test.ts，146 项 mate 回归绿）；场景 5 UI 侧由 desktopPetMateSeam（桥路由+托盘 DOM）+ petProjection（投影/气泡差分）单测与浏览器验收资产 mate-source-pet.test.mjs（MSP01-06：徽标/通道站/直通不建卡/投影发布/气泡推进/双语，实跑通过；P1/P2 资产同轮回归通过）覆盖。遗留：飞书/GitHub 真实凭据连通与飞书回复端口真机接线、桌宠真机点击链路与跨卡 Y/N/E 全局键盘流（03 未定义设计）、气泡打扰配额闸随 P4 配额中心 |
+| P3   | Source 插件化（github）+ Tier1 直通                                     | GitHub 点名建单；同 ticket follow-up 直投不过 Router。**已实施（feat/mate-p3，host 批+接缝批）**：Source 注册表（assistant-tickets/sources/，按 kv 配置惰性启停）、飞书 Source（bots `assistantForwarder` 回调出口，bots 内部逻辑零改动）、手机 Source（channel 可见 `submitSourceEntry`，identity=host 本机用户防伪造，事件面见 03 详设 §3 探查回填）、GitHub Source（comments 轮询 ETag+游标，点名=整词 @+名单映射）、Thread 直通（channel_ref 命中→followUp 直投，不过 gate 不过 Router）、工单终态 Source 回复端口；桌宠接缝（MATE_PET_COMMANDS 单出处、Main 桥只转发、菜单「打开大副」/tray 速览 Y+N/badge 待决策数/汇报气泡、rendererEvent 导航端口三点共用）、UI 呈现（决策卡/观察行来源徽标=decision.sourceKind、工单详情直通通道站、双语 i18n）。验收：场景 1-4 服务链路由 host 批单测锁定（assistantSourceIngest/assistantSourceRegistry.test.ts，146 项 mate 回归绿）；场景 5 UI 侧由 desktopPetMateSeam（桥路由+托盘 DOM）+ petProjection（投影/气泡差分）单测与浏览器验收资产 mate-source-pet.test.mjs（MSP01-06：徽标/通道站/直通不建卡/投影发布/气泡推进/双语，实跑通过；P1/P2 资产同轮回归通过）覆盖。遗留：飞书/GitHub 真实凭据连通与飞书回复端口真机接线、桌宠真机点击链路与跨卡 Y/N/E 全局键盘流（03 未定义设计）、气泡打扰配额闸随 P4 配额中心；手机端 UI 触发入口接线（channel 口 `submitSourceEntry` 已备、无 UI 触达面）、Source 开关/身份映射配置写入口（生产无写方——kv 手改，CONTRACT.md「Source 事件面」登记）、手机端 UI 形态（单列+drawer+「回放 · 未建 runtime」徽标，03 详设 §3）——三项去向为后续 Source 配置 UI/手机入口批（排期未定，见 00 master plan §0 遗留） |
 | P4   | watchdog + auto 门                                                      | 停滞被标记并通知；auto 需信任条达标+确认 dialog                                                                                                             |
 
 ## 15. 明确不做（反模式）

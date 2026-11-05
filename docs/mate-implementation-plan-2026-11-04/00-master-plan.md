@@ -17,7 +17,10 @@ P3 Source 注册表(飞书/手机/GitHub)+Thread 直通+桌宠接缝(含 tray �
    ✅ 已实施(feat/mate-p3：host 批=Source 注册表/飞书回调出口/手机事件面桥/GitHub 轮询/
    直通/回复端口；接缝批=桌宠 MATE_PET_COMMANDS 桥+tray 速览+badge/气泡+导航端口+
    UI Source 呈现/通道站+验收资产。遗留：飞书/GitHub 真实凭据连通与飞书回复端口真机
-   接线、跨卡 Y/N/E 全局键盘流(03 未定义焦点/竞争裁决设计)、气泡打扰配额闸随 P4 配额中心)
+   接线、跨卡 Y/N/E 全局键盘流(03 未定义焦点/竞争裁决设计)、气泡打扰配额闸随 P4 配额中心；
+   手机端 UI 触发入口接线(channel 口 submitSourceEntry 已备、无 UI 触达面)、Source 开关/
+   身份映射配置写入口(生产无写方，kv 手改)、手机端 UI 形态(单列+drawer+「回放·未建
+   runtime」徽标)——三项去向=后续 Source 配置 UI/手机入口批，排期未定，不随 P4 watchdog 批)
 P4 watchdog(automation)+auto 信任门(唯一入口+配额默认5)+汇报卡完整版
 语音入口：随 voice-agent spec 排期对齐后单列（不在 P1-P4 内，见 §8）
 ```

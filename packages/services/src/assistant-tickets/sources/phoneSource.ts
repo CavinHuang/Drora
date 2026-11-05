@@ -4,8 +4,9 @@
  * Host 的服务 channel（webRemoteControlSharedHostAttachments.ts:42-206 → host/index.ts
  * :2740-2915 连接上下文；droraAgentConnectionScope trusted carrier 注入不可伪造的
  * clientMode）。等价意图：手机大副入口经既有 IAssistantTicketService channel 进入，
- * 事件面由本 Source 定型——`emitPhoneInput` 是装配层/手机接线（P3 下一棒 UI 入口）
- * 的唯一桥，identity 由 host 侧决定（本机用户），remoteSessionId 贯穿。
+ * 事件面由本 Source 定型——`emitPhoneInput` 是装配层/手机接线的唯一桥（UI 入口接线
+ * 随后续 Source 配置 UI/手机入口批，排期未定，spec §14 P3 遗留登记），identity 由
+ * host 侧决定（本机用户），remoteSessionId 贯穿。
  *
  * 手机端不建 runtime（replayable 红线）：触发/决策/汇报全部走既有快照推送通道
  * （onDidChange + assistantActivity 透传），本 Source 不新增任何推送面。

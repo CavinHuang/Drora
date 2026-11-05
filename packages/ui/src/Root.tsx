@@ -966,8 +966,14 @@ function RootInner({
   // Mate 桌宠接缝发布方（spec §11 P3；03 详设 §6）：窗口 Host 工单快照→有界投影，
   // 经 Main 转发宠物窗/tray 窗；与宠物可见性同门（桌面+宠物启用+恢复完成），发布面
   // 缺席（Web/手机/旧 preload）时组件内部 no-op。
+  // 修复（2026-11-05 收尾审查）：此前条件缺 hasCompletedFullRestore，与注释不符——
+  // 恢复完成前 MatePetSync 即挂载，mate.sqlite 持久化历史台账可能在窗口会话恢复
+  // 完成前就投影发布到宠物 tray（DesktopPetTaskSync:961 同门条件已有此键）。
   const matePetSyncNode =
-    isDesktop && appSettings?.desktopPetEnabled && platform.publishMatePet ? (
+    hasCompletedFullRestore &&
+    isDesktop &&
+    appSettings?.desktopPetEnabled &&
+    platform.publishMatePet ? (
       <MatePetSync platform={platform} />
     ) : null;
   // Bug 原因（2026-08-16 web 远控卡死）：Start Plan 请求校验应答方曾只随桌面正在展示的

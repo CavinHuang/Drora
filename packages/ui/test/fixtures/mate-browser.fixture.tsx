@@ -105,6 +105,8 @@ function createMateFixtureService(
   let lastApproveInput: FixtureApproveInput | null = null;
   // P2 软预算默认回 3（contracts ASSISTANT_DEFAULTS；P1 fixture 曾用 1）。
   let budgetMax = 3;
+  // W1 worktree 用户开关（P2 审查修复补交互入口；setWorktreeDisabled 唯一写路径）。
+  let worktreeDisabled = false;
   let queueNextApprove = false;
   let rolloverNextApprove = false;
   const triggers: AssistantTriggerView[] = [];
@@ -155,6 +157,7 @@ function createMateFixtureService(
       mode,
       allowlist: [...allowlist],
       budget: { maxActivePerWorkspace: budgetMax },
+      worktreeDisabled,
       trust: {
         wouldAcceptCount: decisions.filter(
           (item) => item.outcome === ASSISTANT_OUTCOMES.wouldAccept,
@@ -355,6 +358,12 @@ function createMateFixtureService(
 
     async setAllowlist(identities) {
       allowlist = [...identities];
+      publish();
+      return { ok: true, value: { ok: true } };
+    },
+
+    async setWorktreeDisabled(disabled) {
+      worktreeDisabled = disabled;
       publish();
       return { ok: true, value: { ok: true } };
     },

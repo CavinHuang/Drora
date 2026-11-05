@@ -4,6 +4,7 @@
 // routerEvaluation），renderer 夹具只验收 Surface 呈现与预填放行传参——注入按钮直造
 // 带建议的决策卡（mate-browser.fixture.tsx P2 扩展控件）。真实 Host 端到端（候选卡→
 // 建议→人放行、换代重派、双链路）随总闸联调验收（specs §14 P2 验收行）。
+// MSA10 为 P2 审查修复批追加（specs §9 W2 兜底：W1 worktree 配置区开关）。
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createRequire } from "node:module";
@@ -19,7 +20,7 @@ const { default: tailwindcss } = await import(
 );
 
 test(
-  "MSA01–08: Surface A status strip, Router suggestion prefill (dispatch/attach/failed/hold), team action, queued notice, Surface C tabs, generation badge, session-line",
+  "MSA01–10: Surface A status strip, Router suggestion prefill (dispatch/attach/failed/hold), team action, queued notice, Surface C tabs, generation badge, session-line, W1 worktree toggle",
   { timeout: 180000 },
   async () => {
     const output = await mkdtemp(join(tmpdir(), "mate-surface-ac-"));
@@ -236,6 +237,27 @@ test(
       assert.match(await lineWith.textContent(), /2 活动/);
       assert.match(await lineWith.textContent(), /3 待决策/);
       assert.equal(await page.getByTestId("fixture-session-line-absent").textContent(), "");
+
+      // MSA10（specs §9 W2 兜底，P2 审查修复补交互入口）：配置区 W1 worktree 开关——
+      // 初始开（快照投影），点击关 → setWorktreeDisabled 事务落库 → 快照回填状态行
+      // 「关——声明写域」；再点回开恢复（开关只发动作，无本地副本）。
+      const worktreeState = page.getByTestId("mate-worktree-state");
+      await worktreeState.waitFor();
+      assert.match(await worktreeState.textContent(), /每张工单派发进独立 worktree/);
+      await page.getByTestId("mate-worktree-switch").click();
+      await page.waitForFunction(
+        () =>
+          /声明写域/.test(
+            document.querySelector('[data-testid="mate-worktree-state"]')?.textContent ?? "",
+          ),
+      );
+      await page.getByTestId("mate-worktree-switch").click();
+      await page.waitForFunction(
+        () =>
+          /每张工单派发进独立 worktree/.test(
+            document.querySelector('[data-testid="mate-worktree-state"]')?.textContent ?? "",
+          ),
+      );
 
       assert.deepEqual(errors, []);
       console.log(`Mate Surface evidence: ${output}`);

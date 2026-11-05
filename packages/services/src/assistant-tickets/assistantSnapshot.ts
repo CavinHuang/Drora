@@ -229,6 +229,7 @@ export function buildAssistantSnapshot(
     mode: config.mode,
     allowlist: config.allowlist,
     budget: { maxActivePerWorkspace: config.budgetMaxActivePerWorkspace },
+    worktreeDisabled: config.worktreeDisabled,
     trust: { wouldAcceptCount, releaseCount },
     triggers,
     decisions,

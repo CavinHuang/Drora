@@ -80,6 +80,12 @@ interface MateState {
     workspaceKey: string,
     identities: readonly string[],
   ): Promise<AssistantResult<{ ok: true }>>;
+  /** W1 worktree 用户开关（spec §9 W2 兜底；只影响之后的派发规划）。 */
+  setWorktreeDisabled(
+    service: IAssistantTicketService,
+    workspaceKey: string,
+    disabled: boolean,
+  ): Promise<AssistantResult<{ ok: true }>>;
 }
 
 // ---------------------------------------------------------------------------
@@ -223,6 +229,11 @@ export const useMateStore = create<MateState>((set, get) => {
     setAllowlist(service, workspaceKey, identities) {
       const key = `ws:${workspaceKey}:allowlist:${identities.join("\n")}`;
       return runSingleFlight(key, () => service.setAllowlist(identities));
+    },
+
+    setWorktreeDisabled(service, workspaceKey, disabled) {
+      const key = `ws:${workspaceKey}:worktreeDisabled:${disabled ? "1" : "0"}`;
+      return runSingleFlight(key, () => service.setWorktreeDisabled(disabled));
     },
   };
 });

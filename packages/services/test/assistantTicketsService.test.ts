@@ -23,6 +23,8 @@ import {
 import {
   setAssistantDispatchPort,
   setAssistantFrameSource,
+  setAssistantGitWorktreePort,
+  setAssistantWorkspaceProbePort,
 } from "../src/assistant-tickets/assistantPorts.js";
 import { parseTicketFrameEvents } from "../src/assistant-tickets/ticketLedger.js";
 
@@ -292,6 +294,85 @@ describe("配置", () => {
     const decision = snapshot.decisions.find((d) => d.triggerId === stranger.value.triggerId);
     expect(decision?.outcome).toBe(ASSISTANT_OUTCOMES.rejected);
   });
+
+  it("setWorktreeDisabled 持久化（快照投影+getConfig），关闭后 git 根也落声明域（W2 兜底）", async () => {
+    const { service } = createService();
+    setAssistantWorkspaceProbePort(async (identity) => ({
+      ok: true,
+      workspacePath: identity,
+      isGitRoot: true,
+    }));
+    setAssistantGitWorktreePort({
+      async addWorktree() {
+        return { ok: true };
+      },
+      async removeWorktree() {
+        return { ok: true };
+      },
+    });
+    const dispatched: Array<{ hostPath?: string }> = [];
+    setAssistantDispatchPort(async (request) => {
+      dispatched.push({ hostPath: request.hostPath });
+      return { ok: true, value: { ticketId: request.ticketId, sessionId: "sess-w1-off" } };
+    });
+    setAssistantFrameSource({ subscribe() { return { dispose: () => undefined }; } });
+    const approveTarget = async (text: string) => {
+      const recorded = await service.recordTrigger({
+        text,
+        simulated: ASSISTANT_STRENGTHS.explicit,
+        targetWorkspaceIdentity: "D:/repo",
+      });
+      expect(recorded.ok).toBe(true);
+      if (!recorded.ok) throw new Error("recordTrigger failed");
+      const decision = (await service.getSnapshot()).decisions.find(
+        (d) => d.triggerId === recorded.value.triggerId,
+      );
+      expect(decision).toBeDefined();
+      if (!decision) throw new Error("decision missing");
+      return await service.approveDecision({
+        decisionId: decision.id,
+        targetWorkspaceIdentity: "D:/repo",
+      });
+    };
+    // 默认开（W1）：git 根派发进 worktree（hostPath=worktree 目录，platform join 分隔符
+    // 以 writeDomain.path 为基准比较，不硬编码分隔符方向）。
+    const approvedOn = await approveTarget("第一单 W1 开");
+    expect(approvedOn.ok).toBe(true);
+    if (!approvedOn.ok) return;
+    const onTicket = (await service.getSnapshot()).tickets.find(
+      (t) => t.id === approvedOn.value.ticketId,
+    );
+    expect(onTicket?.writeDomain?.kind).toBe("worktree");
+    if (onTicket?.writeDomain?.kind === "worktree") {
+      expect(dispatched[0]?.hostPath).toBe(onTicket.writeDomain.path);
+      expect(onTicket.writeDomain.path).not.toBe("D:/repo");
+    }
+    // 关闭 W1：配置持久化（getConfig+快照双投影），新派发落声明域（workspace 落位）。
+    const off = await service.setWorktreeDisabled(true);
+    expect(off.ok).toBe(true);
+    const config = await service.getConfig();
+    expect(config.ok && config.value.worktreeDisabled).toBe(true);
+    expect((await service.getSnapshot()).worktreeDisabled).toBe(true);
+    const approvedOff = await approveTarget("第二单 W1 关");
+    expect(approvedOff.ok).toBe(true);
+    if (!approvedOff.ok) return;
+    expect(dispatched[1]?.hostPath).toBe("D:/repo"); // 非隔离落位（workspace 域）
+    const offTicket = (await service.getSnapshot()).tickets.find(
+      (t) => t.id === approvedOff.value.ticketId,
+    );
+    expect(offTicket?.writeDomain?.kind).toBe("paths");
+    // 已建工单写域不回改（W1 关闭只影响之后的派发规划）。
+    expect(onTicket?.writeDomain?.kind).toBe("worktree");
+    // 重开：配置回落。
+    const on = await service.setWorktreeDisabled(false);
+    expect(on.ok).toBe(true);
+    expect((await service.getSnapshot()).worktreeDisabled).toBe(false);
+    // 端口清理（本文件其余用例不依赖探测/git 端口）。
+    setAssistantWorkspaceProbePort(null);
+    setAssistantGitWorktreePort(null);
+    setAssistantDispatchPort(null);
+    setAssistantFrameSource(null);
+  }, 20_000);
 });
 
 describe("迁移", () => {

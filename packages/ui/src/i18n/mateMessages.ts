@@ -38,6 +38,11 @@ export const mateMessagesEn = {
   "mate.config.mode.auto.locked": "auto unlocks at the trust gate (P4)",
   "mate.config.allowlist": "Allowlist",
   "mate.config.allowlistPlaceholder": "One identity per line",
+  "mate.config.worktree.label": "Worktree isolation (W1)",
+  "mate.config.worktree.on": "On — each ticket dispatches into its own worktree",
+  "mate.config.worktree.off": "Off — declared write domain (W2), tickets queue on overlap",
+  "mate.config.worktree.hint":
+    "W1 gives each ticket an isolated git worktree; turning it off falls back to the declared write domain (W2). Applies to future dispatches only.",
   "mate.config.trigger.explicit": "Named trigger",
   "mate.config.trigger.inferred": "Unaddressed trigger",
   "mate.config.triggerPlaceholder": "Trigger text (recorded verbatim)",
@@ -151,6 +156,11 @@ export const mateMessagesZh = {
   "mate.config.mode.auto.locked": "auto 在信任门达标后开放（P4）",
   "mate.config.allowlist": "名单",
   "mate.config.allowlistPlaceholder": "每行一个 identity",
+  "mate.config.worktree.label": "worktree 隔离（W1）",
+  "mate.config.worktree.on": "开——每张工单派发进独立 worktree",
+  "mate.config.worktree.off": "关——声明写域（W2），重叠即排队",
+  "mate.config.worktree.hint":
+    "W1 为每张工单建独立 git worktree；关闭后回落声明写域（W2）。仅对之后的派发生效，已建工单写域不变。",
   "mate.config.trigger.explicit": "点名触发",
   "mate.config.trigger.inferred": "未指名触发",
   "mate.config.triggerPlaceholder": "输入触发原文（verbatim 记录）",

@@ -114,11 +114,14 @@ export interface AssistantTrustView {
 }
 
 export interface AssistantSnapshot {
-  /** v2（2026-11-05，P2）：决策卡 Router 建议预填 + 工单写域/代际/锚/模式字段。 */
+  /** v2（2026-11-05，P2）：决策卡 Router 建议预填 + 工单写域/代际/锚/模式字段。
+   * P2 审查修复追加 worktreeDisabled（W1 用户开关投影，仍属 v2 有界投影的增量字段）。 */
   readonly version: 2;
   readonly mode: AssistantMode;
   readonly allowlist: readonly string[];
   readonly budget: { readonly maxActivePerWorkspace: number };
+  /** P2 审查修复：W1 worktree 用户开关（spec §9 W2 兜底；setWorktreeDisabled 唯一写路径）。 */
+  readonly worktreeDisabled: boolean;
   readonly trust: AssistantTrustView;
   readonly triggers: readonly AssistantTriggerView[];
   readonly decisions: readonly AssistantDecisionView[];
@@ -188,6 +191,13 @@ export interface IAssistantTicketService {
 
   setMode(mode: AssistantMode): Promise<AssistantResult<{ ok: true }>>;
   setAllowlist(identities: readonly string[]): Promise<AssistantResult<{ ok: true }>>;
+  /**
+   * W1 worktree 用户开关（spec §9 W2 兜底；P2 审查修复补交互入口——此前 kv
+   * worktree_disabled 只有读取，"用户关闭 W1"分支仅测试直驱可达）。开启=派发前规划
+   * worktree；关闭=声明域（W2，空集=待声明整域）。只影响之后的派发规划，不改动
+   * 已建工单的写域。
+   */
+  setWorktreeDisabled(disabled: boolean): Promise<AssistantResult<{ ok: true }>>;
   getConfig(): Promise<AssistantResult<AssistantConfigView>>;
 
   /** 全量快照（拉取一次；后续经 onDidChange 推送）。 */

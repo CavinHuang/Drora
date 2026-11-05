@@ -200,6 +200,9 @@ Mate 带证据选择，派发桥校验后生效）；Tier3 决策卡问人（低
 放行形态（Mode A/B/C、附着目标、权限档）在建票事务落库 `ticket.dispatch_intent`
 （schema v3，dispatchIntent.ts 单一形状），释放按落库形态重放派发——排队不静默改写
 用户放行动作（Mode B 重套 /team 指示、Mode C 附着原目标、权限档恢复放行值）。
+W1「用户关闭」入口已补（setWorktreeDisabled：kv 唯一写路径+快照投影+MateConfigSection
+开关，只影响之后的派发规划）；W2 声明域「决策卡可编辑」入口仍为 P2 裁剪（空集=待
+声明整域自动互斥进队列），随声明域 UI 批次交付。
 
 ## 10. Watchdog
 

@@ -38,10 +38,13 @@ Drora Mate 个人助理工单台账（specs/drora-personal-assistant.md；台账
   产出摘要+usage 合计+未确认增量标注）+续用同一 worktree；usage_accum 按 ticketId
   记账不改写。
 - 写域（02 §4）：W1=本地 git 根 worktree `.drora/mate/<ticketId>` + 分支 `mate/<id>`
-  （终态清理保留分支，清理失败追加 fail_reason 附属日志；换代续用不重复 add）；
-  W2=非 git/关 W1 → 声明域（空集=待声明整域，彼此互斥；**声明域「决策卡可编辑」与
-  「用户关闭 W1」配置入口 P2 裁剪**——空集=待声明整域自动互斥进队列，编辑/开关入口
-  随声明域 UI 批次交付）；W3=附着不隔离但查冲突。
+  （终态清理保留分支，清理失败追加 fail_reason 附属日志；换代续用不重复 add；
+  **「用户关闭 W1」开关已补交互入口**——setWorktreeDisabled（kv worktree_disabled
+  唯一写路径，快照 worktreeDisabled 投影，UI=MateConfigSection 开关；P2 审查修复），
+  只影响之后的派发规划，已建工单写域不回改）；
+  W2=非 git/关 W1 → 声明域（空集=待声明整域，彼此互斥；**声明域「决策卡可编辑」入口
+  P2 裁剪**——空集=待声明整域自动互斥进队列，编辑入口随声明域 UI 批次交付）；
+  W3=附着不隔离但查冲突。
   不变式「Mate 派生活动工单两两写域不相交」由 detectWriteDomainOverlap+排队闸+释放
   复检执行；workspace 探测端口缺席（P1 形态）→ 跳过 W1 规划按 workspace 域派发
   （未隔离明示）；端口在位而目标探测失败（远程/非本地路径/目录不存在）→ 放行前预检

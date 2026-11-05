@@ -20,6 +20,11 @@ import {
 import { createServiceLogger } from "../logger/serviceLogger.js";
 import { evaluateAdmission } from "./admissionGate.js";
 import {
+  ASSISTANT_KV_KEYS,
+  readAssistantConfig,
+  readAssistantKv,
+} from "./assistantConfig.js";
+import {
   AssistantDatabase,
   openAssistantDatabase,
   AssistantStoreBusyError,
@@ -47,20 +52,6 @@ import {
 } from "./writeDomain.js";
 
 const logger = createServiceLogger("assistant-tickets");
-
-const KV_KEYS = {
-  mode: "mode",
-  allowlist: "allowlist",
-  budgetMaxActivePerWorkspace: "budget_max_active_per_workspace",
-  worktreeDisabled: "worktree_disabled",
-} as const;
-
-const DEFAULT_CONFIG: AssistantConfigView = {
-  mode: ASSISTANT_MODES.observe,
-  allowlist: [],
-  budgetMaxActivePerWorkspace: ASSISTANT_DEFAULTS.budgetMaxActivePerWorkspace,
-  worktreeDisabled: false,
-};
 
 function nowMs(): number {
   return Date.now();
@@ -114,31 +105,12 @@ export function createAssistantTicketsService(
   const emitters = new Set<SnapshotEmitter>();
   /** decisionId → {ticketId, sessionId} 幂等登记（同卡二次放行返回首次结果）。 */
   const dispatchIndex = new Map<number, { ticketId: string; sessionId: string }>();
+  // kv 配置读取（P1 全存台账 kv，不动 AppSettings——01 §1.4）。读取纯函数在
+  // assistantConfig.ts（≤800 行拆分）；写路径仍在本服务（唯一写者纪律）。
+  const readConfig = (raw: AssistantDatabaseRaw): AssistantConfigView =>
+    readAssistantConfig(raw, localIdentity);
   /** 派发引擎（唯一执行者：带序 commandId/锚/Mode A·B·C/换代/queued FIFO/W1/归账）。 */
   const engine = createDispatchEngine({ db, publish, readConfig });
-
-  // ------------------------------------------------------------------
-  // kv 配置（P1 全存台账 kv，不动 AppSettings——01 §1.4）
-  // ------------------------------------------------------------------
-
-  function readKv(raw: AssistantDatabaseRaw, key: string): string | undefined {
-    const row = raw.prepare("SELECT value FROM kv WHERE key = ?").get(key) as
-      | { value: string }
-      | undefined;
-    return row?.value;
-  }
-
-  function readConfig(raw: AssistantDatabaseRaw): AssistantConfigView {
-    const mode = (readKv(raw, KV_KEYS.mode) as AssistantMode | undefined) ?? DEFAULT_CONFIG.mode;
-    const allowlistRaw = readKv(raw, KV_KEYS.allowlist);
-    const allowlist = allowlistRaw ? (JSON.parse(allowlistRaw) as string[]) : [localIdentity];
-    const budgetRaw = readKv(raw, KV_KEYS.budgetMaxActivePerWorkspace);
-    const budgetMaxActivePerWorkspace = budgetRaw
-      ? Number(budgetRaw)
-      : DEFAULT_CONFIG.budgetMaxActivePerWorkspace;
-    const worktreeDisabled = readKv(raw, KV_KEYS.worktreeDisabled) === "true";
-    return { mode, allowlist, budgetMaxActivePerWorkspace, worktreeDisabled };
-  }
 
   function publish(): void {
     const snapshot = buildAssistantSnapshot(db.raw, readConfig(db.raw));
@@ -603,7 +575,7 @@ export function createAssistantTicketsService(
             .prepare(
               "INSERT INTO kv(key, value, updated_ms) VALUES (?,?,?) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_ms = excluded.updated_ms",
             )
-            .run(KV_KEYS.mode, mode, nowMs());
+            .run(ASSISTANT_KV_KEYS.mode, mode, nowMs());
         });
         logger.info("assistant-tickets mode changed", { mode });
         publish();
@@ -625,8 +597,29 @@ export function createAssistantTicketsService(
             .prepare(
               "INSERT INTO kv(key, value, updated_ms) VALUES (?,?,?) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_ms = excluded.updated_ms",
             )
-            .run(KV_KEYS.allowlist, JSON.stringify(cleaned), nowMs());
+            .run(ASSISTANT_KV_KEYS.allowlist, JSON.stringify(cleaned), nowMs());
         });
+        publish();
+        return { ok: true, value: { ok: true } };
+      } catch (error) {
+        if (error instanceof AssistantStoreBusyError) return fail(ASSISTANT_ERROR_CODES.storeBusy);
+        throw error;
+      }
+    },
+
+    async setWorktreeDisabled(disabled) {
+      // W1 用户开关（spec §9 W2 兜底；P2 审查修复补交互入口）：kv worktree_disabled
+      // 唯一写路径（readConfig 既有读取）；只影响之后的派发规划（planWriteDomain），
+      // 已建工单写域不回改——写域落列在建票时一次性判定。
+      try {
+        db.transaction((raw) => {
+          raw
+            .prepare(
+              "INSERT INTO kv(key, value, updated_ms) VALUES (?,?,?) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_ms = excluded.updated_ms",
+            )
+            .run(ASSISTANT_KV_KEYS.worktreeDisabled, disabled ? "true" : "false", nowMs());
+        });
+        logger.info("assistant-tickets W1 worktree 开关变更", { worktreeDisabled: disabled });
         publish();
         return { ok: true, value: { ok: true } };
       } catch (error) {

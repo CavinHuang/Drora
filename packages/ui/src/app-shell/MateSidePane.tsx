@@ -36,7 +36,7 @@ import { EMPTY_MATE_WORKSPACE_STATE } from "@/store/mateStore.js";
  *
  * 组成：MateStatusStrip（大副会话状态条：mode/活动/排队/待决策，02 §1.4）→
  * MatePaneHeader（过滤 pills+软预算）→ MateTrustBar → 滚动区（决策卡｜workspace
- * 分组的工单行/汇报卡｜观察行）→ MateConfigSection（模式/名单/双测试触发按钮）。
+ * 分组的工单行/汇报卡｜观察行）→ MateConfigSection（模式/名单/W1 worktree 开关/双测试触发按钮）。
  * Surface C：工单行/汇报卡选中后整面板切 MateTicketDetail 二级视图（返回按钮回列表，
  * 选中态=mateStore.selectedTicketId 分域复用）。
  * 过滤/选中/展开三件局部态在 mateStore（zustand），快照本体不进 store。
@@ -260,6 +260,7 @@ export const MateSidePane = memo(function MateSidePane({
         workspaceKey={workspaceKey}
         mode={snapshot.mode}
         allowlist={snapshot.allowlist}
+        worktreeDisabled={snapshot.worktreeDisabled}
         {...(tab.workspaceIdentity ? { workspaceIdentity: tab.workspaceIdentity } : {})}
       />
     </div>

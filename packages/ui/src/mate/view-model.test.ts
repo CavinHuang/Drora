@@ -68,6 +68,7 @@ function snapshot(overrides: Partial<Omit<AssistantSnapshot, "version">> = {}): 
     mode: ASSISTANT_MODES.observe,
     allowlist: ["user-a"],
     budget: { maxActivePerWorkspace: 1 },
+    worktreeDisabled: false,
     trust: { wouldAcceptCount: 2, releaseCount: 1 },
     triggers: [],
     decisions: [],

@@ -4,6 +4,7 @@ import type { AssistantResult, IAssistantTicketService } from "@drora/services";
 import { useDroraIntl } from "@/i18n/IntlProvider.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { Button } from "@/components/ui/button.js";
+import { Switch } from "@/components/ui/switch.js";
 import { cn } from "@/components/lib/utils.js";
 import { resolveMateErrorMessageId, type MateErrorMessageId } from "./view-model.js";
 import { useMateStore } from "@/store/mateStore.js";
@@ -11,8 +12,9 @@ import { useMateStore } from "@/store/mateStore.js";
 /**
  * 配置区（01 §5 MateConfigSection）：模式（observe 锁定展示；auto 恒禁用+达标 tooltip，
  * mate.auto.locked——P1 信任门未开）｜allowlist 编辑（每行 identity，唯一写路径
- * setAllowlist）｜双测试触发按钮（点名=explicit / 未指名=inferred，直调 recordTrigger；
- * P3 前替代 im 未指名形态，00 master plan §2）。
+ * setAllowlist）｜W1 worktree 开关（spec §9 W2 兜底，唯一写路径 setWorktreeDisabled；
+ * P2 审查修复补交互入口）｜双测试触发按钮（点名=explicit / 未指名=inferred，直调
+ * recordTrigger；P3 前替代 im 未指名形态，00 master plan §2）。
  *
  * 触发目标 = 本 pane 的 workspace（tab.workspaceIdentity 由容器传入）：P1 本地 Source
  * 只在本 workspace 语境触发，服务侧 approve 以 decision.workspace_identity 兜底。
@@ -23,6 +25,7 @@ export const MateConfigSection = memo(function MateConfigSection({
   workspaceKey,
   mode,
   allowlist,
+  worktreeDisabled,
   workspaceIdentity,
 }: {
   service: IAssistantTicketService;
@@ -30,11 +33,14 @@ export const MateConfigSection = memo(function MateConfigSection({
   workspaceKey: string;
   mode: AssistantMode;
   allowlist: readonly string[];
+  /** W1 worktree 开关当前值（快照投影；唯一事实源，本组件不落本地副本）。 */
+  worktreeDisabled: boolean;
   /** 本 pane 所属 workspace 的 identity（触发 target；缺席=不携带由服务兜底）。 */
   workspaceIdentity?: string;
 }) {
   const { intl } = useDroraIntl();
   const setAllowlist = useMateStore((state) => state.setAllowlist);
+  const setWorktreeDisabled = useMateStore((state) => state.setWorktreeDisabled);
   const recordTrigger = useMateStore((state) => state.recordTrigger);
 
   // 名单草稿：快照推送是唯一事实，但**编辑中不被推送覆盖**（PR-1B 三审发现 2）——
@@ -94,6 +100,11 @@ export const MateConfigSection = memo(function MateConfigSection({
       }),
       () => setTriggerText(""),
     );
+  };
+
+  const handleWorktreeToggle = (checked: boolean): void => {
+    // 快照推送是唯一事实：开关只发服务动作，不落本地副本（服务确认值随下次快照回填）。
+    run(setWorktreeDisabled(service, workspaceKey, !checked));
   };
 
   return (
@@ -161,6 +172,33 @@ export const MateConfigSection = memo(function MateConfigSection({
             {intl.formatMessage({ id: "common.save" })}
           </Button>
         </div>
+      </div>
+
+      <div className="flex items-center gap-2">
+        <label htmlFor="mate-worktree-switch" className="text-ui-sm font-medium text-foreground">
+          {intl.formatMessage({ id: "mate.config.worktree.label" })}
+        </label>
+        <Switch
+          id="mate-worktree-switch"
+          size="sm"
+          checked={!worktreeDisabled}
+          onCheckedChange={handleWorktreeToggle}
+          data-testid="mate-worktree-switch"
+          aria-label={intl.formatMessage({ id: "mate.config.worktree.label" })}
+        />
+        <span className="text-ui-xs text-foreground-subtlest" data-testid="mate-worktree-state">
+          {intl.formatMessage({
+            id: worktreeDisabled ? "mate.config.worktree.off" : "mate.config.worktree.on",
+          })}
+        </span>
+        <ControlHintTooltip title={intl.formatMessage({ id: "mate.config.worktree.hint" })}>
+          <span
+            className="inline-flex cursor-help text-ui-xs text-foreground-subtlest"
+            data-testid="mate-worktree-hint"
+          >
+            ?
+          </span>
+        </ControlHintTooltip>
       </div>
 
       <div className="flex flex-col gap-1.5">

@@ -7,6 +7,7 @@ import {
 } from "./desktopPet.js";
 import { appToolSearchModeSchema } from "./app-runtime-preferences.js";
 import { PERSONA_RUNTIME_PREFERENCE_ENABLED } from "./contracts/persona.js";
+import { ASSISTANT_SETTINGS_KEYS } from "./contracts/assistant.js";
 import type { AppSettings } from "./protocol.js";
 import { REMOTE_ASSET_INSTALL_MODES } from "./remoteAssetInstallMode.js";
 import { isKnownRemoteResourcePackageId } from "./remoteResourcePackages.js";
@@ -591,6 +592,10 @@ const appSettingsObjectSchema = z.object({
   // Persona 执行许可 E（specs/drora-persona-system.md §5）：原 Settings 保存，默认 false；
   // 只在 Runtime 新建/cold materialization 冻结，warm 不重读。键引用 contracts 常量单一出处。
   [PERSONA_RUNTIME_PREFERENCE_ENABLED]: z.boolean().default(false),
+  // Drora Mate 每日打扰配额（spec §2.3 / 04 详设 §4）：完整 schema 拥有持久化事实
+  // （缺省 5=ASSISTANT_DISTURBANCE_DEFAULTS；0=非决策类全静音聚合）。上界 200 防
+  // 手滑把打扰闸彻底取消；服务侧判定仍以实时读取+坏值回落缺省为准。
+  [ASSISTANT_SETTINGS_KEYS.dailyQuota]: z.number().int().min(0).max(200).default(5),
   lastWorkspaceSession: z.array(appWorkspaceSessionEntrySchema).default([]),
   lastActiveWorkspace: appWorkspaceSessionEntrySchema.nullable().optional(),
   remoteConversationWorkspaceBySourceServerId: z
@@ -722,6 +727,8 @@ export const appSettingsPatchSchema = z.object({
   memoryEnabled: z.boolean().optional(),
   // Persona 执行许可 E 的更新补丁（全可选；默认 false 在完整 schema 拥有）。
   [PERSONA_RUNTIME_PREFERENCE_ENABLED]: z.boolean().optional(),
+  // Drora Mate 每日打扰配额的更新补丁（全可选；与完整 schema 同界）。
+  [ASSISTANT_SETTINGS_KEYS.dailyQuota]: z.number().int().min(0).max(200).optional(),
   lastWorkspaceSession: z.array(appWorkspaceSessionEntrySchema).optional(),
   lastActiveWorkspace: appWorkspaceSessionEntrySchema.nullable().optional(),
   remoteConversationWorkspaceBySourceServerId: z

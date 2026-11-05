@@ -1,4 +1,5 @@
 import { PERSONA_RUNTIME_PREFERENCE_ENABLED } from "./contracts/persona.js";
+import { ASSISTANT_SETTINGS_KEYS } from "./contracts/assistant.js";
 import type { RemoteAssetInstallMode } from "./remoteAssetInstallMode.js";
 import type { RemoteResourcePackageSelection } from "./remoteResourcePackages.js";
 import type { ProviderFamilyDomain } from "./model-provider-family.js";
@@ -394,6 +395,13 @@ export interface AppSettings {
    * 重新加载的会话」，不得显示「当前会话已关闭」。
    */
   [PERSONA_RUNTIME_PREFERENCE_ENABLED]?: boolean;
+  /**
+   * Drora Mate 每日打扰配额（spec §2.3 / 04 详设 §4；键字面量单一出处
+   * contracts ASSISTANT_SETTINGS_KEYS.dailyQuota）。条/日，0=非决策类推送全静音
+   * （聚合次日摘要），决策卡类不受限。缺省 5=ASSISTANT_DISTURBANCE_DEFAULTS；
+   * 服务侧判定实时读取，缺席/坏值回落缺省。
+   */
+  [ASSISTANT_SETTINGS_KEYS.dailyQuota]?: number;
   onboardingOccupation?:
     | "office"
     | "developer"

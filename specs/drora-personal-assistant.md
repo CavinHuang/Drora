@@ -213,7 +213,8 @@ useModelCapabilities 同构形态，00 §8 二审 B2）。
    （dispatch 建议→`dispatchMode:'A'`；attach 建议→`attachToSessionId`；hold/reject 建议
    只展示 reason，人工终审不变）；failed 渲染 `routerError` 降级行（不重试模型）。
    Mode B 建队=决策卡第二放行动作（`dispatchMode:'B'`）；软预算/写域冲突放行返回
-   `queued:true` → 卡内告知行+工单行 queued 灯档（`queuedReason` 同行展示）。
+   `queued:true` → 卡内告知行为放行响应的**即时反馈**（快照推送后卡片按 decided_by=user
+   折叠，持续告知由工单行 queued 灯档承接、`queuedReason` 全文在 Surface C 时间线排队站）。
    **`Y/N/E` 键盘流的诚实降级**：P2 仍为按钮流（[放行]=Y/[忽略]=N/[追加说明后放行]=E，
    语义等价）；跨卡全局键盘流涉及 side pane 焦点管理与多卡竞争裁决，随 P3 Source 批次
    （桌宠 tray 直达需要同一焦点通道）一并交付。"已等待 X"=工单行相对时间既有口径

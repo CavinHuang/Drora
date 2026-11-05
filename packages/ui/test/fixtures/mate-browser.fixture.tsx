@@ -10,6 +10,7 @@ import {
 import type { AssistantMode } from "@drora/shared";
 import type {
   AssistantDecisionView,
+  AssistantRouterSuggestionView,
   AssistantSnapshot,
   AssistantTicketView,
   AssistantTriggerView,
@@ -20,13 +21,15 @@ import { DroraIntlProvider } from "../../src/i18n/IntlProvider.js";
 import { ServiceProvider } from "../../src/hooks/useServices.js";
 import { TooltipProvider } from "../../src/components/ui/tooltip.js";
 import { MateSidePane } from "../../src/app-shell/MateSidePane.js";
+import { MateSessionLine } from "../../src/mate/session-line.js";
 import type { MateSidePaneTab } from "../../src/lib/workspaceSidePane.js";
 import "../../src/styles.css";
 
 /**
  * Mate 面板浏览器验收夹具（真实 React + 仓库 CSS；docs/mate-implementation-plan-2026-11-04/
- * 01-p1-detailed-design.md §6 场景 1/2/4）。服务为内存版 IAssistantTicketService 形状：
- * recordTrigger/approveDecision/onDidChange 全部内存实现 + 推送，不代表真实 Host/CLI。
+ * 01-p1-detailed-design.md §6 场景 1/2/4 + 02 号 §1.4/§7 Surface A·C 场景）。服务为内存版
+ * IAssistantTicketService 形状：recordTrigger/approveDecision/onDidChange 全部内存实现 +
+ * 推送，不代表真实 Host/CLI。
  *
  * 与服务实现的语义对齐点（诚实标注）：
  * - approveDecision 置 decided_by=user（卡片脱离待决策集、releaseCount 积累）——与服务侧
@@ -36,6 +39,18 @@ import "../../src/styles.css";
  * - 工单状态 dispatched→running→done 由夹具定时器推进（400ms/1400ms），usage/汇报为固定值。
  * - fixture-resync 重推当前快照，模拟断连重连后的 resync 推送（01 §6 场景 5 后半）；
  *   真实断连/重订链路不在本 renderer-only 夹具内。
+ *
+ * P2 Surface 批次扩展（mate-surface-ac.test.mjs 消费；P1 mate-observe-ui.test.mjs 场景
+ * 保持兼容——新控件不点不触发）：
+ * - fixture-inject-<kind> 按钮：直注入带 Router 建议（suggested dispatch/attach/failed/
+ *   hold 四态）的决策卡——真实 Router 评估在 host 侧（services routerEvaluation），renderer
+ *   夹具只验收 Surface 呈现与预填放行传参。
+ * - fixture-queued-next 开关：下一次 approve 模拟软预算排队（返回 queued:true、工单
+ *   queued+queuedReason、不推进终态）——真实排队判定在服务侧写域/预算检查。
+ * - lastApproveInput 全量捕获（fixture-approve-input）：断言决策卡预填参
+ *   （targetWorkspaceIdentity/attachToSessionId/dispatchMode）确实随放行发出。
+ * - 建票字段按入参真实映射 dispatchMode A/B/C 与 decisionId/anchorCommandId；
+ *   generationCount 由 fixture-rollover-next 开关模拟换代（真实换代是 host 代际事务）。
  */
 
 const tab: MateSidePaneTab = {
@@ -54,6 +69,9 @@ interface FixtureDecision {
   decidedBy: "gate" | "user";
   triggerText: string;
   decidedMs: number;
+  routerState?: "pending" | "suggested" | "failed";
+  routerSuggestion?: AssistantRouterSuggestionView;
+  routerError?: string;
 }
 
 interface FixtureTicket {
@@ -66,13 +84,29 @@ interface FixtureTicket {
   failReason: string | null;
   usage: { inputTokens: number; outputTokens: number };
   updatedAtMs: number;
+  dispatchMode?: "A" | "B" | "C";
+  decisionId?: number | null;
+  anchorCommandId?: string | null;
+  generationCount?: number;
+  queuedReason?: string | null;
 }
 
-function createMateFixtureService(onBrief?: (brief: string) => void) {
+/** approveDecision 入参捕获（Surface A 预填传参断言读点）。 */
+export type FixtureApproveInput = Parameters<IAssistantTicketService["approveDecision"]>[0];
+
+function createMateFixtureService(
+  onBrief?: (brief: string) => void,
+  onApproveInput?: (input: FixtureApproveInput) => void,
+) {
   let seq = 0;
   let mode: AssistantMode = ASSISTANT_MODES.observe;
   let allowlist: string[] = ["fixture/user-a"];
   let updatedAtMs = 1_000;
+  let lastApproveInput: FixtureApproveInput | null = null;
+  // P2 软预算默认回 3（contracts ASSISTANT_DEFAULTS；P1 fixture 曾用 1）。
+  let budgetMax = 3;
+  let queueNextApprove = false;
+  let rolloverNextApprove = false;
   const triggers: AssistantTriggerView[] = [];
   const decisions: FixtureDecision[] = [];
   const tickets: FixtureTicket[] = [];
@@ -97,6 +131,11 @@ function createMateFixtureService(onBrief?: (brief: string) => void) {
       targetWorkspaceIdentity: ticket.targetWorkspaceIdentity,
       sessionId: ticket.sessionId,
       updatedAtMs: ticket.updatedAtMs,
+      ...(ticket.dispatchMode ? { dispatchMode: ticket.dispatchMode } : {}),
+      ...(ticket.decisionId !== undefined ? { decisionId: ticket.decisionId } : {}),
+      ...(ticket.anchorCommandId !== undefined ? { anchorCommandId: ticket.anchorCommandId } : {}),
+      ...(ticket.generationCount !== undefined ? { generationCount: ticket.generationCount } : {}),
+      ...(ticket.queuedReason !== undefined ? { queuedReason: ticket.queuedReason } : {}),
     }));
     const decisionViews: AssistantDecisionView[] = decisions.map((decision) => ({
       id: decision.id,
@@ -107,12 +146,15 @@ function createMateFixtureService(onBrief?: (brief: string) => void) {
       decidedBy: decision.decidedBy,
       decidedMs: decision.decidedMs,
       triggerText: decision.triggerText,
+      ...(decision.routerState ? { routerState: decision.routerState } : {}),
+      ...(decision.routerSuggestion ? { routerSuggestion: decision.routerSuggestion } : {}),
+      ...(decision.routerError ? { routerError: decision.routerError } : {}),
     }));
     return {
       version: 2,
       mode,
       allowlist: [...allowlist],
-      budget: { maxActivePerWorkspace: 1 },
+      budget: { maxActivePerWorkspace: budgetMax },
       trust: {
         wouldAcceptCount: decisions.filter(
           (item) => item.outcome === ASSISTANT_OUTCOMES.wouldAccept,
@@ -144,6 +186,38 @@ function createMateFixtureService(onBrief?: (brief: string) => void) {
     }, 1400);
   }
 
+  /** 注入带 Router 建议的决策卡（P2 Surface 呈现与预填传参验收；真实评估在 host 侧）。 */
+  function injectRouterDecision(
+    routerState: "suggested" | "failed",
+    suggestion?: AssistantRouterSuggestionView,
+    text = "点名：Router 预填场景",
+  ): number {
+    seq += 1;
+    const triggerId = `TR-${seq}`;
+    triggers.push({
+      id: triggerId,
+      sourceKind: "local",
+      strength: ASSISTANT_STRENGTHS.explicit,
+      identity: "fixture/user-a",
+      text,
+      atMs: Date.now(),
+      targetWorkspaceIdentity: tab.workspaceIdentity,
+    });
+    decisions.push({
+      id: seq,
+      triggerId,
+      outcome: ASSISTANT_OUTCOMES.decisionCard,
+      decidedBy: "gate",
+      triggerText: text,
+      decidedMs: Date.now(),
+      routerState,
+      ...(suggestion ? { routerSuggestion: suggestion } : {}),
+      ...(routerState === "failed" ? { routerError: "router evaluation schema mismatch" } : {}),
+    });
+    publish();
+    return seq;
+  }
+
   const service: IAssistantTicketService = {
     async recordTrigger(input) {
       seq += 1;
@@ -155,6 +229,9 @@ function createMateFixtureService(onBrief?: (brief: string) => void) {
         identity: "fixture/user-a",
         text: input.text,
         atMs: Date.now(),
+        ...(input.targetWorkspaceIdentity
+          ? { targetWorkspaceIdentity: input.targetWorkspaceIdentity }
+          : {}),
       });
       const outcome =
         input.simulated === ASSISTANT_STRENGTHS.explicit
@@ -173,6 +250,8 @@ function createMateFixtureService(onBrief?: (brief: string) => void) {
     },
 
     async approveDecision(input) {
+      lastApproveInput = { ...input };
+      onApproveInput?.(lastApproveInput);
       // P1 验收场景 4：同 decision 二次放行幂等返回首次结果（不二派）。
       const existing = ticketByDecision.get(input.decisionId);
       if (existing) return { ok: true, value: existing };
@@ -188,6 +267,30 @@ function createMateFixtureService(onBrief?: (brief: string) => void) {
         : decision.triggerText;
       // 契约语义：放行即 decided_by=user（卡片脱离待决策集；releaseCount 积累）。
       decision.decidedBy = "user";
+      if (queueNextApprove) {
+        // P2 软预算排队（specs §9）：工单 queued 立项+告知文案，不推进终态。
+        queueNextApprove = false;
+        tickets.push({
+          id: ticketId,
+          brief,
+          status: ASSISTANT_TICKET_STATUSES.queued,
+          targetWorkspaceIdentity: input.targetWorkspaceIdentity ?? tab.workspaceIdentity ?? "",
+          sessionId,
+          outputSummary: null,
+          failReason: null,
+          usage: { inputTokens: 0, outputTokens: 0 },
+          updatedAtMs: Date.now(),
+          dispatchMode: input.dispatchMode ?? "A",
+          decisionId: input.decisionId,
+          anchorCommandId: null,
+          generationCount: 0,
+          queuedReason: "同 workspace 活动工单已达软预算 3，已进入排队",
+        });
+        ticketByDecision.set(input.decisionId, { ticketId, sessionId });
+        onBrief?.(brief);
+        publish();
+        return { ok: true, value: { ticketId, sessionId, queued: true } };
+      }
       tickets.push({
         id: ticketId,
         brief,
@@ -198,7 +301,12 @@ function createMateFixtureService(onBrief?: (brief: string) => void) {
         failReason: null,
         usage: { inputTokens: 0, outputTokens: 0 },
         updatedAtMs: Date.now(),
+        dispatchMode: input.attachToSessionId ? "C" : (input.dispatchMode ?? "A"),
+        decisionId: input.decisionId,
+        anchorCommandId: `${ticketId}-1`,
+        generationCount: rolloverNextApprove ? 1 : 0,
       });
+      rolloverNextApprove = false;
       ticketByDecision.set(input.decisionId, { ticketId, sessionId });
       // 01 §6 场景 3 的验收读点：brief=原文+追加段两段（E 改单不改写原文）。
       onBrief?.(brief);
@@ -254,7 +362,12 @@ function createMateFixtureService(onBrief?: (brief: string) => void) {
     async getConfig() {
       return {
         ok: true as const,
-        value: { mode, allowlist: [...allowlist], budgetMaxActivePerWorkspace: 1, worktreeDisabled: false },
+        value: {
+          mode,
+          allowlist: [...allowlist],
+          budgetMaxActivePerWorkspace: budgetMax,
+          worktreeDisabled: false,
+        },
       };
     },
 
@@ -271,17 +384,38 @@ function createMateFixtureService(onBrief?: (brief: string) => void) {
       };
     },
   };
-  return { service, buildSnapshot, approveDirect: service.approveDecision, resync: publish };
+  return {
+    service,
+    buildSnapshot,
+    approveDirect: service.approveDecision,
+    resync: publish,
+    injectRouterDecision,
+    queueNext(): void {
+      queueNextApprove = true;
+    },
+    rolloverNext(): void {
+      rolloverNextApprove = true;
+    },
+  };
 }
 
 function Fixture() {
   const [locale, setLocale] = useState<"zh-CN" | "en-US">("zh-CN");
   const [openSession, setOpenSession] = useState<string | null>(null);
   const [lastBrief, setLastBrief] = useState("");
-  const { service, approveDirect, resync } = useMemo(
-    () => createMateFixtureService(setLastBrief),
-    [],
-  );
+  const [lastApprove, setLastApprove] = useState("");
+  const { service, approveDirect, resync, injectRouterDecision, queueNext, rolloverNext } =
+    useMemo(
+      () =>
+        createMateFixtureService(setLastBrief, (input) =>
+          setLastApprove(
+            `mode=${input.dispatchMode ?? "-"} attach=${input.attachToSessionId ?? "-"} target=${
+              input.targetWorkspaceIdentity ?? "-"
+            } tier=${input.permissionTier ?? "-"}`,
+          ),
+        ),
+      [],
+    );
   // 夹具只需 accessor.assistantTicketService 一个字段（useAssistantTickets 判空降级的读点）。
   const accessor = useMemo(
     () => ({ assistantTicketService: service }) as IServiceAccessor,
@@ -313,8 +447,67 @@ function Fixture() {
               >
                 Language
               </button>
+              {/* P2 Surface 批次：注入带 Router 建议的决策卡（呈现+预填传参验收）。 */}
+              <button
+                data-testid="fixture-inject-dispatch"
+                onClick={() =>
+                  injectRouterDecision("suggested", {
+                    kind: "dispatch",
+                    targetWorkspaceIdentity: "fixture/workspace-b",
+                    permissionTier: ASSISTANT_PERMISSION_TIERS.build,
+                    briefBase: "verbatim",
+                    reason: "请求未指名既有会话，建议新开独立工单",
+                    evidence: ["原文提到『修一下构建』", "名单内 workspace-b 空闲"],
+                  })
+                }
+              >
+                Inject dispatch suggestion
+              </button>
+              <button
+                data-testid="fixture-inject-attach"
+                onClick={() =>
+                  injectRouterDecision("suggested", {
+                    kind: "attach",
+                    sessionId: "sess-attach-9",
+                    targetWorkspaceIdentity: "fixture/workspace",
+                    permissionTier: ASSISTANT_PERMISSION_TIERS.build,
+                    briefBase: "verbatim",
+                    reason: "原文提到沿用登录页会话上下文",
+                    evidence: ["原文提到『接着上次那个会话』"],
+                  })
+                }
+              >
+                Inject attach suggestion
+              </button>
+              <button
+                data-testid="fixture-inject-failed"
+                onClick={() => injectRouterDecision("failed")}
+              >
+                Inject failed router
+              </button>
+              <button data-testid="fixture-queue-next" onClick={queueNext}>
+                Queue next approve
+              </button>
+              <button data-testid="fixture-rollover-next" onClick={rolloverNext}>
+                Rollover next approve
+              </button>
+              {/* MateSessionLine 两态演示（任务行徽标组件级验收；真实挂接在任务行列表）。 */}
+              <div
+                className="w-full"
+                data-testid="fixture-session-line-with"
+                data-active-count="2"
+                data-pending="3"
+              >
+                <MateSessionLine
+                  activity={{ activeCount: 2, pendingDecisions: 3, updatedAtMs: 1 }}
+                />
+              </div>
+              <div className="w-full" data-testid="fixture-session-line-absent">
+                <MateSessionLine activity={undefined} />
+              </div>
               <output data-testid="fixture-open-session">{openSession ?? ""}</output>
               <output data-testid="fixture-last-brief">{lastBrief}</output>
+              <output data-testid="fixture-approve-input">{lastApprove}</output>
             </div>
             <div className="mx-auto" style={{ width: 480, height: 780 }}>
               <MateSidePane

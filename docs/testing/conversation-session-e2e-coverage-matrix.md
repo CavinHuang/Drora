@@ -6234,3 +6234,30 @@ state 机/usage cumulative 解包）→ 归账，终态/stop 自动退订；服�
 帧接线用例：订阅同形、状态机推进+自动退订、usage 差值+failed 撤销、stop 退订、异常帧
 空数组）。真实链路 running→done 推进源已闭合。候选仍为 pending，未 promotion、未
 CI admission；真实断连重订（fixture 仅模拟重推快照）、双语/主题矩阵未覆盖。
+
+## Mate（大副）P2 Surface 批次增量（2026-11-05）
+
+MSA01–09：`packages/desktop/test/e2e/conversation-session/manual-review/pending/mate-surface-ac.test.mjs`。
+层级：同 MOUI 先例的真实 React renderer 浏览器候选（同一 fixture
+`packages/ui/test/fixtures/mate-browser.fixture.tsx`，P1 控件与新 P2 控件共存——P1
+mate-observe-ui 场景兼容回归同轮实跑通过）。Router 评估本体在 host 侧（services
+routerEvaluation），renderer 夹具按诚实边界只验收 Surface 呈现与预填放行传参：注入按钮
+（fixture-inject-dispatch/attach/failed）直造带建议的决策卡，不伪造 Router 评估链路；
+queued/rollover 由开关模拟（真实判定在服务侧写域/预算检查与 host 代际事务）。
+覆盖 02 §1.4/§7 Surface A·C：MSA01 状态条（mode 徽标+活动/排队/待决策单行；打扰配额
+P2 无事实源不渲染）；MSA02 dispatch 建议卡（建议/目标/证据 verbatim）→ 放行携带预填参
+（mode=A+target+tier=build，经 fixture-approve-input 读点断言）；MSA03 attach 建议
+（会话 id 呈现）→ 放行携带 attachToSessionId+target；MSA04 failed Router 降级行
+（routerError 诚实展示）+ 建队捷径不渲染 + 普通放行仍可用；MSA05 Mode B 建队第二放行
+动作（mode=B 传参）；MSA06 软预算排队（工单行排队灯档+状态条排队计数；卡内告知行是
+放行响应即时反馈、快照推送后卡片折叠——断言只按稳定事实）；MSA07 Surface C 四页签
+（时间线代际站：排队站 queuedReason/派发站/锚站「尚未投递」/当前代；汇报「尚无汇报」；
+证据=decisionId 关联决策卡 trigger verbatim+Router 证据；成本=合计+按代分解随 P4 说明；
+返回回列表）+ done 汇报卡 [详情] 入口关联断言；MSA08 换代（工单行「第 2 代」徽标+
+详情时间线当前代站=第 2 代+锚站带序 commandId）；MSA09 MateSessionLine 两态（带摘要
+渲染计数徽标/缺席渲染 null——真实挂接在任务行列表，组件级验收）。
+本轮实跑：chromium headless，MSA01–09 单用例 27.3s，0 fail；同轮 P1 MOUI01–06 回归
+32.4s，0 fail（fixture 升级向后兼容）。同轮修复：attach 建议的 target 预填未随放行
+显式传（UI 缺口，e2e 首跑捕获，approve 双路径补齐）。Mate 单测 view-model 21 项
+（新增 8 项 P2 投影）+i18n 键守护+store 9 项全绿。候选仍为 pending，未 promotion；
+真实 Host 端到端（候选卡→建议→人放行、换代重派、双链路同验）随总闸联调验收。

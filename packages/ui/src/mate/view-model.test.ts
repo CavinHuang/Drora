@@ -14,10 +14,16 @@ import type {
 
 import {
   MATE_UNTARGETED_WORKSPACE_KEY,
+  deriveMateStatusLine,
   deriveMateViewModel,
+  findMateDecisionForTicket,
   isMateActiveTicket,
   isMateObserveDecision,
   isMatePendingDecision,
+  isMateQueuedTicket,
+  matePermissionTierMessageId,
+  mateRouterSuggestionKindMessageId,
+  mateTicketGenerationNumber,
   resolveMateBudgetActive,
   resolveMateErrorMessageId,
 } from "./view-model.js";
@@ -273,5 +279,93 @@ describe("resolveMateBudgetActive", () => {
         }),
       ),
     ).toBe(2);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P2 Surface 批次投影（specs §11.1/§11.3：状态条/queued/代际/证据关联/建议键映射）
+// ---------------------------------------------------------------------------
+
+describe("P2 isMateQueuedTicket / mateTicketGenerationNumber", () => {
+  it("queued 判定只认 ASSISTANT_TICKET_STATUSES.queued（未知状态仍归 observe 降级）", () => {
+    expect(isMateQueuedTicket(ASSISTANT_TICKET_STATUSES.queued)).toBe(true);
+    expect(isMateQueuedTicket(ASSISTANT_TICKET_STATUSES.dispatched)).toBe(false);
+    expect(isMateActiveTicket(ASSISTANT_TICKET_STATUSES.queued)).toBe(false);
+  });
+
+  it("当前代序号=归档数+1；未派发（字段缺席）为首代 1", () => {
+    expect(mateTicketGenerationNumber(ticket({ id: "T-1" }))).toBe(1);
+    expect(mateTicketGenerationNumber(ticket({ id: "T-2", generationCount: 2 }))).toBe(3);
+    // 0 显式归档与缺席同语义（换代前）。
+    expect(mateTicketGenerationNumber(ticket({ id: "T-3", generationCount: 0 }))).toBe(1);
+  });
+});
+
+describe("P2 deriveMateStatusLine 状态条投影", () => {
+  it("活动数用软预算口径（dispatched+running），queued 单列，pending 取待决策卡", () => {
+    const line = deriveMateStatusLine(
+      snapshot({
+        budget: { maxActivePerWorkspace: 3 },
+        tickets: [
+          ticket({ id: "T-1", status: ASSISTANT_TICKET_STATUSES.dispatched }),
+          ticket({ id: "T-2", status: ASSISTANT_TICKET_STATUSES.queued }),
+          ticket({ id: "T-3", status: ASSISTANT_TICKET_STATUSES.done }),
+        ],
+        decisions: [
+          decision({ id: 1, outcome: ASSISTANT_OUTCOMES.decisionCard, decidedBy: "gate" }),
+          decision({ id: 2, outcome: ASSISTANT_OUTCOMES.decisionCard, decidedBy: "user" }),
+        ],
+      }),
+    );
+    expect(line).toEqual({
+      mode: ASSISTANT_MODES.observe,
+      active: 1,
+      max: 3,
+      queued: 1,
+      pending: 1,
+    });
+  });
+
+  it("空快照零计数；mode 原样透传（off/auto 键一次建齐）", () => {
+    expect(deriveMateStatusLine(snapshot({ mode: ASSISTANT_MODES.off }))).toEqual({
+      mode: ASSISTANT_MODES.off,
+      active: 0,
+      max: 1,
+      queued: 0,
+      pending: 0,
+    });
+  });
+});
+
+describe("P2 findMateDecisionForTicket 证据关联", () => {
+  it("decisionId 精确匹配 decisions[].id；手动建票（null/undefined）返回 null", () => {
+    const snap = snapshot({
+      decisions: [decision({ id: 7, triggerText: "触发原文" })],
+    });
+    expect(findMateDecisionForTicket(snap, ticket({ id: "T-1", decisionId: 7 }))?.triggerText).toBe(
+      "触发原文",
+    );
+    expect(findMateDecisionForTicket(snap, ticket({ id: "T-2", decisionId: null }))).toBeNull();
+    expect(findMateDecisionForTicket(snap, ticket({ id: "T-3" }))).toBeNull();
+  });
+
+  it("关联卡被快照容量裁剪（decisionsMax LRU）时返回 null（诚实降级不猜触发文本）", () => {
+    const snap = snapshot({ decisions: [decision({ id: 1 })] });
+    expect(findMateDecisionForTicket(snap, ticket({ id: "T-1", decisionId: 99 }))).toBeNull();
+  });
+});
+
+describe("P2 建议展示键映射（封闭映射）", () => {
+  it("四臂 kind → mate.router.suggested.* 一一对应", () => {
+    expect(mateRouterSuggestionKindMessageId("dispatch")).toBe("mate.router.suggested.dispatch");
+    expect(mateRouterSuggestionKindMessageId("attach")).toBe("mate.router.suggested.attach");
+    expect(mateRouterSuggestionKindMessageId("hold")).toBe("mate.router.suggested.hold");
+    expect(mateRouterSuggestionKindMessageId("reject")).toBe("mate.router.suggested.reject");
+  });
+
+  it("权限档 → mate.card.tier.*（含 P2 补的 yolo 键）", () => {
+    expect(matePermissionTierMessageId("build")).toBe("mate.card.tier.build");
+    expect(matePermissionTierMessageId("guarded")).toBe("mate.card.tier.guarded");
+    expect(matePermissionTierMessageId("yolo")).toBe("mate.card.tier.yolo");
   });
 });

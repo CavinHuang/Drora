@@ -36,8 +36,10 @@ import { MateLamp } from "./MateLamp.js";
  * - 权限档按建议渲染（缺省 build）；**建议 yolo 时不传 tier**（服务接口类型层排除
  *   yolo——放行回落 build 默认，徽标仍诚实显示建议档，spec §2.5 的 yolo 直派通道
  *   在 P2 不存在）。
- * - `queued:true` 返回 → 卡内告知行（固定排队文案；queuedReason 全文由工单行承接，
- *   approve 返回值只携带 queued 标志，本卡不伪造 reason）。
+ * - `queued:true` 返回 → 卡内告知行（固定排队文案）。**该行是放行响应的即时反馈**：
+ *   快照推送（decided_by=user）会让本卡整体折叠，持续告知由工单行 queued 灯档承接、
+ *   queuedReason 全文在 Surface C 时间线排队站（specs §11.1 落地注记）；approve 返回值
+ *   只携带 queued 标志，本卡不伪造 reason。
  *
  * 动作全走 mateStore（service 作参数注入）；失败按 resolveMateErrorMessageId 出
  * role=alert 行，不在 store 落错误状态。目标 workspace 不由本卡选择（P1 语义保留）：
@@ -103,7 +105,10 @@ export const MateDecisionCard = memo(function MateDecisionCard({
       approveDecision(service, workspaceKey, {
         decisionId: decision.id,
         permissionTier: approveTier,
-        ...(suggestion?.kind === "dispatch" && suggestion.targetWorkspaceIdentity
+        // 建议目标预填：dispatch 与 attach 建议都携带 targetWorkspaceIdentity
+        // （服务侧 approve 对两种 kind 的建议 arm.target 做同参兜底，显式传更诚实）。
+        ...((suggestion?.kind === "dispatch" || suggestion?.kind === "attach") &&
+        suggestion.targetWorkspaceIdentity
           ? { targetWorkspaceIdentity: suggestion.targetWorkspaceIdentity }
           : {}),
         ...extra,
@@ -298,7 +303,8 @@ export const MateDecisionCard = memo(function MateDecisionCard({
                     decisionId: decision.id,
                     briefAppendix: appendix,
                     permissionTier: approveTier,
-                    ...(suggestion?.kind === "dispatch" && suggestion.targetWorkspaceIdentity
+                    ...((suggestion?.kind === "dispatch" || suggestion?.kind === "attach") &&
+                    suggestion.targetWorkspaceIdentity
                       ? { targetWorkspaceIdentity: suggestion.targetWorkspaceIdentity }
                       : {}),
                     ...(suggestion?.kind === "attach" && suggestion.sessionId

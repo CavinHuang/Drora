@@ -19,8 +19,11 @@
 // ---------------------------------------------------------------------------
 
 /** mate.sqlite schema 版本；迁移只加不破，未知版本报 schema_incompatible（01 §1.1）。
- * v2（2026-11-05，P2）：新增 router_evaluation 表与 ticket.write_domain 列。 */
-export const ASSISTANT_STORE_SCHEMA_VERSION = 2;
+ * v2（2026-11-05，P2）：新增 router_evaluation 表与 ticket.write_domain 列。
+ * v3（2026-11-05，P2 审查修复）：新增 ticket.dispatch_intent 列——建票事务落库放行时的
+ * 派发意图（mode/attachSessionId/tier），queued FIFO 释放按落库形态重放派发，
+ * 不再依赖派发成功后才写入的 dispatch_mode（修复「排队后 Mode B/C 退化为 Mode A」）。 */
+export const ASSISTANT_STORE_SCHEMA_VERSION = 3;
 
 // ---------------------------------------------------------------------------
 // 身份与派发模式（spec §1 命名契约 / §7 三模式；P2 定案见 02 详设 §1.1/§5）
@@ -184,6 +187,10 @@ export const ASSISTANT_SNAPSHOT_LIMITS = {
   candidateBriefMax: 1500,
   /** Router 无状态壳轮转阈值：每 N 张工单归档旧会话建新会话（02 详设 §1.1）。 */
   routerRotateEveryTickets: 10,
+  /** Tier2 附着候选集上界（02 详设 §2：有界候选集；硬过滤后截断，不无界喂给 Router）。 */
+  attachCandidatesMax: 5,
+  /** Tier2 候选新鲜度上界（ms；02 详设 §2 硬过滤 updatedAt>7d，过期会话不作附着目标）。 */
+  attachCandidateFreshMaxMs: 7 * 24 * 60 * 60 * 1000,
 } as const;
 
 // ---------------------------------------------------------------------------

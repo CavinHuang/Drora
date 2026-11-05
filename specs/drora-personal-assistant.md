@@ -190,6 +190,11 @@ Mate 带证据选择，派发桥校验后生效）；Tier3 决策卡问人（低
 
 不变式：Mate 派生活动工单两两写域不相交；工单终态即清理 worktree（保留分支），失败清理
 动作如实入台账；换代重派续用同一 worktree/分支，不重复 `worktree add`。
+**P2 落地注记（2026-11-05 审查修复）**：queued FIFO 释放前复检预算与队头写域冲突
+（与仍在活动工单比对，重叠则保持 queued 终止本轮释放——不变式在释放侧同被强制）；
+放行形态（Mode A/B/C、附着目标、权限档）在建票事务落库 `ticket.dispatch_intent`
+（schema v3，dispatchIntent.ts 单一形状），释放按落库形态重放派发——排队不静默改写
+用户放行动作（Mode B 重套 /team 指示、Mode C 附着原目标、权限档恢复放行值）。
 
 ## 10. Watchdog
 

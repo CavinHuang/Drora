@@ -220,6 +220,19 @@ function runAssistantMigrations(raw: AssistantDatabaseRaw): void {
       "INSERT INTO kv(key, value, updated_ms) VALUES ('schema_version', '2', strftime('%s','now') * 1000) ON CONFLICT(key) DO UPDATE SET value = '2', updated_ms = excluded.updated_ms",
     );
   }
+
+  if (currentVersion < 3) {
+    // v3（2026-11-05，P2 审查修复）——只加不破：
+    // ticket.dispatch_intent：放行时的派发意图 JSON（mode/attachSessionId/tier）。此前
+    // queued 行的派发形态只存在于内存（runPostApproval 局部变量），释放路径读不到——
+    // Mode B 退化为 Mode A 直派、Mode C 附着目标无处可取。dispatch_mode 列不能承担该
+    // 职责：它由 commitDispatchSuccess 在派发成功后才写入，queued 行恒为 NULL。
+    // 旧行 NULL → 释放回退 Mode A/build（P1 形态诚实降级，与 v1/v2 行为一致）。
+    addColumnIfMissing(raw, "ticket", "dispatch_intent", "TEXT");
+    raw.exec(
+      "INSERT INTO kv(key, value, updated_ms) VALUES ('schema_version', '3', strftime('%s','now') * 1000) ON CONFLICT(key) DO UPDATE SET value = '3', updated_ms = excluded.updated_ms",
+    );
+  }
 }
 
 /** ALTER TABLE ADD COLUMN 的幂等封装（PRAGMA table_info 查列存在性；迁移重入安全）。 */

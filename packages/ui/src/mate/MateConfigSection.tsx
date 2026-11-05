@@ -1,6 +1,6 @@
 import { memo, useEffect, useState } from "react";
 import type { AssistantMode } from "@drora/shared";
-import { ASSISTANT_SETTINGS_KEYS } from "@drora/shared";
+import { ASSISTANT_DISTURBANCE_DEFAULTS, ASSISTANT_SETTINGS_KEYS } from "@drora/shared";
 import type { AssistantResult, IAssistantTicketService } from "@drora/services";
 import { useDroraIntl } from "@/i18n/IntlProvider.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
@@ -127,15 +127,16 @@ export const MateConfigSection = memo(function MateConfigSection({
     run(setWorktreeDisabled(service, workspaceKey, !checked));
   };
 
-  // P4 第二棒（04 详设 §4）：每日配额保存——0-200 整数（validationAppSettings 同界，
-  // 契约 ASSISTANT_SETTINGS_KEYS.dailyQuota 单出处键）。越界/非整数本地拒绝（不落请求）。
+  // P4 第二棒（04 详设 §4）：每日配额保存——0-整数上界（缺省/上界=contracts
+  // ASSISTANT_DISTURBANCE_DEFAULTS 单出处，validationAppSettings 同界同源；
+  // 键=ASSISTANT_SETTINGS_KEYS.dailyQuota 单出处）。越界/非整数本地拒绝（不落请求）。
   const handleSaveQuota = (): void => {
     const parsed = Number(quotaDraft);
     if (
       quotaDraft.trim() === "" ||
       !Number.isSafeInteger(parsed) ||
       parsed < 0 ||
-      parsed > 200
+      parsed > ASSISTANT_DISTURBANCE_DEFAULTS.dailyQuotaMax
     ) {
       setFailure("mate.config.quota.invalid");
       return;
@@ -254,7 +255,7 @@ export const MateConfigSection = memo(function MateConfigSection({
               id="mate-quota-input"
               type="number"
               min={0}
-              max={200}
+              max={ASSISTANT_DISTURBANCE_DEFAULTS.dailyQuotaMax}
               step={1}
               value={quotaDraft}
               disabled={!quotaEditable}

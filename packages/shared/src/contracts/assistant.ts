@@ -120,10 +120,15 @@ export const ASSISTANT_WATCHDOG_DEFAULTS = {
 } as const;
 
 /**
- * 每日打扰配额缺省（04 详设 §4；AppSettings `droraMateDailyQuota` 缺席/坏值时回落）。
+ * 每日打扰配额缺省与持久化边界（04 详设 §4；AppSettings `droraMateDailyQuota` 缺席/
+ * 坏值时回落）。dailyQuotaMax 是唯一上界出处：validationAppSettings schema、服务侧
+ * resolveAssistantDailyQuota、MateConfigSection 本地校验共用（「缺省单出处」契约——
+ * 调整缺省/上界时四处同源，不再各自硬编码）。
  */
 export const ASSISTANT_DISTURBANCE_DEFAULTS = {
   dailyQuota: 5,
+  /** 持久化/校验上界（防手滑把打扰闸彻底取消的护栏上限）。 */
+  dailyQuotaMax: 200,
 } as const;
 
 /**

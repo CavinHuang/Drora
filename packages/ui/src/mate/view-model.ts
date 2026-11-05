@@ -397,7 +397,8 @@ export type MateErrorMessageId =
   | "mate.error.auto"
   | "mate.error.validation"
   | "mate.error.generic"
-  // P4 第二棒（04 详设 §4）：每日配额草稿本地校验失败（0-200 整数界）。
+  // P4 第二棒（04 详设 §4）：每日配额草稿本地校验失败（0-上界整数界，上界=contracts
+  // ASSISTANT_DISTURBANCE_DEFAULTS.dailyQuotaMax 单出处）。
   | "mate.config.quota.invalid";
 
 /** 服务失败臂 → 文案键；未知码一律落 generic，不把原始错误文本直接展示给用户。 */

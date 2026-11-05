@@ -183,7 +183,12 @@ export function admitAssistantDisturbanceTx(
 
 /** 配额值归一（settings 端口读取值 → 生效配额；坏值回落缺省，不猜测）。 */
 export function resolveAssistantDailyQuota(value: number | undefined | null): number {
-  if (typeof value === "number" && Number.isSafeInteger(value) && value >= 0 && value <= 200) {
+  if (
+    typeof value === "number" &&
+    Number.isSafeInteger(value) &&
+    value >= 0 &&
+    value <= ASSISTANT_DISTURBANCE_DEFAULTS.dailyQuotaMax
+  ) {
     return value;
   }
   return ASSISTANT_DISTURBANCE_DEFAULTS.dailyQuota;

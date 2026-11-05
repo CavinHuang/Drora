@@ -6259,11 +6259,25 @@ P2 无事实源不渲染）；MSA02 dispatch 建议卡（建议/目标/证据 ve
 MSA10（P2 审查修复批 740e2f567 追加，specs §9 W2 兜底；同文件同 fixture）：配置区
 W1 worktree 开关——初始开（快照投影为唯一事实）→ 点击关，`setWorktreeDisabled`
 事务落库、快照回填状态行「关——声明写域」→ 再点回开恢复；开关只发动作、无本地副本。
-本轮实跑：chromium headless，MSA01–09 单用例 27.3s，0 fail；同轮 P1 MOUI01–06 回归
-32.4s，0 fail（fixture 升级向后兼容）。同轮修复：attach 建议的 target 预填未随放行
-显式传（UI 缺口，e2e 首跑捕获，approve 双路径补齐）。Mate 单测 view-model 21 项
-（新增 8 项 P2 投影）+i18n 键守护+store 9 项全绿。候选仍为 pending，未 promotion；
-真实 Host 端到端（候选卡→建议→人放行、换代重派、双链路同验）随总闸联调验收。
+MSA11–12（2026-11-06 二轮审查批追加，同文件同 fixture；本批前 F2 反馈行/F4 告知卡两个
+新呈现面（3c1af2f15）无验收登记——本行即缺口收口）：MSA11 F1 链守卫+F2 触发反馈行——
+配置区点名触发（UI 恒传 workspaceKey 落库；`mate-trigger-feedback` role=status 行
+decision_card 臂文案）→ `fixture-approve-bare` 不带 target 直放行命中 trigger 落库
+回读臂建票成功（fixture-last-brief 推进、approve-input 读点 target=- 证明非 UI 预填）。
+配套 fixture-service 收口：approve 目标解析改与真实链同构（入参 → Router 建议 → trigger
+落库值），**移除 tab.workspaceIdentity 兜底**——此前 UI 忘传 target 时 approve 恒兜底
+命中、F1 类回归（UI 条件透传改回）在本验收面永不复现的假绿已消除，链断即
+validationFailed 同码拒绝；MSA12 F4 auto 告知卡——`fixture-inject-auto-notice` 注入
+auto_notice×gate 决策+同 decisionId 的 done 工单（真实 auto 直派判定在 host 侧，夹具只造
+快照事实），告知行卡（「已按 auto 规则自动执行」标签+原文首行+ticket.decisionId 反查
+工单号、无处置动作）随决策档展示、observe 档不渲染；同用例补 F2 would_accept 臂反馈文案。
+本轮实跑（2026-11-06，chromium headless，仓库根 `node --test <file>`）：MSA01–12
+30.7s pass；回归 mate-observe-ui（MOUI01–06）32.1s、mate-source-pet（MSP01–06）30.1s、
+mate-p4-ui 33.6s、mate-trust-auto 27.3s 全部 pass（fixture 升级向后兼容）。配套单测：
+view-model 32 项（`resolveMateErrorMessageId` 补 dispatchRejected →
+`mate.error.dispatchRejected` 专属文案——probe 诚实拒绝呈现语义收口）与 mate i18n 键
+守护 3 项实跑绿。候选仍为 pending，未 promotion；真实 Host 端到端（候选卡→建议→人放行、
+换代重派、双链路同验）随总闸联调验收。
 
 ## Mate（大副）P3 Source/桌宠接缝批增量（2026-11-05）
 

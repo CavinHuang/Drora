@@ -4,6 +4,9 @@
  * approveDecision/onDidChange 全部内存实现 + 推送，不代表真实 Host/CLI。语义对齐点
  * （approve 置 decided_by=user/二次放行幂等/终局定时推进/P4 核验滞留与配额判定同构简化）
  * 见 mate-browser.fixture.tsx 文件头与 mate-p4-ui.test.mjs。
+ * 2026-11-06 二轮审查（F1 守卫）：approve 目标解析与真实链同构（入参 → Router 建议 →
+ * trigger 落库值），tab.workspaceIdentity 兜底已移除——UI 忘传 target 的 F1 类回归在
+ * 本验收面可红（validationFailed），不再被夹具恒兜底掩盖。
  */
 import {
   ASSISTANT_ERROR_CODES,
@@ -24,7 +27,9 @@ import type {
 } from "@drora/services";
 import type { MateSidePaneTab } from "../../src/lib/workspaceSidePane.js";
 
-/** 夹具 workspace tab（工厂注入决策卡/建票的 target 归属；fixture 组件共用同实例）。 */
+/** 夹具 workspace tab（注入事件 trigger 落库 target 归属——injectRouterDecision/手机
+ * 入口同构真实链「trigger 携带发生处 workspace identity」；**不再作 approve 兜底**，
+ * 2026-11-06 F1 守卫。fixture 组件共用同实例）。 */
 export const tab: MateSidePaneTab = {
   id: "mate:fixture-ws",
   type: "mate",
@@ -285,6 +290,52 @@ export function createMateFixtureService(
     return seq;
   }
 
+  /**
+   * 注入 auto_notice×gate 告知卡（F4 验收，mate-surface-ac MSA12 消费；真实 auto 直派
+   * 判定在 host 侧，renderer 夹具按诚实边界只造快照事实）。带同 decisionId 的 done 工单
+   * ——告知卡工单号行经 ticket.decisionId 反查呈现（MateAutoNoticeRow 读点）。
+   */
+  function injectAutoNotice(text = "自动执行：点名任务（auto 直派）"): number {
+    seq += 1;
+    const triggerId = `TR-${seq}`;
+    triggers.push({
+      id: triggerId,
+      sourceKind: "local",
+      strength: ASSISTANT_STRENGTHS.explicit,
+      identity: "fixture/user-a",
+      text,
+      atMs: Date.now(),
+      targetWorkspaceIdentity: tab.workspaceIdentity,
+    });
+    tickets.push({
+      id: `T-${seq}`,
+      brief: text,
+      briefFull: text,
+      status: ASSISTANT_TICKET_STATUSES.done,
+      targetWorkspaceIdentity: tab.workspaceIdentity ?? "",
+      sessionId: `sess-auto-${seq}`,
+      outputSummary: "完成：auto 直派 fixture 汇报摘要",
+      failReason: null,
+      usage: { inputTokens: 64, outputTokens: 128 },
+      updatedAtMs: Date.now(),
+      dispatchMode: "A",
+      decisionId: seq,
+      anchorCommandId: `T-${seq}-1`,
+      generationCount: 0,
+    });
+    decisions.push({
+      id: seq,
+      triggerId,
+      outcome: ASSISTANT_OUTCOMES.autoNotice,
+      decidedBy: "gate",
+      triggerText: text,
+      decidedMs: Date.now(),
+      sourceKind: "local",
+    });
+    publish();
+    return seq;
+  }
+
   const service: IAssistantTicketService = {
     async recordTrigger(input) {
       seq += 1;
@@ -327,6 +378,27 @@ export function createMateFixtureService(
       if (!decision || decision.outcome !== ASSISTANT_OUTCOMES.decisionCard) {
         return { ok: false, error: { code: "mate.decision.not_found" } };
       }
+      // 2026-11-06 二轮审查（F1 守卫）：放行目标解析与真实链同构
+      // （assistantTicketsService.approve：入参显式 target → Router 建议预填 → trigger
+      // 落库值 decision.workspace_identity），**移除夹具 tab.workspaceIdentity 兜底**——
+      // 旧兜底让 UI 忘传 target 时 approve 恒命中、F1 类回归（UI 条件透传改回）在本
+      // 验收面永不复现；现在 target 链断即 validationFailed「缺少派发目标」同码拒绝。
+      const triggerTarget = triggers.find((trigger) => trigger.id === decision.triggerId)
+        ?.targetWorkspaceIdentity;
+      const targetIdentity =
+        input.targetWorkspaceIdentity ??
+        decision.routerSuggestion?.targetWorkspaceIdentity ??
+        triggerTarget ??
+        "";
+      if (!targetIdentity) {
+        return {
+          ok: false,
+          error: {
+            code: ASSISTANT_ERROR_CODES.validationFailed,
+            reason: "缺少派发目标 workspace（fixture 与真实链同构拒绝）",
+          },
+        };
+      }
       seq += 1;
       const ticketId = `T-${seq}`;
       const sessionId = `sess-${seq}`;
@@ -347,7 +419,7 @@ export function createMateFixtureService(
           brief,
           briefFull: brief,
           status: ASSISTANT_TICKET_STATUSES.queued,
-          targetWorkspaceIdentity: input.targetWorkspaceIdentity ?? tab.workspaceIdentity ?? "",
+          targetWorkspaceIdentity: targetIdentity,
           sessionId,
           outputSummary: null,
           failReason: null,
@@ -369,7 +441,7 @@ export function createMateFixtureService(
         brief,
         briefFull: brief,
         status: ASSISTANT_TICKET_STATUSES.dispatched,
-        targetWorkspaceIdentity: input.targetWorkspaceIdentity ?? tab.workspaceIdentity ?? "",
+        targetWorkspaceIdentity: targetIdentity,
         sessionId,
         outputSummary: null,
         failReason: null,
@@ -621,7 +693,25 @@ export function createMateFixtureService(
     approveDirect: service.approveDecision,
     resync: publish,
     injectRouterDecision,
+    injectAutoNotice,
     submitSource: service.submitSourceEntry,
+    /** F1 守卫读点（mate-surface-ac MSA11 消费）：绕过 UI 直调 approveDecision 且
+     * **不带 targetWorkspaceIdentity**——命中 trigger 落库回读臂（真实链 decision.
+     * workspace_identity 兜底语义）；UI 触发未恒传 workspaceKey 的回归在此得到
+     * validationFailed（e2e 以建票成功=fixture-last-brief 推进为准绳）。 */
+    approveBare: async () => {
+      const latest = [...decisions]
+        .reverse()
+        .find(
+          (item) =>
+            item.outcome === ASSISTANT_OUTCOMES.decisionCard && !ticketByDecision.has(item.id),
+        );
+      if (!latest) return;
+      return service.approveDecision({
+        decisionId: latest.id,
+        permissionTier: ASSISTANT_PERMISSION_TIERS.build,
+      });
+    },
     /** 手机入口 ingest 结果读点（direct:<ticketId>:<text> / gate:<triggerId>:<outcome>）。 */
     lastIngest(): string {
       return lastIngest;

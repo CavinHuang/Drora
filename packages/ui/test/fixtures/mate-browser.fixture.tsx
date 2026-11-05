@@ -59,6 +59,14 @@ import "../../src/styles.css";
  *   （一次性消费），验收 MateTrustBar 失败臂专属文案；
  * - ConfirmDialogHost 挂载：「切 auto」requestConfirmation 确认链路可走通（无
  *   pendingRequest 时渲染空 Dialog，不影响既有场景）。
+ *
+ * 2026-11-06 二轮审查扩展（mate-surface-ac.test.mjs 消费；既有场景不点不触发）：
+ * - fixture-approve-bare：不带 targetWorkspaceIdentity 直放行最新决策卡（命中 trigger
+ *   落库回读臂）——F1 守卫读点；服务工厂 approve 已移除 tab.workspaceIdentity 兜底，
+ *   改为与真实链同构的「入参 → Router 建议 → trigger 落库值」解析，链断即
+ *   validationFailed 拒绝。
+ * - fixture-inject-auto-notice：注入 auto_notice×gate 决策+同 decisionId 的 done 工单
+ *   （F4 告知卡呈现/工单号反查验收；真实 auto 直派判定在 host 侧，夹具只造快照事实）。
  */
 
 function Fixture() {
@@ -77,7 +85,9 @@ function Fixture() {
     approveDirect,
     resync,
     injectRouterDecision,
+    injectAutoNotice,
     submitSource,
+    approveBare,
     lastIngest: readLastIngest,
     queueNext,
     rolloverNext,
@@ -197,6 +207,18 @@ function Fixture() {
                 onClick={() => injectRouterDecision("failed")}
               >
                 Inject failed router
+              </button>
+              {/* 2026-11-06 二轮审查（F1 守卫，mate-surface-ac MSA11 消费）：不带 target
+                  直放行最新决策卡——命中 trigger 落库回读臂；UI 触发未恒传 workspaceKey
+                  的回归在此 validationFailed（fixture-last-brief 不推进即红）。 */}
+              <button data-testid="fixture-approve-bare" onClick={() => void approveBare()}>
+                Approve latest (no target)
+              </button>
+              {/* 2026-11-06 二轮审查（F4 告知卡，mate-surface-ac MSA12 消费）：注入
+                  auto_notice×gate 决策+关联工单——真实 auto 直派判定在 host 侧，夹具只造
+                  快照事实（告知卡呈现/工单号反查/档位归属验收）。 */}
+              <button data-testid="fixture-inject-auto-notice" onClick={() => injectAutoNotice()}>
+                Inject auto notice
               </button>
               <button data-testid="fixture-queue-next" onClick={queueNext}>
                 Queue next approve

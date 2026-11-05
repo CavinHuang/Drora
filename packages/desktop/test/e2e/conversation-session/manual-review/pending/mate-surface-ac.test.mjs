@@ -5,6 +5,8 @@
 // 带建议的决策卡（mate-browser.fixture.tsx P2 扩展控件）。真实 Host 端到端（候选卡→
 // 建议→人放行、换代重派、双链路）随总闸联调验收（specs §14 P2 验收行）。
 // MSA10 为 P2 审查修复批追加（specs §9 W2 兜底：W1 worktree 配置区开关）。
+// MSA11–12 为 2026-11-06 二轮审查批追加（F1 链守卫/F2 触发反馈行/F4 auto 告知卡——
+// coverage matrix Mate P2 节同批登记）。
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createRequire } from "node:module";
@@ -20,7 +22,7 @@ const { default: tailwindcss } = await import(
 );
 
 test(
-  "MSA01–10: Surface A status strip, Router suggestion prefill (dispatch/attach/failed/hold), team action, queued notice, Surface C tabs, generation badge, session-line, W1 worktree toggle",
+  "MSA01–12: Surface A status strip, Router suggestion prefill (dispatch/attach/failed/hold), team action, queued notice, Surface C tabs, generation badge, session-line, W1 worktree toggle, F1 bare-approve chain guard + F2 trigger feedback, F4 auto-notice card",
   { timeout: 180000 },
   async () => {
     const output = await mkdtemp(join(tmpdir(), "mate-surface-ac-"));
@@ -260,6 +262,56 @@ test(
           /每张工单派发进独立 worktree/.test(
             document.querySelector('[data-testid="mate-worktree-state"]')?.textContent ?? "",
           ),
+      );
+
+      // MSA11（2026-11-06 二轮审查，F1 链守卫 + F2 触发反馈行）：配置区点名触发 →
+      // UI 恒传 workspaceKey 落库（F2 role=status 反馈行 decision_card 臂文案）→
+      // fixture-approve-bare 不带 target 直放行，命中 trigger 落库回读臂建票成功
+      // （fixture-last-brief 推进）=链通。UI 忘传 target 的 F1 类回归（条件透传改回）
+      // 在此 validationFailed、无新 brief 读点推进即红——fixture-service 已移除
+      // tab.workspaceIdentity 兜底（与真实链「入参→建议→trigger 落库值」同构）。
+      await page.getByTestId("mate-trigger-input").fill("触发链守卫：验证 UI 恒传 target");
+      await page.getByTestId("mate-trigger-explicit").click();
+      const triggerFeedback = page.getByTestId("mate-trigger-feedback");
+      await triggerFeedback.waitFor();
+      assert.match(await triggerFeedback.textContent(), /已记录：决策卡已生成，等待放行。/);
+      await page.getByTestId("fixture-approve-bare").click();
+      await page.waitForFunction(
+        () =>
+          /触发链守卫/.test(
+            document.querySelector('[data-testid="fixture-last-brief"]')?.textContent ?? "",
+          ),
+      );
+      // 裸放行读点=target 缺席（-），证明本票走的是 trigger 回读臂而非 UI 预填。
+      assert.match(await page.getByTestId("fixture-approve-input").textContent(), /target=-/);
+      // F2 第二臂：未指名触发 → would_accept 反馈文案。
+      await page.getByTestId("mate-trigger-input").fill("触发链守卫：未指名观察");
+      await page.getByTestId("mate-trigger-inferred").click();
+      await page.waitForFunction(
+        () =>
+          /已记录：观察中/.test(
+            document.querySelector('[data-testid="mate-trigger-feedback"]')?.textContent ?? "",
+          ),
+      );
+
+      // MSA12（2026-11-06 二轮审查，F4 auto 告知卡）：auto_notice×gate 决策 + 关联工单
+      // 注入 → 决策档只读行卡（「已按 auto 规则自动执行」标签+原文首行+ticket.decisionId
+      // 反查工单号）；无放行/忽略动作（decided_by=gate 不计放行率）；observe 档不渲染
+      // （随决策档展示）。
+      await page.getByTestId("fixture-inject-auto-notice").click();
+      const autoNotice = page.getByTestId("mate-auto-notice-row");
+      await autoNotice.waitFor();
+      assert.match(await autoNotice.textContent(), /已按 auto 规则自动执行/);
+      assert.match(await autoNotice.textContent(), /自动执行：点名任务（auto 直派）/);
+      assert.match(await autoNotice.textContent(), /工单号 T-\d+/);
+      assert.equal(await autoNotice.getByTestId("mate-decision-approve").count(), 0);
+      await page.getByTestId("mate-filter-observe").click();
+      await page.waitForFunction(
+        () => document.querySelectorAll('[data-testid="mate-auto-notice-row"]').length === 0,
+      );
+      await page.getByTestId("mate-filter-all").click();
+      await page.waitForFunction(
+        () => document.querySelectorAll('[data-testid="mate-auto-notice-row"]').length === 1,
       );
 
       assert.deepEqual(errors, []);

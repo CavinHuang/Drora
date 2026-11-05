@@ -9,9 +9,10 @@
 ## 0. 阶段地图
 
 ```
-P1 准入(含 Mandate)+observe+手动放行直派(Mode A)+usage 归账   [PR-1A 服务核心 | PR-1B UI]
-P2 Router 预设(Spike 先行)+Mode B/C+代际锚校验+W1/W2+assistantActivity(host 侧)
-   +Surface A/C 落点 + /mate 入口
+P1 准入(含 Mandate)+observe+手动放行直派(Mode A)+usage 归账   [PR-1A 服务核心 | PR-1B UI]  ✅ 已实施(feat/mate-p1)
+P2 Router 决策(a 路线结构化文本)+Mode B/C+代际锚校验+W1/W2+assistantActivity(host 侧)
+   +Surface A/C 落点 + /mate 入口   ✅ 已实施(feat/mate-p2：host 内核批 + Surface 批；
+   打扰配额/键盘流/usage 按代分解等 P4 件随 P4)
 P3 Source 注册表(飞书/手机/GitHub)+Thread 直通+桌宠接缝(含 tray 直达)
 P4 watchdog(automation)+auto 信任门(唯一入口+配额默认5)+汇报卡完整版
 语音入口：随 voice-agent spec 排期对齐后单列（不在 P1-P4 内，见 §8）

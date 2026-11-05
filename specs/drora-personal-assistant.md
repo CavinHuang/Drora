@@ -1,11 +1,12 @@
 # Drora Mate（个人助理「大副」）设计 spec
 
 - 日期：2026-11-04
-- 状态：P2 实现中——P1 已交付（feat/mate-p1：PR-1A 服务核心 + PR-1B UI 面 + ticketLedger
-  帧接线，见 ui-mate CONTRACT.md 与 coverage matrix）。P2 host 内核（Router 决策 schema
-  与候选卡循环 / Mode B·C / 代际锚校验 / W1·W2 写域 / assistantActivity host 挂载）随
-  feat/mate-p2 交付；Surface A·C、/mate 入口与阶段地图由后续批次接力。实现与本文的偏差
-  按 00-master-plan §8/§9 与 assistant-tickets CONTRACT.md 登记。
+- 状态：P2 已实施（feat/mate-p2）——P1 已交付（feat/mate-p1：PR-1A 服务核心 + PR-1B UI 面
+  + ticketLedger 帧接线）。P2 含 host 内核（Router 决策 schema 与候选卡循环 / Mode B·C /
+  代际锚校验 / W1·W2 写域 / assistantActivity host 挂载）与 Surface 批次（Surface A 状态条
+  +Router 预填决策卡、Surface C 四页签详情、mate session-line 任务行徽标、/mate 文档片段
+  与 mate scope token）。实现与本文的偏差按 00-master-plan §8/§9 与 assistant-tickets
+  CONTRACT.md 登记。
 - 基线：main @ 42bacc627（upstream **v3.17.2 已整并**：b3e44cb2a 六段合并 + a9fe401ee 源同步）。
   本 spec §3/§7 引用的四个接缝路径（`apps/drora-cli/packages/core/src/team/hub.ts`、
   `drora-protocol-v4/sessions-index.ts`、services 的 drora-session 与 bot-project-runtime）
@@ -204,11 +205,35 @@ useModelCapabilities 同构形态，00 §8 二审 B2）。
 1. **Surface A 大副对话**：状态条（模式徽标/打扰配额/活动工单数）+ 对话流内嵌决策卡
    （原文引用+预估+`Y/N/E` 键盘流+"已等待"只显示不超时）与汇报卡（结论+工件链接+实耗+
    代际徽标与未确认增量）。
+   **P2 落地注记（2026-11-05，随 feat/mate-p2 Surface 批次）**：状态条=Mate 面板内
+   `MateStatusStrip`（mode 徽标+活动工单数/软预算+待决策数）；**打扰配额 P2 不渲染**——
+   每日配额默认 5 与全端生效是 P4 交付（§14），P2 无事实源，诚实省略。决策卡 Router
+   预填按快照 v2（`routerState`/`routerSuggestion`/`routerError`）：suggested 渲染建议区
+   （四臂 kind+目标/会话/权限档/briefBase+证据 ≤3 条 verbatim+reason）并以预填参放行
+   （dispatch 建议→`dispatchMode:'A'`；attach 建议→`attachToSessionId`；hold/reject 建议
+   只展示 reason，人工终审不变）；failed 渲染 `routerError` 降级行（不重试模型）。
+   Mode B 建队=决策卡第二放行动作（`dispatchMode:'B'`）；软预算/写域冲突放行返回
+   `queued:true` → 卡内告知行+工单行 queued 灯档（`queuedReason` 同行展示）。
+   **`Y/N/E` 键盘流的诚实降级**：P2 仍为按钮流（[放行]=Y/[忽略]=N/[追加说明后放行]=E，
+   语义等价）；跨卡全局键盘流涉及 side pane 焦点管理与多卡竞争裁决，随 P3 Source 批次
+   （桌宠 tray 直达需要同一焦点通道）一并交付。"已等待 X"=工单行相对时间既有口径
+   （formatTaskRelativeTime），只显示不超时。
 2. **Surface B Side Pane「大副」tab**：按 workspace 分组的工单列表；过滤（待决策/进行中/
    观察中/全部）；软预算指示；观察记录累计区=信任条（would-accept 数/放行率，达标才出现
    切 auto 入口）。
 3. **Surface C 工单详情**：时间线/汇报/证据/成本四页签；代际时间线用 mate scope 的
    timeline token（不挪用 workflow 家族）。
+   **P2 落地注记（2026-11-05）**：落点=Mate 面板内下钻二级视图 `MateTicketDetail`
+   （工单行点击进入；返回按钮回列表；选中态=mateStore 既有 `selectedTicketId` 分域复用，
+   面板卸载即收敛）。时间线=代际站（快照 v2 字段：queued 站（queuedReason）→ 派发站
+   （dispatchMode+sessionId）→ 锚站（anchorCommandId 或「尚未投递」）→ 当前代站
+   （第 generationCount+1 代）；轨/站用新增 mate scope token `--color-mate-trace`·
+   `--color-mate-trace-strong`·`--color-mate-rule`，DESIGN.md 已登记）；汇报页=
+   output_summary/fail_reason+实耗+「打开会话」；证据页=决策卡关联（快照 v2 工单新增
+   可选 `decisionId` 投影——ticket.decision_id 列既有，UI 据此取该决策卡 triggerText
+   verbatim 与 Router 证据；无关联工单显示 brief 原文诚实降级）；成本页=usage
+   input/output 合计+代数说明；**usage_log 按代分解随 P4 汇报卡完整版**（快照只有
+   usage_accum 合计，不伪造逐代数据）。
 4. **Surface D 摘要行**：`assistantActivity` 有界字段，**host 侧任务行 overlay 合成**
    （`windowHostControllerService` 的 teamActivity overlay 同位；事实源=TicketService，
    非 CLI 投影——保持 CLI 零改动；P2 已落地：`controller/tasks-index` 帧 task row
@@ -245,7 +270,7 @@ desktop-continuous：Router 会话实时流。web-remote-replayable：手机只�
 | ---- | ----------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | W0   | 本 spec + 差异台账                                                      | 评审通过                                                                                                                                                    |
 | P1   | 准入域模型（含 Mandate）+ observe + 手动放行直派（Mode A）+ 观察记录 UI | 本地双触发（点名=explicit→决策卡放行 / 未指名=inferred→would-accept）→会话执行→完成记录含实耗；im/手机 Source 后移 P3；typecheck/lint/architecture:check 绿 |
-| P2   | assistant preset + Mode B/C + 代际 + Surface A/C                        | E2E：候选卡→建议→人放行；follow-up 直投；换代重派标注增量；手机快照透传；双链路各验一遍。P2 host 内核已交付（feat/mate-p2）：Router 决策 schema+候选卡循环、Mode B/C 派发、代际锚校验、W1/W2、assistantActivity host 挂载及单测；Surface A/C 与 /mate 随接力批次验收 |
+| P2   | assistant preset + Mode B/C + 代际 + Surface A/C                        | E2E：候选卡→建议→人放行；follow-up 直投；换代重派标注增量；手机快照透传；双链路各验一遍。**已实施（feat/mate-p2，两批）**：host 内核批=Router 决策 schema+候选卡循环、Mode B/C 派发、代际锚校验、W1/W2、assistantActivity host 挂载及单测；Surface 批=MateStatusStrip 状态条+Router 预填决策卡（dispatch/attach/hold/reject 四臂呈现与预填放行、failed 降级、queued 告知）、MateTicketDetail 四页签（时间线=代际站 mate-trace token/汇报/证据/成本）、工单行 queued/模式/代际徽标、MateSessionLine 任务行 mate 徽标（controller tasks-index 透传）、/mate 文档片段；服务快照 v2 补 `decisionId` 可选投影（证据页签关联）。单测与浏览器验收资产（fixture+`mate-surface-ac.test.mjs`）随批交付；真实 Host 端到端（候选卡→建议→人放行、换代重派、双链路）随总闸联调验收 |
 | P3   | Source 插件化（github）+ Tier1 直通                                     | GitHub 点名建单；同 ticket follow-up 直投不过 Router                                                                                                        |
 | P4   | watchdog + auto 门                                                      | 停滞被标记并通知；auto 需信任条达标+确认 dialog                                                                                                             |
 

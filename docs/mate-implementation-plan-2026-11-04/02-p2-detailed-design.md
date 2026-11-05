@@ -40,6 +40,8 @@ sequenceDiagram
 
 大副对话=assistant 虚拟 workspace 的会话本体（v4 会话流既有渲染）。状态条（mode/打扰配额/活动工单数）=该会话 header 扩展（SessionPane header 插槽）；决策卡/汇报卡=bottom dock 同位（`TeamApprovalDock` chrome 先例）内嵌对话流底部；"已等待 X"仅显示不超时。
 
+**落地实态（2026-11-05，Surface 批次）**：会话本体经既有「打开会话」跳转通道（`onOpenMateSession`→`handleSelectTaskInChat` 同位落点）渲染，SessionPane 不加插槽（P2 无需改对话流壳）。Mate 面板内呈现候选卡循环视图：状态条=`MateStatusStrip` 新组件（mode 徽标+活动工单数/软预算+待决策数；**打扰配额 P2 无事实源不渲染**——每日配额默认 5 全端生效是 P4 交付，诚实省略）；决策卡升级为 Router 预填卡（suggested 建议区四臂+证据 ≤3 条 verbatim、failed 降级 `routerError`、pending 评估中；放行携带预填参 dispatch→`dispatchMode:'A'`、attach→`attachToSessionId`、hold/reject 仅展示 reason 人工终审；Mode B=第二放行动作；`queued:true` 返回→卡内告知行）；工单行补 queued 灯档与 dispatchMode/generationCount 徽标。键盘流降级为按钮流（Y/N/E 语义等价），跨卡全局键盘流留 P3。
+
 ## 2. Mode C（附着）与解析三层
 
 - 附着通道：与 Mode A 同一 v4 sendText（目标=既有 sessionId），`heldQueueDisposition:"keepQueueAndSend"` 天然排队进 CommandInbox——busy 投递合法、保序由既有机制承担。
@@ -77,3 +79,5 @@ sequenceDiagram
 
 - MateSidePane 下钻二级：工单详情（返回按钮+四页签 时间线/汇报/证据/成本）。时间线=代际站（mate scope token：`--color-mate-trace` 等，不挪用 workflow 家族）；成本页=usage_log 按代分解。
 - `/mate`：自定义命令机制=CLI `.drora/commands` 目录 markdown frontmatter（`apps/drora-cli/packages/adapters/src/commands/roots.ts`，**非** config.json commands 键）——P2 文档化默认片段直达 Surface A 会话/任务中心。（spec §1 原文"对应既有 /team"已修正：/team 是 UI 功能入口非 CLI 命令。）
+
+**落地实态（2026-11-05，Surface 批次）**：Surface C=`MateTicketDetail` 组件落 ui-mate 模块，Mate 面板内下钻（工单行点击进入、返回按钮回列表、选中态复用 mateStore `selectedTicketId`）。四页签按快照 v2 事实裁剪：时间线=代际站（queued→派发→锚→当前代，token `--color-mate-trace`·`--color-mate-trace-strong`·`--color-mate-rule` 新增并登记 DESIGN.md）；证据页=工单快照新增可选 `decisionId` 投影（ticket.decision_id 列既有），据此关联决策卡取 triggerText verbatim 与 Router 证据，无关联则显示 brief 原文降级；成本页=usage 合计+代数说明，**usage_log 按代分解随 P4**（快照只有 usage_accum 合计，不伪造逐代数据）。`/mate`=文档片段 `docs/mate-implementation-plan-2026-11-04/assets/mate-command.md`（frontmatter description+argument-hint，正文指示大副路由语义；放置于项目 `.drora/commands/mate.md` 或用户 `~/.drora/commands/mate.md` 即生效）；CLI→UI 导航端口直达（命令触发即开面板）依赖 renderer 导航通道，随 P3 桌宠 tray 直达批次用同一导航端口交付，P2 片段语义=提示词引导+人工打开面板。

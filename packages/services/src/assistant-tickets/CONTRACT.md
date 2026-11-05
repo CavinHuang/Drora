@@ -39,9 +39,15 @@ Drora Mate 个人助理工单台账（specs/drora-personal-assistant.md；台账
   记账不改写。
 - 写域（02 §4）：W1=本地 git 根 worktree `.drora/mate/<ticketId>` + 分支 `mate/<id>`
   （终态清理保留分支，清理失败追加 fail_reason 附属日志；换代续用不重复 add）；
-  W2=非 git/关 W1 → 声明域（空集=待声明整域，彼此互斥）；W3=附着不隔离但查冲突。
-  不变式「Mate 派生活动工单两两写域不相交」由 detectWriteDomainOverlap+排队闸执行；
-  探测不可用（远程/非本地路径）→ 降级 workspace 域（未隔离明示，不阻断派发）。
+  W2=非 git/关 W1 → 声明域（空集=待声明整域，彼此互斥；**声明域「决策卡可编辑」与
+  「用户关闭 W1」配置入口 P2 裁剪**——空集=待声明整域自动互斥进队列，编辑/开关入口
+  随声明域 UI 批次交付）；W3=附着不隔离但查冲突。
+  不变式「Mate 派生活动工单两两写域不相交」由 detectWriteDomainOverlap+排队闸+释放
+  复检执行；workspace 探测端口缺席（P1 形态）→ 跳过 W1 规划按 workspace 域派发
+  （未隔离明示）；端口在位而目标探测失败（远程/非本地路径/目录不存在）→ 放行前预检
+  失败，决策卡不消费、不建票（spec §8「拒绝猜测，问人」，attach 预检同构——此前
+  「文档称降级不阻断 / 实现 fail-fast 已消费卡 / spec 要求问人」三口径矛盾收口于
+  本形态，2026-11-05 审查修复）。
 - 软预算（spec §9）：默认 3（ASSISTANT_DEFAULTS 单出处），活动=dispatched/running；
   超出或写域重叠 → queued（queued_reason=告知卡文案）+终态 FIFO 释放（created_ms 序；
   详设 kv cursor 的等价简化，偏差已登记）。释放前双重复检：预算（活动计数）与队头
@@ -60,7 +66,7 @@ Drora Mate 个人助理工单台账（specs/drora-personal-assistant.md；台账
 - 端口纪律：本模块不 import drora-agent/git——v4 命令、会话索引、workspace 探测、
   git worktree 七端口全在装配层（services/node.ts set*，assistantPorts.ts 唯一形状）；
   未注入按各语义诚实降级（派发=dispatch.rejected、Router=无建议、会话索引=候选空集/
-  锚不可校验、探测=降级 workspace 域）。Router 端口双臂解除（装配层实现）：候选卡
+  锚不可校验、探测=跳过 W1 规划按 workspace 域派发）。Router 端口双臂解除（装配层实现）：候选卡
   turn 的 assistantText complete→输出、failed/interrupted→{ok:false}（帧状态即事件
   信号，非超时兜底）——服务侧评估落 router_evaluation=failed 降级 Tier3，评估串行链
   不因 turn 失败挂起。

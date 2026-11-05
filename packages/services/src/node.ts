@@ -3790,8 +3790,10 @@ export function createLocalServices(options: {
     },
   });
   // workspace 探测端口（写域 W1 前置）：P2 本地限定——identity 必须是本地绝对路径
-  // （决策卡目标选择传递真实路径）；远程/虚拟目标如实探测失败 → 引擎降级 workspace 域
-  // （未隔离明示，不阻断派发）。identity→path 的完整 resolver 随 P3 Source 接线。
+  // （决策卡目标选择传递真实路径）。探测失败处置（2026-11-05 审查修复三口径收口）：
+  // 端口在位而目标探测失败 → 服务在放行事务前预检拒绝、决策卡不消费（spec §8
+  // 「拒绝猜测，问人」，attach 预检同构）；端口缺席（未 set*）→ 服务跳过 W1 规划按
+  // workspace 域派发（P1 形态未隔离明示）。identity→path 的完整 resolver 随 P3 Source 接线。
   setAssistantWorkspaceProbePort(async (identity) => {
     const trimmed = identity.trim();
     if (!isAbsolute(trimmed)) {

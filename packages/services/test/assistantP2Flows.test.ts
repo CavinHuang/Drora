@@ -352,6 +352,56 @@ describe("Mode C 附着（02 §2）", () => {
   });
 });
 
+describe("workspace 探测预检（spec §8「拒绝猜测，问人」；P2 审查修复三口径收口）", () => {
+  it("探测端口在位而目标探测失败 → 放行拒绝且决策卡不消费（可改选后重放）", async () => {
+    const { service } = createService();
+    setAssistantWorkspaceProbePort(async () => ({
+      ok: false as const,
+      reason: "目标非本地绝对路径（P2 W1 本地限定）",
+    }));
+    setAssistantDispatchPort(async () => {
+      throw new Error("预检失败不应到达派发");
+    });
+    const recorded = await service.recordTrigger({
+      text: "帮我改这个目录",
+      simulated: ASSISTANT_STRENGTHS.explicit,
+      targetWorkspaceIdentity: "remote:ws-x",
+    });
+    if (!recorded.ok) throw new Error("recordTrigger failed");
+    const decision = (await service.getSnapshot()).decisions.find(
+      (d) => d.triggerId === recorded.value.triggerId,
+    );
+    if (!decision) throw new Error("decision missing");
+    const approved = await service.approveDecision({
+      decisionId: decision.id,
+      targetWorkspaceIdentity: "remote:ws-x",
+    });
+    expect(approved.ok).toBe(false);
+    if (approved.ok) return;
+    expect(approved.error.code).toBe(ASSISTANT_ERROR_CODES.dispatchRejected);
+    expect(approved.error.reason).toContain("决策卡未消费");
+    // 决策卡保持未决（decided_by=gate），无工单产生——spec §8「问人」承接（改选目标可重放）。
+    const after = (await service.getSnapshot()).decisions.find((d) => d.id === decision.id);
+    expect(after?.decidedBy).toBe("gate");
+    expect(after?.outcome).toBe(ASSISTANT_OUTCOMES.decisionCard);
+    expect((await service.getSnapshot()).tickets).toHaveLength(0);
+  }, 20_000);
+
+  it("探测端口缺席（P1 形态）→ 不预检，按 workspace 域派发（未隔离明示）", async () => {
+    const { service } = createService();
+    const dispatched: Array<{ hostPath?: string }> = [];
+    setAssistantDispatchPort(async (request) => {
+      dispatched.push({ hostPath: request.hostPath });
+      return { ok: true, value: { ticketId: request.ticketId, sessionId: "sess-noprobe" } };
+    });
+    setAssistantFrameSource({ subscribe() { return { dispose: () => undefined }; } });
+    const approved = await recordAndApprove(service, { targetWorkspaceIdentity: "ws-a" });
+    expect(approved.ok).toBe(true);
+    expect(dispatched).toHaveLength(1);
+    expect(dispatched[0]?.hostPath).toBeUndefined(); // 无探测即无 W1 落位（装配层回退）
+  }, 20_000);
+});
+
 describe("软预算 queued FIFO（spec §9）", () => {
   it("预算=1：第二单排队；首单终态→FIFO 释放并派发", async () => {
     const { service, db } = createService();

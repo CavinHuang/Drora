@@ -39,6 +39,7 @@ import { getAssistantPorts } from "./assistantPorts.js";
 import { composeTeamLeadBrief } from "./routerShell.js";
 import { createRouterEvaluation } from "./routerEvaluation.js";
 import { resolveAnchorVerdict } from "./incarnation.js";
+import { serializeDispatchIntent } from "./dispatchIntent.js";
 import {
   detectWriteDomainOverlap,
   planBudgetAdmission,
@@ -289,14 +290,14 @@ export function createAssistantTicketsService(
           suggestion?.kind === "attach" || suggestion?.kind === "dispatch"
             ? suggestion.arm?.targetWorkspaceIdentity
             : undefined;
+        const decisionRow = db.raw
+          .prepare(
+            "SELECT t.workspace_identity FROM admission_decision d JOIN trigger t ON t.id = d.trigger_id WHERE d.id = ?",
+          )
+          .get(input.decisionId) as { workspace_identity: string | null } | undefined;
         // Tier2 附着预检（02 §2 派发桥校验）：在放行事务**之前**校验目标存在/归属——
         // 失败时决策卡不被消费、不建票，人工可改选"开新会话"（Tier3 选项恒在）。
         if (attachSessionId) {
-          const decisionRow = db.raw
-            .prepare(
-              "SELECT t.workspace_identity FROM admission_decision d JOIN trigger t ON t.id = d.trigger_id WHERE d.id = ?",
-            )
-            .get(input.decisionId) as { workspace_identity: string | null } | undefined;
           const preIdentity =
             input.targetWorkspaceIdentity ?? suggestedTarget ?? decisionRow?.workspace_identity ?? "";
           if (!preIdentity) {
@@ -311,6 +312,27 @@ export function createAssistantTicketsService(
               ASSISTANT_ERROR_CODES.attachTargetInvalid,
               `附着目标校验失败：${resolveAnchorVerdict(probe).reason}`,
             );
+          }
+        } else {
+          // workspace 探测预检（P2 审查修复，spec §8「workspace 迁移→identity 解析失败→
+          // 拒绝猜测，问人」）：照上方 attach 预检先例在放行事务之前执行——探测端口在位
+          // 而目标探测失败（远程/非本地路径/目录不存在）→ 不消费决策卡、不建票，人工可
+          // 改选目标或追加说明后重放。此前三口径矛盾（CONTRACT.md/node.ts 注释称「降级
+          // 不阻断」，实现却在建票后 fail-fast 且卡已消费无问人入口）收口为本形态。
+          // 探测端口缺席（P1 形态）不预检：跳过 W1 规划按 workspace 域派发（未隔离明示）。
+          const { workspaceProbe } = getAssistantPorts();
+          if (workspaceProbe) {
+            const preIdentity =
+              input.targetWorkspaceIdentity ?? suggestedTarget ?? decisionRow?.workspace_identity ?? "";
+            if (preIdentity) {
+              const probe = await workspaceProbe(preIdentity);
+              if (!probe.ok) {
+                return fail(
+                  ASSISTANT_ERROR_CODES.dispatchRejected,
+                  `workspace 探测失败，决策卡未消费（改选目标后可重放）：${probe.reason}`,
+                );
+              }
+            }
           }
         }
         const created = db.transaction(
@@ -394,11 +416,19 @@ export function createAssistantTicketsService(
             const brief = input.briefAppendix
               ? `${decision.text}\n\n---\n大副补充：${input.briefAppendix}`
               : decision.text;
+            // 派发意图落库（P2 审查修复）：放行形态（Mode A/B/C、附着目标、权限档）进
+            // ticket.dispatch_intent，queued FIFO 释放按落库形态重放派发——不依赖内存
+            // 参数或派发成功后才写入的 dispatch_mode 列（dispatchIntent.ts 文件头即对账点）。
+            const dispatchIntent = serializeDispatchIntent({
+              mode: attachSessionId ? "C" : (input.dispatchMode ?? "A"),
+              tier,
+              ...(attachSessionId ? { attachSessionId } : {}),
+            });
             raw
               .prepare(
                 `INSERT INTO ticket(id, mandate_id, decision_id, brief, target_workspace_identity, status,
-              incarnation_current, incarnation_generations, usage_accum, created_ms, updated_ms)
-             VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+              incarnation_current, incarnation_generations, usage_accum, dispatch_intent, created_ms, updated_ms)
+             VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
               )
               .run(
                 ticketId,
@@ -417,6 +447,7 @@ export function createAssistantTicketsService(
                 }),
                 "[]",
                 "{}",
+                dispatchIntent,
                 ts,
                 ts,
               );

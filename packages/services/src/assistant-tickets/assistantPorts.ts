@@ -92,7 +92,7 @@ export interface AssistantFrameSourcePort {
 // ---------------------------------------------------------------------------
 
 export type AssistantRouterPort = (input: {
-  /** composeCandidateCard/composeRouterHandoff 的完整首条输入（约言+卡文）。 */
+  /** composeCandidateCard 的完整首条输入（约言+卡文+Tier2 候选集）。 */
   readonly card: string;
 }) => Promise<{ ok: true; output: string } | { ok: false; reason: string }>;
 
@@ -118,7 +118,9 @@ export type AssistantSessionsIndexWatchDelta =
 
 export interface AssistantSessionsIndexPort {
   /**
-   * workspace 会话快照（Tier2 候选集原料；硬过滤 busy/跨 identity/过期在服务侧纯函数）。
+   * workspace 会话快照（Tier2 候选集原料）：调用方（routerEvaluation 候选卡组装）以
+   * routerShell.filterAttachCandidates 纯函数做会话级硬过滤（busy/已结束/无转录/过期
+   * >7d）与有界截断；跨 identity 由本端口按 (workspaceIdentity, hostPath) 作用域保证。
    * hostPath=会话落位目录（worktree 时为 worktree 路径；缺省=装配层按 identity 回退）。
    * 通道未装配/不可用 → { ok:false }（诚实降级 Tier3，不猜候选）。
    */

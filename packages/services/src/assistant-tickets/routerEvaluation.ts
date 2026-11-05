@@ -9,12 +9,38 @@ import { createServiceLogger } from "../logger/serviceLogger.js";
 import type { AssistantDatabase, AssistantDatabaseRaw } from "./assistantDatabase.js";
 import { getAssistantPorts } from "./assistantPorts.js";
 import { parseRouterDecisionText } from "./routerDecision.js";
-import { composeCandidateCard } from "./routerShell.js";
+import {
+  composeCandidateCard,
+  filterAttachCandidates,
+  type RouterAttachCandidate,
+} from "./routerShell.js";
 
 const logger = createServiceLogger("assistant-tickets");
 
 function nowMs(): number {
   return Date.now();
+}
+
+/**
+ * Tier2 候选集生成（02 §2；P2 审查修复接线——此前 listSessions 端口零调用方、候选卡
+ * 无候选清单，Router 的 attach 臂 sessionId 无真实来源，真实链路不可达）：
+ * 目标 workspace 的 sessions-index 快照 → filterAttachCandidates 硬过滤纯函数产出
+ * 有界候选。触发目标缺省（identity=null）或通道未装配/不可用 → 空候选（候选卡不含
+ * 【附着候选】段，Router 按约言禁输出 attach 臂——诚实降级 Tier3 问人）。
+ */
+async function collectAttachCandidates(
+  targetWorkspaceIdentity: string | null,
+): Promise<RouterAttachCandidate[]> {
+  const { sessionsIndex } = getAssistantPorts();
+  if (!sessionsIndex || !targetWorkspaceIdentity) return [];
+  try {
+    const result = await sessionsIndex.listSessions(targetWorkspaceIdentity);
+    if (!result.ok) return [];
+    return filterAttachCandidates({ sessions: result.sessions, nowMs: nowMs() });
+  } catch (error) {
+    logger.warn("assistant-tickets Tier2 候选集获取失败（诚实降级 Tier3）", error);
+    return [];
+  }
 }
 
 export interface RouterEvaluationDeps {
@@ -56,15 +82,18 @@ export function createRouterEvaluation(deps: RouterEvaluationDeps): {
       logger.warn("assistant-tickets router 评估登记失败", error);
       return;
     }
-    const card = composeCandidateCard({
-      triggerId: input.trigger.id,
-      text: input.trigger.text,
-      strength: input.trigger.strength,
-      identity: input.trigger.identity,
-      atMs: input.trigger.atMs,
-      targetWorkspaceIdentity: input.trigger.workspaceIdentity,
-    });
     void (async () => {
+      // Tier2 候选集在评估链内采集（事件驱动；通道失败/缺席→空候选，不阻断评估）。
+      const attachCandidates = await collectAttachCandidates(input.trigger.workspaceIdentity);
+      const card = composeCandidateCard({
+        triggerId: input.trigger.id,
+        text: input.trigger.text,
+        strength: input.trigger.strength,
+        identity: input.trigger.identity,
+        atMs: input.trigger.atMs,
+        targetWorkspaceIdentity: input.trigger.workspaceIdentity,
+        ...(attachCandidates.length > 0 ? { attachCandidates } : {}),
+      });
       const result = await router({ card: card.input });
       const finalize: { state: "suggested" | "failed"; verdict?: string; error?: string } =
         result.ok

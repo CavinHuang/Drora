@@ -18,8 +18,16 @@ Drora Mate 个人助理工单台账（specs/drora-personal-assistant.md；台账
 - Router 候选卡循环（02 §1.3）：决策卡产出后异步送 Router（路由约言随候选卡重发，
   (a) 结构化文本路线，CLI 零改动）；输出经 routerDecision.ts zod 严格校验（四臂互斥、
   evidence ≤3 条 ≤80 字），建议预填 router_evaluation → snapshot 决策卡；人工终审
-  Y/N/E 不变。轮转簿记（ROUTER_KV_KEYS）在装配层（services/node.ts，kv 同库）；
-  每张卡都自带约言，无状态壳轮转零交接依赖。
+  Y/N/E 不变。Tier2 候选集生成（02 §2）：评估链内经 sessions-index 端口 listSessions
+  取目标 workspace 快照，routerShell.filterAttachCandidates 纯函数硬过滤（busy
+  running/prewarming、已结束、无转录 draft、updatedAt>7d）后有界截断
+  （attachCandidatesMax=5）进候选卡【附着候选】段；候选空集/通道不可用/目标缺省 →
+  不出段，约言恒约束 attach 臂 sessionId 只能取自清单（缺席/不合适 → hold，
+  禁止编造）——派发桥 Tier2 校验 fail-closed 兜底。轮转簿记（ROUTER_KV_KEYS）在
+  装配层（services/node.ts，kv 同库）；每张卡都自带约言，无状态壳轮转零交接依赖。
+  轮转裁剪登记（P2）：仅建新会话、不执行旧会话归档动作（02 §1.1 原案「归档旧会话」
+  静默省略——无状态壳语义下旧会话残留为 CLI 内存事实，编排事实在台账；待 CLI 会话
+  生命周期处置动作可用时对账补齐），浓缩交接同样不发送（零交接依赖）。
 - 带序 commandId 与锚（02 §3）：`<ticketId>-<投递序号>`（incarnation.dispatchSeq 行内
   计数，与锚回写同事务——详设 kv 计数器的等价原子化，偏差已登记）；anchor=最后成功
   sendText 的 commandId；follow-up/换代前经会话索引对账（reconcile 优先，缺席≠删除）。

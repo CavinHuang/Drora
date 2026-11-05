@@ -155,6 +155,108 @@ describe("Router 候选卡循环（02 §1.3）", () => {
   });
 });
 
+describe("Tier2 候选集→Router 带证据选择（02 §2；P2 审查修复接线）", () => {
+  it("listSessions 硬过滤产出候选进候选卡；Router attach 建议携带真实 sessionId（闭环）", async () => {
+    const { service } = createService();
+    let receivedCard = "";
+    setAssistantRouterPort(async ({ card }) => {
+      receivedCard = card;
+      return {
+        ok: true,
+        output: JSON.stringify({
+          attach: { sessionId: "sess-live", targetWorkspaceIdentity: "ws-a" },
+          evidence: [{ quote: "继续上次" }],
+        }),
+      };
+    });
+    setAssistantSessionsIndexPort({
+      async listSessions(identity) {
+        expect(identity).toBe("ws-a");
+        return {
+          ok: true,
+          sessions: [
+            {
+              sessionId: "sess-live",
+              title: "重构导出",
+              phase: "completedInterrupted",
+              sessionEnded: false,
+              updatedAtMs: Date.now() - 3_600_000,
+            },
+            {
+              sessionId: "sess-busy",
+              title: "正在跑",
+              phase: "running",
+              sessionEnded: false,
+              updatedAtMs: Date.now(),
+            },
+            {
+              sessionId: "sess-old",
+              title: "去年会话",
+              phase: "completedSuccess",
+              sessionEnded: false,
+              updatedAtMs: Date.now() - 30 * 24 * 3_600_000,
+            },
+          ] as AssistantSessionSummaryLite[],
+        };
+      },
+      async probeSession() {
+        return { kind: "ok" } as const;
+      },
+      watchSessions() {
+        return { dispose: () => undefined };
+      },
+    });
+    await service.recordTrigger({
+      text: "继续上次的重构",
+      simulated: ASSISTANT_STRENGTHS.explicit,
+      targetWorkspaceIdentity: "ws-a",
+    });
+    let suggestion;
+    for (let i = 0; i < 20; i += 1) {
+      suggestion = (await service.getSnapshot()).decisions[0]?.routerSuggestion;
+      if (suggestion) break;
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    // 候选卡携带硬过滤后的候选（busy/过期不入选）——Router 的 attach 臂自此有真实来源，
+    // 不再只能靠原文臆测 sessionId（此前候选集生成缺失，真实链路 Mode C 不可达）。
+    expect(receivedCard).toContain("【附着候选】目标 workspace 的可附着会话");
+    expect(receivedCard).toContain("sess-live");
+    expect(receivedCard).not.toContain("sess-busy");
+    expect(receivedCard).not.toContain("sess-old");
+    expect(suggestion?.kind).toBe("attach");
+    expect(suggestion?.sessionId).toBe("sess-live");
+    expect((await service.getSnapshot()).decisions[0]?.routerState).toBe("suggested");
+  }, 20_000);
+
+  it("候选通道失败/无目标 workspace → 空候选（候选卡不出候选段，诚实降级 Tier3）", async () => {
+    const { service } = createService();
+    let receivedCard = "";
+    setAssistantRouterPort(async ({ card }) => {
+      receivedCard = card;
+      return { ok: true, output: '{"hold":{"reason":"无候选"},"evidence":[]}' };
+    });
+    setAssistantSessionsIndexPort({
+      async listSessions() {
+        return { ok: false as const, reason: "会话索引不可用" };
+      },
+      async probeSession() {
+        return { kind: "ok" } as const;
+      },
+      watchSessions() {
+        return { dispose: () => undefined };
+      },
+    });
+    await service.recordTrigger({ text: "帮个忙", simulated: ASSISTANT_STRENGTHS.explicit });
+    for (let i = 0; i < 20; i += 1) {
+      if ((await service.getSnapshot()).decisions[0]?.routerState) break;
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    expect(receivedCard).not.toContain("【附着候选】目标 workspace 的可附着会话");
+    expect(receivedCard).toContain("禁止编造 sessionId");
+    expect((await service.getSnapshot()).decisions[0]?.routerState).toBe("suggested");
+  }, 20_000);
+});
+
 describe("带序 commandId 与锚（02 §3）", () => {
   it("首次派发 commandId=<ticketId>-1；成功后锚回写（snapshot.anchorCommandId）", async () => {
     const { service } = createService();

@@ -9,6 +9,7 @@
 - 宿主：窗口 Local Host 内 **assistant 虚拟 workspace**（`workspaceIdentity="drora-mate"`，常量 `ASSISTANT_IDENTITY` 单出处 contracts/assistant.ts）。**workspacePath 定案（2026-11-05，P2 开工首任务）**：取数据目录下真实目录 `~/.drora/workspace/mate-home`（`getDroraDataRootDir()/workspace/mate-home`，services `paths.ts` 新增 `getAssistantWorkspaceDir()` 单出处；惰性创建）。定案理由：①身份键规则 `workspaceIdentity?.trim()||workspacePath` 下 identity 才是隔离键，path 只承担 cwd 与 CLI 会话状态落位；②与既有共享对话目录 `workspace/default` 同族、不进任何用户仓库；③CLI 会话状态（workspace 内 .drora）天然与大副会话隔离。Spike 结论 (a)：会话经派发桥同一 v4 createSession 通道创建（01 号 §2 签名）。
 - **system prompt 契约修订（2026-11-05，与现实代码对齐）**：`createSessionRequestedConfigSchema`（create-session-config.ts）无 persona preset 字段，(a) 路线下契约以**候选卡首条输入的路由约言**承载（host 侧拼装：只路由不执行；路由注 ≤30 词；输出必须命中 1.2 决策 schema；不读代码/日志原文）；persona 控制面（personaControlV1）迁移留 P3+。
 - 无状态壳：轮转规则=每 N=10 张工单→归档旧会话、建新会话（同一 `mate-session-<seq>` 序列，seq 与当前 sessionId 记台账 kv；台账浓缩上下文作新会话首条输入）。**"会话上下文超阈值"分支 P2 不实现**——上下文规模是 CLI 内存事实，host 无可测信号（禁超时兜底），挂 P4 watchdog 一并裁决；编排事实永不依赖会话记忆。
+  **落地实态（2026-11-05 审查修复登记）**：P2 实现为"仅建新会话"——不执行旧会话归档动作、不发送浓缩交接（每张候选卡自带完整约言，编排事实在台账，零交接依赖；CONTRACT.md 已登记裁剪）。原案"归档旧会话/浓缩交接"待 CLI 会话生命周期处置动作可用时对账补齐。
 
 ### 1.2 决策输出 schema（host 侧 zod 严格校验，`assistant-tickets/routerDecision.ts`）
 
@@ -47,6 +48,7 @@ sequenceDiagram
 - 附着通道：与 Mode A 同一 v4 sendText（目标=既有 sessionId），`heldQueueDisposition:"keepQueueAndSend"` 天然排队进 CommandInbox——busy 投递合法、保序由既有机制承担。
 - Tier1：`incarnation_current` 直读投递；busy 排队合法。
 - Tier2：harness 生成候选（目标 workspace 的 sessions-index 快照，硬过滤 busy/跨 identity/updatedAt>7d）→ Router 带证据选择（1.2 schema 扩展 `attach: {sessionId, evidence}`）→ **派发桥校验**（存在/归属 identity/非 busy 时可直接投）→ 写回绑定 `cause:'attached'`。绑定只存 TicketService，不注入任何会话上下文。
+  **落地实态（2026-11-05 审查修复接线）**：候选集生成=评估链内经 `listSessions` 端口取快照 → `routerShell.filterAttachCandidates` 纯函数硬过滤（busy=running/prewarming、已结束 sessionEnded、无转录 draft、updatedAt>7d，有界 attachCandidatesMax=5）→ 候选卡【附着候选】段；跨 identity 由端口 (workspaceIdentity, hostPath) 作用域保证。候选空集/通道失败/目标缺省 → 不出段，约言恒约束 attach 臂 sessionId 只能取自清单（禁止编造），派发桥校验 fail-closed 兜底——Router attach 建议自此有真实来源（人工"开新会话"与预校验失败改选路径不变）。
 - Tier3：候选并列/低置信/用户原话含糊→决策卡 top-N+“开新会话”恒为选项→`cause:'user_picked'`。
 
 ## 3. 代际（incarnation）

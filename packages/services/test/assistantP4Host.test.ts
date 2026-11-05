@@ -605,6 +605,45 @@ describe("watchdog（04 详设 §1）", () => {
     expect((await service.getSnapshot()).watchdogNotices ?? []).toHaveLength(0);
   });
 
+  it("持续停滞跨轮单通知：同 finding 不重复计数/入列；解除后再命中重新过闸", async () => {
+    // 修复依据（spec §10 修复批注记）：此前每轮无条件 admit+push，持续停滞工单
+    // 15min/轮 × 配额 5/日 约 75 分钟耗尽当日 report 预算并把通知区挤满同工单条目。
+    const { service, db } = createService({ readDailyQuota: async () => 5 });
+    const ticketId = await seedRunningTicket(service);
+    const now = Date.now();
+    db.raw
+      .prepare("UPDATE ticket SET updated_ms = ? WHERE id = ?")
+      .run(now - (ASSISTANT_WATCHDOG_DEFAULTS.runningStallMs + 60_000), ticketId);
+    const first = await service.runWatchdogRound({ nowMs: now });
+    expect(first.notifiedCount).toBe(1);
+    kvSet(db, "watchdog_interval_ms", "1");
+    // 第二轮：同一持续命中的 finding 已有未解除通知 → 不再过配额闸、不再入列。
+    const second = await service.runWatchdogRound({ nowMs: now + 60_000 });
+    expect(second.notifiedCount).toBe(0);
+    expect(second.aggregatedCount).toBe(0);
+    const notices = (await service.getSnapshot()).watchdogNotices ?? [];
+    expect(notices).toHaveLength(1);
+    // 通知区仍是首轮条目（atMs 未刷新）——没有重报新条目。
+    expect(notices[0]?.atMs).toBe(now);
+    // 当日 report 用量恒 1（仅首轮过闸一次），跨轮不重复计数。
+    const quota = await service.getDisturbanceQuota();
+    expect(quota.ok && quota.value.used.report).toBe(1);
+    // 判据解除（新事件推进 updated_ms）→ 通知随轮出清。
+    service.applyTicketTurnEvent({ ticketId, atMs: now + 61_000, kind: "usage_snapshot" });
+    const clear = await service.runWatchdogRound({ nowMs: now + 62_000 });
+    expect(clear.clearedStaleCount).toBe(1);
+    expect((await service.getSnapshot()).watchdogNotices ?? []).toHaveLength(0);
+    // 再次停滞 → 新回合重新过闸（配额内放行，通知区单条）。
+    db.raw
+      .prepare("UPDATE ticket SET updated_ms = ? WHERE id = ?")
+      .run(now + 62_000 - (ASSISTANT_WATCHDOG_DEFAULTS.runningStallMs + 60_000), ticketId);
+    const third = await service.runWatchdogRound({ nowMs: now + 63_000 });
+    expect(third.notifiedCount).toBe(1);
+    const afterNotices = (await service.getSnapshot()).watchdogNotices ?? [];
+    expect(afterNotices).toHaveLength(1);
+    expect(afterNotices[0]?.atMs).toBe(now + 63_000);
+  });
+
   it("排队饥饿 >24h → 仅通知不置 stale；超额时聚合摘要不进通知区", async () => {
     const { service, db } = createService({ readDailyQuota: async () => 0 });
     // quota=0：watchdog 通知全部聚合（非决策类），通知区保持空。

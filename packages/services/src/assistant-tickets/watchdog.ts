@@ -14,7 +14,10 @@
  *   排队饥饿：status=queued 且 updated_ms 距今 >24h → 仅告知卡通知（不置 stale）
  *
  * 通知经 §4 配额中心统一计数接口判定（kind=report）：配额内 → kv `watchdog_notices`
- * 有界通知区（快照 ≤5 投影）；超额 → 自动聚合次日摘要（quotaCenter 落账）。
+ * 有界通知区（快照 ≤5 投影）；超额 → 自动聚合次日摘要（quotaCenter 落账）。通知按
+ * 「停滞回合」计（spec §10 修复批注记）：同 (ticketId, kind) 已有未解除通知时不再
+ * 重复计数/入列，判据解除出清后再次命中才重新过闸——持续停滞若每轮重报，约 75
+ * 分钟即耗尽当日 report 配额并挤占通知区。
  * stale 列（schema v5）唯一写者=本文件；判据解除（状态流转/新事件推进 updated_ms）
  * 同轮清除，ticket 被快照容量裁剪/删除时通知随轮清空。
  *
@@ -327,8 +330,15 @@ export async function runAssistantWatchdogRound(
   });
 
   // 事务 2+：通知逐条过配额闸（kind=report；超额由 quotaCenter 聚合次日摘要）。
-  // 只对「新 finding 或既有通知未解除」的工单产生通知条目，避免同轮重复计数。
+  // 跨轮去重（spec §10 修复批注记）：同 (ticketId, kind) 已有未解除通知的 finding
+  // 本轮跳过——既不再过配额闸计数，也不重复入列。只防「同轮重复」会让持续停滞工单
+  // 每轮重报（15min/轮 × 配额 5/日 ≈ 75 分钟耗尽当日 report 预算，且通知区被同工单
+  // 条目占满）。判据解除时通知随轮出清，之后再次命中自然重新过闸（单停滞回合单通知）。
+  const previousByKey = new Map(
+    previousNotices.map((notice) => [`${notice.ticketId}\u0000${notice.kind}`, notice]),
+  );
   for (const finding of findings) {
+    if (previousByKey.has(`${finding.ticketId}\u0000${finding.kind}`)) continue;
     const summary = finding.summary.slice(
       0,
       ASSISTANT_SNAPSHOT_LIMITS.disturbanceDigestItemMax,
@@ -353,7 +363,9 @@ export async function runAssistantWatchdogRound(
     }
   }
   // 通知区=本轮新通知 ∪ 仍命中的旧通知（判据解除的工单条目出清；容量截断保最新）。
+  // 同工单本轮已入新条目（判据类别翻转）时旧条目让位——一工单一条，不并排堆叠。
   for (const notice of previousNotices) {
+    if (nextNotices.some((entry) => entry.ticketId === notice.ticketId)) continue;
     if (findingByTicket.has(notice.ticketId)) {
       nextNotices.push(notice);
     }

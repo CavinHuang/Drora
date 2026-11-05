@@ -72,6 +72,28 @@ export function isSameWorktreeDomain(a: AssistantWriteDomain, b: AssistantWriteD
   return a.kind === "worktree" && b.kind === "worktree" && a.path === b.path && a.branch === b.branch;
 }
 
+/** ticket.write_domain JSON 列解析（坏 JSON/未知形状 → undefined 诚实降级）。 */
+export function parseWriteDomainColumn(raw: string | null): AssistantWriteDomain | undefined {
+  if (!raw) return undefined;
+  try {
+    const parsed = JSON.parse(raw) as Partial<AssistantWriteDomain>;
+    if (
+      parsed.kind === "worktree" &&
+      typeof parsed.path === "string" &&
+      typeof parsed.branch === "string"
+    ) {
+      return { kind: "worktree", path: parsed.path, branch: parsed.branch };
+    }
+    if (parsed.kind === "paths" && Array.isArray(parsed.paths)) {
+      return { kind: "paths", paths: parsed.paths.filter((p): p is string => typeof p === "string") };
+    }
+    if (parsed.kind === "workspace") return { kind: "workspace" };
+    return undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 /** 路径重叠判定：相等或一方为另一方前缀（含分隔符边界，避免 mate2 误配 mate）。 */
 function pathOverlaps(left: string, right: string): boolean {
   const l = left.replace(/[\\/]+$/, "");

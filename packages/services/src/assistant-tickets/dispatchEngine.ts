@@ -30,15 +30,17 @@ import {
   parseIncarnation,
   serializeIncarnation,
   composeDispatchCommandId,
-  appendGeneration,
-  normalizeGenerationCause,
-  composeGenerationDigest,
   resolveAnchorVerdict,
   type AnchorProbe,
   type AssistantIncarnation,
-  type AssistantIncarnationGeneration,
 } from "./incarnation.js";
-import { planWriteDomain, isSameWorktreeDomain, type AssistantWriteDomain } from "./writeDomain.js";
+import { createGenerationRollover } from "./generationRollover.js";
+import {
+  parseWriteDomainColumn,
+  planWriteDomain,
+  isSameWorktreeDomain,
+  type AssistantWriteDomain,
+} from "./writeDomain.js";
 
 const logger = createServiceLogger("assistant-tickets");
 
@@ -70,23 +72,6 @@ function readEngineTicketRow(raw: AssistantDatabaseRaw, ticketId: string): Engin
   return raw.prepare("SELECT id, brief, status, write_domain, dispatch_mode, queued_reason, target_workspace_identity, incarnation_current, incarnation_generations, usage_accum, output_summary, fail_reason, updated_ms FROM ticket WHERE id = ?").get(ticketId) as
     | EngineTicketRow
     | undefined;
-}
-
-function parseWriteDomainColumn(raw: string | null): AssistantWriteDomain | undefined {
-  if (!raw) return undefined;
-  try {
-    const parsed = JSON.parse(raw) as Partial<AssistantWriteDomain>;
-    if (parsed.kind === "worktree" && typeof parsed.path === "string" && typeof parsed.branch === "string") {
-      return { kind: "worktree", path: parsed.path, branch: parsed.branch };
-    }
-    if (parsed.kind === "paths" && Array.isArray(parsed.paths)) {
-      return { kind: "paths", paths: parsed.paths.filter((p): p is string => typeof p === "string") };
-    }
-    if (parsed.kind === "workspace") return { kind: "workspace" };
-    return undefined;
-  } catch {
-    return undefined;
-  }
 }
 
 export interface DispatchEngineDeps {
@@ -499,174 +484,29 @@ export function createDispatchEngine(deps: DispatchEngineDeps): {
     return sessionsIndex.probeSession(identity, sessionId, hostPath);
   }
 
-  /**
-   * Tier2 派发桥校验的预检入口（服务在放行事务之前调用）：失败时不消费决策卡、
-   * 不建票——人工可改选"开新会话"（02 §2 Tier3 选项恒在）。
-   */
-  async function probeAttachTarget(input: {
-    targetIdentity: string;
-    sessionId: string;
-  }): Promise<AnchorProbe> {
-    const { workspaceProbe } = getAssistantPorts();
-    let hostPath: string | undefined;
-    if (workspaceProbe && input.targetIdentity) {
-      const probe = await workspaceProbe(input.targetIdentity);
-      if (probe.ok) hostPath = probe.workspacePath;
-    }
-    return probeAnchor(input.targetIdentity, input.sessionId, hostPath);
-  }
-
   // ----------------------------------------------------------------
-  // follow-up（Tier1 直读投递）与换代（spec §8；触发源仅校验/事件，禁超时）
+  // follow-up（Tier1 直读投递）与换代（spec §8）：执行细节在 generationRollover.ts
+  // （≤800 行纪律拆分）；引擎注入 runDispatchCall/attachDispatch 复用执行链。
   // ----------------------------------------------------------------
 
-  async function followUp(input: { ticketId: string; text: string }): Promise<AssistantDispatchResult> {
-    const row = readEngineTicketRow(db.raw, input.ticketId);
-    if (!row) return fail(ASSISTANT_ERROR_CODES.ticketNotFound, `ticket ${input.ticketId} 不存在`);
-    if (
-      row.status === ASSISTANT_TICKET_STATUSES.done ||
-      row.status === ASSISTANT_TICKET_STATUSES.failed
-    ) {
-      return fail(ASSISTANT_ERROR_CODES.ticketNotFound, "工单已终态，不接受 follow-up");
-    }
-    const incarnation = parseIncarnation(row.incarnation_current);
-    if (!incarnation.sessionId || !incarnation.anchorCommandId) {
-      return fail(ASSISTANT_ERROR_CODES.validationFailed, "工单未绑定会话/无锚（Tier2/3 解析先行）");
-    }
-    const probe = await probeAnchor(
-      row.target_workspace_identity,
-      incarnation.sessionId,
-      incarnation.hostPath,
-    );
-    const verdict = resolveAnchorVerdict(probe);
-    if (verdict.mismatch) {
-      // 触发源①：锚失配（fork/rewind/删除）→ 换代重派（台账浓缩），follow-up 随新代投递。
-      const recycled = await recycle({
-        ticketId: input.ticketId,
-        cause: probe.kind === "missing" && probe.deleted ? ASSISTANT_GENERATION_CAUSES.lost : ASSISTANT_GENERATION_CAUSES.superseded,
-        note: verdict.reason,
-      });
-      if (!recycled.ok) return recycled;
-      return attachDispatch({
-        ticketId: input.ticketId,
-        text: input.text,
-        targetIdentity: row.target_workspace_identity,
-        sessionId: recycled.value.sessionId,
-      });
-    }
-    return attachDispatch({
-      ticketId: input.ticketId,
-      text: input.text,
-      targetIdentity: row.target_workspace_identity,
-      sessionId: incarnation.sessionId,
-    });
-  }
-
-  async function recycle(input: {
-    ticketId: string;
-    cause: string;
-    note?: string;
-  }): Promise<AssistantDispatchResult> {
-    const worktree = await (async () => {
-      const row = readEngineTicketRow(db.raw, input.ticketId);
-      if (!row) return { ok: false as const, reason: `ticket ${input.ticketId} 不存在` };
-      return resolveWorktree({
-        ticketId: input.ticketId,
-        targetIdentity: row.target_workspace_identity,
-        ...(parseWriteDomainColumn(row.write_domain)
-          ? { existingDomain: parseWriteDomainColumn(row.write_domain) }
-          : {}),
-      });
-    })();
-    if (!worktree.ok) {
-      return fail(ASSISTANT_ERROR_CODES.dispatchRejected, worktree.reason);
-    }
-    const brief = db.transaction((raw) => {
-      const row = readEngineTicketRow(raw, input.ticketId);
-      if (!row) return null;
-      if (
-        row.status === ASSISTANT_TICKET_STATUSES.done ||
-        row.status === ASSISTANT_TICKET_STATUSES.failed
-      ) {
-        return null;
+  const rollover = createGenerationRollover({
+    db,
+    publish: deps.publish,
+    readTicketRow: readEngineTicketRow,
+    runDispatchCall,
+    attachDispatch,
+    markTicketFailed,
+    resolveWorktree,
+    unwatchTicketRow: unwatchTicketByRow,
+    hasWatchForTicket: (ticketId) => {
+      for (const handle of sessionWatches.values()) {
+        if (handle.ticketId === ticketId) return true;
       }
-      const incarnation = parseIncarnation(row.incarnation_current);
-      const generations = JSON.parse(row.incarnation_generations) as AssistantIncarnationGeneration[];
-      const normalized = normalizeGenerationCause(input.cause);
-      const closed = appendGeneration(generations, {
-        sessionId: incarnation.sessionId,
-        fromMs: incarnation.boundAtMs || nowMs(),
-        toMs: nowMs(),
-        cause: normalized.cause,
-        ...(input.note || normalized.noteSuffix
-          ? { note: [input.note, normalized.noteSuffix].filter(Boolean).join("；") }
-          : {}),
-      });
-      const usage = JSON.parse(row.usage_accum) as {
-        inputTokens?: number;
-        outputTokens?: number;
-      };
-      // 换代事务=旧代归档+新代立起（sessionId 空，派发成功即回写）；usage_accum 不动（按 ticketId 记账）。
-      const nextIncarnation: AssistantIncarnation = {
-        workspaceIdentity: incarnation.workspaceIdentity,
-        sessionId: null,
-        boundAtMs: nowMs(),
-        cause: "dispatched",
-        anchorCommandId: null,
-        dispatchSeq: incarnation.dispatchSeq ?? 0,
-        ...(worktree.domain?.kind === "worktree" ? { worktree: { path: worktree.domain.path, branch: worktree.domain.branch } } : {}),
-        ...(worktree.hostPath ? { hostPath: worktree.hostPath } : {}),
-      };
-      raw
-        .prepare(
-          "UPDATE ticket SET incarnation_generations = ?, incarnation_current = ?, status = ?, updated_ms = ? WHERE id = ?",
-        )
-        .run(
-          JSON.stringify(closed),
-          serializeIncarnation(nextIncarnation),
-          ASSISTANT_TICKET_STATUSES.dispatched,
-          nowMs(),
-          input.ticketId,
-        );
-      // brief=原文+台账浓缩段（历史 output_summary+usage 合计+未确认增量标注；02 §3）。
-      const digest = composeGenerationDigest({
-        nextGeneration: closed.length + 1,
-        outputSummaries: row.output_summary ? [{ atMs: row.updated_ms, summary: row.output_summary }] : [],
-        usage: { inputTokens: usage.inputTokens ?? 0, outputTokens: usage.outputTokens ?? 0 },
-        ...(input.note ? { unconfirmedNote: input.note } : {}),
-      });
-      return `${row.brief}\n\n---\n大副换代重派：\n${digest}`;
-    });
-    if (!brief) {
-      return fail(ASSISTANT_ERROR_CODES.ticketNotFound, "工单不存在或已终态，不可换代");
-    }
-    const row = readEngineTicketRow(db.raw, input.ticketId);
-    if (!row) return fail(ASSISTANT_ERROR_CODES.ticketNotFound, "工单不存在");
-    if (oldWatchHasSession(input.ticketId)) unwatchTicketByRow(row);
-    const result = await runDispatchCall({
-      ticketId: input.ticketId,
-      targetIdentity: row.target_workspace_identity,
-      briefOrText: brief,
-      tier: "build",
-      mode: "A",
-      ...(worktree.hostPath ? { hostPath: worktree.hostPath } : {}),
-    });
-    if (!result.ok) {
-      markTicketFailed(input.ticketId, result.error.reason ?? result.error.code);
-      return result;
-    }
-    deps.publish();
-    return result;
-  }
+      return false;
+    },
+  });
 
-  function oldWatchHasSession(ticketId: string): boolean {
-    for (const handle of sessionWatches.values()) {
-      if (handle.ticketId === ticketId) return true;
-    }
-    return false;
-  }
-
-  function unwatchTicketByRow(row: EngineTicketRow): void {
+  function unwatchTicketByRow(row: { incarnation_current: string }): void {
     const incarnation = parseIncarnation(row.incarnation_current);
     if (incarnation.sessionId) unwatchSession(incarnation.sessionId);
   }
@@ -676,7 +516,7 @@ export function createDispatchEngine(deps: DispatchEngineDeps): {
     const handle = sessionWatches.get(sessionId);
     if (!handle) return;
     unwatchSession(sessionId);
-    void recycle({
+    void rollover.recycle({
       ticketId: handle.ticketId,
       cause: ASSISTANT_GENERATION_CAUSES.lost,
       note: "sessions-index session.removed（会话删除/归档）",
@@ -860,9 +700,9 @@ export function createDispatchEngine(deps: DispatchEngineDeps): {
     planDispatchTarget: resolveWorktree,
     dispatchNewTicket,
     attachDispatch,
-    probeAttachTarget,
-    followUp,
-    recycle,
+    probeAttachTarget: rollover.probeAttachTarget,
+    followUp: rollover.followUp,
+    recycle: rollover.recycle,
     notifySessionRemoved,
     unwatchSession,
     activeCountFor,

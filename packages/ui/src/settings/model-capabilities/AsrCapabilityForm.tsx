@@ -23,7 +23,8 @@ import { SettingsGroupCard, SettingsRow } from "@/settings/SettingsPageParts.js"
 import { CapabilityBaseUrlRow, CapabilityTextValueRow } from "./CapabilityFormParts.js";
 import { useVoiceVendorState, VoiceVendorProviderRow } from "./VoiceVendorProviderRow.js";
 
-const ASR_MODEL_PRESETS = ["FunAudioLLM/SenseVoiceSmall", "TeleAI/TeleSpeechASR"];
+/** 自定义端点（OpenAI 兼容 /audio/transcriptions）的通用 ASR 模型建议（§15.2）。 */
+const GENERIC_ASR_MODEL_PRESETS = ["whisper-1", "gpt-4o-transcribe", "FunAudioLLM/SenseVoiceSmall"];
 
 export function AsrCapabilityForm() {
   const { intl } = useDroraIntl();
@@ -160,7 +161,13 @@ export function AsrCapabilityForm() {
             value={entry?.modelId ?? ""}
             onSave={handleModelSave}
             testIdValue="asr"
-            datalist={{ id: "model-capability-asr-model-presets", values: ASR_MODEL_PRESETS }}
+            datalist={{
+              id: "model-capability-asr-model-presets",
+              values:
+                vendorState.vendor && vendorState.vendor.asrModels.length > 0
+                  ? vendorState.vendor.asrModels
+                  : GENERIC_ASR_MODEL_PRESETS,
+            }}
           />
           <CapabilityBaseUrlRow
             labelId="settings.modelCapability.asr.baseUrlOverride.title"

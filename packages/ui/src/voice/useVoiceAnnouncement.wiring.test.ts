@@ -185,6 +185,8 @@ const {
           ],
         };
       },
+      // §15：asr 听写入口订阅卡变更重解析（useVoiceComposerEntry 连接对齐 TTS）。
+      onDidChange: () => ({ dispose: () => undefined }),
     },
     credentialService: {
       // §9.9.3-M10：凭据读取可编程（默认即时返回；未加载用例替换为挂起/空串）。

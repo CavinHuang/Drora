@@ -448,6 +448,7 @@ UI 本地静态注册表（`packages/ui/src/settings/model-capabilities/voiceVen
 - **API Key 行**（内联）：复用 ApiKeyRow 语义（留空保存即删除）；onSave → `persistProviderApiKey`（`provider_config.json` 单点，§13 禁令不破）。火山卡凭据形态提示：`AppID:Access Token`（旧版）或新版单 API Key。
 - **音色/模型行按厂商变形**：火山 = 单行「音色」Select（写 `modelId`——火山协议 speaker 即音色；预设外已填 id（如复刻 S\_ 系）以「保留当前」项呈现不丢失）；SiliconFlow/OpenAI 兼容 = 「播报模型」+「音色」双行自由文本 + 厂商预设 datalist（SF 音色保留自由输入以兼容自定义音色 URI；自定义端点用标准 OpenAI 音色/模型预设）。厂商切换不改写另一形态的存量字段（未用字段无害）。
 - **试听按钮**（仅 tts）：固定句「你好，这是 Drora 的语音播报试听。」走当前表单态 `synthesizeOnce` 合成并直接播放；`modelId` 空则禁用；合成中禁用+spinner；失败 toast（试听失败：\<适配器错误消息\>，含厂商 status/凭据形态提示），成功 toast。**fail-visible：把 §9.6.5-3 静默回落从「播报期无感」变为「配置期可感知」，不改变播报回落逻辑本身**。ASR 无试听（需麦克风录制，backlog）。
+- **ASR 连接重解析与模型预设按厂商**（同批次补）：①听写入口连接解析订阅 `providerSettingsService.onDidChange`——卡上 Key 变化（内联粘贴/清空/他窗修改）即时重解析，值等价保持旧引用防无谓重渲染；对齐 TTS 的懒解析语义（原实现只挂条目依赖，Key 变化后入口以旧态出站或误回落 webSpeech）；②注册表增 `asrModels` 字段（SiliconFlow=SenseVoiceSmall/TeleSpeechASR，火山恒空），ASR 模型行预设按命中厂商给值，自定义端点出通用 OpenAI 兼容预设（whisper-1/gpt-4o-transcribe）。
 
 ### 15.4 适配器新导出（cloudTtsAdapter）
 

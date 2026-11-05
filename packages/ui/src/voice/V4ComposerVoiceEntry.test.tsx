@@ -11,7 +11,14 @@ import { useVoiceSessionStore } from "@/store/voiceSessionStore.js";
  *   （修复前读侧反转导致开关关闭时入口显示、开启时隐藏的死控件）。
  */
 
-const { settingsState, stableServices, fakePlatform } = vi.hoisted(() => {
+const {
+  settingsState,
+  stableServices,
+  fakePlatform,
+  capabilityPayload,
+  providerFixture,
+  providerListeners,
+} = vi.hoisted(() => {
   const settingsState = {
     // §12 清理：ASR 引擎档已迁入模型能力档案（specs/model-capabilities.md §3.3），
     // 此处只保留行为偏好键（与 AppSettings 9 键契约对齐）；旧引擎/厂商键从 mock 删除，
@@ -26,6 +33,29 @@ const { settingsState, stableServices, fakePlatform } = vi.hoisted(() => {
       voicePrivacyDisclosureAcknowledged: true,
     },
   };
+  // §13 v2 形态（providerRef 路由表；原 v1 残留形态陈旧）。
+  const capabilityPayload = {
+    current: {
+      schemaVersion: 2,
+      capabilities: {
+        "decision-jev": { enabled: false, providerKind: "typesafe", baseUrl: "", modelId: "" },
+        embedding: {
+          enabled: false,
+          mode: "local",
+          localModelId: "local-bge-small-zh-v1.5-int8",
+        },
+        asr: { engine: "webSpeech", providerRef: "", modelId: "", baseUrlOverride: "" },
+        tts: { engine: "system", providerRef: "", modelId: "", voice: "", baseUrlOverride: "" },
+        "image-generation": { enabled: false, providerRef: "", modelId: "", baseUrlOverride: "" },
+      },
+      migratedFromLegacySettings: true,
+    },
+  };
+  // §15：供应商卡视图（可变）+ onDidChange 监听集合（Key 撤除重解析回归测试用）。
+  const providerFixture = {
+    current: { providers: [] as Array<Record<string, unknown>>, revision: 1 },
+  };
+  const providerListeners = new Set<(view: unknown) => void>();
   const stableServices = {
     broadcastService: undefined,
     credentialService: {
@@ -33,22 +63,15 @@ const { settingsState, stableServices, fakePlatform } = vi.hoisted(() => {
       save: async () => undefined,
       delete: async () => undefined,
     },
+    providerSettingsService: {
+      getView: async () => providerFixture.current,
+      onDidChange: (listener: (view: unknown) => void) => {
+        providerListeners.add(listener);
+        return { dispose: () => providerListeners.delete(listener) };
+      },
+    },
     modelCapabilitiesService: {
-      get: async () => ({
-        schemaVersion: 1,
-        capabilities: {
-          "decision-jev": { enabled: false, providerKind: "typesafe", baseUrl: "", modelId: "" },
-          embedding: {
-            enabled: false,
-            mode: "local",
-            localModelId: "local-bge-small-zh-v1.5-int8",
-          },
-          asr: { engine: "webSpeech", baseUrl: "", modelId: "" },
-          tts: { engine: "system", baseUrl: "", modelId: "", voice: "" },
-          "image-generation": { enabled: false, baseUrl: "", modelId: "" },
-        },
-        migratedFromLegacySettings: true,
-      }),
+      get: async () => capabilityPayload.current,
       update: async () => {
         throw new Error("unexpected update in composer entry test");
       },
@@ -56,7 +79,14 @@ const { settingsState, stableServices, fakePlatform } = vi.hoisted(() => {
     },
   };
   const fakePlatform = {};
-  return { settingsState, stableServices, fakePlatform };
+  return {
+    settingsState,
+    stableServices,
+    fakePlatform,
+    capabilityPayload,
+    providerFixture,
+    providerListeners,
+  };
 });
 
 vi.mock("@/hooks/useServices.js", () => ({
@@ -83,8 +113,10 @@ vi.mock("@/i18n/IntlProvider.js", () => ({
 // webSpeech 适配器：能力面恒 true（入口渲染前置条件）+ onPartial 收集（F1 partial 可见性）。
 // §9.9.4-L6：start 返回最小 fake 会话——owner 判定换轨后，测试经真实点按路径建立
 // recordingOwnerEntryId（setState 直造态不再命中持有者渲染）。
-const { fakeWebSpeech } = vi.hoisted(() => {
+const { fakeWebSpeech, webSpeechState } = vi.hoisted(() => {
   const partialSubscribers = new Set<(text: string) => void>();
+  // §15 重解析回归测试可翻转（remote 档塌树时无 webSpeech 回落 → 入口消失可观测）。
+  const webSpeechState = { supported: true };
   const fakeSession = {
     onFinal: () => () => undefined,
     onError: () => () => undefined,
@@ -94,8 +126,9 @@ const { fakeWebSpeech } = vi.hoisted(() => {
   return {
     partialSubscribers,
     fakeSession,
+    webSpeechState,
     fakeWebSpeech: {
-      isSupported: () => true,
+      isSupported: () => webSpeechState.supported,
       emitPartial: (text: string) => {
         for (const cb of Array.from(partialSubscribers)) cb(text);
       },
@@ -358,5 +391,94 @@ describe("§9.9.4-L2/L6 owner 换轨与 requestingMic 可见反馈", () => {
       element.className.split(/\s+/).includes("ring-2");
     expect(hasPulseToken(entryA)).toBe(true);
     expect(hasPulseToken(entryB)).toBe(false);
+  });
+});
+
+describe("§15 ASR 连接重解析（onDidChange 订阅，specs/model-capabilities.md §15.3）", () => {
+  /** jsdom 缺 MediaRecorder/navigator.mediaDevices：isRemoteAsrSupported 四项能力补桩。 */
+  function installRemoteMediaStubs(): void {
+    Object.defineProperty(navigator, "mediaDevices", {
+      value: { getUserMedia: vi.fn(async () => ({ getTracks: () => [] })) },
+      configurable: true,
+    });
+    Object.defineProperty(globalThis, "MediaRecorder", {
+      value: class {
+        ondataavailable: ((event: unknown) => void) | null = null;
+        onstop: (() => void) | null = null;
+        start(): void {
+          return undefined;
+        }
+        stop(): void {
+          return undefined;
+        }
+        pushAudioChunk(): void {
+          return undefined;
+        }
+      },
+      configurable: true,
+    });
+  }
+
+  function uninstallRemoteMediaStubs(): void {
+    delete (navigator as { mediaDevices?: unknown }).mediaDevices;
+    delete (globalThis as { MediaRecorder?: unknown }).MediaRecorder;
+  }
+
+  afterEach(() => {
+    uninstallRemoteMediaStubs();
+    webSpeechState.supported = true;
+  });
+
+  it("卡 Key 撤除经 onDidChange 推送 → remote 档不再支持 → 入口消失（回退即红）", async () => {
+    installRemoteMediaStubs();
+    // remote 档塌树回落 webSpeech（§9.6.6）——撤掉 webSpeech 支持使「档塌 → 入口
+    // 消失」可观测（webSpeech 可用时入口仍在，只是回落内置引擎，语义不变）。
+    webSpeechState.supported = false;
+    capabilityPayload.current = {
+      ...capabilityPayload.current,
+      capabilities: {
+        ...capabilityPayload.current.capabilities,
+        asr: {
+          engine: "remote",
+          providerRef: "card-sf",
+          modelId: "FunAudioLLM/SenseVoiceSmall",
+          baseUrlOverride: "",
+        },
+      },
+    };
+    const cardWithKey = {
+      providerId: "card-sf",
+      providerName: "SiliconFlow",
+      enabled: true,
+      effectiveConfig: {
+        api: { baseUrl: "https://api.siliconflow.cn/v1" },
+        access: { type: "api-key", apiKey: "sk-1" },
+      },
+    };
+    const cardWithoutKey = {
+      ...cardWithKey,
+      effectiveConfig: {
+        api: { baseUrl: "https://api.siliconflow.cn/v1" },
+        access: { type: "api-key", apiKey: "" },
+      },
+    };
+    providerFixture.current = { providers: [cardWithKey], revision: 1 };
+    const harness = renderEntry();
+    // 初始视图未加载 → 档不完整 → 隐藏；getView 收敛 + 连接齐备 → 入口出现。
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(harness.queryByTestId("v4-composer-voice-entry")).not.toBeNull();
+    // §15 内联 Key 行清空（留空保存即删除）→ 卡变更事件推送新视图 → 重解析为
+    // 不完整 → 入口隐藏（回退即红：无 onDidChange 订阅时入口残留旧连接态）。
+    await act(async () => {
+      providerFixture.current = { providers: [cardWithoutKey], revision: 2 };
+      for (const listener of Array.from(providerListeners)) {
+        listener(providerFixture.current);
+      }
+      await Promise.resolve();
+    });
+    expect(harness.queryByTestId("v4-composer-voice-entry")).toBeNull();
   });
 });

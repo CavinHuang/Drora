@@ -34,6 +34,8 @@ export interface VoiceVendorTemplate {
   apiKinds: ReadonlyArray<VoiceVendorApiKind>;
   voices: ReadonlyArray<VoiceVendorVoicePreset>;
   models: ReadonlyArray<string>;
+  /** ASR 模型预设（OpenAI 兼容 /audio/transcriptions；火山 ASR 是另一条产品线协议 → 恒空）。 */
+  asrModels: ReadonlyArray<string>;
 }
 
 export const VOICE_VENDOR_REGISTRY: ReadonlyArray<VoiceVendorTemplate> = [
@@ -58,6 +60,7 @@ export const VOICE_VENDOR_REGISTRY: ReadonlyArray<VoiceVendorTemplate> = [
     ],
     // 火山协议的 speaker 即音色（条目 modelId 承载），无独立模型轴。
     models: [],
+    asrModels: [],
   },
   {
     vendorId: "siliconflow",
@@ -77,6 +80,7 @@ export const VOICE_VENDOR_REGISTRY: ReadonlyArray<VoiceVendorTemplate> = [
       { id: "FunAudioLLM/CosyVoice2-0.5B:diana", label: "Diana（欢快女声）" },
     ],
     models: ["FunAudioLLM/CosyVoice2-0.5B", "fnlp/MOSS-TTSD-v0.5"],
+    asrModels: ["FunAudioLLM/SenseVoiceSmall", "TeleAI/TeleSpeechASR"],
   },
 ];
 

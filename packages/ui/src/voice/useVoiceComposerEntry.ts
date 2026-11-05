@@ -8,6 +8,7 @@
  */
 import { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import { useShallow } from "zustand/react/shallow";
+import type { ProviderSettingsView } from "@drora/services";
 import { useDroraIntl } from "@/i18n/IntlProvider.js";
 import { useServices } from "@/hooks/useServices.js";
 import { useSettings } from "@/hooks/useSettingService.js";
@@ -71,37 +72,62 @@ export function useVoiceComposerEntry({
     baseUrl: string;
     apiKey: string;
   } | null>(null);
+  // §13：连接信息（baseUrl+apiKey）单点在官方供应商卡，按 providerRef 从视图解析
+  //（override 优先）。解析只依赖条目连接面，不消费 modelId。
+  const resolveFromView = useCallback(
+    (view: ProviderSettingsView | null | undefined) => {
+      if (asrCapability?.engine !== "remote" || !asrCapability.providerRef.trim()) return null;
+      const provider = view?.providers.find(
+        (candidate) => candidate.providerId === asrCapability.providerRef,
+      );
+      const access = provider?.effectiveConfig?.access;
+      const baseUrl = provider?.effectiveConfig?.api?.baseUrl?.trim() ?? "";
+      const apiKey = access?.type === "api-key" ? (access.apiKey?.trim() ?? "") : "";
+      const override = asrCapability.baseUrlOverride.trim();
+      return baseUrl && apiKey ? { baseUrl: override || baseUrl, apiKey } : null;
+    },
+    [asrCapability?.engine, asrCapability?.providerRef, asrCapability?.baseUrlOverride],
+  );
+  const applyVendorConnection = useCallback(
+    (connection: { baseUrl: string; apiKey: string } | null) => {
+      // 值等价保持旧引用（onDidChange 在任意供应商卡变更都会 fire，防无谓重渲染）。
+      setVendorConnection((prev) =>
+        prev?.baseUrl === connection?.baseUrl &&
+        prev?.apiKey === connection?.apiKey &&
+        (prev === null) === (connection === null)
+          ? prev
+          : connection,
+      );
+      setVendorConnectionReady(connection !== null);
+    },
+    [],
+  );
   useEffect(() => {
     let active = true;
     setVendorConnectionReady(false);
     setVendorConnection(null);
-    if (asrCapability?.engine !== "remote" || !asrCapability.providerRef.trim()) return;
     void services.providerSettingsService
       ?.getView()
       .then((view) => {
-        if (!active) return;
-        const provider = view.providers.find(
-          (candidate) => candidate.providerId === asrCapability.providerRef,
-        );
-        const access = provider?.effectiveConfig?.access;
-        const baseUrl = provider?.effectiveConfig?.api?.baseUrl?.trim() ?? "";
-        const apiKey = access?.type === "api-key" ? (access.apiKey?.trim() ?? "") : "";
-        const override = asrCapability.baseUrlOverride.trim();
-        const connection = baseUrl && apiKey ? { baseUrl: override || baseUrl, apiKey } : null;
-        setVendorConnection(connection);
-        setVendorConnectionReady(connection !== null);
+        if (active) {
+          applyVendorConnection(resolveFromView(view));
+        }
       })
       .catch(() => undefined);
+    // §15 修复（对齐 TTS 的懒解析语义）：卡上 Key 变化（§15 内联 Key 行粘贴/他窗口
+    // 修改/卡删除）即时重解析——原实现只挂能力条目依赖，Key 变化不触发重解析，听写
+    // 入口以旧态出站（401）或误判档不完整回落 webSpeech。事件源与
+    // useProviderSettingsServiceView 同一（providerSettingsService.onDidChange）。
+    const subscription = services.providerSettingsService?.onDidChange((view) => {
+      if (active) {
+        applyVendorConnection(resolveFromView(view));
+      }
+    });
     return () => {
       active = false;
+      subscription?.dispose();
     };
-  }, [
-    services.providerSettingsService,
-    asrCapability?.engine,
-    asrCapability?.providerRef,
-    asrCapability?.baseUrlOverride,
-    asrCapability?.modelId,
-  ]);
+  }, [applyVendorConnection, resolveFromView, services.providerSettingsService]);
   // F6：只在完整 remote 档+独立媒体能力均成立时选 remote，入口与起录同一解析规则。
   const asrSupported =
     resolveAsrEngineChoice({

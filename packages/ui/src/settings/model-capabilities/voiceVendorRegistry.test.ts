@@ -35,6 +35,16 @@ describe("语音供应商模板注册表（specs/model-capabilities.md §15）",
     expect(siliconflow?.apiKinds).toContain("asr");
   });
 
+  it("ASR 模型预设：SiliconFlow 提供（SenseVoice/TeleSpeech）；火山恒空（§15.2）", () => {
+    const volcano = VOICE_VENDOR_REGISTRY.find((template) => template.vendorId === "volcano");
+    const siliconflow = VOICE_VENDOR_REGISTRY.find(
+      (template) => template.vendorId === "siliconflow",
+    );
+    expect(volcano?.asrModels).toEqual([]);
+    expect(siliconflow?.asrModels).toContain("FunAudioLLM/SenseVoiceSmall");
+    expect(siliconflow?.asrModels).toContain("TeleAI/TeleSpeechASR");
+  });
+
   it("火山音色预设只含 moon_bigtts/uranus 两族（与 inferVolcanoResourceId 推断规则对齐）且含湾湾小何", () => {
     const volcano = VOICE_VENDOR_REGISTRY.find((template) => template.vendorId === "volcano");
     const voices = volcano?.voices ?? [];

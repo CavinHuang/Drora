@@ -510,6 +510,8 @@ export type {
   AssistantWriteDomainView,
   AssistantConfigView,
   AssistantTrustView,
+  AssistantQuotaView,
+  AssistantWatchdogNoticeView,
   AssistantResult,
   AssistantServiceError,
 } from "./assistant-tickets/assistantTickets.js";

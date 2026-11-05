@@ -23,6 +23,7 @@ import {
   ASSISTANT_SOURCE_KINDS,
   ASSISTANT_STRENGTHS,
   createUuid,
+  type AssistantPermissionTier,
   type AssistantStrength,
 } from "@drora/shared";
 import { createServiceLogger } from "../../logger/serviceLogger.js";
@@ -34,8 +35,9 @@ import {
 } from "../assistantDatabase.js";
 import { evaluateAdmission } from "../admissionGate.js";
 import type { AssistantConfigView, AssistantResult } from "../assistantTickets.js";
-import type { AssistantDispatchResult } from "../assistantPorts.js";
+import { getAssistantPorts, type AssistantDispatchResult } from "../assistantPorts.js";
 import type { RouterEvaluationTrigger } from "../routerEvaluation.js";
+import { resolveAssistantAutoGateOutcome, insertAssistantAutoTicket } from "../autoDispatch.js";
 import { parseChannelRef, serializeChannelRef } from "./channelRef.js";
 import type { MateSourceEvent } from "./contract.js";
 import { isSourceEnabled, readSourcesConfig } from "./sourceConfig.js";
@@ -77,6 +79,18 @@ export interface AssistantSourceIngestDeps {
   }) => Promise<AssistantDispatchResult>;
   /** 本机用户 identity（手机 Source 的 host 侧身份——renderer 不可自报）。 */
   readonly localIdentity: string;
+  /**
+   * P4 auto 直派的后半程（04 详设 §2；事务外编排归服务闭包）：auto 直派建票后的
+   * runPostApproval（W1 规划/软预算排队/Mode A 派发）。缺席=auto 建票只落库不派发
+   * （P4 前测试形态），诚实降级。
+   */
+  readonly dispatchCreatedTicket?: (input: {
+    decisionId: number;
+    ticketId: string;
+    brief: string;
+    targetIdentity: string;
+    tier: AssistantPermissionTier;
+  }) => Promise<AssistantDispatchResult>;
 }
 
 export function createAssistantSourceIngest(deps: AssistantSourceIngestDeps): {
@@ -138,7 +152,7 @@ export function createAssistantSourceIngest(deps: AssistantSourceIngestDeps): {
     };
   }
 
-  /** gate 路径事务：trigger+decision 同写（单一写者纪律与 recordTrigger 同形）。 */
+  /** gate 路径事务：trigger+decision（+ auto 直派建票）同写（单一写者纪律与 recordTrigger 同形）。 */
   function recordSourceTrigger(input: {
     kind: MateSourceEvent["kind"];
     identity: string;
@@ -148,7 +162,20 @@ export function createAssistantSourceIngest(deps: AssistantSourceIngestDeps): {
     channelRef: string | null;
     remoteSessionId: string | null;
     workspaceIdentity: string | null;
-  }): { triggerId: string; outcome: string; decisionId: number } {
+    /** P4 auto 预检计划（resolveAssistantAutoGateOutcome 产物；与事务内 verdict 对齐才采纳）。 */
+    autoPlan: {
+      finalOutcome: string;
+      reasonCode?: string;
+      autoTargetIdentity: string | null;
+    };
+  }): {
+    triggerId: string;
+    outcome: string;
+    decisionId: number;
+    autoTicket:
+      | { ticketId: string; targetIdentity: string; tier: AssistantPermissionTier }
+      | null;
+  } {
     return db.transaction((raw) => {
       const config = readConfig(raw);
       // 强度真实规则（03 详设 §1）：mention && 名单内 → explicit；否则 inferred。
@@ -158,6 +185,14 @@ export function createAssistantSourceIngest(deps: AssistantSourceIngestDeps): {
           ? ASSISTANT_STRENGTHS.explicit
           : ASSISTANT_STRENGTHS.inferred;
       const verdict = evaluateAdmission({ strength, identity: input.identity }, config);
+      // P4 auto 预检对账（recordTrigger 同纪律）：预检与事务间模式翻转时以事务内
+      // verdict 为准，auto 建票仅在 finalOutcome=auto_notice 且有已探测目标时发生。
+      const planMatches = verdict.outcome === input.autoPlan.finalOutcome;
+      const finalOutcome = planMatches ? input.autoPlan.finalOutcome : verdict.outcome;
+      const reasonCode =
+        planMatches && input.autoPlan.finalOutcome !== verdict.outcome
+          ? input.autoPlan.reasonCode
+          : verdict.reasonCode;
       const triggerId = `T-${createUuid()}`;
       raw
         .prepare(
@@ -183,12 +218,33 @@ export function createAssistantSourceIngest(deps: AssistantSourceIngestDeps): {
           triggerId,
           verdict.strength,
           config.mode,
-          verdict.outcome,
-          verdict.reasonCode ?? null,
+          finalOutcome,
+          reasonCode ?? null,
           "gate",
           nowMs(),
         );
-      return { triggerId, outcome: verdict.outcome, decisionId: Number(info.lastInsertRowid) };
+      const decisionId = Number(info.lastInsertRowid);
+      // P4 auto 直派：同事务建票（mandate+ticket+dispatch_intent；与人工放行列集同形）。
+      let autoTicket:
+        | { ticketId: string; targetIdentity: string; tier: AssistantPermissionTier }
+        | null = null;
+      if (finalOutcome === ASSISTANT_OUTCOMES.autoNotice && input.autoPlan.autoTargetIdentity) {
+        const created = insertAssistantAutoTicket(raw, {
+          decisionId,
+          triggerText: input.text,
+          targetIdentity: input.autoPlan.autoTargetIdentity,
+          channelRef: input.channelRef,
+          atMs: nowMs(),
+        });
+        if (created.kind === "created") {
+          autoTicket = {
+            ticketId: created.value.ticketId,
+            targetIdentity: created.value.targetIdentity,
+            tier: created.value.tier,
+          };
+        }
+      }
+      return { triggerId, outcome: finalOutcome, decisionId, autoTicket };
     });
   }
 
@@ -253,6 +309,22 @@ export function createAssistantSourceIngest(deps: AssistantSourceIngestDeps): {
         const direct = await tryDirectThrough(channelRef, event.text);
         if (direct) return direct;
       }
+      // P4 auto 预检（04 详设 §2；recordTrigger 同纪律）：探测在 gate 事务外（异步 IO
+      // 不进事务）；explicit×auto 带目标且探测通过才直派，否则降级 decision_card 问人。
+      const preConfig = readConfig(db.raw);
+      const preStrength: AssistantStrength =
+        event.mention && preConfig.allowlist.includes(event.identity)
+          ? ASSISTANT_STRENGTHS.explicit
+          : ASSISTANT_STRENGTHS.inferred;
+      const preVerdict = evaluateAdmission(
+        { strength: preStrength, identity: event.identity },
+        preConfig,
+      );
+      const autoPlan = await resolveAssistantAutoGateOutcome({
+        verdict: preVerdict,
+        targetIdentity: event.workspaceIdentity ?? null,
+        probe: getAssistantPorts().workspaceProbe,
+      });
       const recorded = recordSourceTrigger({
         kind: event.kind,
         identity: event.identity,
@@ -262,7 +334,19 @@ export function createAssistantSourceIngest(deps: AssistantSourceIngestDeps): {
         channelRef,
         remoteSessionId: event.remoteSessionId ?? null,
         workspaceIdentity: event.workspaceIdentity ?? null,
+        autoPlan,
       });
+      if (recorded.autoTicket && deps.dispatchCreatedTicket) {
+        // auto 直派后半程：runPostApproval 编排（排队/释放/W1 复用），失败如实返回。
+        const dispatched = await deps.dispatchCreatedTicket({
+          decisionId: recorded.decisionId,
+          ticketId: recorded.autoTicket.ticketId,
+          brief: event.text,
+          targetIdentity: recorded.autoTicket.targetIdentity,
+          tier: recorded.autoTicket.tier,
+        });
+        if (!dispatched.ok) return dispatched;
+      }
       return await finalizeGatePath(recorded.outcome, recorded.triggerId, recorded.decisionId);
     } catch (error) {
       const wrapped = wrapStoreError<AssistantSourceIngestValue>(error);

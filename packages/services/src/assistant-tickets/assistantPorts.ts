@@ -164,6 +164,17 @@ export interface AssistantGitWorktreePort {
 }
 
 // ---------------------------------------------------------------------------
+// AppSettings 端口（P4 配额中心，04 详设 §4：droraMateDailyQuota 实时读）。
+// 服务不直接依赖 SettingService——装配层注入读取闭包；缺席=contracts 缺省配额。
+// ---------------------------------------------------------------------------
+
+/** AppSettings 读取端口（判定实时读；坏值/缺席由 quotaCenter 归一回缺省）。 */
+export interface AssistantSettingsPort {
+  /** 读每日打扰配额（AppSettings [ASSISTANT_SETTINGS_KEYS.dailyQuota]）。 */
+  readDailyQuota(): Promise<number | undefined>;
+}
+
+// ---------------------------------------------------------------------------
 // 模块级注入点（装配层 set*；服务/引擎闭包直读）
 // ---------------------------------------------------------------------------
 
@@ -174,6 +185,7 @@ let routerPort: AssistantRouterPort | null = null;
 let sessionsIndexPort: AssistantSessionsIndexPort | null = null;
 let workspaceProbePort: AssistantWorkspaceProbePort | null = null;
 let gitWorktreePort: AssistantGitWorktreePort | null = null;
+let settingsPort: AssistantSettingsPort | null = null;
 
 export function setAssistantDispatchPort(port: AssistantDispatchPort | null): void {
   dispatchPort = port;
@@ -203,6 +215,10 @@ export function setAssistantGitWorktreePort(port: AssistantGitWorktreePort | nul
   gitWorktreePort = port;
 }
 
+export function setAssistantSettingsPort(port: AssistantSettingsPort | null): void {
+  settingsPort = port;
+}
+
 /** 服务/引擎闭包读取（模块内；不外泄 setter 以外的写路径）。 */
 export function getAssistantPorts(): {
   readonly dispatch: AssistantDispatchPort | null;
@@ -212,6 +228,7 @@ export function getAssistantPorts(): {
   readonly sessionsIndex: AssistantSessionsIndexPort | null;
   readonly workspaceProbe: AssistantWorkspaceProbePort | null;
   readonly gitWorktree: AssistantGitWorktreePort | null;
+  readonly settings: AssistantSettingsPort | null;
 } {
   return {
     dispatch: dispatchPort,
@@ -221,6 +238,7 @@ export function getAssistantPorts(): {
     sessionsIndex: sessionsIndexPort,
     workspaceProbe: workspaceProbePort,
     gitWorktree: gitWorktreePort,
+    settings: settingsPort,
   };
 }
 

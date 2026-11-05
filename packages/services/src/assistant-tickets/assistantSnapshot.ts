@@ -5,10 +5,13 @@
  * 锚/派发模式（ticket P2 列 + incarnation JSON）。快照有界容量沿用
  * ASSISTANT_SNAPSHOT_LIMITS；version=2（assistantTickets.ts 注释即对账点）。
  *
+ * P4 增量投影（可选追加，version 不变）：ticket stale 标记（watchdog schema v5 列）、
+ * trust 信任门字段（实时 counts + kv 阈值）、配额中心投影（当日 kv 记录 + 服务闭包
+ * 缓存配额值——判定以 admitDisturbance 实时读为准）、watchdog 有界通知区（kv）。
+ *
  * 纯投影：只读 db，无副作用；publish 时序由服务闭包负责。
  */
 import {
-  ASSISTANT_OUTCOMES,
   ASSISTANT_PERMISSION_TIERS,
   ASSISTANT_SNAPSHOT_LIMITS,
   type AssistantPermissionTier,
@@ -19,6 +22,16 @@ import type {
   AssistantSnapshot,
   AssistantWriteDomainView,
 } from "./assistantTickets.js";
+import { computeTrustStats, isTrustGateOpen, readTrustCounts, readTrustGateThresholds } from "./trustGate.js";
+import {
+  assistantQuotaDayTotal,
+  assistantQuotaKindCounts,
+  collectPendingAssistantDigest,
+  formatAssistantQuotaDayKey,
+  readAssistantQuotaDay,
+  resolveAssistantDailyQuota,
+} from "./quotaCenter.js";
+import { readAssistantWatchdogNotices } from "./watchdog.js";
 
 interface TicketRow {
   id: string;
@@ -36,6 +49,8 @@ interface TicketRow {
   output_summary: string | null;
   fail_reason: string | null;
   updated_ms: number;
+  stale_ms: number | null;
+  stale_kind: string | null;
 }
 
 /** ticket.write_domain JSON → 视图（缺列/坏 JSON 一律回退 {kind:"workspace"} 诚实降级）。 */
@@ -91,6 +106,9 @@ function ticketRowToView(row: TicketRow): AssistantSnapshot["tickets"][number] {
     queuedReason: row.queued_reason,
     decisionId: row.decision_id,
     channelRef: row.channel_ref,
+    // P4 watchdog stale 标记投影（schema v5 列；NULL=未标记）。
+    staleSinceMs: row.stale_ms,
+    staleKind: row.stale_kind,
   };
 }
 
@@ -139,6 +157,7 @@ function parseRouterSuggestion(
 export function buildAssistantSnapshot(
   raw: AssistantDatabaseRaw,
   config: AssistantConfigView,
+  extras: { dailyQuota?: number } = {},
 ): AssistantSnapshot {
   const triggers = (
     raw
@@ -216,34 +235,60 @@ export function buildAssistantSnapshot(
     raw
       .prepare(
         `SELECT id, brief, status, write_domain, dispatch_mode, queued_reason, decision_id, channel_ref, target_workspace_identity,
-              incarnation_current, incarnation_generations, usage_accum, output_summary, fail_reason, updated_ms
+              incarnation_current, incarnation_generations, usage_accum, output_summary, fail_reason, updated_ms,
+              stale_ms, stale_kind
          FROM ticket ORDER BY created_ms DESC LIMIT ?`,
       )
       .all(ASSISTANT_SNAPSHOT_LIMITS.ticketsMax) as unknown as TicketRow[]
   ).map((row) => ticketRowToView(row));
-  const wouldAcceptCount = (
-    raw
-      .prepare("SELECT COUNT(*) AS n FROM admission_decision WHERE outcome = ?")
-      .get(ASSISTANT_OUTCOMES.wouldAccept) as { n: number }
-  ).n;
-  const releaseCount = (
-    raw
-      .prepare(
-        "SELECT COUNT(*) AS n FROM admission_decision WHERE outcome = ? AND decided_by = ?",
-      )
-      .get(ASSISTANT_OUTCOMES.decisionCard, "user") as { n: number }
-  ).n;
-
+  // 信任门统计（P4）：实时 counts（与 releaseCount/wouldAcceptCount 同一查询收口
+  // trustGate.readTrustCounts）+ kv 可调阈值 → rate/samples/open 投影。
+  const trustCounts = readTrustCounts(raw);
+  const wouldAcceptCount = trustCounts.wouldAcceptCount;
+  const releaseCount = trustCounts.releaseCount;
+  const gateStats = computeTrustStats(trustCounts);
+  const kvGet = (key: string) => {
+    const row = raw.prepare("SELECT value FROM kv WHERE key = ?").get(key) as
+      | { value: string }
+      | undefined;
+    return row?.value;
+  };
+  const gateThresholds = readTrustGateThresholds(kvGet);
+  const nowMs = Date.now();
+  // 配额中心投影（P4）：当日 kv 记录 + 近 ≤7 日未投递摘要；配额值=服务闭包缓存
+  // （extras），判定以 admitDisturbance 实时读为准（quotaCenter 注释即对账点）。
+  const quotaDay = readAssistantQuotaDay(raw, formatAssistantQuotaDayKey(nowMs));
+  const dailyQuota = resolveAssistantDailyQuota(extras.dailyQuota);
+  const quotaTotal = assistantQuotaDayTotal(quotaDay);
   return {
     version: 2,
     mode: config.mode,
     allowlist: config.allowlist,
     budget: { maxActivePerWorkspace: config.budgetMaxActivePerWorkspace },
     worktreeDisabled: config.worktreeDisabled,
-    trust: { wouldAcceptCount, releaseCount },
+    trust: {
+      wouldAcceptCount,
+      releaseCount,
+      releaseRate: gateStats.releaseRate,
+      sampleCount: gateStats.sampleCount,
+      gateOpen: isTrustGateOpen(gateStats, gateThresholds),
+      gateThresholds,
+    },
     triggers,
     decisions,
     tickets: ticketRows,
-    updatedAtMs: Date.now(),
+    quota: {
+      date: formatAssistantQuotaDayKey(nowMs),
+      quota: dailyQuota,
+      used: assistantQuotaKindCounts(quotaDay),
+      total: quotaTotal,
+      remaining: Math.max(0, dailyQuota - quotaTotal),
+      pendingDigest: collectPendingAssistantDigest(raw, nowMs),
+    },
+    watchdogNotices: readAssistantWatchdogNotices(raw).slice(
+      0,
+      ASSISTANT_SNAPSHOT_LIMITS.watchdogNoticesMax,
+    ),
+    updatedAtMs: nowMs,
   };
 }

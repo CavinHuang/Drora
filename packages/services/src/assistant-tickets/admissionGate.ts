@@ -55,19 +55,20 @@ export function evaluateAdmission(
     };
   }
 
-  // observe（P1 唯一开放模式）：全量零执行。
+  // observe（P1 唯一开放模式，P4 起与 auto 并列）：全量零执行。
   //   explicit → 决策卡（人工放行才执行）；inferred → would-accept 记录。
-  // auto（P4 信任门开启后才可达；P1/P2 由 mate.auto.locked 在服务层恒拒，本分支当前
-  // 不可达）：占位实现——explicit/inferred 都出决策卡（人工终审），**不引入
-  // direct_dispatch 之类的新 outcome**（ASSISTANT_OUTCOMES 是封闭枚举，01 §1.1）。
-  // 与 spec §6 auto 行（执行出告知卡/经评估后执行）的最终语义在 P4 实装时必须
-  // revisit 本函数与枚举（PR-1B 二审发现 3 对齐）。
+  // auto（P4 信任门解锁后可达，spec §6 矩阵行；04 详设 §2 落地注记）：
+  //   explicit → auto_notice（告知卡=直接执行的自动事件；目标缺席/探测失败由服务侧
+  //   在落库时降级 decision_card 问人——本纯函数不看目标，只判强度×模式）；
+  //   inferred → decision_card 进候选卡循环，Router 建议（dispatch/attach 臂+evidence
+  //   ≥1）经服务侧 onSuggested 钩子复核后自动建票，否则留卡问人。执行时点服务侧复核
+  //   mode（gate 与派发之间切回 observe → 不自动执行）。
   if (config.mode === ASSISTANT_MODES.observe) {
     return input.strength === ASSISTANT_STRENGTHS.explicit
       ? { strength: input.strength, outcome: ASSISTANT_OUTCOMES.decisionCard }
       : { strength: input.strength, outcome: ASSISTANT_OUTCOMES.wouldAccept };
   }
   return input.strength === ASSISTANT_STRENGTHS.explicit
-    ? { strength: input.strength, outcome: ASSISTANT_OUTCOMES.decisionCard }
+    ? { strength: input.strength, outcome: ASSISTANT_OUTCOMES.autoNotice }
     : { strength: input.strength, outcome: ASSISTANT_OUTCOMES.decisionCard };
 }

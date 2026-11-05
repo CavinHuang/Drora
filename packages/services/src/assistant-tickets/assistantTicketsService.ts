@@ -37,9 +37,16 @@ import { buildAssistantSnapshot } from "./assistantSnapshot.js";
 import { createDispatchEngine } from "./dispatchEngine.js";
 import { getAssistantPorts } from "./assistantPorts.js";
 import { createRouterEvaluation } from "./routerEvaluation.js";
-import { resolveAnchorVerdict } from "./incarnation.js";
 import { serializeDispatchIntent } from "./dispatchIntent.js";
-import { runPostApproval } from "./postApproval.js";
+import { isAssistantTrustGateSatisfied } from "./trustGate.js";
+import { runAssistantWatchdogRound } from "./watchdog.js";
+import { runPostApproval, runApprovalPrecheck } from "./postApproval.js";
+import {
+  insertAssistantAutoTicket,
+  resolveAssistantAutoGateOutcome,
+  createAssistantAutoDispatch,
+} from "./autoDispatch.js";
+import { createAssistantQuotaService } from "./quotaCenterService.js";
 import { createAssistantSourceIngest } from "./sources/sourceIngest.js";
 import type { AssistantSourceIngestValue } from "./sources/sourceIngest.js";
 import type { MateSourceEvent } from "./sources/contract.js";
@@ -99,6 +106,23 @@ export function createAssistantTicketsService(
    * host 决定，防伪造）。
    */
   ingestSourceEvent(event: MateSourceEvent): Promise<AssistantResult<AssistantSourceIngestValue>>;
+  /**
+   * host 内部：P4 watchdog 轮（04 详设 §1；host/cronMateWatchdog.ts 定时器驱动）。
+   * 到轮判定（kv interval）在轮内裁决；renderer 不可达。awaitingCandidates 是 §3
+   * 工件核验的接缝入参（本批缺席=判据不激活）。
+   */
+  runWatchdogRound(input?: {
+    nowMs?: number;
+    awaitingCandidates?: readonly { ticketId: string; sinceMs: number }[];
+  }): Promise<import("./watchdog.js").AssistantWatchdogRoundResult>;
+  /** host 内部：auto 建议臂/直派臂的建票编排（测试直驱；Router 钩子同函数）。 */
+  autoDispatchDecision(input: {
+    decisionId: number;
+    kind: "dispatch" | "attach";
+    targetIdentity: string;
+    suggestedTier?: AssistantPermissionTier;
+    attachSessionId?: string;
+  }): Promise<AssistantResult<{ ticketId: string; sessionId: string }>>;
 } {
   const db = options.database ?? openAssistantDatabase(options.databasePath);
   const localIdentity = options.localIdentity;
@@ -112,8 +136,16 @@ export function createAssistantTicketsService(
   /** 派发引擎（唯一执行者：带序 commandId/锚/Mode A·B·C/换代/queued FIFO/W1/归账）。 */
   const engine = createDispatchEngine({ db, publish, readConfig });
 
+  // ------------------------------------------------------------------
+  // P4 配额中心（04 详设 §4）：服务面拆在 quotaCenterService.ts（判定实时读 settings
+  // 端口、快照投影用闭包缓存值——判定与投影分离，quotaCenter.ts 注释即对账点）。
+  // ------------------------------------------------------------------
+  const quotaService = createAssistantQuotaService({ db, publish });
+
   function publish(): void {
-    const snapshot = buildAssistantSnapshot(db.raw, readConfig(db.raw));
+    const snapshot = buildAssistantSnapshot(db.raw, readConfig(db.raw), {
+      dailyQuota: quotaService.cachedQuota(),
+    });
     for (const emit of emitters) {
       try {
         emit(snapshot);
@@ -134,9 +166,28 @@ export function createAssistantTicketsService(
   // Router 候选卡循环（02 §1.3）：评估循环在 routerEvaluation.ts（≤800 行拆分）——
   // 决策卡产出后异步送 Router 评估，建议预填进 router_evaluation；校验失败/通道失败
   // → state=failed（Tier3 问人，不重试模型）。
+  // P4 auto 钩子：建议落账为 suggested 后回调 autoDispatch.handleRouterSuggested
+  // （auto 模式复核 dispatch/attach 臂 + evidence ≥1 + 探测通过才自动建票；失败留在
+  // 决策卡问人）。编排拆在 autoDispatch.ts（≤800 行纪律）。
   // ------------------------------------------------------------------
 
-  const { scheduleRouterEvaluation } = createRouterEvaluation({ db, publish });
+  const autoDispatch = createAssistantAutoDispatch({
+    db,
+    readConfig,
+    engine,
+    publish,
+    dispatchIndex,
+  });
+
+  const { scheduleRouterEvaluation } = createRouterEvaluation({
+    db,
+    publish,
+    onSuggested: ({ decisionId, verdictJson }) => {
+      void autoDispatch.handleRouterSuggested({ decisionId, verdictJson }).catch((error) => {
+        logger.warn("assistant-tickets auto 建议执行失败（决策卡留人工）", error);
+      });
+    },
+  });
 
   // ------------------------------------------------------------------
   // Source 统一入口（03 §1/§5；P3）：channelRef 直通 + 真实强度规则 gate。
@@ -149,6 +200,9 @@ export function createAssistantTicketsService(
     scheduleRouterEvaluation,
     followUp: engine.followUp,
     localIdentity,
+    // P4 auto 直派后半程（04 详设 §2）：runPostApproval 编排拆在 autoDispatch.ts
+    // （engine/dispatchIndex/软预算同 approveDecision 路径——排队不发明第二条释放路径）。
+    dispatchCreatedTicket: (input) => autoDispatch.dispatchCreatedTicket(input),
   });
 
   // ------------------------------------------------------------------
@@ -158,13 +212,35 @@ export function createAssistantTicketsService(
   return {
     async recordTrigger(input) {
       try {
+        // P4 auto 门预检（04 详设 §2；approveDecision 同口径）：探测是异步 IO，必须在
+        // 事务外完成——探测失败降级 decision_card（问人），不消费、不建票。observe/
+        // off/inferred 触发时 resolveAssistantAutoGateOutcome 原样透传（零开销）。
+        const preConfig = readConfig(db.raw);
+        const preVerdict = evaluateAdmission(
+          { strength: input.simulated, identity: localIdentity },
+          preConfig,
+        );
+        const autoPlan = await resolveAssistantAutoGateOutcome({
+          verdict: preVerdict,
+          targetIdentity: input.targetWorkspaceIdentity ?? null,
+          probe: getAssistantPorts().workspaceProbe,
+        });
         const outcome = db.transaction((raw) => {
           const config = readConfig(raw);
           const verdict = evaluateAdmission(
             { strength: input.simulated, identity: localIdentity },
             config,
           );
+          // 预检与事务之间模式翻转（罕见竞态）：以事务内 verdict 为准，auto 预检计划
+          // 仅在 verdict 一致时采纳——翻转后的 auto 意图经 Router 建议钩子恢复，不猜测。
+          const planMatches = verdict.outcome === preVerdict.outcome;
+          const finalOutcome = planMatches ? autoPlan.finalOutcome : verdict.outcome;
+          const reasonCode =
+            planMatches && autoPlan.finalOutcome !== verdict.outcome
+              ? autoPlan.reasonCode
+              : verdict.reasonCode;
           const triggerId = `T-${createUuid()}`;
+          const ts = nowMs();
           raw
             .prepare(
               "INSERT INTO trigger(id, source_kind, simulated_strength, identity, workspace_identity, text, at_ms) VALUES (?,?,?,?,?,?,?)",
@@ -178,7 +254,7 @@ export function createAssistantTicketsService(
               localIdentity,
               input.targetWorkspaceIdentity ?? null,
               input.text,
-              nowMs(),
+              ts,
             );
           const info = raw
             .prepare(
@@ -188,16 +264,39 @@ export function createAssistantTicketsService(
               triggerId,
               verdict.strength,
               config.mode,
-              verdict.outcome,
-              verdict.reasonCode ?? null,
+              finalOutcome,
+              reasonCode ?? null,
               "gate",
-              nowMs(),
+              ts,
             );
+          const decisionId = Number(info.lastInsertRowid);
+          // auto 直派（04 详设 §2：explicit→直接执行+告知卡）：同事务建票（mandate+
+          // ticket+dispatch_intent），派发编排事务外走 runPostApproval（排队/释放复用）。
+          let autoTicket:
+            | { ticketId: string; targetIdentity: string; tier: AssistantPermissionTier }
+            | null = null;
+          if (finalOutcome === ASSISTANT_OUTCOMES.autoNotice && autoPlan.autoTargetIdentity) {
+            const created = insertAssistantAutoTicket(raw, {
+              decisionId,
+              triggerText: input.text,
+              targetIdentity: autoPlan.autoTargetIdentity,
+              channelRef: null,
+              atMs: ts,
+            });
+            if (created.kind === "created") {
+              autoTicket = {
+                ticketId: created.value.ticketId,
+                targetIdentity: created.value.targetIdentity,
+                tier: created.value.tier,
+              };
+            }
+          }
           return {
             triggerId,
-            outcome: verdict.outcome,
-            decisionId: Number(info.lastInsertRowid),
+            outcome: finalOutcome,
+            decisionId,
             strength: verdict.strength,
+            autoTicket,
           };
         });
         logger.info("assistant-tickets trigger recorded", {
@@ -231,6 +330,15 @@ export function createAssistantTicketsService(
               },
             });
           }
+        } else if (outcome.autoTicket) {
+          // auto 直派：与人工放行同一 runPostApproval 编排（W1 规划/软预算排队/派发）。
+          await autoDispatch.dispatchCreatedTicket({
+            decisionId: outcome.decisionId,
+            ticketId: outcome.autoTicket.ticketId,
+            brief: input.text,
+            targetIdentity: outcome.autoTicket.targetIdentity,
+            tier: outcome.autoTicket.tier,
+          });
         }
         publish();
         return { ok: true, value: { triggerId: outcome.triggerId, outcome: outcome.outcome } };
@@ -259,69 +367,23 @@ export function createAssistantTicketsService(
       }
       try {
         const config = readConfig(db.raw);
-        // Router 建议预填（02 §1.3）：attach 建议在人按 Y 时生效（派发桥随后仍校验目标）。
-        const suggestionRow = db.raw
-          .prepare("SELECT state, verdict FROM router_evaluation WHERE decision_id = ?")
-          .get(input.decisionId) as { state: string; verdict: string | null } | undefined;
-        const suggestion =
-          suggestionRow?.state === "suggested" && suggestionRow.verdict
-            ? (JSON.parse(suggestionRow.verdict) as {
-                kind?: string;
-                arm?: { sessionId?: string; targetWorkspaceIdentity?: string };
-              })
-            : undefined;
-        const attachSessionId =
-          input.attachToSessionId?.trim() ||
-          (suggestion?.kind === "attach" ? suggestion.arm?.sessionId : undefined);
-        const suggestedTarget =
-          suggestion?.kind === "attach" || suggestion?.kind === "dispatch"
-            ? suggestion.arm?.targetWorkspaceIdentity
-            : undefined;
-        const decisionRow = db.raw
-          .prepare(
-            "SELECT t.workspace_identity FROM admission_decision d JOIN trigger t ON t.id = d.trigger_id WHERE d.id = ?",
-          )
-          .get(input.decisionId) as { workspace_identity: string | null } | undefined;
-        // Tier2 附着预检（02 §2 派发桥校验）：在放行事务**之前**校验目标存在/归属——
-        // 失败时决策卡不被消费、不建票，人工可改选"开新会话"（Tier3 选项恒在）。
-        if (attachSessionId) {
-          const preIdentity =
-            input.targetWorkspaceIdentity ?? suggestedTarget ?? decisionRow?.workspace_identity ?? "";
-          if (!preIdentity) {
-            return fail(ASSISTANT_ERROR_CODES.validationFailed, "附着缺少目标 workspace 归属");
-          }
-          const probe = await engine.probeAttachTarget({
-            targetIdentity: preIdentity,
-            sessionId: attachSessionId,
-          });
-          if (probe.kind !== "ok") {
-            return fail(
-              ASSISTANT_ERROR_CODES.attachTargetInvalid,
-              `附着目标校验失败：${resolveAnchorVerdict(probe).reason}`,
-            );
-          }
-        } else {
-          // workspace 探测预检（P2 审查修复，spec §8「workspace 迁移→identity 解析失败→
-          // 拒绝猜测，问人」）：照上方 attach 预检先例在放行事务之前执行——探测端口在位
-          // 而目标探测失败（远程/非本地路径/目录不存在）→ 不消费决策卡、不建票，人工可
-          // 改选目标或追加说明后重放。此前三口径矛盾（CONTRACT.md/node.ts 注释称「降级
-          // 不阻断」，实现却在建票后 fail-fast 且卡已消费无问人入口）收口为本形态。
-          // 探测端口缺席（P1 形态）不预检：跳过 W1 规划按 workspace 域派发（未隔离明示）。
-          const { workspaceProbe } = getAssistantPorts();
-          if (workspaceProbe) {
-            const preIdentity =
-              input.targetWorkspaceIdentity ?? suggestedTarget ?? decisionRow?.workspace_identity ?? "";
-            if (preIdentity) {
-              const probe = await workspaceProbe(preIdentity);
-              if (!probe.ok) {
-                return fail(
-                  ASSISTANT_ERROR_CODES.dispatchRejected,
-                  `workspace 探测失败，决策卡未消费（改选目标后可重放）：${probe.reason}`,
-                );
-              }
-            }
-          }
+        // 放行前置预检（Router 建议读取 + Tier2 附着校验 + workspace 探测）拆在
+        // postApproval.runApprovalPrecheck——失败臂语义：决策卡不消费、不建票（问人）。
+        const precheck = await runApprovalPrecheck(db.raw, engine, {
+          decisionId: input.decisionId,
+          ...(input.attachToSessionId ? { attachToSessionId: input.attachToSessionId } : {}),
+          ...(input.targetWorkspaceIdentity
+            ? { targetWorkspaceIdentity: input.targetWorkspaceIdentity }
+            : {}),
+        });
+        if (!precheck.ok) {
+          return fail(
+            precheck.error.code as (typeof ASSISTANT_ERROR_CODES)[keyof typeof ASSISTANT_ERROR_CODES],
+            precheck.error.reason,
+          );
         }
+        const attachSessionId = precheck.attachSessionId;
+        const suggestedTarget = precheck.suggestedTarget;
         const created = db.transaction(
           (
             raw,
@@ -589,8 +651,16 @@ export function createAssistantTicketsService(
 
     async setMode(mode) {
       if (mode === ASSISTANT_MODES.auto) {
-        // 信任门 P4 才开（00 master plan §5）：P1/P2 恒拒。
-        return fail(ASSISTANT_ERROR_CODES.autoLocked);
+        // P4 信任门（04 详设 §2）：判定读 admission_decision 实时 counts（单一事实源；
+        // kv trust_gate_stats 只是 watchdog 轮的审计投影，不作判定输入）。未达标仍
+        // mate.auto.locked（确认 dialog 是 UI 侧动作，服务侧不二次确认）。
+        const gate = isAssistantTrustGateSatisfied(db.raw);
+        if (!gate.open) {
+          return fail(
+            ASSISTANT_ERROR_CODES.autoLocked,
+            `信任门未开放：releaseRate=${gate.stats.releaseRate.toFixed(3)}（需 ≥${gate.thresholds.minRate}），样本=${gate.stats.sampleCount}（需 ≥${gate.thresholds.minSamples}）`,
+          );
+        }
       }
       try {
         db.transaction((raw) => {
@@ -651,6 +721,17 @@ export function createAssistantTicketsService(
       }
     },
 
+    // ----------------------------------------------------------------
+    // P4 配额中心（04 详设 §4）：三端同源的统一计数/查询/投递回执接口。
+    // 实现拆在 quotaCenterService.ts（判定实时读 settings 端口；事务单写者）。
+    // ----------------------------------------------------------------
+
+    admitDisturbance: (input) => quotaService.admitDisturbance(input),
+
+    getDisturbanceQuota: () => quotaService.getDisturbanceQuota(),
+
+    markDailyDigestDelivered: () => quotaService.markDailyDigestDelivered(),
+
     async getConfig() {
       try {
         return { ok: true, value: readConfig(db.raw) };
@@ -663,7 +744,10 @@ export function createAssistantTicketsService(
     },
 
     async getSnapshot() {
-      return buildAssistantSnapshot(db.raw, readConfig(db.raw));
+      // P4：与 publish 同参（配额闭包缓存值进投影；判定仍以 admitDisturbance 实时读为准）。
+      return buildAssistantSnapshot(db.raw, readConfig(db.raw), {
+        dailyQuota: quotaService.cachedQuota(),
+      });
     },
 
     onDidChange(listener) {
@@ -687,6 +771,17 @@ export function createAssistantTicketsService(
     followUp: engine.followUp,
     recycle: engine.recycle,
     ingestSourceEvent: sourceIngest.ingestSourceEvent,
+    // P4（04 详设 §1/§2）：watchdog 轮（host cron 驱动）与 auto 建票编排（Router 钩子）。
+    runWatchdogRound: (input) =>
+      runAssistantWatchdogRound(
+        {
+          db,
+          publish,
+          readDailyQuota: quotaService.readDailyQuotaLive,
+        },
+        input,
+      ),
+    autoDispatchDecision: (input) => autoDispatch.autoDispatchDecision(input),
   };
 
   // ------------------------------------------------------------------

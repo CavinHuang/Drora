@@ -47,6 +47,13 @@ export interface RouterEvaluationDeps {
   readonly db: AssistantDatabase;
   /** 评估落账后推送快照（服务闭包的 publish）。 */
   readonly publish: () => void;
+  /**
+   * P4 auto 信任门钩子（04 详设 §2）：评估落账为 suggested 后同步回调（服务闭包
+   * 复核 mode=auto + dispatch/attach 臂 + evidence ≥1 + 探测通过才自动建票）。
+   * 钩子内部异常只记日志——评估事实已落账，不影响人工决策卡路径。缺席=无自动臂
+   * （observe 模式行为原样）。
+   */
+  readonly onSuggested?: (input: { decisionId: number; verdictJson: string }) => void;
 }
 
 export interface RouterEvaluationTrigger {
@@ -111,6 +118,13 @@ export function createRouterEvaluation(deps: RouterEvaluationDeps): {
           )
           .run(finalize.state, finalize.verdict ?? null, finalize.error ?? null, nowMs(), input.decisionId);
       });
+      if (finalize.state === "suggested" && finalize.verdict && deps.onSuggested) {
+        try {
+          deps.onSuggested({ decisionId: input.decisionId, verdictJson: finalize.verdict });
+        } catch (error) {
+          logger.warn("assistant-tickets router suggested 钩子失败（决策卡留人工）", error);
+        }
+      }
       deps.publish();
     })().catch((error) => {
       logger.warn("assistant-tickets router 评估异常（决策卡降级 Tier3）", error);

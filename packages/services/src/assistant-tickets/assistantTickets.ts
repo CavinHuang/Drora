@@ -11,6 +11,7 @@ import { createServiceDescriptor } from "../descriptors.js";
 import {
   ASSISTANT_MODES,
   ASSISTANT_PERMISSION_TIERS,
+  type AssistantDisturbanceKind,
   type AssistantErrorCode,
   type AssistantMode,
   type AssistantPermissionTier,
@@ -117,6 +118,13 @@ export interface AssistantTicketView {
    * 即直通 Tier1（不过 gate/Router）。本地双按钮建票无绑定（NULL）。
    */
   readonly channelRef?: string | null;
+  /**
+   * P4（watchdog，04 详设 §1）：停滞标记时刻（ticket.stale_ms 列；null/缺席=未标记）。
+   * watchdog 是唯一写者；判据解除后同轮清除。
+   */
+  readonly staleSinceMs?: number | null;
+  /** P4：停滞判据类别（running_stall / awaiting_unverified；与 staleSinceMs 同写同清）。 */
+  readonly staleKind?: string | null;
 }
 
 export interface AssistantConfigView {
@@ -130,11 +138,50 @@ export interface AssistantConfigView {
 export interface AssistantTrustView {
   readonly wouldAcceptCount: number;
   readonly releaseCount: number;
+  /**
+   * P4（auto 信任门，04 详设 §2）：放行率=releaseCount/(wouldAcceptCount+releaseCount)，
+   * 分母 0 时恒 0（不猜测）；与 counts 同一 SQL 口径实时计算。
+   */
+  readonly releaseRate?: number;
+  /** P4：样本数=wouldAcceptCount+releaseCount。 */
+  readonly sampleCount?: number;
+  /** P4：信任门当前是否开放（rate ≥ minRate 且样本 ≥ minSamples）。 */
+  readonly gateOpen?: boolean;
+  /** P4：生效阈值（kv 可调后的当前值投影；UI 据此展示达标进度）。 */
+  readonly gateThresholds?: { readonly minRate: number; readonly minSamples: number };
+}
+
+/** P4 watchdog 通知（04 详设 §1；配额内通知的快照有界投影）。 */
+export interface AssistantWatchdogNoticeView {
+  readonly ticketId: string;
+  /** 判据类别（running_stall / awaiting_unverified / queued_starve）。 */
+  readonly kind: string;
+  readonly summary: string;
+  readonly atMs: number;
+}
+
+/** P4 配额中心查询投影（04 详设 §4；admitDisturbance 判定口径同源）。 */
+export interface AssistantQuotaView {
+  /** 记账日（本地日 yyyy-mm-dd）。 */
+  readonly date: string;
+  /** 生效配额（AppSettings 实时值的服务闭包缓存投影；判定以实时读为准）。 */
+  readonly quota: number;
+  readonly used: { readonly decision: number; readonly report: number; readonly bubble: number };
+  /** 三类累计（配额判定基准）。 */
+  readonly total: number;
+  readonly remaining: number;
+  /** 近 ≤7 日未投递的次日摘要（旧→新）。 */
+  readonly pendingDigest: readonly {
+    readonly date: string;
+    readonly items: readonly string[];
+  }[];
 }
 
 export interface AssistantSnapshot {
   /** v2（2026-11-05，P2）：决策卡 Router 建议预填 + 工单写域/代际/锚/模式字段。
-   * P2 审查修复追加 worktreeDisabled（W1 用户开关投影，仍属 v2 有界投影的增量字段）。 */
+   * P2 审查修复追加 worktreeDisabled（W1 用户开关投影，仍属 v2 有界投影的增量字段）。
+   * P3/P4 增量字段（sourceKind/stale/quota/watchdogNotices/trust gate）均为可选追加，
+   * version 不变（照 decision.sourceKind 先例：只加不破，旧消费方零改动）。 */
   readonly version: 2;
   readonly mode: AssistantMode;
   readonly allowlist: readonly string[];
@@ -145,6 +192,10 @@ export interface AssistantSnapshot {
   readonly triggers: readonly AssistantTriggerView[];
   readonly decisions: readonly AssistantDecisionView[];
   readonly tickets: readonly AssistantTicketView[];
+  /** P4（04 详设 §4）：配额中心投影（服务闭包缓存配额值；判定以 admitDisturbance 实时读为准）。 */
+  readonly quota?: AssistantQuotaView;
+  /** P4（04 详设 §1）：watchdog 配额内通知（有界 ≤5；新→旧）。 */
+  readonly watchdogNotices?: readonly AssistantWatchdogNoticeView[];
   readonly updatedAtMs: number;
 }
 
@@ -238,6 +289,34 @@ export interface IAssistantTicketService {
 
   setMode(mode: AssistantMode): Promise<AssistantResult<{ ok: true }>>;
   setAllowlist(identities: readonly string[]): Promise<AssistantResult<{ ok: true }>>;
+  /**
+   * P4 配额中心的统一计数接口（04 详设 §4；spec §2.3——决策卡推送/汇报推送/桌宠气泡
+   * 三端同源，推前调用本接口记账+判定）。判定：decision 类永不抑制（仍计数）；
+   * report/bubble 类当日累计超配额 → allowed=false 并把 summary 聚合进次日摘要。
+   * 摘要文本有界截断（ASSISTANT_SNAPSHOT_LIMITS.disturbanceDigestItemMax）。
+   */
+  admitDisturbance(input: {
+    kind: AssistantDisturbanceKind;
+    /** 聚合摘要用的一句话文本（超额时进次日摘要；有界截断）。 */
+    summary?: string;
+    /** 记账时刻（缺省 host 时钟；测试注入）。 */
+    atMs?: number;
+  }): Promise<
+    AssistantResult<{
+      allowed: boolean;
+      date: string;
+      used: number;
+      quota: number;
+      /** true=本次未放行且已聚合进次日摘要。 */
+      aggregated: boolean;
+    }>
+  >;
+
+  /** P4 配额中心查询接口（当日用量/余量/近 ≤7 日未投递摘要）。 */
+  getDisturbanceQuota(): Promise<AssistantResult<AssistantQuotaView>>;
+
+  /** P4 配额中心摘要投递回执：结清今日之前的未投递摘要（UI 展示后调用）。 */
+  markDailyDigestDelivered(): Promise<AssistantResult<{ ok: true }>>;
   /**
    * W1 worktree 用户开关（spec §9 W2 兜底；P2 审查修复补交互入口——此前 kv
    * worktree_disabled 只有读取，"用户关闭 W1"分支仅测试直驱可达）。开启=派发前规划

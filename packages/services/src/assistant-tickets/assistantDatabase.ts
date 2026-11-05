@@ -253,6 +253,18 @@ function runAssistantMigrations(raw: AssistantDatabaseRaw): void {
       "INSERT INTO kv(key, value, updated_ms) VALUES ('schema_version', '4', strftime('%s','now') * 1000) ON CONFLICT(key) DO UPDATE SET value = '4', updated_ms = excluded.updated_ms",
     );
   }
+
+  if (currentVersion < 5) {
+    // v5（2026-11-05，P4 watchdog）——只加不破（04 详设 §1；01 §1.1「P4 预留 stale 附加
+    // 列」的兑现）：ticket.stale_ms / ticket.stale_kind——watchdog 停滞标记（唯一写者=
+    // watchdog 轮；判据解除同轮清除置 NULL；旧行 NULL=未标记）。标记只影响呈现与通知，
+    // 不参与状态机（永不自动终止/换代，spec §10）。
+    addColumnIfMissing(raw, "ticket", "stale_ms", "INTEGER");
+    addColumnIfMissing(raw, "ticket", "stale_kind", "TEXT");
+    raw.exec(
+      "INSERT INTO kv(key, value, updated_ms) VALUES ('schema_version', '5', strftime('%s','now') * 1000) ON CONFLICT(key) DO UPDATE SET value = '5', updated_ms = excluded.updated_ms",
+    );
+  }
 }
 
 /** ALTER TABLE ADD COLUMN 的幂等封装（PRAGMA table_info 查列存在性；迁移重入安全）。 */

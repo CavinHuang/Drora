@@ -12,6 +12,9 @@ import type { AssistantResult } from "./assistantTickets.js";
 import type { AssistantPermissionTier } from "@drora/shared";
 import { createDispatchEngine } from "./dispatchEngine.js";
 import { composeTeamLeadBrief } from "./routerShell.js";
+import { resolveAnchorVerdict } from "./incarnation.js";
+import { getAssistantPorts } from "./assistantPorts.js";
+import type { AssistantDatabaseRaw } from "./assistantDatabase.js";
 import {
   detectWriteDomainOverlap,
   planBudgetAdmission,
@@ -25,6 +28,108 @@ export interface PostApprovalDeps {
   readonly publish: () => void;
   /** decisionId → {ticketId, sessionId} 幂等登记（同卡二次放行返回首次结果）。 */
   readonly dispatchIndex: Map<number, { ticketId: string; sessionId: string }>;
+}
+
+/**
+ * 放行前置预检（approveDecision 从本文件拆出——assistantTicketsService ≤800 行纪律）：
+ * Router 建议读取 + Tier2 附着目标校验 + workspace 探测。任一失败返回 fail 臂
+ * （决策卡不消费、不建票，人工可改选/改写后重放）；预检通过返回放行参数解析结果。
+ */
+export async function runApprovalPrecheck(
+  raw: AssistantDatabaseRaw,
+  engine: DispatchEngine,
+  input: {
+    decisionId: number;
+    attachToSessionId?: string;
+    targetWorkspaceIdentity?: string;
+  },
+): Promise<
+  | { readonly ok: false; readonly error: { readonly code: string; readonly reason?: string } }
+  | {
+      readonly ok: true;
+      readonly attachSessionId?: string;
+      readonly suggestedTarget?: string;
+      readonly decisionWorkspaceIdentity: string | null;
+    }
+> {
+  // Router 建议预填（02 §1.3）：attach 建议在人按 Y 时生效（派发桥随后仍校验目标）。
+  const suggestionRow = raw
+    .prepare("SELECT state, verdict FROM router_evaluation WHERE decision_id = ?")
+    .get(input.decisionId) as { state: string; verdict: string | null } | undefined;
+  const suggestion =
+    suggestionRow?.state === "suggested" && suggestionRow.verdict
+      ? (JSON.parse(suggestionRow.verdict) as {
+          kind?: string;
+          arm?: { sessionId?: string; targetWorkspaceIdentity?: string };
+        })
+      : undefined;
+  const attachSessionId =
+    input.attachToSessionId?.trim() ||
+    (suggestion?.kind === "attach" ? suggestion.arm?.sessionId : undefined);
+  const suggestedTarget =
+    suggestion?.kind === "attach" || suggestion?.kind === "dispatch"
+      ? suggestion.arm?.targetWorkspaceIdentity
+      : undefined;
+  const decisionRow = raw
+    .prepare(
+      "SELECT t.workspace_identity FROM admission_decision d JOIN trigger t ON t.id = d.trigger_id WHERE d.id = ?",
+    )
+    .get(input.decisionId) as { workspace_identity: string | null } | undefined;
+  // Tier2 附着预检（02 §2 派发桥校验）：在放行事务**之前**校验目标存在/归属——
+  // 失败时决策卡不被消费、不建票，人工可改选"开新会话"（Tier3 选项恒在）。
+  if (attachSessionId) {
+    const preIdentity =
+      input.targetWorkspaceIdentity ?? suggestedTarget ?? decisionRow?.workspace_identity ?? "";
+    if (!preIdentity) {
+      return {
+        ok: false,
+        error: { code: ASSISTANT_ERROR_CODES.validationFailed, reason: "附着缺少目标 workspace 归属" },
+      };
+    }
+    const probe = await engine.probeAttachTarget({
+      targetIdentity: preIdentity,
+      sessionId: attachSessionId,
+    });
+    if (probe.kind !== "ok") {
+      return {
+        ok: false,
+        error: {
+          code: ASSISTANT_ERROR_CODES.attachTargetInvalid,
+          reason: `附着目标校验失败：${resolveAnchorVerdict(probe).reason}`,
+        },
+      };
+    }
+  } else {
+    // workspace 探测预检（P2 审查修复，spec §8「workspace 迁移→identity 解析失败→
+    // 拒绝猜测，问人」）：照上方 attach 预检先例在放行事务之前执行——探测端口在位
+    // 而目标探测失败（远程/非本地路径/目录不存在）→ 不消费决策卡、不建票，人工可
+    // 改选目标或追加说明后重放。此前三口径矛盾（CONTRACT.md/node.ts 注释称「降级
+    // 不阻断」，实现却在建票后 fail-fast 且卡已消费无问人入口）收口为本形态。
+    // 探测端口缺席（P1 形态）不预检：跳过 W1 规划按 workspace 域派发（未隔离明示）。
+    const { workspaceProbe } = getAssistantPorts();
+    if (workspaceProbe) {
+      const preIdentity =
+        input.targetWorkspaceIdentity ?? suggestedTarget ?? decisionRow?.workspace_identity ?? "";
+      if (preIdentity) {
+        const probe = await workspaceProbe(preIdentity);
+        if (!probe.ok) {
+          return {
+            ok: false,
+            error: {
+              code: ASSISTANT_ERROR_CODES.dispatchRejected,
+              reason: `workspace 探测失败，决策卡未消费（改选目标后可重放）：${probe.reason}`,
+            },
+          };
+        }
+      }
+    }
+  }
+  return {
+    ok: true,
+    ...(attachSessionId ? { attachSessionId } : {}),
+    ...(suggestedTarget ? { suggestedTarget } : {}),
+    decisionWorkspaceIdentity: decisionRow?.workspace_identity ?? null,
+  };
 }
 
 export async function runPostApproval(

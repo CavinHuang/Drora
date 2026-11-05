@@ -36,7 +36,7 @@ import { createGenUiService } from "./gen-ui/node.js";
 /* eslint-disable max-lines -- host process 服务注册和启动装配需要集中维护，拆散后会更难追踪依赖注入顺序 */
 // Node.js service implementations — NOT safe to import in browser code
 import { randomBytes } from "node:crypto";
-import { mkdirSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { homedir, hostname } from "node:os";
 import { getAppConfigDir, getAssistantWorkspaceDir, getConversationWorkspaceDir } from "./paths.js";
 import { join } from "node:path";
@@ -673,7 +673,7 @@ import { ASSISTANT_ERROR_CODES, ASSISTANT_IDENTITY, ASSISTANT_SETTINGS_KEYS } fr
 import type { SessionSummary } from "@drora/shared/drora-protocol-v4";
 import { createGitCommandProvider } from "./git/providers/gitCommandProvider.js";
 import { isAbsolute } from "node:path";
-import { stat } from "node:fs/promises";
+import { mkdir, stat } from "node:fs/promises";
 import { createAssistantTicketsService } from "./assistant-tickets/assistantTicketsService.js";
 import { IAssistantTicketService } from "./assistant-tickets/assistantTickets.js";
 // Drora Mate Source 注册表（03 详设 §1-§5，P3）：注册表/三 Source/配置映射——
@@ -3586,7 +3586,9 @@ export function createLocalServices(options: {
     // workspacePath=getAssistantWorkspaceDir()，此前全仓无 mkdir——CLI 会话目录不存在时
     // spawn 走 droraAgentSpawnCwd fallback cwd（resolveDroraAgentSpawnCwd），真实落位
     // 与设计不符。幂等 recursive 预建一次，放 `droraAgentSpawnCwd` 能选中真实目录。
-    mkdirSync(getAssistantWorkspaceDir(), { recursive: true });
+    // 2026-11-06 二轮审查：改 fs/promises 异步 mkdir——本回调每次 Router 评估都会进入，
+    // AGENTS「使用异步文件和网络 IO」纪律下不留同步事件循环阻塞（mkdirSync 已移除）。
+    await mkdir(getAssistantWorkspaceDir(), { recursive: true });
     // 串行化评估（同一 Router 会话轮转内 turn 不重叠；fire-and-forget 评估在服务侧并发
     // 触发时按到达顺序排队，事件驱动完成、禁超时兜底）。
     const run = assistantRouterEvaluations.chain.then(async (): Promise<

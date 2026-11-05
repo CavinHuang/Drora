@@ -100,6 +100,11 @@ export interface GenerationDigestInput {
   readonly outputSummaries: readonly { readonly atMs: number; readonly summary: string }[];
   /** usage_accum 合计（换账不改写：仅汇总展示）。 */
   readonly usage: { readonly inputTokens: number; readonly outputTokens: number };
+  /**
+   * 换代触发原因（事件语义行；P2 审查修复分列——此前触发原因透传进未确认增量标注，
+   * spec §2.4 要求的「末尾改动未确认」增量语义在时间线上几乎不出现）。
+   */
+  readonly causeNote?: string;
   /** 未确认增量标注（spec §2.4 诚实规则；无则给缺省文案）。 */
   readonly unconfirmedNote?: string;
 }
@@ -107,6 +112,11 @@ export interface GenerationDigestInput {
 /** 换代重派 brief 的台账浓缩段（02 §3：历史 output_summary + usage 合计 + 未确认增量标注）。 */
 export function composeGenerationDigest(input: GenerationDigestInput): string {
   const lines: string[] = [`第 ${input.nextGeneration} 代重启（台账浓缩，编排事实以台账为准）。`];
+  // 换代原因与未确认增量分列（P2 审查修复）：两行独立呈现，不互相顶替——原因行回答
+  // 「为何换代」（触发事件），增量行回答「前代末尾还有什么没确认」（spec §2.4）。
+  if (input.causeNote) {
+    lines.push(`换代原因：${input.causeNote}`);
+  }
   if (input.outputSummaries.length > 0) {
     lines.push("前代产出摘要：");
     for (const item of input.outputSummaries) {

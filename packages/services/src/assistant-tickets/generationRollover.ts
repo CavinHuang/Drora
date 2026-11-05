@@ -253,13 +253,15 @@ export function createGenerationRollover(deps: GenerationRolloverDeps): {
           input.ticketId,
         );
       // brief=原文+台账浓缩段（历史 output_summary+usage 合计+未确认增量标注；02 §3）。
+      // 触发原因走独立的 causeNote 行（P2 审查修复分列），不顶替未确认增量标注——
+      // spec §2.4 要求的「末尾改动未确认」语义在时间线上恒在。
       const digest = composeGenerationDigest({
         nextGeneration: closed.length + 1,
         outputSummaries: row.output_summary
           ? [{ atMs: row.updated_ms, summary: row.output_summary }]
           : [],
         usage: { inputTokens: usage.inputTokens ?? 0, outputTokens: usage.outputTokens ?? 0 },
-        ...(input.note ? { unconfirmedNote: input.note } : {}),
+        ...(input.note ? { causeNote: input.note } : {}),
       });
       return `${row.brief}\n\n---\n大副换代重派：\n${digest}`;
     });

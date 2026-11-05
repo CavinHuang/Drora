@@ -195,6 +195,26 @@ describe("代际（02 §3；spec §8）", () => {
     expect(custom).toContain("第 2 代 fork 后未汇报");
   });
 
+  it("换代原因与未确认增量分列（P2 审查修复：原因不顶替增量标注）", () => {
+    const digest = composeGenerationDigest({
+      nextGeneration: 2,
+      outputSummaries: [],
+      usage: { inputTokens: 0, outputTokens: 0 },
+      causeNote: "锚会话已删除",
+    });
+    // 原因行与增量行并存：触发原因不进未确认增量位，spec §2.4 增量语义恒在。
+    expect(digest).toContain("换代原因：锚会话已删除");
+    expect(digest).toContain("未确认增量：第 1 代末尾改动未汇报");
+    expect(digest.indexOf("换代原因")).toBeLessThan(digest.indexOf("未确认增量"));
+    const noCause = composeGenerationDigest({
+      nextGeneration: 2,
+      outputSummaries: [],
+      usage: { inputTokens: 0, outputTokens: 0 },
+    });
+    expect(noCause).not.toContain("换代原因：");
+    expect(noCause).toContain("未确认增量：");
+  });
+
   it("锚校验判定（spec §8 触发源①②）", () => {
     expect(resolveAnchorVerdict({ kind: "ok" }).mismatch).toBe(false);
     expect(resolveAnchorVerdict({ kind: "missing", deleted: true }).reason).toContain("删除");

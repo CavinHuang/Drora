@@ -100,6 +100,49 @@ describe("projectMatePet（快照 → 桌宠有界投影）", () => {
     expect(projection.pendingDecisions[0]?.text).toBe("点名原文");
   });
 
+  it("建议档透传：build/guarded 随行下发；yolo 不透传；无建议缺席（spec §11 tray 同参）", () => {
+    const snap = snapshot({
+      decisions: [
+        decision({
+          id: 1,
+          routerSuggestion: {
+            kind: "dispatch",
+            permissionTier: ASSISTANT_PERMISSION_TIERS.guarded,
+            evidence: [],
+          },
+        }),
+        decision({
+          id: 2,
+          routerSuggestion: {
+            kind: "attach",
+            permissionTier: ASSISTANT_PERMISSION_TIERS.build,
+            evidence: [],
+          },
+        }),
+        decision({
+          id: 3,
+          routerSuggestion: {
+            kind: "dispatch",
+            permissionTier: ASSISTANT_PERMISSION_TIERS.yolo,
+            evidence: [],
+          },
+        }),
+        decision({ id: 4 }),
+      ],
+    });
+    const rows = projectMatePet(snap).pendingDecisions;
+    expect(rows.find((row) => row.decisionId === 1)?.suggestedTier).toBe(
+      ASSISTANT_PERMISSION_TIERS.guarded,
+    );
+    expect(rows.find((row) => row.decisionId === 2)?.suggestedTier).toBe(
+      ASSISTANT_PERMISSION_TIERS.build,
+    );
+    // yolo 建议不透传（速览放行禁止 yolo，缺席=decide 执行体回落 build）。
+    expect(rows.find((row) => row.decisionId === 3)?.suggestedTier).toBeUndefined();
+    // 无建议（Router 未回/降级）无字段——schema optional，不发明档位。
+    expect(rows.find((row) => row.decisionId === 4)?.suggestedTier).toBeUndefined();
+  });
+
   it("进行中含 queued；终态不入；按更新时间倒序且有界", () => {
     const tickets = [
       ticket({ id: "T-old", status: ASSISTANT_TICKET_STATUSES.running, updatedAtMs: T0 + 1 }),

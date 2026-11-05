@@ -30,6 +30,22 @@ export function matePetStatusLabel(status: string, zh: boolean): string {
   }
 }
 
+/**
+ * 放行档 → 速览文案（spec §11 tray 放行同参注记：速览行明示实际生效档位）。
+ * 文案口径与主面板 mate.card.tier.* 一致（build 档/tier…）；投影行建议缺席时展示
+ * 回落档 build——放行动作恒以某档执行，不明示会让用户无从得知生效档。
+ */
+export function matePetSuggestedTierLabel(tier: string | undefined, zh: boolean): string {
+  switch (tier) {
+    case "guarded":
+      return zh ? "guarded 档" : "guarded tier";
+    case "build":
+      return zh ? "build 档" : "build tier";
+    default:
+      return zh ? "build 档" : "build tier";
+  }
+}
+
 export interface MatePetTrayCallbacks {
   /** 点卡直达：回传投影里携带的原始目标（不重拼路径）。 */
   onOpenTicket(ticketId: string, targetWorkspaceIdentity?: string): void;
@@ -105,7 +121,13 @@ export function createMatePetTrayDom(
         const title = document.createElement("span");
         title.className = "mate-title";
         title.textContent = decision.text;
-        body.append(title, metaSpan(decision.identity, true));
+        // 档位前置（放行按钮的实际生效档），identity 仍为 danger 末位——与工单行
+        // 「状态 · 目标」meta 同构，速览单行不增高。
+        body.append(
+          title,
+          metaSpan(`${matePetSuggestedTierLabel(decision.suggestedTier, zh)} · `, false),
+          metaSpan(decision.identity, true),
+        );
         const actions = document.createElement("div");
         actions.className = "mate-actions";
         const approve = document.createElement("button");

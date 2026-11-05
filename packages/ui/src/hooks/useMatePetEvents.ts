@@ -63,8 +63,10 @@ export function useMatePetEvents(params: {
         useMateStore.getState().selectTicket(workspaceKey, event.ticketId);
         return;
       }
-      // decide：速览放行默认 build 档（与面板放行同参；yolo 档不经此通道——接口类型
-      // 排除+服务侧人批门双兜底）。服务缺席（远程 workspace 未注册能力位）诚实告警。
+      // decide：速览放行与面板放行同参（spec §11 收尾注记）——Main 从投影查出的
+      // Router 建议档预填（yolo 不透传、缺席回落 build，与面板 approveTier 同规则；
+      // yolo 档不经此通道——接口类型排除+服务侧人批门双兜底）。服务缺席（远程
+      // workspace 未注册能力位）诚实告警。
       if (!service) {
         logger.warn("[mate-pet] 速览动作丢弃：当前上下文无工单服务");
         return;
@@ -74,7 +76,7 @@ export function useMatePetEvents(params: {
           ? () =>
               service.approveDecision({
                 decisionId: event.decisionId,
-                permissionTier: ASSISTANT_PERMISSION_TIERS.build,
+                permissionTier: event.suggestedTier ?? ASSISTANT_PERMISSION_TIERS.build,
               })
           : () => service.ignoreDecision({ decisionId: event.decisionId });
       void action()

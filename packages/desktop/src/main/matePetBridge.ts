@@ -57,7 +57,9 @@ export function createMatePetBridgeCore() {
     },
     /**
      * 消费宠物窗/tray 窗命令：payload 过 schema；非法/非宠物来源返回 null（静默丢弃——
-     * 宠物窗口是不可信面，不做二次播报）。
+     * 宠物窗口是不可信面，不做二次播报）。decide 的放行档预填由 Main 从当前投影查
+     * （suggestedTier 透传；投影无此卡/无档=缺席，renderer 回落 build）——宠物窗命令
+     * payload 不携带档位，不可信面不可自行指定权限档。
      */
     routeCommand(raw: unknown, senderIsPetWindow: boolean): MatePetRendererEvent | null {
       if (!senderIsPetWindow) return null;
@@ -72,7 +74,15 @@ export function createMatePetBridgeCore() {
             ? { targetWorkspaceIdentity: value.targetWorkspaceIdentity }
             : {}),
         };
-      return { kind: "decide", decisionId: value.decisionId, choice: value.choice };
+      const suggestedTier = current.pendingDecisions.find(
+        (decision) => decision.decisionId === value.decisionId,
+      )?.suggestedTier;
+      return {
+        kind: "decide",
+        decisionId: value.decisionId,
+        choice: value.choice,
+        ...(suggestedTier !== undefined ? { suggestedTier } : {}),
+      };
     },
   };
 }

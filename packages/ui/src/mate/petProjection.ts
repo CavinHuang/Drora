@@ -13,6 +13,7 @@
  */
 
 import {
+  ASSISTANT_PERMISSION_TIERS,
   ASSISTANT_SOURCE_KINDS,
   ASSISTANT_TICKET_STATUSES,
   MATE_PET_PROJECTION_LIMITS,
@@ -42,17 +43,26 @@ export function projectMatePet(snapshot: AssistantSnapshot): MatePetProjection {
   const pendingDecisions: MatePetPendingDecision[] = snapshot.decisions
     .filter(isMatePendingDecision)
     .slice(0, MATE_PET_PROJECTION_LIMITS.pendingMax)
-    .map((decision) => ({
-      decisionId: decision.id,
-      text: firstLine(decision.triggerText, MATE_PET_PROJECTION_LIMITS.textMax),
-      // 决策卡快照行 sourceKind 是可选追加字段；缺席（旧库行）按 local 诚实降级——
-      // 本地双按钮是 P1 以来最常见触发面，不发明第四种来源。字面量单出处
-      // （contracts ASSISTANT_SOURCE_KINDS；spec §5 P3 落地注记）。
-      sourceKind:
-        (decision.sourceKind as MatePetPendingDecision["sourceKind"]) ??
-        ASSISTANT_SOURCE_KINDS.local,
-      identity: findDecisionIdentity(snapshot, decision.triggerId),
-    }));
+    .map((decision) => {
+      // 建议档透传（spec §11 tray 放行同参注记）：dispatch/attach 建议带 permissionTier
+      // 时随投影行下发，decide 执行体据此预填（与面板 approveTier 同规则）；yolo 建议
+      // 不透传（速览放行禁止 yolo，接口类型与服务侧人批门双兜底）、缺席=回落 build。
+      const suggestedTier = decision.routerSuggestion?.permissionTier;
+      return {
+        decisionId: decision.id,
+        text: firstLine(decision.triggerText, MATE_PET_PROJECTION_LIMITS.textMax),
+        // 决策卡快照行 sourceKind 是可选追加字段；缺席（旧库行）按 local 诚实降级——
+        // 本地双按钮是 P1 以来最常见触发面，不发明第四种来源。字面量单出处
+        // （contracts ASSISTANT_SOURCE_KINDS；spec §5 P3 落地注记）。
+        sourceKind:
+          (decision.sourceKind as MatePetPendingDecision["sourceKind"]) ??
+          ASSISTANT_SOURCE_KINDS.local,
+        identity: findDecisionIdentity(snapshot, decision.triggerId),
+        ...(suggestedTier && suggestedTier !== ASSISTANT_PERMISSION_TIERS.yolo
+          ? { suggestedTier }
+          : {}),
+      };
+    });
   const activeTickets: MatePetActiveTicket[] = snapshot.tickets
     .filter((ticket) => isMateActiveTicket(ticket.status) || isMateQueuedTicket(ticket.status))
     .sort((a, b) => b.updatedAtMs - a.updatedAtMs)

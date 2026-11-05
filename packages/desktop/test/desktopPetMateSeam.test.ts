@@ -14,11 +14,21 @@ import { EMPTY_MATE_PET_PROJECTION } from "@drora/shared";
 import type { MatePetProjection } from "@drora/shared";
 
 import { createMatePetBridgeCore } from "../src/main/matePetBridge.js";
-import { createMatePetTrayDom, matePetStatusLabel } from "../src/preload/desktopPetMateTrayDom.js";
+import {
+  createMatePetTrayDom,
+  matePetStatusLabel,
+  matePetSuggestedTierLabel,
+} from "../src/preload/desktopPetMateTrayDom.js";
 
 const PROJECTION: MatePetProjection = {
   pendingDecisions: [
-    { decisionId: 7, text: "手机点名：看下白屏", sourceKind: "phone", identity: "local@host" },
+    {
+      decisionId: 7,
+      text: "手机点名：看下白屏",
+      sourceKind: "phone",
+      identity: "local@host",
+      suggestedTier: "guarded",
+    },
   ],
   activeTickets: [
     { ticketId: "T-1", status: "running", brief: "修复登录", targetWorkspaceIdentity: "ws-a" },
@@ -69,6 +79,7 @@ describe("matePetBridgeCore（Main 桥路由纯核）", () => {
     expect(
       core.routeCommand({ action: "open-ticket", ticketId: "T-9" }, true),
     ).toEqual({ kind: "open-ticket", ticketId: "T-9" });
+    // 未消费投影（无待决策集）→ decide 不带档（renderer 回落 build）。
     expect(core.routeCommand({ action: "decide", decisionId: 7, choice: "approve" }, true)).toEqual({
       kind: "decide",
       decisionId: 7,
@@ -80,9 +91,31 @@ describe("matePetBridgeCore（Main 桥路由纯核）", () => {
       choice: "ignore",
     });
   });
+
+  it("decide 放行档预填：Main 从已校验投影按 decisionId 查档（spec §11 tray 同参）", () => {
+    const core = createMatePetBridgeCore();
+    expect(core.consumeProjection(PROJECTION, true)).toBe(true);
+    // 投影行带 suggestedTier → decide 事件透传（宠物窗命令 payload 不带档，不可信面
+    // 不可自行指定权限档——档位只来自 Main 校验过的投影）。
+    expect(core.routeCommand({ action: "decide", decisionId: 7, choice: "approve" }, true)).toEqual({
+      kind: "decide",
+      decisionId: 7,
+      choice: "approve",
+      suggestedTier: "guarded",
+    });
+    // decisionId 不在当前投影（已被消费/裁剪）→ 不带档，renderer 侧回落 build。
+    expect(core.routeCommand({ action: "decide", decisionId: 99, choice: "approve" }, true)).toEqual({
+      kind: "decide",
+      decisionId: 99,
+      choice: "approve",
+    });
+  });
 });
 
 function buildTrayDocument(): Document {
+  // tray 真实入口按 documentElement.lang 判定文案语言（desktopPetTray.ts）；测试文档
+  // 显式设 zh-CN，使断言与中文文档一致。
+  document.documentElement.lang = "zh-CN";
   document.body.innerHTML = `
     <section id="tray"><section id="mate" hidden aria-label="mate">
       <div class="mate-head"><strong>大副</strong><span id="mate-count" class="mate-count"></span></div>
@@ -157,5 +190,31 @@ describe("matePetStatusLabel（速览状态文案）", () => {
     expect(matePetStatusLabel("failed", true)).toBe("已失败");
     expect(matePetStatusLabel("dispatched", false)).toBe("Dispatched");
     expect(matePetStatusLabel("mystery", false)).toBe("mystery");
+  });
+});
+
+describe("matePetSuggestedTierLabel（速览放行档文案，spec §11 同参）", () => {
+  it("guarded/build 双语；缺席回落 build（放行动作恒以某档执行，不明示=用户无从得知）", () => {
+    expect(matePetSuggestedTierLabel("guarded", true)).toBe("guarded 档");
+    expect(matePetSuggestedTierLabel("guarded", false)).toBe("guarded tier");
+    expect(matePetSuggestedTierLabel("build", true)).toBe("build 档");
+    expect(matePetSuggestedTierLabel(undefined, true)).toBe("build 档");
+    expect(matePetSuggestedTierLabel(undefined, false)).toBe("build tier");
+  });
+
+  it("待决策行 meta 携带档位前缀（建议档/回落档）+identity", () => {
+    const doc = buildTrayDocument();
+    const dom = createMatePetTrayDom(
+      doc,
+      { approve: "放行", ignore: "忽略" },
+      { onOpenTicket: () => undefined, onDecide: () => undefined },
+    );
+    dom.render(PROJECTION);
+    const metas = [...doc.querySelectorAll("#mate-decisions .mate-meta")].map((n) => n.textContent);
+    expect(metas).toEqual(["guarded 档 · ", "local@host"]);
+    // 建议缺席（build 回落档）也明示——不发明档位，只展示放行实际生效值。
+    dom.render({ ...PROJECTION, pendingDecisions: [{ ...PROJECTION.pendingDecisions[0]!, suggestedTier: undefined }] });
+    const fallback = [...doc.querySelectorAll("#mate-decisions .mate-meta")].map((n) => n.textContent);
+    expect(fallback).toEqual(["build 档 · ", "local@host"]);
   });
 });

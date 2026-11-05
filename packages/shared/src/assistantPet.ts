@@ -9,11 +9,25 @@
  */
 
 import { z } from "zod";
-import { ASSISTANT_SOURCE_KINDS, MATE_PET_PROJECTION_LIMITS } from "./contracts/assistant.js";
+import {
+  ASSISTANT_PERMISSION_TIERS,
+  ASSISTANT_SOURCE_KINDS,
+  MATE_PET_PROJECTION_LIMITS,
+} from "./contracts/assistant.js";
 
 const boundedText = z.string().max(MATE_PET_PROJECTION_LIMITS.textMax);
 
-/** 速览待决策卡精简行（放行/忽略所需最小集：decisionId + 原文首行 + 来源 + 身份）。 */
+/**
+ * 速览可透传的建议档（spec §11 tray 放行同参注记）：build/guarded 二值——yolo 不入
+ * 投影（速览放行禁止以 yolo 执行，与面板 approveTier 预填同规则），建议缺席=回落
+ * build（decide 执行体缺省）。
+ */
+const suggestedTierSchema = z.enum([
+  ASSISTANT_PERMISSION_TIERS.build,
+  ASSISTANT_PERMISSION_TIERS.guarded,
+]);
+
+/** 速览待决策卡精简行（放行/忽略所需最小集：decisionId + 原文首行 + 来源 + 身份 + 建议档）。 */
 export const matePetPendingDecisionSchema = z
   .object({
     decisionId: z.number().int().positive(),
@@ -26,6 +40,8 @@ export const matePetPendingDecisionSchema = z
       ASSISTANT_SOURCE_KINDS.github,
     ]),
     identity: z.string().min(1).max(160),
+    /** Router 建议档（可选；速览行展示+decide 预填放行档——与面板放行同参）。 */
+    suggestedTier: suggestedTierSchema.optional(),
   })
   .strict();
 export type MatePetPendingDecision = z.infer<typeof matePetPendingDecisionSchema>;
@@ -106,6 +122,11 @@ export const matePetRendererEventSchema = z.discriminatedUnion("kind", [
     kind: z.literal("decide"),
     decisionId: z.number().int().positive(),
     choice: z.enum(["approve", "ignore"]),
+    /**
+     * 放行档预填（可选；Main 从已校验投影按 decisionId 查出——宠物窗命令 payload
+     * 不扩，不可信面最小化）。缺席=renderer 回落 build（与面板放行同参，spec §11）。
+     */
+    suggestedTier: suggestedTierSchema.optional(),
   }),
 ]);
 export type MatePetRendererEvent = z.infer<typeof matePetRendererEventSchema>;

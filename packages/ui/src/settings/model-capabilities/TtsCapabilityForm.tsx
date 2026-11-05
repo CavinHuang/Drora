@@ -13,6 +13,7 @@ import { LoaderCircle } from "lucide-react";
 import {
   TID_MODEL_CAPABILITY_PREVIEW_BUTTON,
   TID_MODEL_CAPABILITY_VOICE_SELECT,
+  TID_MODEL_CAPABILITY_MODEL_SELECT,
   TID_MODEL_CAPABILITY_ENGINE_SELECT,
   testId,
 } from "@drora/shared/test-ids";
@@ -157,11 +158,14 @@ export function TtsCapabilityForm() {
   });
 
   const isVolcano = vendorState.vendor?.vendorId === "volcano";
-  const isSiliconflow = vendorState.vendor?.vendorId === "siliconflow";
-  const modelPresets = isSiliconflow ? (vendorState.vendor?.models ?? []) : GENERIC_MODEL_PRESETS;
-  const voicePresets = isSiliconflow
-    ? (vendorState.vendor?.voices.map((preset) => preset.id) ?? [])
-    : GENERIC_VOICE_PRESETS;
+  // §15.3（LobeChat 同构扩展）：内置厂商的模型/音色走 Select（含「保留当前」项）；
+  // 自定义端点卡与无预设厂商（ElevenLabs 音色）退自由文本 + datalist。
+  const builtinModels = isVolcano ? [] : (vendorState.vendor?.models ?? []);
+  const builtinVoices = isVolcano ? [] : (vendorState.vendor?.voices ?? []);
+  const modelPresets = builtinModels.length > 0 ? builtinModels : GENERIC_MODEL_PRESETS;
+  const voicePresets =
+    builtinVoices.length > 0 ? builtinVoices.map((preset) => preset.id) : GENERIC_VOICE_PRESETS;
+  const voice = entry?.voice?.trim() ?? "";
 
   // §15 试听：走当前表单态（providerRef 卡连接 + modelId + 音色）单次合成并直接播放。
   const [previewing, setPreviewing] = useState(false);
@@ -288,22 +292,108 @@ export function TtsCapabilityForm() {
             />
           ) : (
             <>
-              <CapabilityTextValueRow
-                labelId="settings.modelCapability.tts.model.title"
-                placeholderId="settings.modelCapability.tts.model.placeholder"
-                value={entry?.modelId ?? ""}
-                onSave={handleModelSave}
-                testIdValue="tts"
-                datalist={{ id: "model-capability-tts-model-presets", values: modelPresets }}
-              />
-              <CapabilityTextValueRow
-                labelId="settings.modelCapability.tts.voice.title"
-                placeholderId="settings.modelCapability.tts.voice.placeholder"
-                value={entry?.voice ?? ""}
-                onSave={handleVoiceSave}
-                testIdValue="tts-voice"
-                datalist={{ id: "model-capability-tts-voice-presets", values: voicePresets }}
-              />
+              {builtinModels.length > 0 ? (
+                <SettingsRow
+                  label={intl.formatMessage({ id: "settings.modelCapability.tts.model.title" })}
+                  control={
+                    <Select
+                      value={modelId || undefined}
+                      onValueChange={(next) => {
+                        handleModelSave(next);
+                      }}
+                    >
+                      <SelectTrigger
+                        className="w-72"
+                        data-testid={testId(TID_MODEL_CAPABILITY_MODEL_SELECT, "tts")}
+                        aria-label={intl.formatMessage({
+                          id: "settings.modelCapability.tts.model.title",
+                        })}
+                      >
+                        <SelectValue
+                          placeholder={intl.formatMessage({
+                            id: "settings.modelCapability.tts.model.placeholder",
+                          })}
+                        />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {builtinModels.map((preset) => (
+                          <SelectItem key={preset} value={preset}>
+                            {preset}
+                          </SelectItem>
+                        ))}
+                        {modelId && !builtinModels.includes(modelId) ? (
+                          <SelectItem value={modelId}>
+                            {intl.formatMessage(
+                              { id: "settings.modelCapability.vendor.keepCurrent" },
+                              { id: modelId },
+                            )}
+                          </SelectItem>
+                        ) : null}
+                      </SelectContent>
+                    </Select>
+                  }
+                />
+              ) : (
+                <CapabilityTextValueRow
+                  labelId="settings.modelCapability.tts.model.title"
+                  placeholderId="settings.modelCapability.tts.model.placeholder"
+                  value={entry?.modelId ?? ""}
+                  onSave={handleModelSave}
+                  testIdValue="tts"
+                  datalist={{ id: "model-capability-tts-model-presets", values: modelPresets }}
+                />
+              )}
+              {builtinVoices.length > 0 ? (
+                <SettingsRow
+                  label={intl.formatMessage({ id: "settings.modelCapability.tts.voice.title" })}
+                  control={
+                    <Select
+                      value={voice || undefined}
+                      onValueChange={(next) => {
+                        handleVoiceSave(next);
+                      }}
+                    >
+                      <SelectTrigger
+                        className="w-72"
+                        data-testid={testId(TID_MODEL_CAPABILITY_VOICE_SELECT, "tts")}
+                        aria-label={intl.formatMessage({
+                          id: "settings.modelCapability.tts.voice.title",
+                        })}
+                      >
+                        <SelectValue
+                          placeholder={intl.formatMessage({
+                            id: "settings.modelCapability.tts.voice.placeholder",
+                          })}
+                        />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {builtinVoices.map((preset) => (
+                          <SelectItem key={preset.id} value={preset.id}>
+                            {preset.label}
+                          </SelectItem>
+                        ))}
+                        {voice && !builtinVoices.some((preset) => preset.id === voice) ? (
+                          <SelectItem value={voice}>
+                            {intl.formatMessage(
+                              { id: "settings.modelCapability.vendor.keepCurrent" },
+                              { id: voice },
+                            )}
+                          </SelectItem>
+                        ) : null}
+                      </SelectContent>
+                    </Select>
+                  }
+                />
+              ) : (
+                <CapabilityTextValueRow
+                  labelId="settings.modelCapability.tts.voice.title"
+                  placeholderId="settings.modelCapability.tts.voice.placeholder"
+                  value={entry?.voice ?? ""}
+                  onSave={handleVoiceSave}
+                  testIdValue="tts-voice"
+                  datalist={{ id: "model-capability-tts-voice-presets", values: voicePresets }}
+                />
+              )}
             </>
           )}
           <CapabilityBaseUrlRow

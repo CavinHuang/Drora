@@ -4839,6 +4839,11 @@ const zhCN: Record<string, string> = {
     "火山引擎：旧版控制台填「AppID:Access Token」（冒号分隔）；新版控制台填单个 API Key。",
   "settings.modelCapability.vendor.credentialHint.siliconflow":
     "SiliconFlow API Key（sk- 开头），与聊天模型共用同一把。",
+  "settings.modelCapability.vendor.credentialHint.openai": "OpenAI API Key（sk- 开头）。",
+  "settings.modelCapability.vendor.credentialHint.groq":
+    "Groq API Key（gsk_ 开头）；TTS 仅英文/阿拉伯语，ASR Whisper 支持多语言。",
+  "settings.modelCapability.vendor.credentialHint.elevenlabs":
+    "ElevenLabs API Key；音色填 Voice ID（控制台 Voice Library 获取，官方默认音色 ID 正在退役）。",
   "settings.modelCapability.vendor.credentialHint.custom":
     "所选供应商卡的 API Key；留空保存即删除。",
   "settings.modelCapability.asr.baseUrlOverride.title": "Base URL 覆盖（可选）",

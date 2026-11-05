@@ -573,7 +573,7 @@ describe("§15 语音供应商模板与试听（specs/model-capabilities.md §15
     });
   });
 
-  it("非火山档：模型/音色文本行 + 厂商预设 datalist；内联 Key 保存走供应商卡 overlay", async () => {
+  it("非火山内置厂商（SF）：模型/音色走 Select（friendly 名）+ 内联 Key 保存走供应商卡 overlay", async () => {
     pushCard({
       providerId: "custom:sf",
       providerName: "SiliconFlow",
@@ -587,15 +587,26 @@ describe("§15 语音供应商模板与试听（specs/model-capabilities.md §15
       baseUrlOverride: "",
     };
     render(<ModelCapabilityDetail purpose="tts" />);
-    // hook 异步加载视图后才收敛 SF 预设 datalist（8 音色）。
+    // hook 异步加载视图后才解析出 SF 档（Select 替换文本行）。
     await waitFor(() => {
-      const list = document.querySelector(
-        "datalist#model-capability-tts-voice-presets",
-      ) as HTMLDataListElement | null;
-      expect(list?.options.length).toBe(8);
+      expect(screen.queryByTestId("model-capability-model-input-tts")).toBeNull();
     });
-    expect(screen.getByTestId("model-capability-model-input-tts")).toBeTruthy();
-    expect(screen.queryByTestId("model-capability-voice-select-tts")).toBeNull();
+    expect(screen.getByTestId("model-capability-model-select-tts")).toBeTruthy();
+    expect(screen.getByTestId("model-capability-voice-select-tts")).toBeTruthy();
+    // 音色下拉出官方预设（friendly 名，value=完整「模型:音色」形态）。
+    const trigger = screen.getByTestId("model-capability-voice-select-tts");
+    fireEvent.pointerDown(trigger, {
+      button: 0,
+      ctrlKey: false,
+      pointerId: 1,
+      pointerType: "mouse",
+    });
+    fireEvent.click(screen.getByText("Anna（沉稳女声）"));
+    await waitFor(() => {
+      expect(updateMock).toHaveBeenCalledWith({
+        capabilities: { tts: { voice: "FunAudioLLM/CosyVoice2-0.5B:anna" } },
+      });
+    });
     // 内联 Key：写入所选卡的 overlay（persistProviderApiKey → savePersonalProviderOverlay）。
     fireEvent.change(screen.getByTestId("model-capability-api-key-input"), {
       target: { value: "sk-new-key" },
@@ -611,6 +622,32 @@ describe("§15 语音供应商模板与试听（specs/model-capabilities.md §15
         }),
       );
     });
+  });
+
+  it("自定义端点卡（未命中厂商）：模型/音色退自由文本 + 通用 datalist（§15.3 退化路径）", async () => {
+    pushCard({
+      providerId: "card-gw",
+      providerName: "My Gateway",
+      baseUrl: "https://gw.example.com/v1",
+      apiKey: "sk-gw",
+    });
+    capabilityState.current.tts = {
+      engine: "cloud",
+      providerRef: "card-gw",
+      modelId: "",
+      voice: "",
+      baseUrlOverride: "",
+    };
+    render(<ModelCapabilityDetail purpose="tts" />);
+    await waitFor(() => {
+      expect(screen.getByTestId("model-capability-model-input-tts")).toBeTruthy();
+    });
+    expect(screen.queryByTestId("model-capability-model-select-tts")).toBeNull();
+    expect(screen.queryByTestId("model-capability-voice-select-tts")).toBeNull();
+    const voiceList = document.querySelector(
+      "datalist#model-capability-tts-voice-presets",
+    ) as HTMLDataListElement | null;
+    expect(voiceList?.options.length).toBeGreaterThan(0);
   });
 
   it("试听：synthesizeOnce 收当前连接 + 播报模型；成功 toast + 播放", async () => {

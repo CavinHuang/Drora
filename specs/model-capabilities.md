@@ -434,19 +434,25 @@ agent 会话
 
 §13 落地后实测用户仍不会配置语音供应商（要理解「卡」概念、建卡需跳转、音色手填裸 ID、失败静默回落无感知）。对照 Open WebUI / LobeChat / SillyTavern / Cherry Studio 四家社区客户端调研（供应商内置模板名单、音色从不手填裸 ID、试听近乎标配、单层内联配置），用户裁定：**语音配置阶段直接选供应商 + 内置对应厂商音色，照抄社区 UX**；但存储层维持 §13（key 单点落卡），只改录入面。
 
-### 15.2 语音供应商模板注册表（voiceVendorRegistry）
+### 15.2 语音供应商模板注册表（voiceVendorRegistry，LobeChat 同构厂商矩阵）
 
-UI 本地静态注册表（`packages/ui/src/settings/model-capabilities/voiceVendorRegistry.ts`），每模板：`vendorId` / 双语名 / `canonicalBaseUrl`（自动建卡用）/ `matchHost`（按卡 baseUrl host 反查）/ 凭据形态提示 / `apiTypes`（tts/asr 子集）/ `voices`（内置音色预设，value=厂商原始 id、label=友好名）/ `models`（模型预设）。
+UI 本地静态注册表（`packages/ui/src/settings/model-capabilities/voiceVendorRegistry.ts`），每模板：`vendorId` / 双语名 / `canonicalBaseUrl`（自动建卡用）/ `matchHost`（按卡 baseUrl host 反查）/ 凭据形态提示 / `apiKinds`（tts/asr 子集）/ `voices`（内置音色预设，value=厂商原始 id、label=友好名）/ `models`（模型预设）/ `asrModels`（ASR 模型预设）。收录纪律：**只收 OpenAI 兼容端点形状的厂商**（火山是唯一已适配的自有协议特例），预设取值一律官方文档/多镜像交叉核实，不凭记忆编 ID。
 
-- **火山引擎**：baseUrl `https://openspeech.bytedance.com`，仅 tts（ASR 是另一条产品线协议，不适用 OpenAI 兼容 `/audio/transcriptions`）。音色预设只取 moon_bigtts（1.0）与 uranus（2.0）两族——与 `inferVolcanoResourceId` 推断规则严格对齐；含湾湾小何（台湾腔女声）、小何 2.0、爽快思思、甜美小源、清澈梓梓、亲切女声 2.0、邻家女孩 2.0、小天 2.0（男）、云舟 2.0（男）等。**清单来源：火山官方音色列表文档（docs.volcengine.com/docs/doubao-voice/tone-list-3），2026-11-05 查证**。
-- **SiliconFlow**：baseUrl `https://api.siliconflow.cn/v1`（OpenAI 兼容 `/audio/speech`），tts + asr。音色预设 = CosyVoice2 官方八音色（`FunAudioLLM/CosyVoice2-0.5B:alex/benjamin/charles/david/anna/bella/claire/diana`，value 为完整 `模型:音色` 形态）；模型预设 = CosyVoice2-0.5B / MOSS-TTSD-v0.5。**来源：docs.siliconflow.cn text-to-speech，2026-11-05 查证**。
+| 厂商                 | baseUrl                            | 能力                                               | 模型预设                                                                 | 音色预设                                                                                                                         |
+| -------------------- | ---------------------------------- | -------------------------------------------------- | ------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------- |
+| 火山引擎（豆包语音） | `https://openspeech.bytedance.com` | tts                                                | —（speaker 即音色）                                                      | moon_bigtts/uranus 两族 10 音色（含湾湾小何）；来源 tone-list-3，2026-11-05                                                      |
+| SiliconFlow          | `https://api.siliconflow.cn/v1`    | tts+asr                                            | CosyVoice2-0.5B / MOSS-TTSD-v0.5；SenseVoiceSmall / TeleSpeechASR        | CosyVoice2 官方八音色（完整 `模型:音色` 形态）；来源 docs.siliconflow.cn，2026-11-05                                             |
+| OpenAI               | `https://api.openai.com/v1`        | tts+asr                                            | gpt-4o-mini-tts / tts-1 / tts-1-hd；gpt-4o(-mini)-transcribe / whisper-1 | 11 音色（6 经典 + ash/ballad/coral/sage/verse）；来源 platform.openai.com TTS 指南，2026-11-05                                   |
+| Groq                 | `https://api.groq.com/openai/v1`   | tts+asr                                            | playai-tts（仅英/阿语）；whisper-large-v3(-turbo)                        | `<Name>-PlayAI` 形态 10 音色；来源 console.groq.com/docs/text-to-speech + 多镜像，2026-11-05                                     |
+| ElevenLabs           | `https://api.elevenlabs.io/v1`     | tts（兼容端点仅 TTS，transcriptions 未核实不登记） | eleven_flash_v2_5 / eleven_multilingual_v2 / eleven_turbo_v2_5           | **无内置音色**——官方默认音色 ID（Rachel 等）退役/限期下线，音色行自由填 Voice ID；来源 elevenlabs.io compat 文档线索，2026-11-05 |
+
 - 下拉还含「自定义端点」区：未命中任何模板 host 的既有启用卡照旧直选（§13 行为保留）。
 
 ### 15.3 表单形态（asr/tts 共用 VoiceVendorProviderRow）
 
 - **语音供应商行**：下拉 = 内置模板（标注「已连接/未配置 Key」，host 反查现有卡；优先复用当前 providerRef 卡）+ 分隔 + 自定义卡区。选中模板且无命中卡 → 程序化建卡 `createPersonalProvider({ providerName: 本地化名, initialConfig: { access: { type: "api-key" }, api: { type: "openai-chat-completions", baseUrl: canonical } } })`（LoginApiKeyForm 先例；api.type 与 §13 迁移建卡同款，出站链路不消费该字段），随后条目 providerRef 指向新卡。空态「去新建供应商」按钮路径随之消失。
 - **API Key 行**（内联）：复用 ApiKeyRow 语义（留空保存即删除）；onSave → `persistProviderApiKey`（`provider_config.json` 单点，§13 禁令不破）。火山卡凭据形态提示：`AppID:Access Token`（旧版）或新版单 API Key。
-- **音色/模型行按厂商变形**：火山 = 单行「音色」Select（写 `modelId`——火山协议 speaker 即音色；预设外已填 id（如复刻 S\_ 系）以「保留当前」项呈现不丢失）；SiliconFlow/OpenAI 兼容 = 「播报模型」+「音色」双行自由文本 + 厂商预设 datalist（SF 音色保留自由输入以兼容自定义音色 URI；自定义端点用标准 OpenAI 音色/模型预设）。厂商切换不改写另一形态的存量字段（未用字段无害）。
+- **音色/模型行按厂商变形**（LobeChat 同构）：火山 = 单行「音色」Select（写 `modelId`——火山协议 speaker 即音色；预设外已填 id（如复刻 S\_ 系）以「保留当前」项呈现不丢失）；其余内置厂商 = 「播报模型」Select（`models` 预设）+「音色」Select（`voices` 预设），均带「保留当前」兜底（预设外存量值不丢失）；无音色预设的厂商（ElevenLabs）音色行退自由文本；自定义端点卡 = 双行自由文本 + 通用 OpenAI 兼容预设 datalist。厂商切换不改写另一形态的存量字段（未用字段无害）。
 - **试听按钮**（仅 tts）：固定句「你好，这是 Drora 的语音播报试听。」走当前表单态 `synthesizeOnce` 合成并直接播放；`modelId` 空则禁用；合成中禁用+spinner；失败 toast（试听失败：\<适配器错误消息\>，含厂商 status/凭据形态提示），成功 toast。**fail-visible：把 §9.6.5-3 静默回落从「播报期无感」变为「配置期可感知」，不改变播报回落逻辑本身**。ASR 无试听（需麦克风录制，backlog）。
 - **ASR 连接重解析与模型预设按厂商**（同批次补）：①听写入口连接解析订阅 `providerSettingsService.onDidChange`——卡上 Key 变化（内联粘贴/清空/他窗修改）即时重解析，值等价保持旧引用防无谓重渲染；对齐 TTS 的懒解析语义（原实现只挂条目依赖，Key 变化后入口以旧态出站或误回落 webSpeech）；②注册表增 `asrModels` 字段（SiliconFlow=SenseVoiceSmall/TeleSpeechASR，火山恒空），ASR 模型行预设按命中厂商给值，自定义端点出通用 OpenAI 兼容预设（whisper-1/gpt-4o-transcribe）。
 

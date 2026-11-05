@@ -77,4 +77,41 @@ describe("语音供应商模板注册表（specs/model-capabilities.md §15）",
     expect(resolveVendorLocaleName(volcano!, "zh-CN")).toContain("火山");
     expect(resolveVendorLocaleName(volcano!, "fr-FR")).toBe(volcano!.nameMap["en-US"]);
   });
+
+  it("能力预设不变量：tts 厂商必有模型轴或音色预设；asr 厂商必有 asrModels（§15.2 厂商矩阵）", () => {
+    // LobeChat 同构厂商矩阵：火山（音色轴）/ SiliconFlow / OpenAI / Groq / ElevenLabs。
+    const vendorIds = VOICE_VENDOR_REGISTRY.map((template) => template.vendorId);
+    expect(vendorIds).toEqual(
+      expect.arrayContaining(["volcano", "siliconflow", "openai", "groq", "elevenlabs"]),
+    );
+    for (const template of VOICE_VENDOR_REGISTRY) {
+      if (template.apiKinds.includes("tts")) {
+        expect(
+          template.models.length > 0 || template.voices.length > 0,
+          `${template.vendorId} tts 需要模型轴或音色预设`,
+        ).toBe(true);
+      }
+      if (template.apiKinds.includes("asr")) {
+        expect(template.asrModels.length > 0, `${template.vendorId} asr 需要 asrModels`).toBe(true);
+      }
+    }
+    // ElevenLabs：默认音色 ID 退役 → 不内置音色，tts 走模型轴。
+    const elevenlabs = VOICE_VENDOR_REGISTRY.find((template) => template.vendorId === "elevenlabs");
+    expect(elevenlabs?.voices).toEqual([]);
+    expect(elevenlabs?.apiKinds).toEqual(["tts"]);
+    // OpenAI：11 音色 + 3 模型 + 3 ASR 模型（官方文档 2026-11-05 查证）。
+    const openai = VOICE_VENDOR_REGISTRY.find((template) => template.vendorId === "openai");
+    expect(openai?.voices.map((voice) => voice.id)).toEqual(
+      expect.arrayContaining(["alloy", "ash", "coral", "fable", "nova", "verse"]),
+    );
+    expect(openai?.models).toContain("gpt-4o-mini-tts");
+    expect(openai?.asrModels).toContain("whisper-1");
+    // Groq：playai-tts 音色 `-PlayAI` 后缀形态；ASR whisper 系。
+    const groq = VOICE_VENDOR_REGISTRY.find((template) => template.vendorId === "groq");
+    for (const voice of groq?.voices ?? []) {
+      expect(voice.id.endsWith("-PlayAI")).toBe(true);
+    }
+    expect(groq?.models).toEqual(["playai-tts"]);
+    expect(groq?.asrModels).toContain("whisper-large-v3");
+  });
 });

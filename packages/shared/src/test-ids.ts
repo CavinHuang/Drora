@@ -563,6 +563,8 @@ export const TID_MODEL_CAPABILITY_EMBEDDING_DOWNLOAD_BUTTON =
   "model-capability-embedding-download-button";
 /** §15 语音合成音色下拉（火山厂商变形行，动态后缀为条目名 tts） */
 export const TID_MODEL_CAPABILITY_VOICE_SELECT = "model-capability-voice-select";
+/** §15 语音合成模型下拉（内置厂商 models 预设，动态后缀为条目名 tts） */
+export const TID_MODEL_CAPABILITY_MODEL_SELECT = "model-capability-model-select";
 /** §15 语音合成试听按钮（动态后缀为条目名 tts） */
 export const TID_MODEL_CAPABILITY_PREVIEW_BUTTON = "model-capability-preview-button";
 

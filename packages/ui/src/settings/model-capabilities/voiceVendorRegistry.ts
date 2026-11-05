@@ -5,12 +5,20 @@
  * 直接选供应商 + 内置对应厂商音色。存储层维持 §13——模板只是供应商卡的**策展视图**
  * （matchHost 反查现有卡；缺卡自动建，Key 经 persistProviderApiKey 单点落卡）。
  *
- * 音色/模型预设全部取自官方文档原文（不凭记忆编造 ID）：
+ * 音色/模型预设全部取自官方文档原文（不凭记忆编造 ID，LobeChat 同构的厂商矩阵）：
  * - 火山引擎：docs.volcengine.com/docs/doubao-voice/tone-list-3（2026-11-05 查证），
  *   只取 moon_bigtts（1.0）与 uranus（2.0）两族——与 cloudTtsAdapter 的
  *   inferVolcanoResourceId 推断规则严格对齐；mars/jupiter 等其他族不收录。
  * - SiliconFlow：docs.siliconflow.cn text-to-speech（2026-11-05 查证），CosyVoice2
  *   官方八音色，value 为接口要求的完整「模型:音色」形态。
+ * - OpenAI：platform.openai.com TTS 指南（2026-11-05 查证），tts-1/tts-1-hd/
+ *   gpt-4o-mini-tts × 11 音色（6 经典 + ash/ballad/coral/sage/verse）。
+ * - Groq：console.groq.com/docs/text-to-speech + speech-to-text（2026-11-05 经官方
+ *   文档与多镜像交叉查证），playai-tts 音色 `<Name>-PlayAI` 形态（仅英文/阿拉伯语）；
+ *   ASR whisper-large-v3(-turbo) 支持多语言。
+ * - ElevenLabs：OpenAI 兼容 /v1/audio/speech（2026-11-05 查证，eleven_flash_v2_5
+ *   等），**官方默认音色 ID（Rachel 等）已退役/限期下线**——不内置任何音色 ID，
+ *   音色行保持自由填 Voice ID（控制台 Voice Library 获取）。
  */
 
 /** 音色预设（value = 出站请求用的厂商原始 id；label = 下拉友好名）。 */
@@ -81,6 +89,65 @@ export const VOICE_VENDOR_REGISTRY: ReadonlyArray<VoiceVendorTemplate> = [
     ],
     models: ["FunAudioLLM/CosyVoice2-0.5B", "fnlp/MOSS-TTSD-v0.5"],
     asrModels: ["FunAudioLLM/SenseVoiceSmall", "TeleAI/TeleSpeechASR"],
+  },
+  {
+    vendorId: "openai",
+    nameMap: { "zh-CN": "OpenAI", "en-US": "OpenAI" },
+    canonicalBaseUrl: "https://api.openai.com/v1",
+    matchHost: "api.openai.com",
+    credentialHintKey: "settings.modelCapability.vendor.credentialHint.openai",
+    apiKinds: ["tts", "asr"],
+    voices: [
+      { id: "alloy", label: "Alloy（中性）" },
+      { id: "ash", label: "Ash（温暖）" },
+      { id: "ballad", label: "Ballad" },
+      { id: "coral", label: "Coral（清亮）" },
+      { id: "echo", label: "Echo（低沉）" },
+      { id: "fable", label: "Fable（叙事）" },
+      { id: "onyx", label: "Onyx（浑厚）" },
+      { id: "nova", label: "Nova（明快）" },
+      { id: "sage", label: "Sage（沉静）" },
+      { id: "shimmer", label: "Shimmer" },
+      { id: "verse", label: "Verse" },
+    ],
+    models: ["gpt-4o-mini-tts", "tts-1", "tts-1-hd"],
+    asrModels: ["gpt-4o-mini-transcribe", "gpt-4o-transcribe", "whisper-1"],
+  },
+  {
+    vendorId: "groq",
+    nameMap: { "zh-CN": "Groq", "en-US": "Groq" },
+    canonicalBaseUrl: "https://api.groq.com/openai/v1",
+    matchHost: "api.groq.com",
+    credentialHintKey: "settings.modelCapability.vendor.credentialHint.groq",
+    apiKinds: ["tts", "asr"],
+    voices: [
+      { id: "Fritz-PlayAI", label: "Fritz（英语）" },
+      { id: "Aaliyah-PlayAI", label: "Aaliyah（英语）" },
+      { id: "Arista-PlayAI", label: "Arista（英语）" },
+      { id: "Atlas-PlayAI", label: "Atlas（英语）" },
+      { id: "Celeste-PlayAI", label: "Celeste（英语）" },
+      { id: "Gail-PlayAI", label: "Gail（英语）" },
+      { id: "Quinn-PlayAI", label: "Quinn（英语）" },
+      { id: "Basil-PlayAI", label: "Basil（英语）" },
+      { id: "Ahmad-PlayAI", label: "Ahmad（阿拉伯语）" },
+      { id: "Amira-PlayAI", label: "Amira（阿拉伯语）" },
+    ],
+    models: ["playai-tts"],
+    asrModels: ["whisper-large-v3", "whisper-large-v3-turbo"],
+  },
+  {
+    vendorId: "elevenlabs",
+    nameMap: { "zh-CN": "ElevenLabs", "en-US": "ElevenLabs" },
+    canonicalBaseUrl: "https://api.elevenlabs.io/v1",
+    matchHost: "api.elevenlabs.io",
+    credentialHintKey: "settings.modelCapability.vendor.credentialHint.elevenlabs",
+    // OpenAI 兼容端点仅 TTS（/audio/speech）；transcriptions 兼容性未核实故不登记 asr。
+    apiKinds: ["tts"],
+    // 官方默认音色 ID（Rachel 等）退役/限期下线——不内置任何 ID，音色行自由填
+    // Voice ID（控制台 Voice Library 获取）。
+    voices: [],
+    models: ["eleven_flash_v2_5", "eleven_multilingual_v2", "eleven_turbo_v2_5"],
+    asrModels: [],
   },
 ];
 

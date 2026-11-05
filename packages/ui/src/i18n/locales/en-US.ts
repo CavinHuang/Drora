@@ -5465,6 +5465,11 @@ const enUS: Record<string, string> = {
     'Volcano Engine: legacy console uses "AppID:Access Token" (colon-separated); the new console uses a single API key.',
   "settings.modelCapability.vendor.credentialHint.siliconflow":
     "SiliconFlow API key (starts with sk-), shared with chat models.",
+  "settings.modelCapability.vendor.credentialHint.openai": "OpenAI API key (starts with sk-).",
+  "settings.modelCapability.vendor.credentialHint.groq":
+    "Groq API key (starts with gsk_); TTS is English/Arabic only, ASR Whisper is multilingual.",
+  "settings.modelCapability.vendor.credentialHint.elevenlabs":
+    "ElevenLabs API key; enter a Voice ID from the console Voice Library (official default voice IDs are being retired).",
   "settings.modelCapability.vendor.credentialHint.custom":
     "The API key of the selected provider card; saving empty deletes it.",
   "settings.modelCapability.asr.baseUrlOverride.title": "Base URL override (optional)",

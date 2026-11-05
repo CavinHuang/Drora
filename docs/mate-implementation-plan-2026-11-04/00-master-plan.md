@@ -28,8 +28,11 @@ P4 watchdog(automation)+auto 信任门(唯一入口+配额默认5)+汇报卡完�
    代分解快照投影/未确认增量行/证据页签 briefFull+工件链接全量)+配额中心 UI(状态条
    配额行/MateDigestCard 摘要卡/调整入口)+桌宠气泡闸接线(同一计数兑现 P3 注记)+验收
    资产(assistantP4Report 9 项单测+mate-p4-ui MRP01-07 浏览器候选，coverage matrix
-   「Mate P4 第二棒增量」节)。遗留随总闸联调：真实 Host 工件核验 git 真链路、watchdog
-   定时轮 30min 判据真机、配额跨端一致性与手机快照透传)
+   「Mate P4 第二棒增量」节)；修复轮=watchdog 停滞回合单通知（同 (ticketId,kind)
+   finding 不再重复过配额闸）+配额 decision 类生产接线（gate 落卡同事务计数）+
+   「切 auto」UI 链路验收资产 mate-trust-auto.test.mjs（MTA01–03）。遗留随总闸联调：
+   真实 Host 工件核验 git 真链路、watchdog 定时轮 30min 判据真机、配额跨端一致性与
+   手机快照透传、工单终态汇报推送的 report 计数生产接线（随主动推送通道批）)
 语音入口：随 voice-agent spec 排期对齐后单列（不在 P1-P4 内，见 §8）
 ```
 

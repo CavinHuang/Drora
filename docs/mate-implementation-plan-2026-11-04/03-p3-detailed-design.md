@@ -18,7 +18,7 @@ interface MateSource {
 ## 2. 飞书 Source
 
 - 接线：`createBotsService` 增可选注入 `assistantForwarder?: {onChannelMessage(evt)}`（`node.ts:3040` 装配处传入闭包→`assistantTicketsService.ingestSourceEvent`）；channelRuntime 既有事件流+`channelMentionResolver` 判 mention——**bots 服务零内部逻辑改动，仅加回调出口**。
-  **落地注记（2026-11-05）**：装配处实际为 node.ts `createBotsService` 注册链（行号自 3040 漂移至 ~3075）；回调出口落在 `handleProviderCallback` 入站去重成功点（botsService.ts markInboundDelivery 后），evt 携带 Provider 核验的 `actor.mentionedBot`（mention 事实来自 Provider 而非正文解析）；命令/卡片交互/补答类入站由 feishu Source 侧过滤（commandText/groupCardAction/elicitationResponse），bots 零逻辑改动兑现。
+  **落地注记（2026-11-05）**：装配处实际为 node.ts `createBotsService` 注册链（行号自 3040 漂移，终审时实测 3118——P4 批次装配段继续后移所致）；回调出口落在 `handleProviderCallback` 入站去重成功点（botsService.ts markInboundDelivery 后），evt 携带 Provider 核验的 `actor.mentionedBot`（mention 事实来自 Provider 而非正文解析）；命令/卡片交互/补答类入站由 feishu Source 侧过滤（commandText/groupCardAction/elicitationResponse），bots 零逻辑改动兑现。
 - 回复路径（P3 最小）：工单终态经 bots 的 `channelReply` 回原会话一句话+工单卡片链接；群聊只回被 @ 的线程（沿用 bots 既有线程归属）。
   **落地注记（2026-11-05，偏差）**：实证 `replyToChannel`→`replyToBotChannel`（bots/channelReply.ts:27-106）要求「恰好一个 bots 任务绑定 + 原生输入锚点」——Mate 工单无 bots 任务归属，直接复用恒抛 binding 错误。等价意图=Source 回复端口 `AssistantSourceReplyPort` 定型（注册表终态通知器：快照差分检测 done/failed 首次进入→端口一句话+工单 id），飞书端口真实接线随凭据/真机验收批（无凭据不伪造连通）。
 - 名单：飞书 user id ↔ workspaceIdentity 映射进 allowlist 条目（kv JSON）。
@@ -90,7 +90,7 @@ interface MateSource {
 ## 7. P3 验收
 
 1. 飞书群 @大副（名单内）→决策卡→放行→执行→channelReply 回线程；未指名→would-accept。
-2. GitHub issue 评论 @大辅→同上；ETag 命中不重复触发（游标单测）。
+2. GitHub issue 评论 @大副→同上；ETag 命中不重复触发（游标单测）。
 3. 手机私聊助理→决策卡推送→放行；手机全程无 runtime 建立断言。
 4. follow-up 直通：同 thread 追加消息→不产生新 trigger、Router 无日志、目标会话收到输入。
 5. 桌宠：badge 数=任务中心待决策数；单击出 tray；tray 放行与主窗口状态一致。

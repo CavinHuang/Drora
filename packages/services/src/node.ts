@@ -666,7 +666,7 @@ import type {
   AssistantSessionsIndexWatchDelta,
 } from "./assistant-tickets/assistantPorts.js";
 import { ROUTER_KV_KEYS, shouldRotateRouterSession } from "./assistant-tickets/routerShell.js";
-import { ASSISTANT_IDENTITY } from "@drora/shared";
+import { ASSISTANT_ERROR_CODES, ASSISTANT_IDENTITY } from "@drora/shared";
 import type { SessionSummary } from "@drora/shared/drora-protocol-v4";
 import { createGitCommandProvider } from "./git/providers/gitCommandProvider.js";
 import { isAbsolute } from "node:path";
@@ -3390,7 +3390,12 @@ export function createLocalServices(options: {
       envelope: params.envelope,
     });
   }
-  function toAssistantPortError(error: unknown, code: "mate.dispatch.rejected" | "mate.attach.invalid") {
+  // 错误码引用 contracts 常量（契约键单一出处；P2 审查修复——此前函数签名与调用点
+  // 出现 "mate.dispatch.rejected"/"mate.attach.invalid" 字面量第二出处）。
+  function toAssistantPortError(
+    error: unknown,
+    code: typeof ASSISTANT_ERROR_CODES.dispatchRejected | typeof ASSISTANT_ERROR_CODES.attachTargetInvalid,
+  ) {
     return {
       ok: false as const,
       error: { code, reason: error instanceof Error ? error.message : String(error) },
@@ -3415,7 +3420,7 @@ export function createLocalServices(options: {
         return {
           ok: false as const,
           error: {
-            code: "mate.dispatch.rejected" as const,
+            code: ASSISTANT_ERROR_CODES.dispatchRejected,
             reason: `createSession ACK 异常：${JSON.stringify(createAck.result ?? null).slice(0, 200)}`,
           },
         };
@@ -3434,7 +3439,7 @@ export function createLocalServices(options: {
       });
       return { ok: true as const, value: { ticketId: request.ticketId, sessionId } };
     } catch (error) {
-      return toAssistantPortError(error, "mate.dispatch.rejected");
+      return toAssistantPortError(error, ASSISTANT_ERROR_CODES.dispatchRejected);
     }
   });
   // 附着端口（Mode C / follow-up）：同一 v4 sendText 通道投既有会话（busy 排队合法）。
@@ -3453,7 +3458,7 @@ export function createLocalServices(options: {
       });
       return { ok: true as const, value: { ticketId: request.ticketId, sessionId: request.sessionId } };
     } catch (error) {
-      return toAssistantPortError(error, "mate.attach.invalid");
+      return toAssistantPortError(error, ASSISTANT_ERROR_CODES.attachTargetInvalid);
     }
   });
   services.register(IAssistantTicketService, assistantTicketService);
@@ -3532,15 +3537,26 @@ export function createLocalServices(options: {
       try {
         const sessionId = await ensureAssistantRouterSession();
         const commandId = `router-eval-${randomUUID()}`;
-        let resolveOutput: ((output: string) => void) | null = null;
-        const outputPromise = new Promise<string>((resolve) => {
-          resolveOutput = resolve;
+        // 双臂解除（P2 审查修复）：此前只有 assistantText complete 才 resolve——sendText
+        // ACK 成功但该轮 turn 失败（assistantText failed/interrupted，同族帧 ticketLedger
+        // 语义即解析这些状态）时 promise 永不 settle → 评估串行链永久挂起，后续所有
+        // 决策卡停留「大副评估中」，违反 CONTRACT.md「评估失败→failed 诚实降级」不变式。
+        // 失败臂是事件解除而非超时兜底：帧状态即事件信号，服务侧按 {ok:false} 落
+        // router_evaluation=failed（决策卡降级 Tier3 问人，不重试模型）。
+        let settleOutput:
+          | ((result: { ok: true; output: string } | { ok: false; reason: string }) => void)
+          | null = null;
+        const outputPromise = new Promise<
+          { ok: true; output: string } | { ok: false; reason: string }
+        >((resolve) => {
+          settleOutput = resolve;
         });
         const disposable = droraAgentService.onDynamicConversationFrame({
           workspacePath: getAssistantWorkspaceDir(),
           workspaceIdentity: ASSISTANT_IDENTITY,
         })((candidate) => {
-          // 防御式解析（对齐 ticketLedger 帧纪律）：assistantText 行 complete → 该轮输出。
+          // 防御式解析（对齐 ticketLedger 帧纪律）：assistantText 行 complete → 该轮输出；
+          // failed/interrupted → 失败臂（不重试模型，服务侧降级 Tier3）。
           if (typeof candidate !== "object" || candidate === null) return;
           const frame = candidate as {
             topic?: unknown;
@@ -3555,12 +3571,19 @@ export function createLocalServices(options: {
               (d.op === "row.appended" || d.op === "row.upserted") &&
               typeof d.row === "object" &&
               d.row !== null &&
-              d.row.kind === "assistantText" &&
-              d.row.state === "complete" &&
-              typeof d.row.text === "string"
+              d.row.kind === "assistantText"
             ) {
-              resolveOutput?.(d.row.text);
-              return;
+              if (d.row.state === "complete" && typeof d.row.text === "string") {
+                settleOutput?.({ ok: true as const, output: d.row.text });
+                return;
+              }
+              if (d.row.state === "failed" || d.row.state === "interrupted") {
+                settleOutput?.({
+                  ok: false as const,
+                  reason: `Router 该轮 turn ${d.row.state === "failed" ? "失败" : "被中断"}（assistantText ${d.row.state}）`,
+                });
+                return;
+              }
             }
           }
         });
@@ -3578,8 +3601,8 @@ export function createLocalServices(options: {
           });
           const tickets = Number(assistantKvGet(ROUTER_KV_KEYS.ticketsSinceRotation) ?? "0") + 1;
           assistantKvSet(ROUTER_KV_KEYS.ticketsSinceRotation, String(tickets));
-          const output = await outputPromise;
-          return { ok: true as const, output };
+          // 双臂等待：complete→输出；failed/interrupted→{ok:false}（评估落 failed 降级 Tier3）。
+          return await outputPromise;
         } finally {
           disposable.dispose();
         }

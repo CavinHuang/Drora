@@ -60,7 +60,10 @@ Drora Mate 个人助理工单台账（specs/drora-personal-assistant.md；台账
 - 端口纪律：本模块不 import drora-agent/git——v4 命令、会话索引、workspace 探测、
   git worktree 七端口全在装配层（services/node.ts set*，assistantPorts.ts 唯一形状）；
   未注入按各语义诚实降级（派发=dispatch.rejected、Router=无建议、会话索引=候选空集/
-  锚不可校验、探测=降级 workspace 域）。
+  锚不可校验、探测=降级 workspace 域）。Router 端口双臂解除（装配层实现）：候选卡
+  turn 的 assistantText complete→输出、failed/interrupted→{ok:false}（帧状态即事件
+  信号，非超时兜底）——服务侧评估落 router_evaluation=failed 降级 Tier3，评估串行链
+  不因 turn 失败挂起。
 - assistantActivity（02 §6）：事实源=本服务快照；`computeMateActivityByWorkspace`
   纯折叠（经 services node 入口导出），desktop host 折叠缓存 → controller 任务行
   activity.mate 合成（SESSION_MATE_ACTIVITY_KEY 在 shared contracts 单出处）；

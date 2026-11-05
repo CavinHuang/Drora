@@ -59,6 +59,16 @@ preset 无 bash、无写盘工具，只做路由、派发、盯单、汇报。
      （草稿-dirty 纪律同名单编辑）经 useSettings 写 AppSettings；桌宠气泡闸接线
      MatePetSync——弹泡差分命中先过 admitDisturbance(kind=bubble)，未放行/判定失败
      皆不发布气泡帧（fail-closed，汇报仍在 tray 速览与面板可见）。
+     **P4 修复批注记（2026-11-05，feat/mate-p4 修复轮）——三类事件的生产接线现状**：
+     「三端同源计数」指经统一计数接口 `admitDisturbance` 进出（不建第二计数器），不
+     假设三类各有生产方。decision 类生产接线=gate 落卡事务（`recordTrigger`/
+     sourceIngest 落 decision_card 同事务计数——决策卡落卡即推送事件；decision 永不
+     抑制，本接线只兑现「仍计数」，used.decision 不再恒 0）。report 类现状生产方=
+     watchdog 通知（§10）；**工单终态汇报卡为快照被动呈现、无主动「推送」动作可挂**
+     ——桌面现状下「汇报到达」的打扰语义由桌宠气泡闸（kind=bubble）承接，汇报推送
+     的 report 计数生产接线随手机推送/主动推送通道批次补齐（§14 P4 遗留登记，替换
+     条件=存在主动推送通道）。auto_notice 告知卡（auto 已执行告知）不在三类事件
+     分类学内，不计数（有意边界，非缺口）。
    - 先航海日志后放行：observe 信任梯度（§6），放行率达标才出现切 auto 入口。
    - 成本永远同行：任何工单展示必带实耗（token/费用），换代不换账。
 4. **诚实规则**：用户原文 verbatim 进 brief，不静默改写；换代增量如实标注（"第 N 代重启，
@@ -277,6 +287,12 @@ stale）；awaiting 滞留判据**已随 P4 第二棒激活**：工件核验失�
 判定，配额内写入快照有界通知区（`watchdogNotices ≤5`），超额自动聚合次日摘要；
 判据解除（状态流转/有新事件）后同轮清除 stale 标记与过期通知。快照、SQL、kv 三处
 不新增第二条换代/终止写路径——watchdog 只写 stale 列与 kv。
+   **P4 修复批注记（2026-11-05，feat/mate-p4 修复轮）**：同一停滞回合单通知语义——
+判据持续命中期间，同 (ticketId, kind) finding 不再每轮重复过配额闸计数、不重复入列
+通知区（首个修复稿实现每轮无条件 admit+push，持续停滞工单 15min/轮 × 配额 5/日 约
+75 分钟即耗尽当日 report 预算，并把 ≤5 条通知区挤满同工单条目）。通知随判据回合
+生存：判据解除出清后再次命中才重新过闸（单停滞回合单通知；跨类别翻转=新回合）。
+通知区构建保持一工单一条（新条目让同工单旧条目让位）。
 
 ## 11. UI（四面一源）
 
@@ -400,7 +416,7 @@ desktop-continuous：Router 会话实时流。web-remote-replayable：手机只�
 | P1   | 准入域模型（含 Mandate）+ observe + 手动放行直派（Mode A）+ 观察记录 UI | 本地双触发（点名=explicit→决策卡放行 / 未指名=inferred→would-accept）→会话执行→完成记录含实耗；im/手机 Source 后移 P3；typecheck/lint/architecture:check 绿 |
 | P2   | assistant preset + Mode B/C + 代际 + Surface A/C                        | E2E：候选卡→建议→人放行；follow-up 直投；换代重派标注增量；手机快照透传；双链路各验一遍。**已实施（feat/mate-p2，两批）**：host 内核批=Router 决策 schema+候选卡循环、Mode B/C 派发、代际锚校验、W1/W2、assistantActivity host 挂载及单测；Surface 批=MateStatusStrip 状态条+Router 预填决策卡（dispatch/attach/hold/reject 四臂呈现与预填放行、failed 降级、queued 告知）、MateTicketDetail 四页签（时间线=代际站 mate-trace token/汇报/证据/成本）、工单行 queued/模式/代际徽标、MateSessionLine 任务行 mate 徽标（controller tasks-index 透传）、/mate 文档片段；服务快照 v2 补 `decisionId` 可选投影（证据页签关联）。单测与浏览器验收资产（fixture+`mate-surface-ac.test.mjs`）随批交付；真实 Host 端到端（候选卡→建议→人放行、换代重派、双链路）随总闸联调验收 |
 | P3   | Source 插件化（github）+ Tier1 直通                                     | GitHub 点名建单；同 ticket follow-up 直投不过 Router。**已实施（feat/mate-p3，host 批+接缝批）**：Source 注册表（assistant-tickets/sources/，按 kv 配置惰性启停）、飞书 Source（bots `assistantForwarder` 回调出口，bots 内部逻辑零改动）、手机 Source（channel 可见 `submitSourceEntry`，identity=host 本机用户防伪造，事件面见 03 详设 §3 探查回填）、GitHub Source（comments 轮询 ETag+游标，点名=整词 @+名单映射）、Thread 直通（channel_ref 命中→followUp 直投，不过 gate 不过 Router）、工单终态 Source 回复端口；桌宠接缝（MATE_PET_COMMANDS 单出处、Main 桥只转发、菜单「打开大副」/tray 速览 Y+N/badge 待决策数/汇报气泡、rendererEvent 导航端口三点共用）、UI 呈现（决策卡/观察行来源徽标=decision.sourceKind、工单详情直通通道站、双语 i18n）。验收：场景 1-4 服务链路由 host 批单测锁定（assistantSourceIngest/assistantSourceRegistry.test.ts，146 项 mate 回归绿）；场景 5 UI 侧由 desktopPetMateSeam（桥路由+托盘 DOM）+ petProjection（投影/气泡差分）单测与浏览器验收资产 mate-source-pet.test.mjs（MSP01-06：徽标/通道站/直通不建卡/投影发布/气泡推进/双语，实跑通过；P1/P2 资产同轮回归通过）覆盖。遗留：飞书/GitHub 真实凭据连通与飞书回复端口真机接线、桌宠真机点击链路与跨卡 Y/N/E 全局键盘流（03 未定义设计）、气泡打扰配额闸随 P4 配额中心；手机端 UI 触发入口接线（channel 口 `submitSourceEntry` 已备、无 UI 触达面）、Source 开关/身份映射配置写入口（生产无写方——kv 手改，CONTRACT.md「Source 事件面」登记）、手机端 UI 形态（单列+drawer+「回放 · 未建 runtime」徽标，03 详设 §3）——三项去向为后续 Source 配置 UI/手机入口批（排期未定，见 00 master plan §0 遗留） |
-| P4   | watchdog + auto 门                                                      | 停滞被标记并通知；auto 需信任条达标+确认 dialog。**已实施（feat/mate-p4，两批）**：host 侧第一棒=watchdog 定时器与判据（§10 落地注记，含 stale 标记 schema v5）、auto 信任门（§6 落地注记：setMode 判定+auto_notice 派发路径+Router 证据强约束）、配额中心数据与判定面（§2.3 落地注记：admitDisturbance/getDisturbanceQuota/markDailyDigestDelivered + AppSettings droraMateDailyQuota）、信任条「切 auto」入口与确认 dialog（Surface B）。第二棒=汇报卡完整版（§3 落地注记：工件只读核验→awaiting_output 滞留喂 watchdog（schema v6 awaiting_since_ms）→「人工确认交付」出口 confirmTicketOutput、usage 按代分解快照投影（Σ=合计）、未确认增量行（increments_confirmed_ms+确认出口）、证据页签 briefFull+工件链接全量只读）、配额中心 UI（§2.3/§11 落地注记：状态条配额行/MateDigestCard 摘要卡（通知区+未投递摘要+投递回执）/MateConfigSection 每日配额调整（AppSettings 写入）/桌宠气泡闸接线（MatePetSync 弹泡差分先过 admitDisturbance，fail-closed））、验收（§5）：核验四分支矩阵/awaiting 判据/人工确认/按代投影由 assistantP4Report.test.ts 9 项单测锁定，UI 侧 MRP01–07 浏览器验收资产实跑通过（chromium headless 27.1s 0 fail；P1–P3 资产同轮回归 0 fail——coverage matrix「Mate P4 第二棒增量」节），mate 全回归 16 文件 209 项绿；门禁 typecheck/lint（warning 432=第一棒基线）/architecture:check 全绿。遗留（随总闸联调验收）：真实 Host 端到端——工件核验 git 真链路（rev-parse/merge-base 对真实 worktree）、watchdog 定时轮 30min 判据真机、配额跨端（桌面/手机/桌宠）一致性与手机快照透传 |
+| P4   | watchdog + auto 门                                                      | 停滞被标记并通知；auto 需信任条达标+确认 dialog。**已实施（feat/mate-p4，两批）**：host 侧第一棒=watchdog 定时器与判据（§10 落地注记，含 stale 标记 schema v5）、auto 信任门（§6 落地注记：setMode 判定+auto_notice 派发路径+Router 证据强约束）、配额中心数据与判定面（§2.3 落地注记：admitDisturbance/getDisturbanceQuota/markDailyDigestDelivered + AppSettings droraMateDailyQuota）、信任条「切 auto」入口与确认 dialog（Surface B）。第二棒=汇报卡完整版（§3 落地注记：工件只读核验→awaiting_output 滞留喂 watchdog（schema v6 awaiting_since_ms）→「人工确认交付」出口 confirmTicketOutput、usage 按代分解快照投影（Σ=合计）、未确认增量行（increments_confirmed_ms+确认出口）、证据页签 briefFull+工件链接全量只读）、配额中心 UI（§2.3/§11 落地注记：状态条配额行/MateDigestCard 摘要卡（通知区+未投递摘要+投递回执）/MateConfigSection 每日配额调整（AppSettings 写入）/桌宠气泡闸接线（MatePetSync 弹泡差分先过 admitDisturbance，fail-closed））、验收（§5）：核验四分支矩阵/awaiting 判据/人工确认/按代投影由 assistantP4Report.test.ts 9 项单测锁定，UI 侧 MRP01–07 浏览器验收资产实跑通过（chromium headless 27.1s 0 fail；P1–P3 资产同轮回归 0 fail——coverage matrix「Mate P4 第二棒增量」节），mate 全回归 16 文件 209 项绿；门禁 typecheck/lint（warning 432=第一棒基线）/architecture:check 全绿。遗留（随总闸联调验收）：真实 Host 端到端——工件核验 git 真链路（rev-parse/merge-base 对真实 worktree）、watchdog 定时轮 30min 判据真机、配额跨端（桌面/手机/桌宠）一致性与手机快照透传；工单终态汇报推送的 report 计数生产接线（桌面汇报卡为快照被动呈现无主动推送动作，随手机推送/主动推送通道批次补齐——§2.3 修复批注记）；「切 auto」确认框→setMode→失败臂 UI 链路浏览器验收资产 MTA01–03（feat/mate-p4 修复轮交付，mate-trust-auto.test.mjs） |
 
 ## 15. 明确不做（反模式）
 

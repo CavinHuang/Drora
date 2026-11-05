@@ -24,6 +24,12 @@
 | 排队饥饿      | queued > 24h                                                             | 告知卡提醒调整预算                             |
 
 - 通知动作仅三类：标记（stale 字段）、通知（配额内）、无动作；**永不自动终止/换代/重试**（spec §10）。
+  **落地注记（2026-11-05，feat/mate-p4 修复轮）——通知频次语义**：通知按「停滞回合」
+  计——同 (ticketId, kind) finding 已有未解除通知时不重复过配额闸计数、不重复入列；
+  判据解除（状态流转/新事件推进 updated_ms/工单删除）出清通知后再次命中才重新过闸
+  （跨类别翻转=新回合）。通知区构建保持一工单一条（新条目让同工单旧条目让位）。
+  反例（修复前）：持续停滞工单每轮无条件 admit+push，15min/轮 × 配额 5/日 约 75 分钟
+  耗尽当日 report 预算并把 ≤5 条通知区挤满同工单重复条目。
 
 ## 2. auto 信任门
 
@@ -118,6 +124,14 @@ AppSettings 属性用 camelCase，`drora.mate.*` 命名空间归属记 spec §1�
   `admitDisturbance(kind=bubble, summary=汇报首行)`——allowed=false 或判定通道失败
   皆不发布气泡帧（fail-closed；summary 已入 digest，汇报仍在 tray 速览与面板可见）；
   洗清「P3 不建第二计数器」注记。
+  **落地注记（2026-11-05，feat/mate-p4 修复轮）——三类事件生产接线**：「三端同源」
+  指统一经 admitDisturbance 进出（不建第二计数器），不假设三类各有常驻生产方：
+  decision=gate 落卡事务（recordTrigger/sourceIngest 落 decision_card 同事务计数——
+  落卡即推送事件；永不抑制，本接线兑现「仍计数」，quota 值对 decision 无判定效果，
+  用快照投影同口径的缓存值+缺省回落）；report=watchdog 通知（§1）；工单终态汇报卡
+  为快照被动呈现、无主动推送动作，其 report 计数生产接线随手机推送/主动推送通道
+  批次补齐（spec §2.3 修复批注记/§14 遗留登记）——桌面现状下「汇报到达」的打扰
+  语义由气泡闸（bubble）承接。auto_notice 告知卡不在三类分类学内，不计数。
 
 ## 5. P4 验收
 

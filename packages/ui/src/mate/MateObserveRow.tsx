@@ -3,6 +3,7 @@ import type { AssistantDecisionView } from "@drora/services";
 import { useDroraIntl } from "@/i18n/IntlProvider.js";
 
 import { MateLamp } from "./MateLamp.js";
+import { MateSourceBadge } from "./MateSourceBadge.js";
 import { firstPreviewLine } from "./MateTicketRow.js";
 
 /**
@@ -26,6 +27,8 @@ export const MateObserveRow = memo(function MateObserveRow({
       <span className="shrink-0 text-ui-xs text-foreground-subtlest">
         {intl.formatMessage({ id: "mate.observe.wouldAccept" })}
       </span>
+      {/* P3 来源徽标（spec §11 落地注记）：快照可选字段缺席不渲染。 */}
+      {decision.sourceKind ? <MateSourceBadge sourceKind={decision.sourceKind} /> : null}
       <span className="min-w-0 flex-1 truncate text-ui-sm text-foreground-subtle">
         {firstPreviewLine(decision.triggerText)}
       </span>

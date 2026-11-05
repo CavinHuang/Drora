@@ -13,6 +13,7 @@ export {
   isMateQueuedTicket,
   matePermissionTierMessageId,
   mateRouterSuggestionKindMessageId,
+  mateSourceKindMessageId,
   mateTicketGenerationNumber,
   resolveMateBudgetActive,
   resolveMateErrorMessageId,
@@ -24,6 +25,13 @@ export type {
   MateViewModel,
   MateViewCounts,
 } from "./view-model.js";
+// P3 桌宠接缝投影（spec §11 落地注记；MatePetSync 发布方与验收资产共用）。
+export {
+  deriveMatePetBubble,
+  matePetBubbleKey,
+  matePetReportSummary,
+  projectMatePet,
+} from "./petProjection.js";
 export type { MateLocalUiState } from "./contract.js";
 export { mateTicketLampTone, MATE_LAMP_TONE_CLASS } from "./statusTone.js";
 export type { MateLampTone } from "./statusTone.js";
@@ -33,6 +41,7 @@ export { MateStatusStrip } from "./MateStatusStrip.js";
 export { MateTrustBar } from "./MateTrustBar.js";
 export { MateWorkspaceGroup } from "./MateWorkspaceGroup.js";
 export { MateDecisionCard } from "./MateDecisionCard.js";
+export { MateSourceBadge } from "./MateSourceBadge.js";
 export { MateTicketRow, firstPreviewLine } from "./MateTicketRow.js";
 export { MateReportCard } from "./MateReportCard.js";
 export { MateObserveRow } from "./MateObserveRow.js";

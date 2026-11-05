@@ -171,6 +171,7 @@ export function buildAssistantSnapshot(
     raw
       .prepare(
         `SELECT d.id, d.trigger_id, d.strength, d.mode, d.outcome, d.decided_by, d.decided_ms, t.text AS trigger_text,
+              t.source_kind AS trigger_source_kind,
               r.state AS router_state, r.verdict AS router_verdict, r.error AS router_error
          FROM admission_decision d
          JOIN trigger t ON t.id = d.trigger_id
@@ -186,6 +187,7 @@ export function buildAssistantSnapshot(
       decided_by: string;
       decided_ms: number;
       trigger_text: string;
+      trigger_source_kind: string | null;
       router_state: string | null;
       router_verdict: string | null;
       router_error: string | null;
@@ -201,6 +203,8 @@ export function buildAssistantSnapshot(
       decidedBy: row.decided_by as AssistantSnapshot["decisions"][number]["decidedBy"],
       decidedMs: row.decided_ms,
       triggerText: row.trigger_text,
+      // P3 来源徽标载体（可选追加，旧库/旧行 NULL 合法缺席）。
+      ...(row.trigger_source_kind ? { sourceKind: row.trigger_source_kind } : {}),
       ...(row.router_state
         ? { routerState: row.router_state as "pending" | "suggested" | "failed" }
         : {}),

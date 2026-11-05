@@ -18,6 +18,7 @@ import {
   ASSISTANT_ERROR_CODES,
   ASSISTANT_OUTCOMES,
   ASSISTANT_PERMISSION_TIERS,
+  ASSISTANT_SOURCE_KINDS,
   ASSISTANT_TICKET_STATUSES,
 } from "@drora/shared";
 import type { AssistantPermissionTier } from "@drora/shared";
@@ -168,6 +169,25 @@ export function matePermissionTierMessageId(tier: AssistantPermissionTier): stri
       return "mate.card.tier.guarded";
     case ASSISTANT_PERMISSION_TIERS.yolo:
       return "mate.card.tier.yolo";
+  }
+}
+
+/**
+ * 触发来源 → i18n 键（mate.source.*；P3 Source 注册表呈现，spec §11 落地注记）。
+ * 封闭映射跟随 ASSISTANT_SOURCE_KINDS 枚举；未知值返回 null 不渲染（不发明来源）。
+ */
+export function mateSourceKindMessageId(sourceKind: string): string | null {
+  switch (sourceKind) {
+    case ASSISTANT_SOURCE_KINDS.local:
+      return "mate.source.local";
+    case ASSISTANT_SOURCE_KINDS.feishu:
+      return "mate.source.feishu";
+    case ASSISTANT_SOURCE_KINDS.phone:
+      return "mate.source.phone";
+    case ASSISTANT_SOURCE_KINDS.github:
+      return "mate.source.github";
+    default:
+      return null;
   }
 }
 

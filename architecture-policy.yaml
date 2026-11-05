@@ -1850,3 +1850,13 @@ exceptions:
       - packages/ui/src/i18n/mateMessages.ts
       - packages/ui/src/app-shell/MateSidePane.tsx
     reason: PR-1B groundwork files admitted path-exact per the mate implementation plan (store/hooks/i18n live in the host ui module's canonical directories, matching the offPeakTaskStore/useModelCapabilities/teamMessages precedents, and the side-pane container lives in app-shell like TeamSidePane); the mate business projection, contract and presentational components live in the managed ui-mate module, and these files consume only its public entrypoints.
+  # P3 接缝批（03 详设 §6）：桌宠接缝发布方与导航端口 handler 落宿主 ui 规范目录
+  # （root/ 照 DesktopPetTaskSync、hooks/ 照 useDesktopPet 先例）；业务口径（投影/差分
+  # 纯函数与来源徽标）在 managed ui-mate 模块（petProjection.ts/MateSourceBadge.tsx），
+  # 两文件只经其公开入口消费。
+  - id: mate-pet-seam-host-side-unmanaged-new-files
+    rule: unmanaged-new-file
+    paths:
+      - packages/ui/src/root/MatePetSync.tsx
+      - packages/ui/src/hooks/useMatePetEvents.ts
+    reason: P3 mate pet seam files admitted path-exact per 03-p3-detailed-design.md §6 (publisher root component mirrors DesktopPetTaskSync, renderer navigation-port handler mirrors the useDesktopPet hook precedent); projection/bubble pure functions and the source badge live in the managed ui-mate module consumed only via its public entrypoints, and the desktop-side bridge is a desktop main module file.

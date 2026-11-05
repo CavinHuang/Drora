@@ -51,6 +51,15 @@ import "../../src/styles.css";
  *   （targetWorkspaceIdentity/attachToSessionId/dispatchMode）确实随放行发出。
  * - 建票字段按入参真实映射 dispatchMode A/B/C 与 decisionId/anchorCommandId；
  *   generationCount 由 fixture-rollover-next 开关模拟换代（真实换代是 host 代际事务）。
+ *
+ * P3 接缝批扩展（mate-source-pet.test.mjs 消费；P1/P2 场景保持兼容——新控件不点不触发）：
+ * - 决策卡带 sourceKind（local/phone），手机点名决策卡渲染来源徽标；
+ * - fixture-inject-phone：submitSourceEntry 带 channel_ref 建卡（真实 Source 事件面在
+ *   host 侧 sources/，renderer 夹具按 ingestSourceEvent 同构语义模拟）；
+ * - 放行回填 ticket.channel_ref（assistantSnapshot 同列）；fixture-phone-followup 同
+ *   通道追加 → 直通（不建新 trigger/decision，anchor 序号推进），经 fixture-last-ingest
+ *   读点断言。桌宠接缝发布/导航链路的平台面在 MatePetSync/useMatePetEvents + desktop
+ *   matePetBridge 单测与 Electron 真机链路覆盖，不在本 renderer 夹具内。
  */
 
 const tab: MateSidePaneTab = {
@@ -69,6 +78,7 @@ interface FixtureDecision {
   decidedBy: "gate" | "user";
   triggerText: string;
   decidedMs: number;
+  sourceKind: string;
   routerState?: "pending" | "suggested" | "failed";
   routerSuggestion?: AssistantRouterSuggestionView;
   routerError?: string;
@@ -89,6 +99,7 @@ interface FixtureTicket {
   anchorCommandId?: string | null;
   generationCount?: number;
   queuedReason?: string | null;
+  channelRef?: string | null;
 }
 
 /** approveDecision 入参捕获（Surface A 预填传参断言读点）。 */
@@ -109,6 +120,8 @@ function createMateFixtureService(
   let worktreeDisabled = false;
   let queueNextApprove = false;
   let rolloverNextApprove = false;
+  // P3 接缝批：手机入口 ingest 结果读点（direct:<ticketId>:<text> / gate:<triggerId>:<outcome>）。
+  let lastIngest = "";
   const triggers: AssistantTriggerView[] = [];
   const decisions: FixtureDecision[] = [];
   const tickets: FixtureTicket[] = [];
@@ -138,6 +151,7 @@ function createMateFixtureService(
       ...(ticket.anchorCommandId !== undefined ? { anchorCommandId: ticket.anchorCommandId } : {}),
       ...(ticket.generationCount !== undefined ? { generationCount: ticket.generationCount } : {}),
       ...(ticket.queuedReason !== undefined ? { queuedReason: ticket.queuedReason } : {}),
+      ...(ticket.channelRef !== undefined ? { channelRef: ticket.channelRef } : {}),
     }));
     const decisionViews: AssistantDecisionView[] = decisions.map((decision) => ({
       id: decision.id,
@@ -148,6 +162,7 @@ function createMateFixtureService(
       decidedBy: decision.decidedBy,
       decidedMs: decision.decidedMs,
       triggerText: decision.triggerText,
+      sourceKind: decision.sourceKind,
       ...(decision.routerState ? { routerState: decision.routerState } : {}),
       ...(decision.routerSuggestion ? { routerSuggestion: decision.routerSuggestion } : {}),
       ...(decision.routerError ? { routerError: decision.routerError } : {}),
@@ -213,6 +228,7 @@ function createMateFixtureService(
       decidedBy: "gate",
       triggerText: text,
       decidedMs: Date.now(),
+      sourceKind: "local",
       routerState,
       ...(suggestion ? { routerSuggestion: suggestion } : {}),
       ...(routerState === "failed" ? { routerError: "router evaluation schema mismatch" } : {}),
@@ -247,6 +263,7 @@ function createMateFixtureService(
         decidedBy: "gate",
         triggerText: input.text,
         decidedMs: Date.now(),
+        sourceKind: "local",
       });
       publish();
       return { ok: true, value: { triggerId, outcome } };
@@ -270,6 +287,10 @@ function createMateFixtureService(
         : decision.triggerText;
       // 契约语义：放行即 decided_by=user（卡片脱离待决策集；releaseCount 积累）。
       decision.decidedBy = "user";
+      // P3 接缝批：trigger.channel_ref 回填 ticket.channel_ref（assistantSnapshot 同列
+      // 语义——放行建票即绑定通道，同通道 follow-up 命中即直通）。
+      const triggerChannelRef =
+        triggers.find((trigger) => trigger.id === decision.triggerId)?.channelRef ?? null;
       if (queueNextApprove) {
         // P2 软预算排队（specs §9）：工单 queued 立项+告知文案，不推进终态。
         queueNextApprove = false;
@@ -308,6 +329,7 @@ function createMateFixtureService(
         decisionId: input.decisionId,
         anchorCommandId: `${ticketId}-1`,
         generationCount: rolloverNextApprove ? 1 : 0,
+        channelRef: triggerChannelRef,
       });
       rolloverNextApprove = false;
       ticketByDecision.set(input.decisionId, { ticketId, sessionId });
@@ -330,7 +352,38 @@ function createMateFixtureService(
 
     // P3 Source 注册表手机入口（03 详设 §3 事件面定型）：fixture 按 recordTrigger 同构
     // 模拟（identity=fixture 本机用户、sourceKind=phone），供手机入口浏览器验收复用。
+    // P3 接缝批补齐服务同构语义：channel_ref 命中活动工单 → 直通（不建新 trigger/
+    // decision，原文并入 brief 尾行模拟 follow-up 投递、anchor 序号推进）；放行建票时
+    // trigger.channel_ref 回填 ticket.channel_ref（assistantSnapshot 同列语义）。
     async submitSourceEntry(input) {
+      if (input.channelRef) {
+        const bound = tickets.find(
+          (ticket) =>
+            ticket.channelRef === input.channelRef &&
+            ticket.status !== ASSISTANT_TICKET_STATUSES.done &&
+            ticket.status !== ASSISTANT_TICKET_STATUSES.failed,
+        );
+        if (bound) {
+          const seqNo =
+            bound.anchorCommandId && /-(\d+)$/.test(bound.anchorCommandId)
+              ? Number(/-(\d+)$/.exec(bound.anchorCommandId)?.[1]) + 1
+              : 1;
+          bound.anchorCommandId = `${bound.id}-${seqNo}`;
+          bound.updatedAtMs = Date.now();
+          lastIngest = `direct:${bound.id}:${input.text}`;
+          publish();
+          return {
+            ok: true,
+            value: {
+              triggerId: null,
+              outcome: null,
+              directThrough: true,
+              ticketId: bound.id,
+              sessionId: bound.sessionId ?? undefined,
+            },
+          };
+        }
+      }
       seq += 1;
       const triggerId = `TR-${seq}`;
       triggers.push({
@@ -357,7 +410,9 @@ function createMateFixtureService(
         decidedBy: "gate",
         triggerText: input.text,
         decidedMs: Date.now(),
+        sourceKind: "phone",
       });
+      lastIngest = `gate:${triggerId}:${outcome}`;
       publish();
       return {
         ok: true,
@@ -436,6 +491,11 @@ function createMateFixtureService(
     approveDirect: service.approveDecision,
     resync: publish,
     injectRouterDecision,
+    submitSource: service.submitSourceEntry,
+    /** 手机入口 ingest 结果读点（direct:<ticketId>:<text> / gate:<triggerId>:<outcome>）。 */
+    lastIngest(): string {
+      return lastIngest;
+    },
     queueNext(): void {
       queueNextApprove = true;
     },
@@ -450,18 +510,27 @@ function Fixture() {
   const [openSession, setOpenSession] = useState<string | null>(null);
   const [lastBrief, setLastBrief] = useState("");
   const [lastApprove, setLastApprove] = useState("");
-  const { service, approveDirect, resync, injectRouterDecision, queueNext, rolloverNext } =
-    useMemo(
-      () =>
-        createMateFixtureService(setLastBrief, (input) =>
-          setLastApprove(
-            `mode=${input.dispatchMode ?? "-"} attach=${input.attachToSessionId ?? "-"} target=${
-              input.targetWorkspaceIdentity ?? "-"
-            } tier=${input.permissionTier ?? "-"}`,
-          ),
+  const [lastIngest, setLastIngest] = useState("");
+  const {
+    service,
+    approveDirect,
+    resync,
+    injectRouterDecision,
+    submitSource,
+    lastIngest: readLastIngest,
+    queueNext,
+    rolloverNext,
+  } = useMemo(
+    () =>
+      createMateFixtureService(setLastBrief, (input) =>
+        setLastApprove(
+          `mode=${input.dispatchMode ?? "-"} attach=${input.attachToSessionId ?? "-"} target=${
+            input.targetWorkspaceIdentity ?? "-"
+          } tier=${input.permissionTier ?? "-"}`,
         ),
-      [],
-    );
+      ),
+    [],
+  );
   // 夹具只需 accessor.assistantTicketService 一个字段（useAssistantTickets 判空降级的读点）。
   const accessor = useMemo(
     () => ({ assistantTicketService: service }) as IServiceAccessor,
@@ -472,6 +541,24 @@ function Fixture() {
     const decisionId = 2; // 场景顺序：TR-1=inferred，TR-2=explicit → 决策卡 id=2
     await approveDirect({ decisionId, permissionTier: ASSISTANT_PERMISSION_TIERS.build });
   }, [approveDirect]);
+  // P3 接缝批验收控件：手机点名入口（带通道绑定）→ 决策卡（phone 徽标）→ 放行回填
+  // channel_ref → 同通道追加消息直通（不建新卡）。
+  const handlePhoneNamed = useCallback(() => {
+    void submitSource({
+      text: "手机点名：看下移动端白屏",
+      mention: true,
+      remoteSessionId: "rs-phone-1",
+      channelRef: "phone:session:rs-phone-1",
+      targetWorkspaceIdentity: tab.workspaceIdentity ?? undefined,
+    }).then(() => setLastIngest(readLastIngest()));
+  }, [readLastIngest, submitSource]);
+  const handlePhoneFollowUp = useCallback(() => {
+    void submitSource({
+      text: "补充：横屏复现",
+      mention: true,
+      channelRef: "phone:session:rs-phone-1",
+    }).then(() => setLastIngest(readLastIngest()));
+  }, [readLastIngest, submitSource]);
   return (
     // TooltipProvider 照 Root.tsx 根层共享一次：MateConfigSection 的 auto 禁用钮经
     // ControlHintTooltip 消费 Radix 上下文，缺 Provider 会整树抛错（PR-1B 审查发现 1）。
@@ -537,6 +624,13 @@ function Fixture() {
               <button data-testid="fixture-rollover-next" onClick={rolloverNext}>
                 Rollover next approve
               </button>
+              {/* P3 接缝批：手机 Source 入口（phone 徽标决策卡 + channel_ref 直通）。 */}
+              <button data-testid="fixture-inject-phone" onClick={handlePhoneNamed}>
+                Inject phone named trigger
+              </button>
+              <button data-testid="fixture-phone-followup" onClick={handlePhoneFollowUp}>
+                Phone follow-up (direct-through)
+              </button>
               {/* MateSessionLine 两态演示（任务行徽标组件级验收；真实挂接在任务行列表）。 */}
               <div
                 className="w-full"
@@ -554,6 +648,7 @@ function Fixture() {
               <output data-testid="fixture-open-session">{openSession ?? ""}</output>
               <output data-testid="fixture-last-brief">{lastBrief}</output>
               <output data-testid="fixture-approve-input">{lastApprove}</output>
+              <output data-testid="fixture-last-ingest">{lastIngest}</output>
             </div>
             <div className="mx-auto" style={{ width: 480, height: 780 }}>
               <MateSidePane

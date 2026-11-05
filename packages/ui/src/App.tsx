@@ -17,6 +17,7 @@ import { useWorkspaceActiveTaskState } from "@/hooks/useWorkspaceActiveTaskState
 import { useEnsureWorkspaceMcpLoaded } from "@/hooks/useEnsureWorkspaceMcpLoaded.js";
 import { useTabStore } from "@/store/TabStoreProvider.js";
 import { isWorkspaceReadOnly, isWorkspaceTab } from "@/store/tabStore.js";
+import { useMatePetEvents } from "@/hooks/useMatePetEvents.js";
 import type { TaskChatMessage as TestChatMessage } from "@/lib/taskChatMessageTypes.js";
 import { useDroraIntl } from "@/i18n/IntlProvider.js";
 import { useIsOfficeMode } from "@/hooks/useInterfaceMode.js";
@@ -417,6 +418,14 @@ export function App({
       }) ?? (() => {})
     );
   }, [activateTabByPath, platform, tabs]);
+  // Mate 桌宠接缝导航端口（spec §11 P3；03 详设 §6）：菜单「打开大副」/tray 点卡直达/
+  // 速览 decide 三事件共用一条 Main→Renderer 端口，执行体与面板入口同源。
+  useMatePetEvents({
+    platform,
+    workspaceAbsPath,
+    ...(workspaceIdentity ? { workspaceIdentity } : {}),
+    onOpenMateSidePane: handleOpenMateSidePane,
+  });
 
   const {
     resolvedActiveTaskMeta,

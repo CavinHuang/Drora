@@ -17,6 +17,7 @@ import {
 import { useMateStore } from "@/store/mateStore.js";
 
 import { MateLamp } from "./MateLamp.js";
+import { MateSourceBadge } from "./MateSourceBadge.js";
 
 /**
  * 决策卡（01 §5 MateDecisionCard + 02 §1.3 Router 预填，P2 Surface A）。
@@ -123,6 +124,8 @@ export const MateDecisionCard = memo(function MateDecisionCard({
       <div className="flex items-center gap-2">
         <MateLamp tone="decision" />
         <span className="font-mono text-ui-xs text-foreground-subtlest">#{decision.id}</span>
+        {/* P3 来源徽标（spec §11 落地注记）：快照可选字段缺席不渲染。 */}
+        {decision.sourceKind ? <MateSourceBadge sourceKind={decision.sourceKind} /> : null}
         <span className="ml-auto flex min-w-0 items-center gap-1">
           <span
             className="shrink-0 rounded-sm bg-tag px-1.5 py-0.5 text-ui-xs text-foreground-subtle"

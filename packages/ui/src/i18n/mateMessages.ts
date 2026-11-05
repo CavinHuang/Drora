@@ -123,6 +123,15 @@ export const mateMessagesEn = {
   "mate.sessionLine.aria": "Mate: {active} active tickets, {pending} pending decisions",
   "mate.sessionLine.active": "{active} active",
   "mate.sessionLine.pending": "{pending} pending",
+
+  // ---- P3 Source 注册表呈现（spec §11 落地注记；来源徽标封闭映射） ----
+  "mate.source.local": "Local",
+  "mate.source.feishu": "Feishu",
+  "mate.source.phone": "Phone",
+  "mate.source.github": "GitHub",
+
+  // ---- P3 Thread 直通（工单详情时间线通道绑定站；spec §5） ----
+  "mate.detail.timeline.channel": "Channel binding (direct-through)",
 };
 
 export const mateMessagesZh = {
@@ -236,4 +245,13 @@ export const mateMessagesZh = {
   "mate.sessionLine.aria": "大副：{active} 个活动工单，{pending} 个待决策",
   "mate.sessionLine.active": "{active} 活动",
   "mate.sessionLine.pending": "{pending} 待决策",
+
+  // ---- P3 Source 注册表呈现（spec §11 落地注记；来源徽标封闭映射） ----
+  "mate.source.local": "本地",
+  "mate.source.feishu": "飞书",
+  "mate.source.phone": "手机",
+  "mate.source.github": "GitHub",
+
+  // ---- P3 Thread 直通（工单详情时间线通道绑定站；spec §5） ----
+  "mate.detail.timeline.channel": "通道绑定（直通）",
 };

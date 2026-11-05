@@ -61,6 +61,25 @@ expandedDecisionId` 三件 UI 局部态，按 workspace 分域（`byWorkspace`�
 - i18n 键单一出处 `i18n/mateMessages.ts`（zh「大副」/en "Mate"），经 zh-CN/en-US 顶部
   spread 合入；键一次建齐，组件不写字面量文案。
 
+## P3 增量（2026-11-05，Source/桌宠接缝批次）
+
+- **来源徽标**：决策卡/观察行经 `MateSourceBadge` 渲染 `decision.sourceKind`（快照 v2
+  可选追加字段，host 侧 trigger JOIN 既有列投影）；`mateSourceKindMessageId` 封闭映射
+  跟随 `ASSISTANT_SOURCE_KINDS`，未知值不渲染。缺席（旧库行）诚实降级不渲染徽标。
+- **桌宠接缝投影**（`petProjection.ts`）：快照 → 有界 `MatePetProjection`（shared
+  assistantPet.ts schema）纯函数 `projectMatePet`；气泡判定 `deriveMatePetBubble` 按
+  ticketId+updatedAtMs 登记键差分（冷启动首帧只登记不弹、同工单刷新不重弹）。发布方
+  =`root/MatePetSync.tsx`（窗口 Host services 作用域），Main 只转发（desktop
+  matePetBridge 校验来源窗口），pet/tray 不建第二 Host。**打扰配额归 P4 配额中心，
+  本模块不建第二计数器**（03 §6 注记）。
+- **导航端口**（`hooks/useMatePetEvents.ts`）：Main→Renderer 三事件 open-mate /
+  open-ticket / decide 的执行体——面板打开走 `handleOpenMateSidePane` 同位入口、工单
+  选中走 mateStore `selectTicket`（identity 键匹配已开 tab，无命中回落当前 workspace
+  ——面板投影覆盖 Host 全部工单）、decide 直调 `IAssistantTicketService`（默认 build
+  档，与面板放行同参同服务）。
+- **直通绑定呈现**：工单详情时间线「直通通道」站渲染 `ticket.channelRef` 不透明串接值
+  （格式=host 侧 sources/channelRef.ts 单出处，UI 不复制第二解析）。
+
 ## 与其它模块的交集
 
 - `services`（assistant-tickets）：channel 代理消费快照与动作；类型引用只走 services

@@ -64,6 +64,12 @@ export interface AssistantDecisionView {
   readonly decidedMs: number;
   /** 决策卡可用：对应的 trigger 正文预览（verbatim 首行截断）。 */
   readonly triggerText: string;
+  /**
+   * P3（Source 注册表，03 详设 §1；可选追加不破 v2 兼容）：触发来源封闭枚举
+   * （ASSISTANT_SOURCE_KINDS——local/feishu/phone/github）。UI 决策卡/观察行据此渲染
+   * 来源徽标；旧快照行缺席合法。
+   */
+  readonly sourceKind?: string;
   /** P2：Router 评估状态（pending=评估中；suggested=有建议；failed=降级 Tier3 问人）。 */
   readonly routerState?: "pending" | "suggested" | "failed";
   /** P2：Router 建议预填（schema 校验通过才有；failed 时缺省）。 */

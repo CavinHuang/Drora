@@ -92,6 +92,7 @@ import { registerBaseWorkspaceServices } from "@/store/remoteWorkspaceSessionSto
 import type { RootProps } from "@/root/types.js";
 import { DiffsWorkerPoolProvider } from "@/root/DiffsWorkerPoolProvider.js";
 import { DesktopPetTaskSync } from "@/root/DesktopPetTaskSync.js";
+import { MatePetSync } from "@/root/MatePetSync.js";
 // S5 delete-decision：webRemoteControlTaskIndex.ts 随上游 v3.16.1 删除，
 // 其消费者（远控任务索引/行）已由 web-remote-control 与 project-sidebar 新模块接替。
 // useGlobalTaskList 已随上游 root 重构移出 Root，不再在此导入。
@@ -962,6 +963,13 @@ function RootInner({
       platform={platform}
     />
   );
+  // Mate 桌宠接缝发布方（spec §11 P3；03 详设 §6）：窗口 Host 工单快照→有界投影，
+  // 经 Main 转发宠物窗/tray 窗；与宠物可见性同门（桌面+宠物启用+恢复完成），发布面
+  // 缺席（Web/手机/旧 preload）时组件内部 no-op。
+  const matePetSyncNode =
+    isDesktop && appSettings?.desktopPetEnabled && platform.publishMatePet ? (
+      <MatePetSync platform={platform} />
+    ) : null;
   // Bug 原因（2026-08-16 web 远控卡死）：Start Plan 请求校验应答方曾只随桌面正在展示的
   // session pane 挂载，web 远控新建会话时桌面没有对应 pane、web 端无应答方，
   // headers 请求永远滞留 pending，任务永久「工作中」。应答方必须常驻桌面窗口、
@@ -1518,6 +1526,7 @@ function RootInner({
       <RootShell>
         {rootModelSelectionErrorNode}
         {desktopPetTaskSyncNode}
+        {matePetSyncNode}
         {requestSecurityBridgeNode}
         {remoteConnectionDialog}
         {directoryBrowserDialog}
@@ -1534,6 +1543,7 @@ function RootInner({
       <RootShell>
         {rootModelSelectionErrorNode}
         {desktopPetTaskSyncNode}
+        {matePetSyncNode}
         {requestSecurityBridgeNode}
         {remoteConnectionDialog}
         {directoryBrowserDialog}
@@ -1573,6 +1583,7 @@ function RootInner({
       <RootShell>
         {rootModelSelectionErrorNode}
         {desktopPetTaskSyncNode}
+        {matePetSyncNode}
         {requestSecurityBridgeNode}
         {initialWorkspaceLoadingFallback}
         {directoryBrowserDialog}
@@ -1594,6 +1605,7 @@ function RootInner({
     <RootShell>
       {rootModelSelectionErrorNode}
       {desktopPetTaskSyncNode}
+      {matePetSyncNode}
       {requestSecurityBridgeNode}
       {remoteConnectionDialog}
       {directoryBrowserDialog}

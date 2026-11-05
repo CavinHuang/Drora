@@ -237,6 +237,16 @@ function MateTimelineStations({
       detail: ticket.queuedReason,
     });
   }
+  if (ticket.channelRef) {
+    // P3 Thread 直通绑定（spec §5/§11 落地注记）：展示不透明串接值本身——串接格式是
+    // host 侧 sources/channelRef.ts 单出处，UI 不复制第二解析；同通道追加消息直投
+    // 本工单会话（Tier1，不过 gate/Router）。
+    stations.push({
+      key: "channel",
+      label: intl.formatMessage({ id: "mate.detail.timeline.channel" }),
+      detail: ticket.channelRef,
+    });
+  }
   if (ticket.dispatchMode) {
     stations.push({
       key: "dispatch",

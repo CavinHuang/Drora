@@ -24,11 +24,13 @@ import type {
 } from "@drora/services";
 import {
   createWindowHostControllerProjection,
+  mergeMateActivityIntoOverlays,
   type WindowHostControllerMutation,
   type WindowHostControllerMutationResult,
   type WindowHostControllerSessionOverlay,
   type WindowHostControllerSourceScope,
 } from "./windowHostControllerProjection.js";
+import type { SessionMateActivity } from "@drora/shared/drora-protocol-v4";
 import {
   createWindowHostSessionsIndexObserver,
   type WindowHostSessionsIndexObserver,
@@ -151,6 +153,12 @@ export function createWindowHostControllerRuntime(options: {
     operation: "refresh" | "search",
     error: unknown,
   ) => void;
+  /**
+   * Drora Mate 活动摘要读取（spec §11.4；02 详设 §6）：identityKey=workspaceIdentity
+   * （identity 键规则 `workspaceIdentity?.trim() || workspacePath`），host 装配层经
+   * TicketService 快照折叠（computeMateActivityByWorkspace）供给；缺席=无摘要（合法）。
+   */
+  getMateActivity?: (identityKey: string) => SessionMateActivity | undefined;
 }) {
   const projection = createWindowHostControllerProjection({ createId: options.createId });
   const unreadSignals = new Emitter<WindowHostTaskUnreadSignal>();
@@ -164,12 +172,24 @@ export function createWindowHostControllerRuntime(options: {
     { taskService: IDroraTaskService; promise: Promise<void> }
   >();
   const sourceRefreshGenerations = new Map<string, number>();
+  /** sourceKey → 会话事实 overlay（不含 mate；发布时按 scope 合成 mate，见 mergedOverlays）。 */
   const sourceLiveOverlays = new Map<string, WindowHostControllerSessionOverlay[]>();
   const sourceSessionObservers = new Map<
     string,
     { agentService: IDroraAgentService; observer: WindowHostSessionsIndexObserver }
   >();
   const pendingReplacementByNextSourceKey = new Map<string, WindowHostControllerSourceScope>();
+
+  /** scope 的 mate 摘要（identity 键规则与工单 target_workspace_identity 同源）。 */
+  function mateForScope(scope: WindowHostControllerSourceScope): SessionMateActivity | undefined {
+    if (!options.getMateActivity) return undefined;
+    return options.getMateActivity(scope.workspaceIdentity?.trim() || scope.workspacePath);
+  }
+
+  /** 会话事实 overlay + scope 的 mate 合成（无 activity 的行不合成——不伪造会话事实）。 */
+  function mergedOverlays(sourceKey: string, scope: WindowHostControllerSourceScope): WindowHostControllerSessionOverlay[] {
+    return mergeMateActivityIntoOverlays(sourceLiveOverlays.get(sourceKey) ?? [], mateForScope(scope));
+  }
 
   function forgetRegisteredSource(scope: WindowHostControllerSourceScope): void {
     const key = sourceKey(scope);
@@ -234,7 +254,8 @@ export function createWindowHostControllerRuntime(options: {
         if (sourceSessionObservers.get(key)?.observer !== observer) return;
         const overlays = sessions.map(sessionOverlay);
         sourceLiveOverlays.set(key, overlays);
-        projection.replaceSourceSessionOverlays(resolved.scope, overlays);
+        // mate 摘要按 scope 合成进任务行 activity（spec §11.4；缺席不合成）。
+        projection.replaceSourceSessionOverlays(resolved.scope, mergedOverlays(key, resolved.scope));
       },
       onError: (error) => options.onSourceError?.(resolved.scope, "refresh", error),
     });
@@ -495,8 +516,8 @@ export function createWindowHostControllerRuntime(options: {
         scope: resolved.scope,
         ...(previousScope ? { replacesScope: previousScope } : {}),
         taskIndex,
-        // live facts 仅驻 Host 内存；observer 使用 existing-only，列表读取不会启动 Agent。
-        sessionsIndex: sourceLiveOverlays.get(key) ?? [],
+        // live facts 仅驻 Host 内存（含 mate 合成）；observer 使用 existing-only，列表读取不会启动 Agent。
+        sessionsIndex: mergedOverlays(key, resolved.scope),
       });
       if (previousScope) {
         forgetRegisteredSource(previousScope);
@@ -942,7 +963,21 @@ export function createWindowHostControllerRuntime(options: {
   return {
     service,
     createAttachmentService,
-    /** 手机项目树叠加实时交互：只读当前投影行，不触发 source 刷新。 */
+    /**
+     * Drora Mate 活动摘要刷新（spec §11.4）：host 装配层在 TicketService 快照变化后
+     * 更新自己的 mate 缓存（getMateActivity 读取），再按 identity 调本方法触发受影响
+     * source 的任务行重发布——投影按 deep-equal 生成 delta，无变化零帧。
+     */
+    setMateActivity(identityKey: string): void {
+      if (!options.getMateActivity) return;
+      for (const [key, scope] of registeredScopes) {
+        const scopeKey = scope.workspaceIdentity?.trim() || scope.workspacePath;
+        if (scopeKey !== identityKey) continue;
+        if (!sourceLiveOverlays.has(key)) continue;
+        projection.replaceSourceSessionOverlays(scope, mergedOverlays(key, scope));
+      }
+    },
+    /** 手机 project tree 叠加实时交互：只读当前投影行，不触发 source 刷新。 */
     readTaskRows: (): WindowHostControllerTaskRow[] => projection.getTasks(),
     /** 投影行任一变化即回调；订阅时会立即收到一次快照回调。 */
     subscribeTaskRows: (onChange: () => void): { dispose(): void } =>

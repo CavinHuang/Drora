@@ -3,6 +3,9 @@ export { assembleDroraKnowledgeHost } from "./drora-extensions/knowledgeHost.js"
 export { resolveDroraWebhookSecret } from "./drora-extensions/webhookSecret.js";
 import { buildCuaProductHelperAgentEnv } from "./drora-extensions/cuaAgentEnvironment.js";
 export { buildCuaProductHelperAgentEnv } from "./drora-extensions/cuaAgentEnvironment.js";
+// Drora Mate assistantActivity 聚合（spec §11.4；02 详设 §6）——host 侧任务行 overlay
+// 的折叠输入。纯函数经 node 入口导出（根 barrel 只放 descriptor/类型，:187-190 红线）。
+export { computeMateActivityByWorkspace } from "./assistant-tickets/mateActivity.js";
 // 上游 3.16.1：remote-projects / project / task-groups 服务族装配导入。
 import {
   createRemoteProjectService,

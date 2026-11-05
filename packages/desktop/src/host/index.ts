@@ -63,6 +63,7 @@ import {
   IDroraSessionService,
   ICuaPipSessionService,
   createDroraAgentConnectionScope,
+  IAssistantTicketService,
   type DroraAgentV4ClientMode,
   collectServiceMemoryDiagnostics,
   createWebRemoteProjectTreeActivityBridge,
@@ -92,6 +93,7 @@ import {
   getAppConfigDir,
   OffPeakModelUnavailableError,
   OffPeakPermanentDispatchError,
+  computeMateActivityByWorkspace,
   type BotProjectConnection,
   type HostApiNetworkTransport,
   type OffPeakRequestAuthBuilder,
@@ -2429,6 +2431,45 @@ const windowRemoteConnectionRegistry = createWindowRemoteConnectionRegistry<
   },
 });
 
+// Drora Mate assistantActivity（spec §11.4；02 详设 §6）：identityKey → mate 摘要缓存。
+// 事实源=TicketService（onDidChange 推快照→折叠），任务行 overlay 只读缓存；重订阅有
+// 守卫（服务集合换代不重复挂订阅）。CLI 零改动：字段仅搭载 controller 任务行 wire。
+const mateActivityCache = new Map<
+  string,
+  import("@drora/shared/drora-protocol-v4").SessionMateActivity
+>();
+let mateActivityBridgeWired = false;
+function wireMateActivityBridge(services: ServiceCollection): void {
+  if (mateActivityBridgeWired) return;
+  mateActivityBridgeWired = true;
+  try {
+    const assistantTicketService = services.getOptional(IAssistantTicketService);
+    if (!assistantTicketService) return; // 能力位未装配（旧 host/降级面）：无徽标，合法
+    assistantTicketService.onDidChange((snapshot) => {
+      const { byWorkspaceIdentity } = computeMateActivityByWorkspace(snapshot);
+      const nextIdentities = new Set(byWorkspaceIdentity.keys());
+      for (const identity of new Set([...mateActivityCache.keys(), ...nextIdentities])) {
+        const next = byWorkspaceIdentity.get(identity);
+        const previous = mateActivityCache.get(identity);
+        if (next) {
+          mateActivityCache.set(identity, next);
+        } else {
+          mateActivityCache.delete(identity);
+        }
+        // 仅变化 identity 触发重发布；投影 deep-equal 兜底，重复触发零帧。
+        if (
+          (next?.activeCount ?? -1) !== (previous?.activeCount ?? -1) ||
+          (next?.pendingDecisions ?? -1) !== (previous?.pendingDecisions ?? -1)
+        ) {
+          windowHostControllerRuntime.setMateActivity(identity);
+        }
+      }
+    });
+  } catch (error) {
+    logger.warn("failed to wire mate activity bridge", error);
+  }
+}
+
 const windowHostControllerRuntime = createWindowHostControllerRuntime({
   onRunStarted: (run) =>
     parentPort?.postMessage({
@@ -2445,6 +2486,11 @@ const windowHostControllerRuntime = createWindowHostControllerRuntime({
     if (!activeServices) throw new Error("Window Host services unavailable");
     return activeServices.get(IDroraTaskService).listTaskList(query);
   },
+  // Drora Mate 活动摘要（spec §11.4；02 详设 §6）：事实源=TicketService 快照的 host 侧
+  // 折叠缓存（mateActivityCache，随 onDidChange 刷新）；按 identity 键规则读取——
+  // 与任务行 scope 的 workspaceIdentity||workspacePath 同源，桌面/手机经 controller
+  // 帧透传同字段（CLI→host wire 零改动）。
+  getMateActivity: (identityKey) => mateActivityCache.get(identityKey),
   onSourceError: (scope, operation, error) => {
     logger.warn(
       `window Controller source ${operation} failed, scope=${scope.kind}, workspaceKey=${scope.workspaceIdentity?.trim() || scope.workspacePath}`,
@@ -4195,6 +4241,7 @@ parentPort.on("message", async (e: Electron.MessageEvent) => {
             captchaConfigServiceHolder.current =
               initializedServices.getOptional(IClientConfigService);
             activeHostApiNetworkTransport = hostApiNetworkTransport;
+            wireMateActivityBridge(initializedServices);
             return initializedServices;
           },
         });

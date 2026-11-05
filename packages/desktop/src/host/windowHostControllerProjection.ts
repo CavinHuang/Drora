@@ -51,6 +51,22 @@ export interface WindowHostControllerSessionOverlay {
   activity?: NonNullable<WindowHostControllerTaskRow["activity"]>;
 }
 
+/**
+ * Drora Mate 活动摘要（spec §11.4；02 详设 §6）合成进会话 overlay 的 activity——
+ * 与 teamActivity 同位（host 任务行 overlay，事实源=TicketService 快照，CLI 零改动）。
+ * 无 activity 的 overlay（离线/无会话事实）不合成——不伪造 phase/lastActivityAt；
+ * mate 缺席合法（旧帧/无工单 workspace），消费方据 presence 显示徽标。
+ */
+export function mergeMateActivityIntoOverlays(
+  overlays: WindowHostControllerSessionOverlay[],
+  mate: import("@drora/shared/drora-protocol-v4").SessionMateActivity | undefined,
+): WindowHostControllerSessionOverlay[] {
+  if (!mate) return overlays;
+  return overlays.map((overlay) =>
+    overlay.activity ? { ...overlay, activity: { ...overlay.activity, mate } } : overlay,
+  );
+}
+
 export type WindowHostControllerMutation =
   | { kind: "rename"; title: string }
   | { kind: "pin"; pinned: boolean }

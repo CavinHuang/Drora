@@ -18,6 +18,7 @@
   "packages/desktop/test/conversationTurnEvidence.test.ts",
   "packages/desktop/test/credentialFault.test.ts",
   "packages/desktop/test/customOpenAIProviderStore.test.ts",
+  "packages/desktop/test/windowHostControllerMateOverlay.test.ts",
   "packages/desktop/test/desktop-native-package-policy.test.ts",
   "packages/desktop/test/desktopAgentBytecode.test.ts",
   "packages/desktop/test/desktopAppCliConfig.test.ts",

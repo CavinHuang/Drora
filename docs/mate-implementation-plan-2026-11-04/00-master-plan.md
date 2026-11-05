@@ -22,6 +22,14 @@ P3 Source 注册表(飞书/手机/GitHub)+Thread 直通+桌宠接缝(含 tray �
    身份映射配置写入口(生产无写方，kv 手改)、手机端 UI 形态(单列+drawer+「回放·未建
    runtime」徽标)——三项去向=后续 Source 配置 UI/手机入口批，排期未定，不随 P4 watchdog 批)
 P4 watchdog(automation)+auto 信任门(唯一入口+配额默认5)+汇报卡完整版
+   ✅ 已实施(feat/mate-p4 两批：host 批=watchdog 判据/stale 标记(schema v5)/auto 信任门/
+   配额中心数据判定面/AppSettings droraMateDailyQuota/Surface B「切 auto」；第二棒=
+   汇报卡完整版(工件只读核验→awaiting_output 滞留(schema v6)→人工确认出口/usage 按
+   代分解快照投影/未确认增量行/证据页签 briefFull+工件链接全量)+配额中心 UI(状态条
+   配额行/MateDigestCard 摘要卡/调整入口)+桌宠气泡闸接线(同一计数兑现 P3 注记)+验收
+   资产(assistantP4Report 9 项单测+mate-p4-ui MRP01-07 浏览器候选，coverage matrix
+   「Mate P4 第二棒增量」节)。遗留随总闸联调：真实 Host 工件核验 git 真链路、watchdog
+   定时轮 30min 判据真机、配额跨端一致性与手机快照透传)
 语音入口：随 voice-agent spec 排期对齐后单列（不在 P1-P4 内，见 §8）
 ```
 

@@ -6287,3 +6287,32 @@ MSA01–09 27.0s 回归 0 fail（fixture 扩展向后兼容）。配套单测：
 手登条目按 P2 先例保持手登现状）；mate 回归 11 文件 146 项绿。候选仍为 pending，未
 promotion、未 CI admission；Electron 真机桌宠（badge 数=任务中心待决策、单击出 tray、
 tray 放行一致性）与飞书/GitHub 真实凭据连通随总闸联调验收（specs §14 P3 验收行）。
+
+## Mate（大副）P4 第二棒增量（2026-11-05，汇报卡完整版 + 配额中心 UI）
+
+MRP01–07：`packages/desktop/test/e2e/conversation-session/manual-review/pending/mate-p4-ui.test.mjs`。
+层级：同 MOUI/MSA/MSP 先例的真实 React renderer 浏览器候选（同一 fixture
+`packages/ui/test/fixtures/mate-browser.fixture.tsx`——P4 批拆出服务工厂
+`mate-browser.fixture-service.ts` 守单文件 ≤800 行，P1–P3 控件共存；手机宽 480 单列
+viewport 呈现）。服务为 fixture 内存版 IAssistantTicketService synthetic；工件核验/
+配额判定本体在 host 侧（services reportCompletion/quotaCenter），renderer 夹具按同构
+语义模拟（fixture-await-next 核验滞留终局/fixture-push-reports 超额聚合/fixture-inject-notice
+通知区投影源），判定矩阵由 `packages/services/test/assistantP4Report.test.ts` 单测锁定。
+覆盖 04 详设 §3/§4 UI 侧 + spec §11 P4 落地注记：MRP01 状态条配额行（当日累计/生效
+配额/余量）；MRP02 核验滞留面（awaiting_output→汇报卡滞留提示+「人工确认交付」→确认后
+收敛 done 面）；MRP03 未确认增量行（第 2 代重启横幅常驻→「确认增量」置列出清）；
+MRP04 成本页签按代分解（第 1/第 2 代行+当代「迄今」时长，Σ=合计）+证据页签 briefFull
+全量 verbatim 与工件链接（workspace 域「无 git 工件」诚实降级）+时间线核验站负例
+（done 工单不渲染）；MRP05 摘要卡（watchdog 通知区 kind 徽标+工单号+摘要；超额聚合
+次日摘要分节+「标记已投递」回执出清）；MRP06 气泡闸 fail-closed（超额后新汇报：
+admitDisturbance(kind=bubble) 未放行→投影 bubble=null 汇报仍在速览行；判定读点实时
+回填）；MRP07 双语（en 配额行/摘要卡标题）。本轮实跑：chromium headless，MRP01–07
+单用例 27.1s，0 fail；同轮 MOUI01–06 / MSA01–09 / MSP01–06 回归 0 fail（fixture
+拆分向后兼容；同轮修复 MOUI06 陈旧文案断言——P4 第一棒 dfe8742ca 改
+mate.config.mode.auto.locked 文案后未回归该资产）。配套单测：assistantP4Report 9 项
+（核验四分支矩阵/awaiting 喂 watchdog 判据/人工确认出口/落窗归代 Σ不丢账/快照投影
+字段/awaiting 占活动位）入 drora-fork-isolated 串行清单；view-model 新增 5 项（配额行/
+核验滞留/增量横幅参数/stale 徽标封闭映射/按代排序）与 i18n 键守护扩 P4 键。mate 全
+回归 16 文件 209 项绿。候选仍为 pending，未 promotion、未 CI admission；真实 Host
+端到端（工件核验 git 真链路、watchdog 定时轮 30min 判据、配额跨端一致）随总闸联调
+验收（specs §14 P4 验收行）。

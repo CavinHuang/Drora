@@ -56,6 +56,68 @@ export const mateMessagesEn = {
   "mate.unavailable.title": "Mate is unavailable here",
   "mate.unavailable.body":
     "The ticket service is not registered in this context (remote workspace or older host).",
+
+  // ---- P2 Surface A：状态条（02 详设 §1.4；打扰配额 P4 交付，P2 不渲染） ----
+  "mate.status.mode.observe": "Observe",
+  "mate.status.mode.off": "Off",
+  "mate.status.mode.auto": "Auto",
+  "mate.status.line": "{active}/{max} active · {queued} queued · {pending} pending",
+
+  // ---- P2 Surface A：Router 预填决策卡（02 详设 §1.3） ----
+  "mate.router.pending": "Mate is evaluating…",
+  "mate.router.failed": "Mate evaluation failed; fell back to human decision",
+  "mate.router.suggested.dispatch": "Suggest: independent ticket",
+  "mate.router.suggested.attach": "Suggest: attach to existing session",
+  "mate.router.suggested.hold": "Suggest: hold",
+  "mate.router.suggested.reject": "Suggest: reject",
+  "mate.router.target": "Target {identity}",
+  "mate.router.session": "Session {sessionId}",
+  "mate.router.briefBase.verbatim": "verbatim",
+  "mate.router.briefBase.appendix": "verbatim+appendix",
+  "mate.router.evidence": "Evidence",
+  "mate.router.reason": "Reason",
+  "mate.card.tier.yolo": "yolo tier",
+  "mate.card.queueNotice":
+    "Queued (soft budget or write-domain conflict); will dispatch FIFO when a slot frees up.",
+  "mate.card.dispatchMode.a": "Independent",
+  "mate.card.dispatchMode.b": "Team",
+  "mate.card.approveAsTeam": "Approve as team",
+
+  // ---- P2 工单行/汇报卡徽标 ----
+  "mate.ticket.queued": "Queued",
+  "mate.ticket.mode.a.hint": "Independent ticket (Mode A)",
+  "mate.ticket.mode.b.hint": "Team (Mode B)",
+  "mate.ticket.mode.c.hint": "Attached session (Mode C)",
+  "mate.ticket.generation": "Gen {gen}",
+  "mate.ticket.worktree.hint": "Worktree isolation: {path} (branch {branch})",
+  "mate.ticket.paths.hint": "Declared write domain: {paths}",
+  "mate.ticket.workspace.hint": "No write isolation (shared workspace; not container-level)",
+
+  // ---- P2 Surface C：工单详情四页签（02 详设 §7） ----
+  "mate.detail.title": "Ticket detail",
+  "mate.detail.back": "Back",
+  "mate.detail.tab.timeline": "Timeline",
+  "mate.detail.tab.report": "Report",
+  "mate.detail.tab.evidence": "Evidence",
+  "mate.detail.tab.cost": "Cost",
+  "mate.detail.report.none": "No report yet",
+  "mate.detail.report.output": "Result",
+  "mate.detail.report.failedReason": "Failure reason",
+  "mate.detail.evidence.brief": "Brief verbatim",
+  "mate.detail.evidence.trigger": "Trigger verbatim",
+  "mate.detail.evidence.none": "No linked decision card; showing brief verbatim",
+  "mate.detail.cost.perGeneration":
+    "Per-generation breakdown arrives with P4; showing ticket totals",
+  "mate.detail.timeline.queued": "Queued",
+  "mate.detail.timeline.dispatch": "Dispatch ({mode})",
+  "mate.detail.timeline.anchor": "Current anchor",
+  "mate.detail.timeline.anchorNone": "Not dispatched yet",
+  "mate.detail.timeline.current": "Current (generation {gen})",
+
+  // ---- P2 任务行 mate 徽标（session-line；spec §11.4） ----
+  "mate.sessionLine.aria": "Mate: {active} active tickets, {pending} pending decisions",
+  "mate.sessionLine.active": "{active} active",
+  "mate.sessionLine.pending": "{pending} pending",
 };
 
 export const mateMessagesZh = {
@@ -104,4 +166,64 @@ export const mateMessagesZh = {
   "mate.empty.body": "用下方测试按钮触发；决策卡、工单与观察记录会出现在这里。",
   "mate.unavailable.title": "此处大副不可用",
   "mate.unavailable.body": "当前上下文未注册工单服务（远程 workspace 或旧 Host）。",
+
+  // ---- P2 Surface A：状态条（02 详设 §1.4；打扰配额 P4 交付，P2 不渲染） ----
+  "mate.status.mode.observe": "观察",
+  "mate.status.mode.off": "关闭",
+  "mate.status.mode.auto": "自动",
+  "mate.status.line": "活动 {active}/{max} · 排队 {queued} · 待决策 {pending}",
+
+  // ---- P2 Surface A：Router 预填决策卡（02 详设 §1.3） ----
+  "mate.router.pending": "大副评估中…",
+  "mate.router.failed": "大副评估失败，已转人工决策",
+  "mate.router.suggested.dispatch": "建议：独立工单",
+  "mate.router.suggested.attach": "建议：附着既有会话",
+  "mate.router.suggested.hold": "建议：暂缓",
+  "mate.router.suggested.reject": "建议：拒绝",
+  "mate.router.target": "目标 {identity}",
+  "mate.router.session": "会话 {sessionId}",
+  "mate.router.briefBase.verbatim": "原文直投",
+  "mate.router.briefBase.appendix": "原文+追加段",
+  "mate.router.evidence": "证据",
+  "mate.router.reason": "理由",
+  "mate.card.tier.yolo": "yolo 档",
+  "mate.card.queueNotice": "已排队（软预算或写域冲突）；释放后按 FIFO 顺序派发。",
+  "mate.card.dispatchMode.a": "独立工单",
+  "mate.card.dispatchMode.b": "建队",
+  "mate.card.approveAsTeam": "建队放行",
+
+  // ---- P2 工单行/汇报卡徽标 ----
+  "mate.ticket.queued": "排队",
+  "mate.ticket.mode.a.hint": "独立工单（Mode A）",
+  "mate.ticket.mode.b.hint": "建队（Mode B）",
+  "mate.ticket.mode.c.hint": "附着会话（Mode C）",
+  "mate.ticket.generation": "第 {gen} 代",
+  "mate.ticket.worktree.hint": "worktree 隔离：{path}（分支 {branch}）",
+  "mate.ticket.paths.hint": "声明写域：{paths}",
+  "mate.ticket.workspace.hint": "未隔离写域（共享 workspace，非容器级）",
+
+  // ---- P2 Surface C：工单详情四页签（02 详设 §7） ----
+  "mate.detail.title": "工单详情",
+  "mate.detail.back": "返回",
+  "mate.detail.tab.timeline": "时间线",
+  "mate.detail.tab.report": "汇报",
+  "mate.detail.tab.evidence": "证据",
+  "mate.detail.tab.cost": "成本",
+  "mate.detail.report.none": "尚无汇报",
+  "mate.detail.report.output": "结论",
+  "mate.detail.report.failedReason": "失败原因",
+  "mate.detail.evidence.brief": "brief 原文",
+  "mate.detail.evidence.trigger": "触发原文",
+  "mate.detail.evidence.none": "无关联决策卡，仅显示 brief 原文",
+  "mate.detail.cost.perGeneration": "按代分解随 P4 提供；当前为工单合计",
+  "mate.detail.timeline.queued": "排队中",
+  "mate.detail.timeline.dispatch": "派发（{mode}）",
+  "mate.detail.timeline.anchor": "当代锚",
+  "mate.detail.timeline.anchorNone": "尚未投递",
+  "mate.detail.timeline.current": "当前（第 {gen} 代）",
+
+  // ---- P2 任务行 mate 徽标（session-line；spec §11.4） ----
+  "mate.sessionLine.aria": "大副：{active} 个活动工单，{pending} 个待决策",
+  "mate.sessionLine.active": "{active} 活动",
+  "mate.sessionLine.pending": "{pending} 待决策",
 };

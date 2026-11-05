@@ -35,6 +35,9 @@ import { TaskWorkflowRunLines } from "@/components/workflow-run-line/TaskWorkflo
 // 移植自 packages/ui/src/workspace-grouped-tasks/task-row.tsx（eea88c5e2/58f3f595a team-ui）：
 // 任务行的「消息尾窗」——团队会话摘要行（成员数/进度/状态徽标），与工作流运行行并列长在标题下。
 import { TeamSessionLine } from "@/team/session-line.js";
+// Drora Mate 摘要行（specs §11.4；mate/session-line 接缝）：activity.mate 缺席渲染 null，
+// 与 TeamSessionLine 同位挂在标题下。
+import { MateSessionLine } from "@/mate/session-line.js";
 import { useTaskInteractionAutoResolutionSnooze } from "@/hooks/useTaskInteractionAutoResolutionSnooze.js";
 import { useOptionalTabStore } from "@/store/TabStoreProvider.js";
 import { isWorkspaceReadOnly } from "@/store/tabStore.js";
@@ -140,8 +143,13 @@ function GroupedTaskRowComponent({
   // drag overlay 只是纯展示，不挂确认副作用与点击入口。
   // 移植自 packages/ui/src/workspace-grouped-tasks/task-row.tsx（eea88c5e2/58f3f595a）：
   // teamActivity 存在时同样在标题下挂 TeamSessionLine 消息尾窗；旧会话无团队摘要时渲染 null。
+  // P2：activity.mate 存在时并列挂 MateSessionLine（specs §11.4）；mate 独自存在
+  // （无 workflow/team 摘要）时也展开本通道——旧帧三者皆缺席仍渲染 null。
   const workflowRunLinesNode =
-    (taskActivity?.workflowActivity || taskActivity?.teamActivity) && !dragOverlay ? (
+    (taskActivity?.workflowActivity ||
+      taskActivity?.teamActivity ||
+      taskActivity?.mate) &&
+    !dragOverlay ? (
       <>
         <TaskWorkflowRunLines
           activity={taskActivity.workflowActivity}
@@ -162,6 +170,7 @@ function GroupedTaskRowComponent({
             parentSessionId: task.taskId,
           }}
         />
+        <MateSessionLine activity={taskActivity?.mate} />
       </>
     ) : null;
 

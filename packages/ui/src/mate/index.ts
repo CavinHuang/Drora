@@ -4,16 +4,23 @@
  */
 export {
   MATE_UNTARGETED_WORKSPACE_KEY,
+  deriveMateStatusLine,
   deriveMateViewModel,
+  findMateDecisionForTicket,
   isMateActiveTicket,
   isMateObserveDecision,
   isMatePendingDecision,
+  isMateQueuedTicket,
+  matePermissionTierMessageId,
+  mateRouterSuggestionKindMessageId,
+  mateTicketGenerationNumber,
   resolveMateBudgetActive,
   resolveMateErrorMessageId,
 } from "./view-model.js";
 export type {
   MateErrorMessageId,
   MateFilter,
+  MateStatusLine,
   MateViewModel,
   MateViewCounts,
 } from "./view-model.js";
@@ -22,6 +29,7 @@ export { mateTicketLampTone, MATE_LAMP_TONE_CLASS } from "./statusTone.js";
 export type { MateLampTone } from "./statusTone.js";
 export { MateLamp } from "./MateLamp.js";
 export { MatePaneHeader } from "./MatePaneHeader.js";
+export { MateStatusStrip } from "./MateStatusStrip.js";
 export { MateTrustBar } from "./MateTrustBar.js";
 export { MateWorkspaceGroup } from "./MateWorkspaceGroup.js";
 export { MateDecisionCard } from "./MateDecisionCard.js";
@@ -29,3 +37,5 @@ export { MateTicketRow, firstPreviewLine } from "./MateTicketRow.js";
 export { MateReportCard } from "./MateReportCard.js";
 export { MateObserveRow } from "./MateObserveRow.js";
 export { MateConfigSection } from "./MateConfigSection.js";
+export { MateTicketDetail } from "./MateTicketDetail.js";
+export { MateSessionLine } from "./MateSessionLine.js";

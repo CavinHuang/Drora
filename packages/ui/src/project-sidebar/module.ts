@@ -12,6 +12,7 @@ export const projectSidebarModule = {
     "web-remote-control-ui",
     "remote-connection-flow",
     "ui-team", // grouped/task-row 移植 TeamSessionLine（v3.16.1 S5 删除族）
+    "ui-mate", // grouped/task-row 挂 MateSessionLine（specs §11.4 任务行 mate 徽标）
     "data-sync",
   ],
   provides: ["project-sidebar"],

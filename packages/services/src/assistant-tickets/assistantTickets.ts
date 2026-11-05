@@ -92,6 +92,12 @@ export interface AssistantTicketView {
   readonly anchorCommandId?: string | null;
   /** P2：queued 原因（软预算告知卡文案）。 */
   readonly queuedReason?: string | null;
+  /**
+   * P2 Surface 批次补投影（可选追加，不破 v2 兼容）：建票决策卡 id（ticket.decision_id
+   * 列既有）。Surface C 证据页签据此关联决策卡取 triggerText verbatim 与 Router 证据；
+   * 手动建票（无 decision_id，NULL）时缺席。类型与 assistantSnapshot.ts 投影同步。
+   */
+  readonly decisionId?: number | null;
 }
 
 export interface AssistantConfigView {

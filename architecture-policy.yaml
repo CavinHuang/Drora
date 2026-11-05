@@ -172,6 +172,7 @@ modules:
       - services
       - shared
       - ui-team # grouped/task-row 移植 TeamSessionLine（v3.16.1 S5 删除族，2026-10-20）
+      - ui-mate # grouped/task-row 挂 MateSessionLine（specs §11.4 任务行 mate 徽标，2026-11-05）
       - ui
       - conversation-workspace-target
       - web-remote-control-ui
@@ -1406,6 +1407,9 @@ modules:
     publicEntrypoints:
       - packages/ui/src/mate/index.ts
       - packages/ui/src/mate/contract.ts
+      # 轻量入口（P2 Surface 批次）：任务行列表链路只加载摘要行组件，不经完整 barrel
+      # （照 ui-team 的 team/session-line.ts 先例）。
+      - packages/ui/src/mate/session-line.ts
     layers:
       app: .
 

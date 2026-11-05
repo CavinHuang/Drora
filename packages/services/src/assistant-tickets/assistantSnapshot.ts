@@ -27,6 +27,7 @@ interface TicketRow {
   write_domain: string | null;
   dispatch_mode: string | null;
   queued_reason: string | null;
+  decision_id: number | null;
   target_workspace_identity: string;
   incarnation_current: string;
   incarnation_generations: string;
@@ -87,6 +88,7 @@ function ticketRowToView(row: TicketRow): AssistantSnapshot["tickets"][number] {
     ...(Array.isArray(generations) ? { generationCount: generations.length } : {}),
     anchorCommandId: incarnation.anchorCommandId ?? null,
     queuedReason: row.queued_reason,
+    decisionId: row.decision_id,
   };
 }
 
@@ -203,7 +205,7 @@ export function buildAssistantSnapshot(
   const ticketRows = (
     raw
       .prepare(
-        `SELECT id, brief, status, write_domain, dispatch_mode, queued_reason, target_workspace_identity,
+        `SELECT id, brief, status, write_domain, dispatch_mode, queued_reason, decision_id, target_workspace_identity,
               incarnation_current, incarnation_generations, usage_accum, output_summary, fail_reason, updated_ms
          FROM ticket ORDER BY created_ms DESC LIMIT ?`,
       )

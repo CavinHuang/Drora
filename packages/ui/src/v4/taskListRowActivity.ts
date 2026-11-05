@@ -1,9 +1,11 @@
 import type { DroraTaskMeta } from "@drora/shared";
-import type {
-  PendingInteractionSummary,
-  SessionSummary,
-  SessionWorkflowActivity,
-  SessionTeamActivity,
+import {
+  SESSION_MATE_ACTIVITY_KEY,
+  type PendingInteractionSummary,
+  type SessionMateActivity,
+  type SessionSummary,
+  type SessionWorkflowActivity,
+  type SessionTeamActivity,
 } from "@drora/shared/drora-protocol-v4";
 
 // UI-only sidecar：不进入 shared task meta/schema，也不写回 tasks-index。
@@ -18,6 +20,12 @@ export interface TaskListRowActivity {
   /** 侧栏工作流运行行的数据；无 run 时缺席。 */
   workflowActivity?: SessionWorkflowActivity;
   teamActivity?: SessionTeamActivity;
+  /**
+   * Drora Mate 活动摘要（specs §11.4；host TicketService 合成，controller tasks-index
+   * 帧透传）。键沿用 wire 契约常量（SESSION_MATE_ACTIVITY_KEY="mate"）——attach 附加
+   * 的是整个 wire activity 对象，sidecar 键名必须与 wire 键一致才能被读取。
+   */
+  [SESSION_MATE_ACTIVITY_KEY]?: SessionMateActivity;
 }
 
 export type TaskListMetaWithActivity = DroraTaskMeta & {

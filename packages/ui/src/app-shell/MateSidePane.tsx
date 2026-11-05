@@ -10,13 +10,17 @@ import {
   MateObserveRow,
   MatePaneHeader,
   MateReportCard,
+  MateStatusStrip,
+  MateTicketDetail,
   MateTicketRow,
   MateTrustBar,
   MateWorkspaceGroup,
+  deriveMateStatusLine,
   deriveMateViewModel,
   isMateActiveTicket,
   isMateObserveDecision,
   isMatePendingDecision,
+  isMateQueuedTicket,
   resolveMateBudgetActive,
 } from "@/mate/index.js";
 import { EMPTY_MATE_WORKSPACE_STATE } from "@/store/mateStore.js";
@@ -30,8 +34,11 @@ import { EMPTY_MATE_WORKSPACE_STATE } from "@/store/mateStore.js";
  * 「tab 不带数据」纪律）；服务缺席（远程 workspace / 旧 Host）渲染诚实不可用态，不
  * 自动关 tab（无 GC 的东西）。
  *
- * 组成：MatePaneHeader（过滤 pills+软预算）→ MateTrustBar → 滚动区（决策卡｜workspace
+ * 组成：MateStatusStrip（大副会话状态条：mode/活动/排队/待决策，02 §1.4）→
+ * MatePaneHeader（过滤 pills+软预算）→ MateTrustBar → 滚动区（决策卡｜workspace
  * 分组的工单行/汇报卡｜观察行）→ MateConfigSection（模式/名单/双测试触发按钮）。
+ * Surface C：工单行/汇报卡选中后整面板切 MateTicketDetail 二级视图（返回按钮回列表，
+ * 选中态=mateStore.selectedTicketId 分域复用）。
  * 过滤/选中/展开三件局部态在 mateStore（zustand），快照本体不进 store。
  */
 
@@ -124,6 +131,18 @@ export const MateSidePane = memo(function MateSidePane({
     () => (snapshot === null ? 0 : resolveMateBudgetActive(snapshot)),
     [snapshot],
   );
+  // 大副会话状态条（02 详设 §1.4）：mode/活动/排队/待决策单行投影（同源同口径函数）。
+  const statusLine = useMemo(
+    () => (snapshot === null ? null : deriveMateStatusLine(snapshot)),
+    [snapshot],
+  );
+  // Surface C 下钻：selectedTicketId 非空且工单仍在快照时渲染详情二级视图（工单被
+  // 快照容量裁剪/终态清理后回落列表——诚实降级，不渲染空壳）。
+  const selectedTicket = useMemo(
+    () =>
+      snapshot?.tickets.find((ticket) => ticket.id === selectedTicketId) ?? null,
+    [snapshot, selectedTicketId],
+  );
 
   const handleOpenSession = useCallback(
     (sessionId: string) => {
@@ -137,8 +156,24 @@ export const MateSidePane = memo(function MateSidePane({
     [onOpenMateSession, tab.remoteSessionId, tab.workspaceIdentity, tab.workspacePath],
   );
 
-  if (service === null || snapshot === null || viewModel === null) {
+  if (service === null || snapshot === null || viewModel === null || statusLine === null) {
     return <MateUnavailableState loading={loading && service !== null} error={error} />;
+  }
+
+  // Surface C 二级视图：选中工单存在即整面板切换为详情（返回=清 selectedTicketId 回
+  // 列表；状态条保留在顶——它是会话级摘要，不随下钻消失）。
+  if (selectedTicket !== null) {
+    return (
+      <div className="flex h-full min-h-0 flex-col" data-testid="mate-side-pane">
+        <MateStatusStrip status={statusLine} />
+        <MateTicketDetail
+          snap={snapshot}
+          ticket={selectedTicket}
+          onBack={() => selectTicket(workspaceKey, null)}
+          {...(onOpenMateSession ? { onOpenSession: handleOpenSession } : {})}
+        />
+      </div>
+    );
   }
 
   const isEmpty =
@@ -148,6 +183,7 @@ export const MateSidePane = memo(function MateSidePane({
 
   return (
     <div className="flex h-full min-h-0 flex-col" data-testid="mate-side-pane">
+      <MateStatusStrip status={statusLine} />
       <MatePaneHeader
         filter={filter}
         counts={viewModel.counts}
@@ -189,7 +225,9 @@ export const MateSidePane = memo(function MateSidePane({
             {viewModel.groups.map((group) => (
               <MateWorkspaceGroup key={group.key} group={group}>
                 {group.tickets.map((ticket) =>
-                  isMateActiveTicket(ticket.status) ? (
+                  // queued 是工单行形态（排队灯档+queuedReason 进详情），不进汇报卡——
+                  // P2 软预算排队（specs §9）是活动前的等待态，汇报语义只属于终态。
+                  isMateActiveTicket(ticket.status) || isMateQueuedTicket(ticket.status) ? (
                     <MateTicketRow
                       key={ticket.id}
                       ticket={ticket}
@@ -200,6 +238,7 @@ export const MateSidePane = memo(function MateSidePane({
                     <MateReportCard
                       key={ticket.id}
                       ticket={ticket}
+                      onOpenDetail={(ticketId) => selectTicket(workspaceKey, ticketId)}
                       {...(onOpenMateSession ? { onOpenSession: handleOpenSession } : {})}
                     />
                   ),

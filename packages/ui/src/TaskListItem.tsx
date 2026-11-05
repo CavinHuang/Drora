@@ -51,6 +51,9 @@ import { runUserAction, runUserActionAsync } from "@/lib/userActionTelemetry.js"
 import { TaskRowActionButton } from "@/workspace-grouped-tasks/task-row-action-button.js";
 import { TaskWorkflowRunLines } from "@/components/workflow-run-line/TaskWorkflowRunLines.js";
 import { TeamSessionLine } from "@/team/session-line.js";
+// Drora Mate 摘要行（specs §11.4；mate/session-line 接缝）：activity.mate 缺席渲染 null，
+// 与 TeamSessionLine 同位挂在标题下。
+import { MateSessionLine } from "@/mate/session-line.js";
 
 type TaskListItemIntl = {
   formatMessage: (desc: { id: string }, values?: Record<string, string>) => string;
@@ -409,8 +412,12 @@ export const MemoTaskItem = memo(function TaskListItem({
   const taskItemKey = `${buildTaskWorkspaceKey(task.workspacePath, task.workspaceIdentity)}:${task.taskId}`;
   // 工作流运行行：标题下的第二条通道，
   // 与前置 16px 槽（error > unread > spinner）互不占位。只在会话带 run 摘要时挂组件。
+  // P2：activity.mate 独自存在（无 workflow/team 摘要）时也展开本通道（specs §11.4）；
+  // 旧帧三者皆缺席仍为 null。
   const hasWorkflowRunLines =
-    taskActivity?.workflowActivity !== undefined || taskActivity?.teamActivity !== undefined;
+    taskActivity?.workflowActivity !== undefined ||
+    taskActivity?.teamActivity !== undefined ||
+    taskActivity?.mate !== undefined;
   const workflowRunLinesNode = hasWorkflowRunLines ? (
     <>
       <TaskWorkflowRunLines
@@ -432,6 +439,7 @@ export const MemoTaskItem = memo(function TaskListItem({
           parentSessionId: task.taskId,
         }}
       />
+      <MateSessionLine activity={taskActivity?.mate} />
     </>
   ) : null;
   const changeSummaryNode =

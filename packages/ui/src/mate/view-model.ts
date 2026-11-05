@@ -10,15 +10,20 @@
  * - 待决策卡 = outcome=decision_card 且 decidedBy=gate（放行后 decided_by 记 user，
  *   卡片脱离待决策集；trust.releaseCount 的 SQL 口径同为 decision_card+user）；
  * - 观察行（would-accept）= outcome=would_accept（dismiss 后改记 ignored，自然出清）；
- * - 进行中 = status ∈ {dispatched, running}（P1 状态机三态简化，01 §1.1）。
+ * - 进行中 = status ∈ {dispatched, running}（P1 状态机三态简化，01 §1.1）；
+ * - P2 追加 queued（specs §9 软预算排队）：排队工单不计入软预算活动数（预算口径
+ *   dispatched+running 与服务侧一致），状态条单列 queued 计数。
  */
 import {
   ASSISTANT_ERROR_CODES,
   ASSISTANT_OUTCOMES,
+  ASSISTANT_PERMISSION_TIERS,
   ASSISTANT_TICKET_STATUSES,
 } from "@drora/shared";
+import type { AssistantPermissionTier } from "@drora/shared";
 import type {
   AssistantDecisionView,
+  AssistantRouterSuggestionView,
   AssistantServiceError,
   AssistantSnapshot,
   AssistantTicketView,
@@ -78,6 +83,92 @@ export function isMateActiveTicket(status: AssistantTicketView["status"]): boole
   return (
     status === ASSISTANT_TICKET_STATUSES.dispatched || status === ASSISTANT_TICKET_STATUSES.running
   );
+}
+
+/** 排队工单（P2 软预算满时的 queued 态，specs §9）：不占活动数，状态条单列。 */
+export function isMateQueuedTicket(status: AssistantTicketView["status"]): boolean {
+  return status === ASSISTANT_TICKET_STATUSES.queued;
+}
+
+/**
+ * 工单当前代序号（specs §8）：快照 generationCount=已归档代数，当前代=归档数+1；
+ * 未派发（无字段）返回 1（首代）。纯函数供工单行/详情页共用，不各自 +1。
+ */
+export function mateTicketGenerationNumber(ticket: AssistantTicketView): number {
+  return (ticket.generationCount ?? 0) + 1;
+}
+
+// ---------------------------------------------------------------------------
+// Surface A 状态条投影（02 详设 §1.4：mode/活动工单数；打扰配额 P4 交付不投影）
+// ---------------------------------------------------------------------------
+
+/** 状态条折叠（单行摘要）：mode + 软预算口径活动数/上限 + queued 数 + 待决策数。 */
+export interface MateStatusLine {
+  readonly mode: AssistantSnapshot["mode"];
+  readonly active: number;
+  readonly max: number;
+  readonly queued: number;
+  readonly pending: number;
+}
+
+/** 状态条投影：快照一次折叠出单行摘要；active 用软预算口径（dispatched+running）。 */
+export function deriveMateStatusLine(snap: AssistantSnapshot): MateStatusLine {
+  return {
+    mode: snap.mode,
+    active: snap.tickets.filter((ticket) => isMateActiveTicket(ticket.status)).length,
+    max: snap.budget.maxActivePerWorkspace,
+    queued: snap.tickets.filter((ticket) => isMateQueuedTicket(ticket.status)).length,
+    pending: snap.decisions.filter(isMatePendingDecision).length,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Surface C 证据页关联投影（快照 v2：ticket.decisionId → decisions[].id）
+// ---------------------------------------------------------------------------
+
+/**
+ * 工单 → 关联决策卡（证据页签）：按 ticket.decisionId 精确匹配 decisions[].id。
+ * 手动建票（无 decisionId）或决策卡已被快照容量裁剪（decisionsMax=50 LRU）时返回
+ * null——调用方按「无关联」诚实降级显示 brief 原文，不猜触发文本。
+ */
+export function findMateDecisionForTicket(
+  snap: AssistantSnapshot,
+  ticket: AssistantTicketView,
+): AssistantDecisionView | null {
+  if (ticket.decisionId === null || ticket.decisionId === undefined) return null;
+  return snap.decisions.find((decision) => decision.id === ticket.decisionId) ?? null;
+}
+
+// ---------------------------------------------------------------------------
+// Router 建议展示键映射（封闭映射；组件经 formatMessage 消费，不写字面量分支）
+// ---------------------------------------------------------------------------
+
+/** Router 建议四臂 → i18n 键（mate.router.suggested.*；未知 kind 返回 null 不渲染）。 */
+export function mateRouterSuggestionKindMessageId(
+  kind: AssistantRouterSuggestionView["kind"],
+): string {
+  switch (kind) {
+    case "dispatch":
+      return "mate.router.suggested.dispatch";
+    case "attach":
+      return "mate.router.suggested.attach";
+    case "hold":
+      return "mate.router.suggested.hold";
+    case "reject":
+      return "mate.router.suggested.reject";
+  }
+}
+
+/** 权限档 → i18n 键（mate.card.tier.*；决策卡徽标与放行动作共用，P2 按建议渲染）。 */
+export function matePermissionTierMessageId(tier: AssistantPermissionTier): string {
+  switch (tier) {
+    case ASSISTANT_PERMISSION_TIERS.build:
+      return "mate.card.tier.build";
+    case ASSISTANT_PERMISSION_TIERS.guarded:
+      return "mate.card.tier.guarded";
+    case ASSISTANT_PERMISSION_TIERS.yolo:
+      return "mate.card.tier.yolo";
+  }
 }
 
 /**

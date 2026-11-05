@@ -180,6 +180,20 @@ feature-scoped token family:
   draft exists. Never `--color-destructive`, which on this feature belongs to a run that errored
   (spec: `docs/dynamic-workflow/presentation.md`, "Compiler feedback").
 
+### Mate ticket timeline colors
+
+The Drora Mate ticket detail timeline (spec: `specs/drora-personal-assistant.md` §11.3,
+"Surface C") draws its incarnation stations with its own feature-scoped token family. Do not
+borrow the workflow tokens:
+
+- **Rule**: `--color-mate-rule` Sub-hairline for repeated furniture (station rails in their
+  idle segments). Weaker than `--color-border`.
+- **Trace / Trace Strong**: `--color-mate-trace`, `--color-mate-trace-strong` Rail ramp:
+  history segments draw with the trace token; the current incarnation and the anchor station
+  use the strong token. Station status semantics (running/failed/done) still use the shared
+  status colors (`--color-warning`, `--color-destructive`, `--color-success`), never the
+  mate-trace ramp.
+
 ### Overlay and utility colors
 
 - **Toast**: `--color-toast`

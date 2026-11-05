@@ -185,6 +185,13 @@ html[data-document-hidden] *::after {
   --color-workflow-rule: color-mix(in oklab, var(--color-neutral-950) 5.5%, transparent);
   --color-workflow-trace: color-mix(in oklab, var(--color-neutral-950) 30%, transparent);
   --color-workflow-trace-strong: color-mix(in oklab, var(--color-neutral-950) 55%, transparent);
+  /* Mate 工单代际时间线（specs/drora-personal-assistant.md §11.3；02 详设 §7）：
+   * mate scope 独立 token 族——航海隐喻轨/站，不挪用 workflow 家族（DESIGN.md
+   * feature-scoped token 纪律）；梯度语义同族（rule=重复家具、trace=未完成轨、
+   * trace-strong=当前代/锚站强调）。 */
+  --color-mate-rule: color-mix(in oklab, var(--color-neutral-950) 5.5%, transparent);
+  --color-mate-trace: color-mix(in oklab, var(--color-neutral-950) 30%, transparent);
+  --color-mate-trace-strong: color-mix(in oklab, var(--color-neutral-950) 55%, transparent);
   --color-accent: var(--color-sky-50);
   --color-find-highlight: #fde68a;
   --color-find-highlight-active: #facc15;
@@ -356,6 +363,9 @@ html[data-document-hidden] *::after {
   --color-workflow-rule: color-mix(in oklab, var(--color-white) 6.5%, transparent);
   --color-workflow-trace: color-mix(in oklab, var(--color-white) 35%, transparent);
   --color-workflow-trace-strong: color-mix(in oklab, var(--color-white) 60%, transparent);
+  --color-mate-rule: color-mix(in oklab, var(--color-white) 6.5%, transparent);
+  --color-mate-trace: color-mix(in oklab, var(--color-white) 35%, transparent);
+  --color-mate-trace-strong: color-mix(in oklab, var(--color-white) 60%, transparent);
   --color-accent: color-mix(in oklab, var(--color-sky-950) 50%, transparent);
   --color-find-highlight: #713f12;
   --color-find-highlight-active: #a16207;
@@ -530,6 +540,9 @@ html[data-document-hidden] *::after {
   --color-workflow-rule: rgba(13, 13, 13, 0.055);
   --color-workflow-trace: rgba(13, 13, 13, 0.3);
   --color-workflow-trace-strong: rgba(13, 13, 13, 0.55);
+  --color-mate-rule: rgba(13, 13, 13, 0.055);
+  --color-mate-trace: rgba(13, 13, 13, 0.3);
+  --color-mate-trace-strong: rgba(13, 13, 13, 0.55);
   --color-accent: #ebf4ff;
   --color-find-highlight: #fff4eb;
   --color-find-highlight-active: #ffb26b;
@@ -695,6 +708,9 @@ html[data-document-hidden] *::after {
   --color-workflow-rule: rgba(255, 255, 255, 0.065);
   --color-workflow-trace: rgba(255, 255, 255, 0.35);
   --color-workflow-trace-strong: rgba(255, 255, 255, 0.6);
+  --color-mate-rule: rgba(255, 255, 255, 0.065);
+  --color-mate-trace: rgba(255, 255, 255, 0.35);
+  --color-mate-trace-strong: rgba(255, 255, 255, 0.6);
   --color-accent: #001d3d;
   --color-find-highlight: #542500;
   --color-find-highlight-active: #ff8a30;

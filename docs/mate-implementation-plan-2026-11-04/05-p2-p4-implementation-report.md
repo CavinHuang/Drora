@@ -3,7 +3,8 @@
 - 日期：2026-11-05 · 工作流 run id：`dwfrun-e8aa12b4-73d3-4a6e-b597-f9dfd4530fb2`
 - 范围：feat/mate-p2 → feat/mate-p3 → feat/mate-p4 三阶段堆叠分支（基线 feat/mate-p1，6 commits）
 - 分支形态：p1(6) → p2(21) → p3(16) → p4(21)，合计 64 commits；全程未 push
-- 终审时点：feat/mate-p4 @ 4fa3863e5，工作区干净；本文档与状态修正为终审唯一新增改动
+- 分支整合（2026-11-05 用户裁定「不分四支、并一个功能分支」）：四堆叠分支已并为单一功能分支 **feat/drora-mate**（=原 feat/mate-p4 线性历史改名，feat/mate-p1/p2/p3 中间指针删除；零历史改写，修复轮与终审后增量仍在同链上）；本文档中的 p1/p2/p3 保留为阶段批次标识
+- 终审时点：feat/mate-p4 @ 4fa3863e5，工作区干净；本文档与状态修正为终审唯一新增改动；终审后增量=i18n 守卫清单补齐 bd23fd421（§6 遗留 15 关闭）+ 上述分支整合
 - 关联：00 总计划 §0 阶段地图、`specs/drora-personal-assistant.md`（§14 验收行）、台账 16、两份 CONTRACT.md（services/assistant-tickets 与 ui/src/mate）、coverage matrix 五节（MOUI/MSA/MSP/MRP/MTA）
 
 ## 1. P2 交付清单（feat/mate-p2，21 commits）
@@ -138,7 +139,7 @@ fmt:check 未跑（P1 实录：全树 CRLF 环境性基线即红；以 lint warn
 12. 工单终态汇报推送的 report 计数生产接线（随手机推送/主动推送通道批；替换条件=存在主动推送通道）。
 13. Router 会话归档/浓缩交接（待 CLI 会话生命周期处置动作可用时对账补齐）；personaControlV1 控制面迁移。
 14. W2 声明域「决策卡可编辑」入口（P2 裁剪；空集=整域自动互斥已生效）。
-15. **i18n 键守护清单未随 P2–P4 扩键**（终审发现）：`packages/ui/src/mate/i18n.test.ts:17-95` 的显式消费键清单停驻 P1（76 键），组件实际消费 89 键——41 个 P2/P3/P4 新键（mate.router.*、mate.detail.*、mate.trust.autoSwitch.*、mate.sessionLine.* 等）未被逐键存在断言覆盖（双语对齐断言仍全量有效、词典实际齐全，无裸键风险；守卫测试自述「组件 formatMessage 的每个键」与实际覆盖面不符）。属测试实现层改动，按铁律不修改，随下次 ui-mate 测试批次扩清单。
+15. **i18n 键守护清单未随 P2–P4 扩键**（终审发现）：`packages/ui/src/mate/i18n.test.ts:17-95` 的显式消费键清单停驻 P1（76 键），组件实际消费 89 键——41 个 P2/P3/P4 新键（mate.router.*、mate.detail.*、mate.trust.autoSwitch.*、mate.sessionLine.* 等）未被逐键存在断言覆盖（双语对齐断言仍全量有效、词典实际齐全，无裸键风险；守卫测试自述「组件 formatMessage 的每个键」与实际覆盖面不符）。**已关闭（终审后）**：实测差分为 55 键（formatMessage 调用点外的 mate.* 字面量消费也计入），清单补齐+分组注释，commit `bd23fd421`，drora 项目 3/3 绿。
 
 ## 7. 终审状态修正（docs/spec，零实现改动）
 

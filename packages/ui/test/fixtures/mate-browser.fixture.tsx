@@ -124,6 +124,10 @@ function createMateFixtureService(
   let rolloverNextApprove = false;
   // P3 接缝批：手机入口 ingest 结果读点（direct:<ticketId>:<text> / gate:<triggerId>:<outcome>）。
   let lastIngest = "";
+  // P4 配额中心内存版（IAssistantTicketService 形状补齐；判定语义与服务 admitDisturbance
+  // 同构简化：decision 永不抑制仍计数、report/bubble 超配额聚合当日 digest）。
+  const quotaDay = { date: "", decision: 0, report: 0, bubble: 0, digest: [] as string[], digestDelivered: false };
+  let dailyQuota = 5;
   const triggers: AssistantTriggerView[] = [];
   const decisions: FixtureDecision[] = [];
   const tickets: FixtureTicket[] = [];
@@ -186,6 +190,26 @@ function createMateFixtureService(
       triggers: [...triggers],
       decisions: decisionViews,
       tickets: ticketViews,
+      quota: (() => {
+        const today = new Date().toISOString().slice(0, 10);
+        if (quotaDay.date !== today) {
+          quotaDay.date = today;
+          quotaDay.decision = 0;
+          quotaDay.report = 0;
+          quotaDay.bubble = 0;
+          quotaDay.digest = [];
+        }
+        const total = quotaDay.decision + quotaDay.report + quotaDay.bubble;
+        return {
+          date: quotaDay.date,
+          quota: dailyQuota,
+          used: { decision: quotaDay.decision, report: quotaDay.report, bubble: quotaDay.bubble },
+          total,
+          remaining: Math.max(0, dailyQuota - total),
+          pendingDigest: quotaDay.digestDelivered ? [] : [{ date: quotaDay.date, items: [...quotaDay.digest] }],
+        };
+      })(),
+      watchdogNotices: [],
       updatedAtMs,
     };
   }
@@ -476,6 +500,46 @@ function createMateFixtureService(
 
     async getSnapshot() {
       return buildSnapshot();
+    },
+
+    async admitDisturbance(input) {
+      const today = new Date().toISOString().slice(0, 10);
+      if (quotaDay.date !== today) {
+        quotaDay.date = today;
+        quotaDay.decision = 0;
+        quotaDay.report = 0;
+        quotaDay.bubble = 0;
+        quotaDay.digest = [];
+        quotaDay.digestDelivered = false;
+      }
+      quotaDay[input.kind] += 1;
+      const total = quotaDay.decision + quotaDay.report + quotaDay.bubble;
+      const aggregated = input.kind !== "decision" && total > dailyQuota;
+      if (aggregated && input.summary) {
+        quotaDay.digest.push(input.summary.slice(0, 200));
+      }
+      publish();
+      return {
+        ok: true as const,
+        value: {
+          allowed: !aggregated,
+          date: today,
+          used: total,
+          quota: dailyQuota,
+          aggregated,
+        },
+      };
+    },
+
+    async getDisturbanceQuota() {
+      const snapshot = buildSnapshot();
+      return { ok: true as const, value: snapshot.quota! };
+    },
+
+    async markDailyDigestDelivered() {
+      quotaDay.digestDelivered = true;
+      publish();
+      return { ok: true as const, value: { ok: true as const } };
     },
 
     onDidChange(listener) {

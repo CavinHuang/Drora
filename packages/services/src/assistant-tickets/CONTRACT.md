@@ -134,7 +134,10 @@ ticket.channel_ref）；Thread 直通 Tier1。
   透传由 gate 拒绝并记录）。Source kv 簿记（开关配置/游标/ETag）经装配层 kvGet/kvSet
   （Router 轮转簿记同口径，非事务簿记；UI 配置面随后续 Source 配置 UI/手机入口批
   ——排期未定，spec §14 P3 遗留登记；本阶段无写入口是诚实边界，kv 空值=三 Source
-  恒关）。
+  恒关）。运行注记：注册表启停 Source 仅随快照推送 reconcile（sourceRegistry.ts
+  `attachMateSourceRegistry` 只挂快照订阅，无独立配置观察通道）——kv 手改
+  source_config 后需等下一次快照推送才生效（属遗留「Source 配置写入口」域内现状，
+  配置 UI 批次接入正式写路径时一并收敛）。
 - **Source 终态回复（P3）**：注册表订阅台账快照差分，工单首次进入 done/failed 且有
   channel_ref → `AssistantSourceReplyPort`（一句话+工单 id；fire-and-forget，失败/端口
   缺席诚实降级 warn，不重试不用超时兜底）。GitHub 端口=POST issue 评论

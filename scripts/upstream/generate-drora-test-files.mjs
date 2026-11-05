@@ -84,6 +84,17 @@ const forkIsolated = norm([
   // 定向执行）。
   "packages/desktop/test/desktopPetMateSeam.test.ts",
   "packages/ui/src/mate/petProjection.test.ts",
+  // Drora Mate P4 与全链审查收尾批（2026-11-06 收敛）：P4 host/watchdog cron、P4 验收
+  // 投影及审查批拆分/新增的服务层回归此前仅手登 drora-isolated-test-files.json
+  // （176d83a7d、5cf0c845d、4af34dea0、3c1af2f15），forkIsolated 段漏登——重跑生成器
+  // 会把它们静默降级出串行隔离组（同上方历史手登收敛先例）。补登收敛，门禁以
+  // --project drora-fork-isolated 定向执行。
+  "packages/desktop/test/mateWatchdogCron.test.ts",
+  "packages/services/test/assistantDispatchTarget.test.ts",
+  "packages/services/test/assistantFrameLedger.test.ts",
+  "packages/services/test/assistantP4Host.test.ts",
+  "packages/services/test/assistantP4Report.test.ts",
+  "packages/services/test/assistantQueuedRelease.test.ts",
   "packages/drora-server-cli/test/runtimeUpdateIntegration.test.ts",
   "packages/ui/test/pdfJsCMapSupport.test.ts",
 ]).filter((f) => existsSync(resolve(root, f)));

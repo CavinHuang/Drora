@@ -6256,6 +6256,9 @@ P2 无事实源不渲染）；MSA02 dispatch 建议卡（建议/目标/证据 ve
 返回回列表）+ done 汇报卡 [详情] 入口关联断言；MSA08 换代（工单行「第 2 代」徽标+
 详情时间线当前代站=第 2 代+锚站带序 commandId）；MSA09 MateSessionLine 两态（带摘要
 渲染计数徽标/缺席渲染 null——真实挂接在任务行列表，组件级验收）。
+MSA10（P2 审查修复批 740e2f567 追加，specs §9 W2 兜底；同文件同 fixture）：配置区
+W1 worktree 开关——初始开（快照投影为唯一事实）→ 点击关，`setWorktreeDisabled`
+事务落库、快照回填状态行「关——声明写域」→ 再点回开恢复；开关只发动作、无本地副本。
 本轮实跑：chromium headless，MSA01–09 单用例 27.3s，0 fail；同轮 P1 MOUI01–06 回归
 32.4s，0 fail（fixture 升级向后兼容）。同轮修复：attach 建议的 target 预填未随放行
 显式传（UI 缺口，e2e 首跑捕获，approve 双路径补齐）。Mate 单测 view-model 21 项

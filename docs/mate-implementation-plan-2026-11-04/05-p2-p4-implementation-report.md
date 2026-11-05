@@ -122,6 +122,9 @@ fmt:check 未跑（P1 实录：全树 CRLF 环境性基线即红；以 lint warn
 
 **随总闸联调验收（真机/真实链路）**：
 1. 真实 Host 端到端：工件核验 git 真链路（rev-parse/merge-base 对真实 worktree）。
+   另并入 P2 Surface 批同名遗留（源自 spec §14 P2 行，此前仅登记于 coverage matrix
+   Mate P2 节）：候选卡→建议→人放行、换代重派、双链路随总闸联调验收——浏览器候选
+   MSA01–09/MSA10 仅验 Surface 呈现与预填放行传参（fixture 边界），真实 Host 链路未跑。
 2. watchdog 定时轮 30min 判据真机（人为停滞真实会话进程→stale+通知，工单未被杀/未换代）。
 3. 配额跨端（桌面/手机/桌宠）一致性与手机快照透传。
 4. 桌宠真机点击链路（Electron 宠物窗 badge/tray 坐标交互——桥路由与速览 DOM 已由单测覆盖）。

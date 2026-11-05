@@ -356,7 +356,11 @@ export interface IAssistantTicketService {
     }>
   >;
 
-  /** P4 配额中心查询接口（当日用量/余量/近 ≤7 日未投递摘要）。 */
+  /**
+   * P4 配额中心查询接口（当日用量/余量/近 ≤7 日未投递摘要）。
+   * 生产消费方随手机 UI/后续批次登记；现 UI 经快照 quota 投影呈现，本方法当前
+   * 仅测试/fixture 直驱（交付完整性审查 2026-11-06 注记）。
+   */
   getDisturbanceQuota(): Promise<AssistantResult<AssistantQuotaView>>;
 
   /** P4 配额中心摘要投递回执：结清今日之前的未投递摘要（UI 展示后调用）。 */

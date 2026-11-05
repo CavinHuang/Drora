@@ -137,5 +137,10 @@ AppSettings 属性用 camelCase，`drora.mate.*` 命名空间归属记 spec §1�
 
 1. 人为停滞（停掉目标会话进程）→ 30min 判据→stale 标记+通知，工单未被杀/未换代。
 2. 信任条操纵测试数据达标→「切换 auto」出现→确认后 explicit 自动执行+告示卡；inferred 无证据→降级问人。
+   **UI 半段验收资产（2026-11-05，feat/mate-p4 修复轮）**：浏览器候选
+   mate-trust-auto.test.mjs（MTA01–03）覆盖入口出现→确认框（名单/预算/不可逆）→
+   setMode 成功臂（快照收敛 auto+入口消失）与 mate.auto.locked 失败臂（专属文案+
+   模式不翻转）——fixture 只造达标投影与一次复核失败，真实统计/复核在 host 侧单测
+   （assistantP4Host）。coverage matrix「Mate P4 修复轮增量」节登记。
 3. 汇报卡：三代工单成本分解正确合计；工件核验失败→滞留→watchdog 提醒。
 4. 配额：6 次推送日→第 6 次起非决策推送聚合次日摘要；决策卡不受限。

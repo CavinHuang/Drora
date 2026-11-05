@@ -7,6 +7,7 @@ import { DroraIntlProvider } from "../../src/i18n/IntlProvider.js";
 import { ServiceProvider } from "../../src/hooks/useServices.js";
 import { PlatformProvider } from "../../src/hooks/usePlatform.js";
 import { TooltipProvider } from "../../src/components/ui/tooltip.js";
+import { ConfirmDialogHost } from "../../src/ConfirmDialog.js";
 import { MateSidePane } from "../../src/app-shell/MateSidePane.js";
 import { MateSessionLine } from "../../src/mate/session-line.js";
 import { MatePetSync } from "../../src/root/MatePetSync.js";
@@ -50,6 +51,14 @@ import "../../src/styles.css";
  *   通道追加 → 直通（不建新 trigger/decision，anchor 序号推进），经 fixture-last-ingest
  *   读点断言。桌宠接缝发布/导航链路的平台面在 MatePetSync/useMatePetEvents + desktop
  *   matePetBridge 单测与 Electron 真机链路覆盖，不在本 renderer 夹具内。
+ *
+ * P4 修复轮扩展（mate-trust-auto.test.mjs 消费；既有场景不点不触发）：
+ * - fixture-trust-open：快照 trust 携带信任门达标投影（gateOpen/rate/samples/阈值）——
+ *   只造投影，真实统计/setMode 复核在 host 侧（trustGate，assistantP4Host.test.ts）；
+ * - fixture-auto-locked-next：下一次 setMode("auto") 模拟服务侧复核失败 mate.auto.locked
+ *   （一次性消费），验收 MateTrustBar 失败臂专属文案；
+ * - ConfirmDialogHost 挂载：「切 auto」requestConfirmation 确认链路可走通（无
+ *   pendingRequest 时渲染空 Dialog，不影响既有场景）。
  */
 
 function Fixture() {
@@ -75,6 +84,8 @@ function Fixture() {
     awaitNext,
     injectNotice,
     pushReports,
+    setTrustGateOpen,
+    setAutoLockedNext,
   } = useMemo(
     () =>
       createMateFixtureService(
@@ -207,6 +218,18 @@ function Fixture() {
                 Push 4 report disturbances
               </button>
               {/* P4 第二棒：气泡闸判定读点（admitDisturbance 回调实时驱动）。 */}
+              {/* P4 修复轮（04 详设 §2 验收场景 2 UI 半段）：信任门达标投影与
+                  setMode("auto") 复核失败开关（mate-trust-auto.test.mjs 消费）。 */}
+              <button data-testid="fixture-trust-open" onClick={() => setTrustGateOpen(true)}>
+                Trust gate open
+              </button>
+              <button data-testid="fixture-auto-locked-next" onClick={() => setAutoLockedNext()}>
+                Next setMode(auto) locked
+              </button>
+              {/* P4 修复轮：全局确认框宿主——MateTrustBar「切 auto」确认链路
+                  （requestConfirmation→ConfirmDialogHost→settle）在本夹具可走通；
+                  无 pendingRequest 时渲染空 Dialog，不影响既有场景。 */}
+              <ConfirmDialogHost />
               {/* P3 接缝批：手机 Source 入口（phone 徽标决策卡 + channel_ref 直通）。 */}
               <button data-testid="fixture-inject-phone" onClick={handlePhoneNamed}>
                 Inject phone named trigger

@@ -6316,3 +6316,28 @@ mate.config.mode.auto.locked 文案后未回归该资产）。配套单测：ass
 回归 16 文件 209 项绿。候选仍为 pending，未 promotion、未 CI admission；真实 Host
 端到端（工件核验 git 真链路、watchdog 定时轮 30min 判据、配额跨端一致）随总闸联调
 验收（specs §14 P4 验收行）。
+
+## Mate（大副）P4 修复轮增量（2026-11-05，watchdog 停滞回合单通知 + 配额 decision 接线 + 「切 auto」链路资产）
+
+MTA01–03：`packages/desktop/test/e2e/conversation-session/manual-review/pending/mate-trust-auto.test.mjs`。
+层级：同 MOUI/MSA/MSP/MRP 先例的真实 React renderer 浏览器候选（同一 fixture
+`packages/ui/test/fixtures/mate-browser.fixture.tsx`——P4 修复轮新增 ConfirmDialogHost
+挂载与 fixture-trust-open / fixture-auto-locked-next 两控件，P1–P4 既有场景不点不触发）。
+真实统计与 setMode 复核判定在 host 侧（services trustGate，assistantP4Host.test.ts 锁定），
+夹具只造「达标投影」与一次复核失败（诚实边界，不伪造判定链路）。
+覆盖 04 详设 §2 唯一入口链路与 §5 验收场景 2 前半句 UI 半段（此前的缺口：
+MateTrustBar 定义了按钮→确认框→setMode→失败臂完整交互链但零自动化覆盖）：MTA01
+信任门字段缺席（旧 Host 投影）→ 入口与进度行均不渲染的诚实降级负例；MTA02 达标
+投影 →「切换 auto」出现+进度行（放行率 80%·样本 15）→ 确认框（mate-auto-switch-confirm，
+穿 CodeBlock Shadow DOM 断言名单 fixture/user-a 与软预算 3+「不可在此弹窗中撤销」
+不可逆提示）→ 确认 → setMode 成功 → 快照收敛（状态条徽标=自动、入口消失、无失败行）；
+MTA03 失败臂（fixture-auto-locked-next 一次性 mate.auto.locked）→ 确认后专属文案
+role=alert（mate-auto-switch-error「信任门未达标」）、模式保持观察（无本地乐观翻转）、
+确认框出清（Radix 退场动画轮询等待）。本轮实跑：chromium headless，MTA01–03 单用例
+29.2s 0 fail；同轮 MRP01–07（40.8s）/MOUI01–06（35.8s）/MSA01–09（24.3s）/MSP01–06
+（28.8s）回归 0 fail（fixture 扩展向后兼容；同轮基建：fixture 增挂 ConfirmDialogHost
+后 CodeBlock/shiki 冷优化依赖图变重，五资产 goto 超时 30s→60s 统一放宽——冷机首跑
+防撞线）。配套单测：assistantP4Host 新增 watchdog「持续停滞跨轮单通知」（第二轮不再
+计数/入列、解除后再命中重新过闸）与「gate 落卡即计数 decision」、assistantSourceIngest
+新增 Source 路径 decision 同源计数（语义登记见 spec §2.3/§10 修复批注记与 04 详设
+§1/§4 修复轮落地注记）。候选仍为 pending，未 promotion、未 CI admission。

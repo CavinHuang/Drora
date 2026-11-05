@@ -61,6 +61,9 @@ test(
       const address = server.httpServer.address();
       await page.goto(`http://127.0.0.1:${address.port}/mate-ui-test`, {
         waitUntil: "domcontentloaded",
+        // P4 修复轮放宽：fixture 增挂 ConfirmDialogHost（CodeBlock/shiki）后冷优化依赖图变重，
+        // 30s 默认在冷机首跑会撞线（mate-trust-auto.test.mjs 同因由）。
+        timeout: 60_000,
       });
       await page.getByTestId("mate-side-pane").waitFor();
 

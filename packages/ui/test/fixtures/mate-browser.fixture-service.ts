@@ -6,6 +6,7 @@
  * 见 mate-browser.fixture.tsx 文件头与 mate-p4-ui.test.mjs。
  */
 import {
+  ASSISTANT_ERROR_CODES,
   ASSISTANT_MODES,
   ASSISTANT_OUTCOMES,
   ASSISTANT_PERMISSION_TIERS,
@@ -92,6 +93,11 @@ export function createMateFixtureService(
   let rolloverNextApprove = false;
   // P4 第二棒：下一次终局进核验滞留（awaiting_output）开关。
   let awaitNextTicket = false;
+  // P4 修复轮（04 详设 §2 验收场景 2 UI 半段）：信任门达标投影开关 + setMode("auto")
+  // 服务侧复核失败（mate.auto.locked）一次开关。真实统计/复核在 host 侧（trustGate/
+  // setMode 判定，assistantP4Host.test.ts 锁定）——夹具只造「达标投影」，不伪造判定。
+  let trustGateOpen = false;
+  let autoLockedNext = false;
   // P3 接缝批：手机入口 ingest 结果读点（direct:<ticketId>:<text> / gate:<triggerId>:<outcome>）。
   let lastIngest = "";
   // P4 配额中心内存版（IAssistantTicketService 形状补齐；判定语义与服务 admitDisturbance
@@ -167,6 +173,16 @@ export function createMateFixtureService(
         releaseCount: decisions.filter(
           (item) => item.outcome === ASSISTANT_OUTCOMES.decisionCard && item.decidedBy === "user",
         ).length,
+        // P4 修复轮：信任门达标投影（开关打开才携带——旧 Host 缺席=入口不渲染的诚实
+        // 降级语义保持可验）。rate/samples 与阈值取达标线等值（releaseRate=0.8 样本 15）。
+        ...(trustGateOpen
+          ? {
+              releaseRate: 0.8,
+              sampleCount: 15,
+              gateOpen: true,
+              gateThresholds: { minRate: 0.8, minSamples: 15 },
+            }
+          : {}),
       },
       triggers: [...triggers],
       decisions: decisionViews,
@@ -501,6 +517,19 @@ export function createMateFixtureService(
     },
 
     async setMode(next) {
+      // P4 修复轮：fixture-auto-locked-next 开关 → 下一次 setMode("auto") 模拟服务侧
+      // 复核失败（mate.auto.locked——确认框到 setMode 之间信任回落，assistantP4Host
+      // 同码锁定真实判定）；验收 MateTrustBar 失败臂专属文案，开关一次性消费。
+      if (next === ASSISTANT_MODES.auto && autoLockedNext) {
+        autoLockedNext = false;
+        return {
+          ok: false as const,
+          error: {
+            code: ASSISTANT_ERROR_CODES.autoLocked,
+            reason: "信任门复核未达标（fixture 模拟）",
+          },
+        };
+      }
       mode = next;
       publish();
       return { ok: true, value: { ok: true } };
@@ -623,6 +652,17 @@ export function createMateFixtureService(
     /** 气泡闸判定读点（kind:summary:allowed）。 */
     lastAdmit(): string {
       return lastAdmit;
+    },
+    // ---- P4 修复轮验收控件（mate-trust-auto.test.mjs 消费；既有场景不点不触发） ----
+    /** 信任门达标投影开关（快照 trust 携带 gateOpen/rate/samples/阈值——只造投影，
+     * 不伪造 host 侧统计与复核判定）。 */
+    setTrustGateOpen(open: boolean): void {
+      trustGateOpen = open;
+      publish();
+    },
+    /** 下一次 setMode("auto") 模拟服务侧复核失败 mate.auto.locked（一次性消费）。 */
+    setAutoLockedNext(): void {
+      autoLockedNext = true;
     },
   };
 }

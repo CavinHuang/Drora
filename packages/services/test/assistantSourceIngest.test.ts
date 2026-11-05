@@ -19,6 +19,7 @@ import {
 import type { AssistantSessionSummaryLite } from "../src/assistant-tickets/assistantPorts.js";
 import { serializeChannelRef } from "../src/assistant-tickets/sources/channelRef.js";
 import type { MateSourceEvent } from "../src/assistant-tickets/sources/contract.js";
+import { ASSISTANT_SOURCE_KV_KEYS } from "../src/assistant-tickets/sources/sourceConfig.js";
 
 const LOCAL_IDENTITY = "local-user";
 
@@ -27,6 +28,20 @@ function clearPorts(): void {
   setAssistantDispatchPort(null);
   setAssistantFrameSource(null);
   setAssistantSessionsIndexPort(null);
+}
+
+/** 直写 kv（本阶段无生产写入口——诚实边界，测试照 sourceConfig 头注直写）。 */
+function setKvRaw(db: ReturnType<typeof openAssistantDatabase>, key: string, value: string): void {
+  db.raw
+    .prepare(
+      "INSERT INTO kv(key, value, updated_ms) VALUES (?,?,?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+    )
+    .run(key, value, Date.now());
+}
+
+/** 预置手机 Source 启用（submitSourceEntry 受 phone.enabled 门控——spec §6 收尾注记）。 */
+function enablePhoneSource(db: ReturnType<typeof openAssistantDatabase>): void {
+  setKvRaw(db, ASSISTANT_SOURCE_KV_KEYS.sourcesConfig, JSON.stringify({ phone: { enabled: true } }));
 }
 
 async function createService() {
@@ -273,7 +288,8 @@ describe("Thread 直通 Tier1（03 §5：channel_ref 命中→followUp 直投）
 
 describe("submitSourceEntry（手机 channel 可见入口；03 §3 事件面）", () => {
   it("identity 由 host 侧本机用户决定；mention→决策卡；remoteSessionId 贯穿", async () => {
-    const { service } = await createService();
+    const { service, db } = await createService();
+    enablePhoneSource(db);
     const result = await service.submitSourceEntry({
       text: "手机点名：看下构建失败",
       mention: true,
@@ -290,8 +306,35 @@ describe("submitSourceEntry（手机 channel 可见入口；03 §3 事件面）"
     expect(trigger?.targetWorkspaceIdentity).toBe("ws-phone");
   });
 
+  it("phone.enabled 关闭 → 整入口拒绝 sourceDisabled（含直通臂；kv 空值=关闭诚实缺省）", async () => {
+    // kv 空（缺省全关）：入口拒绝。
+    const closed = await createService();
+    const closedResult = await closed.service.submitSourceEntry({
+      text: "手机点名：被关掉的入口",
+      mention: true,
+    });
+    expect(closedResult.ok).toBe(false);
+    if (!closedResult.ok) {
+      expect(closedResult.error.code).toBe(ASSISTANT_ERROR_CODES.sourceDisabled);
+    }
+    // 显式 enabled:false 同样拒绝，且 gate 零写入（trigger 不落库）。
+    const explicit = await createService();
+    setKvRaw(
+      explicit.db,
+      ASSISTANT_SOURCE_KV_KEYS.sourcesConfig,
+      JSON.stringify({ phone: { enabled: false } }),
+    );
+    const explicitResult = await explicit.service.submitSourceEntry({ text: "x", mention: true });
+    expect(explicitResult.ok).toBe(false);
+    if (!explicitResult.ok) {
+      expect(explicitResult.error.code).toBe(ASSISTANT_ERROR_CODES.sourceDisabled);
+    }
+    expect((await explicit.service.getSnapshot()).triggers).toHaveLength(0);
+  });
+
   it("手机通道绑定直通：同 remoteSessionId 会话 follow-up 命中活动工单", async () => {
-    const { service } = await createService();
+    const { service, db } = await createService();
+    enablePhoneSource(db);
     const { attachTexts } = setOkDispatchPorts();
     setOkSessionsIndexPort();
     const phoneRef = serializeChannelRef({ kind: "phone", remoteSessionId: "rs-7" });
@@ -324,7 +367,8 @@ describe("submitSourceEntry（手机 channel 可见入口；03 §3 事件面）"
   }, 20_000);
 
   it("非法 channelRef 格式 → validationFailed（不猜测不匹配）", async () => {
-    const { service } = await createService();
+    const { service, db } = await createService();
+    enablePhoneSource(db);
     const result = await service.submitSourceEntry({
       text: "x",
       mention: true,

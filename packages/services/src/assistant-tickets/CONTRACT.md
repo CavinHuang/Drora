@@ -104,7 +104,9 @@ ticket.channel_ref）；Thread 直通 Tier1。
   线程粒度、私聊会话粒度。② 手机=IAssistantTicketService 新增 channel 可见
   `submitSourceEntry`（仅开放 sourceKind=phone；identity 由 host 侧本机用户决定，
   renderer 不可自报 feishu/github 外部身份——防伪造；remoteSessionId 贯穿
-  trigger.remote_session_id）。手机无独立入站消息总线（03 §3 探查回填：
+  trigger.remote_session_id；**受 phone.enabled 门控**——关闭时整入口拒绝
+  `mate.source.disabled` 含直通臂，与注册表「Source 停用=事件面全关」同语义，
+  spec §6 收尾注记）。手机无独立入站消息总线（03 §3 探查回填：
   webRemoteControlSharedHostAttachments → host service connection 直调服务 channel），
   UI 接线随后续 Source 配置 UI/手机入口批（排期未定，spec §14 P3 遗留登记——
   当前手机无触发大副的 UI 入口）。③ GitHub=comments 轮询（每 60s 一轮；ETag If-None-Match 304

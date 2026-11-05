@@ -38,6 +38,7 @@ import type { AssistantDispatchResult } from "../assistantPorts.js";
 import type { RouterEvaluationTrigger } from "../routerEvaluation.js";
 import { parseChannelRef, serializeChannelRef } from "./channelRef.js";
 import type { MateSourceEvent } from "./contract.js";
+import { isSourceEnabled, readSourcesConfig } from "./sourceConfig.js";
 
 const logger = createServiceLogger("assistant-tickets");
 
@@ -84,6 +85,7 @@ export function createAssistantSourceIngest(deps: AssistantSourceIngestDeps): {
    * 手机 Source 的 channel 可见入口（renderer 可达的唯一 Source 入口）：identity 由
    * host 侧取本机用户（renderer 不可自报 feishu/github 外部身份——防身份伪造），
    * sourceKind 恒 phone（IAssistantTicketService.submitSourceEntry 委托到这里）。
+   * 受 phone.enabled 门控（关闭 → sourceDisabled，含直通臂；spec §6 收尾注记）。
    * channelRef 入参=已串接字符串（submitSourceEntry 是 channel 面，不暴露结构类型）。
    */
   submitSourceEntry(input: {
@@ -280,6 +282,23 @@ export function createAssistantSourceIngest(deps: AssistantSourceIngestDeps): {
       }
       if (input.channelRef != null && parseChannelRef(input.channelRef) === null) {
         return fail(ASSISTANT_ERROR_CODES.validationFailed, "channelRef 格式非法");
+      }
+      // phone.enabled 门（spec §6 收尾注记，2026-11-05 修复批）：此前开关只作用于注册表
+      // 运行态（emitPhoneInput 桥），本入口直达 ingest 不受门控——「关闭手机 Source」
+      // 关不掉手机触发面。修复：入口前置 isSourceEnabled（kv 与注册表 reconcile 同源
+      // readSourcesConfig，单一口径），关闭时整入口拒绝（含直通臂——与飞书/GitHub
+      // 「Source 停用=事件面全关」语义对齐，不留半开门）。kv 空值=关闭（诚实缺省）。
+      const kvGet = (key: string) => {
+        const row = db.raw.prepare("SELECT value FROM kv WHERE key = ?").get(key) as
+          | { value: string }
+          | undefined;
+        return row?.value;
+      };
+      if (!isSourceEnabled(readSourcesConfig(kvGet), ASSISTANT_SOURCE_KINDS.phone)) {
+        return fail(
+          ASSISTANT_ERROR_CODES.sourceDisabled,
+          "手机 Source 未启用（source_config.phone.enabled ≠ true）",
+        );
       }
       return ingest(
         {

@@ -189,6 +189,8 @@ export const ASSISTANT_ERROR_CODES = {
   attachTargetInvalid: "mate.attach.invalid",
   /** 锚校验失配/会话已失位（spec §8 换代触发源①②）。 */
   anchorMismatch: "mate.incarnation.anchor_mismatch",
+  /** Source 事件入口被开关关闭（source_config 对应 kind enabled ≠ true；spec §6 收尾注记）。 */
+  sourceDisabled: "mate.source.disabled",
 } as const;
 
 export type AssistantErrorCode = (typeof ASSISTANT_ERROR_CODES)[keyof typeof ASSISTANT_ERROR_CODES];

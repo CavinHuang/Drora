@@ -201,6 +201,8 @@ export interface IAssistantTicketService {
    * 手机 replayable attachment 可达的唯一 Source 入口）。仅开放 sourceKind="phone"：
    * identity 由 host 侧取本机用户（renderer 不可自报 feishu/github 外部身份——防身份
    * 伪造，飞书/GitHub identity 只能来自 host 侧映射，走 host 内部 ingestSourceEvent）。
+   * 受 source_config.phone.enabled 门控（spec §6 收尾注记）：关闭时整入口拒绝
+   * （sourceDisabled，含直通臂——与注册表「Source 停用=事件面全关」同语义）。
    * channelRef 命中活动工单 → 直通 Tier1（不过 gate）；否则按真实强度规则进 gate
    * （mention && allowlist → explicit）。remoteSessionId 贯穿落 trigger.remote_session_id。
    */

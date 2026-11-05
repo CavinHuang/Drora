@@ -11,7 +11,7 @@
  * 回调（assistantForwarder）、GitHub HTTP、凭证加载全部由装配层注入；单测以 fake 驱动。
  */
 
-import { ASSISTANT_SOURCE_KINDS, type AssistantSourceKind } from "@drora/shared";
+import type { AssistantSourceKind } from "@drora/shared";
 
 export type { AssistantSourceKind };
 
@@ -133,8 +133,3 @@ export type MateSourceIdentityMap = {
   readonly feishu?: Readonly<Record<string, string>>;
   readonly github?: Readonly<Record<string, string>>;
 };
-
-/** source_kind 字面量守卫（防裸写字面量漂移）。 */
-export function isAssistantSourceKind(value: string): value is AssistantSourceKind {
-  return (Object.values(ASSISTANT_SOURCE_KINDS) as string[]).includes(value);
-}

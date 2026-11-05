@@ -2,5 +2,12 @@
   "packages/desktop/test/cdnPreloadScript.test.ts",
   "packages/desktop/test/e2eDesktopBuildCache.test.ts",
   "packages/desktop/test/pluginE2EAdmissionScripts.test.ts",
-  "packages/desktop/test/windowsInstallerCompile.test.ts"
+  "packages/desktop/test/windowHostControllerMateOverlay.test.ts",
+  "packages/desktop/test/windowsInstallerCompile.test.ts",
+  "packages/services/test/assistantP2Flows.test.ts",
+  "packages/services/test/assistantRouterDecision.test.ts",
+  "packages/services/test/assistantTicketsService.test.ts",
+  "packages/services/test/assistantWriteDomain.test.ts",
+  "packages/shared/test/sessionMateActivity.test.ts",
+  "packages/ui/src/mate/view-model.test.ts"
 ]

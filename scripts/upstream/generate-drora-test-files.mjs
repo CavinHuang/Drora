@@ -63,6 +63,17 @@ const forkIsolated = norm([
   "packages/services/test/mcpSyncService.test.ts",
   "packages/services/test/providerRuntimeResolver.test.ts",
   "packages/services/test/runtimeToolResolver.test.ts",
+  // Drora Mate P2（2026-11-05 门禁平移）：host 内核与 Surface 批次的回归自 drora 并发组
+  // 移入串行隔离组（forks pool；node:sqlite 台账与 desktop host overlay 在重隔离下更稳，
+  // mate 纯函数单测随批平移保持单组语义一致——门禁统一以 --project drora-fork-isolated
+  // 定向执行）。原 P1 先例登记 drora 组，门禁第 1 轮要求 fork-isolated 可跑后平移。
+  "packages/services/test/assistantP2Flows.test.ts",
+  "packages/services/test/assistantRouterDecision.test.ts",
+  "packages/services/test/assistantWriteDomain.test.ts",
+  "packages/services/test/assistantTicketsService.test.ts",
+  "packages/shared/test/sessionMateActivity.test.ts",
+  "packages/desktop/test/windowHostControllerMateOverlay.test.ts",
+  "packages/ui/src/mate/view-model.test.ts",
   "packages/drora-server-cli/test/runtimeUpdateIntegration.test.ts",
   "packages/ui/test/pdfJsCMapSupport.test.ts",
 ]).filter((f) => existsSync(resolve(root, f)));
@@ -99,6 +110,22 @@ const explicit = norm([
   "scripts/assert-safe-cua-helper-zip.test.mjs",
   "scripts/ci/ci-telemetry-keyword-guard.test.mjs",
   "scripts/test/upstream-apply-ledger.test.mjs",
+  // 历史手登条目收敛进生成器（2026-11-05，mate P2 门禁平移时发现）：此前这些文件只手改
+  // drora-test-files.json、不在 glob/explicit 覆盖内，重跑生成器会静默丢失执行通道。
+  // glob 只收 packages/*/test/** 与 */src/**/contract.test.ts，src 深层与 .tsx 组件测试
+  // 需显式登记（同上方 ui/test .tsx 防孤儿化先例）。
+  // 注：packages/client/test/remoteServiceAccess.test.ts 同为历史手登，但不在此登记——
+  // ledger（2026-10-31 v3.17.1）将其标为 D+delete-review（retiring 过滤优先），而 P1
+  // （feat/mate-p1 b454c29d3）在分支上补了 assistantTicketService 能力位断言，静态
+  // current_main_dryrun 列不感知分支修改。该条的退役/保留属上游同步战役裁决，不在本批
+  // 擅改；JSON 保持手登现状（重跑生成器会移除，需先收敛 ledger）。
+  "packages/ui/src/drora-persona/personaPreferencesExportI18n.test.tsx",
+  "packages/ui/src/drora-persona/personaSettingsEntryGate.test.tsx",
+  "packages/ui/src/drora-persona/usePersonaPresets.test.tsx",
+  "packages/ui/src/settings/model-capabilities/ModelCapabilityDetail.test.tsx",
+  "packages/ui/src/settings/model-capabilities/capabilityNav.test.tsx",
+  "packages/ui/src/mate/i18n.test.ts",
+  "packages/ui/src/store/mateStore.test.ts",
 ]).filter((f) => existsSync(resolve(root, f)));
 
 const globbed = norm([

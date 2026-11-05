@@ -46,11 +46,13 @@ export const matePetPendingDecisionSchema = z
   .strict();
 export type MatePetPendingDecision = z.infer<typeof matePetPendingDecisionSchema>;
 
-/** 速览进行中工单行（queued/dispatched/running；点击直达工单详情）。 */
+/** 速览进行中工单行（queued/dispatched/running/awaiting；点击直达工单详情）。
+ * awaiting（P4 第二棒，04 详设 §3）：工件核验滞留态——只加不破，旧宠物窗未知值
+ * 按 fallback 文案呈现（desktopPetMateTrayDom.matePetStatusLabel 既有兜底分支）。 */
 export const matePetActiveTicketSchema = z
   .object({
     ticketId: z.string().min(1).max(160),
-    status: z.enum(["queued", "dispatched", "running"]),
+    status: z.enum(["queued", "dispatched", "running", "awaiting"]),
     brief: boundedText,
     targetWorkspaceIdentity: z.string().max(160),
   })

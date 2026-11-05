@@ -27,8 +27,12 @@
  * ticket.channel_ref 列——Source 注册表事件绑定（03 详设 §5：ticket 增 channel_ref
  * 索引，feishu thread / GitHub issue / 手机会话；同绑定 follow-up 直通 Tier1）。
  * v5（2026-11-05，P4）：新增 ticket.stale_ms / ticket.stale_kind 列——watchdog 停滞
- * 标记（04 详设 §1 判据表；watchdog 是唯一写者，判据解除同轮清除；旧行 NULL=未标记）。 */
-export const ASSISTANT_STORE_SCHEMA_VERSION = 5;
+ * 标记（04 详设 §1 判据表；watchdog 唯一写者，判据解除同轮清除；旧行 NULL=未标记）。
+ * v6（2026-11-05，P4 第二棒汇报卡完整版）：新增 ticket.awaiting_since_ms /
+ * ticket.increments_confirmed_ms 列——工件核验滞留（04 详设 §3：W1 工单 turn ended
+ * 后只读核验，核验失败滞留 awaiting_output 喂 watchdog；唯一写者=服务核验路径与
+ * confirmTicketOutput/confirmTicketIncrements；旧行 NULL=不滞留/未确认增量不存在）。 */
+export const ASSISTANT_STORE_SCHEMA_VERSION = 6;
 
 // ---------------------------------------------------------------------------
 // 身份与派发模式（spec §1 命名契约 / §7 三模式；P2 定案见 02 详设 §1.1/§5）
@@ -224,6 +228,12 @@ export const ASSISTANT_TICKET_STATUSES = {
   queued: "queued",
   dispatched: "dispatched",
   running: "running",
+  /**
+   * 工件核验滞留（04 详设 §3，P4 第二棒）：W1 worktree 工单 turn ended 后只读核验
+   * 未通过（分支无新提交/不可校验）的滞留态——非终态、占软预算活动位（worktree 未
+   * 清理）；出口=核验通过 / confirmTicketOutput 人工确认 / stopMandate，永不自动终止。
+   */
+  awaitingOutput: "awaiting_output",
   done: "done",
   failed: "failed",
 } as const;
@@ -295,6 +305,11 @@ export const ASSISTANT_SNAPSHOT_LIMITS = {
   disturbanceDigestItemMax: 200,
   /** 查询接口回扫未投递摘要的天数上界。 */
   disturbanceDigestDaysMax: 7,
+  // ---- P4 第二棒（04 详设 §3）：汇报卡完整版的有界投影 ----
+  /** ticket.usageByGeneration 分代条数上界（超界按最旧合并，防换代次数无界膨胀快照）。 */
+  usageGenerationsMax: 20,
+  /** ticket.briefFull 全量 brief 截断长度（code point；与候选卡 verbatim 同值口径）。 */
+  ticketBriefFullMax: 1500,
 } as const;
 
 // ---------------------------------------------------------------------------

@@ -122,6 +122,10 @@ expandedDecisionId` 三件 UI 局部态，按 workspace 分域（`byWorkspace`�
 - **barrel 收敛（G3）**：`matePetBubbleKey`/`matePetReportSummary` 为 petProjection
   内部辅助（模块外零引用），移出 index.ts 公开入口；`projectMatePet`/`deriveMatePetBubble`
   （MatePetSync 发布方消费）不变。
+- **dispatchRejected 专属文案（F1 呈现语义收口，2026-11-06 二轮）**：`resolveMateErrorMessageId`
+  补 `dispatchRejected → mate.error.dispatchRejected`——远程形态 probe 诚实拒绝（卡未消费，
+  改选目标或等待建议后重放）是本契约确立的正常设计路径，不再落 generic「操作失败」
+  （那会让远程 tab 反复重试恒败且零指引）。
 
 ## 与其它模块的交集
 

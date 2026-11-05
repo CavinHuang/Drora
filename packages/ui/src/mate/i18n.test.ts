@@ -56,6 +56,7 @@ const MATE_CONSUMED_KEYS: readonly string[] = [
   "mate.error.yolo",
   "mate.error.auto",
   "mate.error.validation",
+  "mate.error.dispatchRejected",
   "mate.error.generic",
   "mate.error.read",
   "mate.workspace.untargeted",

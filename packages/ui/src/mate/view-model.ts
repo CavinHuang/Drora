@@ -417,6 +417,7 @@ export type MateErrorMessageId =
   | "mate.error.yolo"
   | "mate.error.auto"
   | "mate.error.validation"
+  | "mate.error.dispatchRejected"
   | "mate.error.generic"
   // P4 第二棒（04 详设 §4）：每日配额草稿本地校验失败（0-上界整数界，上界=contracts
   // ASSISTANT_DISTURBANCE_DEFAULTS.dailyQuotaMax 单出处）。
@@ -439,6 +440,12 @@ export function resolveMateErrorMessageId(
       // validationFailed 承载两类高频场景（名单为空 / 缺派发目标），给专属文案
       // 而非落 generic（PR-1B 三审发现 3）。
       return "mate.error.validation";
+    case ASSISTANT_ERROR_CODES.dispatchRejected:
+      // F1 远程形态（2026-11-06 二轮审查）：workspace probe 诚实拒绝（postApproval
+      // 放行预检，spec §8「拒绝猜测，问人」）是正常设计路径——卡未消费可改选目标或
+      // 等待建议后重放。落 generic「操作失败」会让远程 tab 反复重试恒败且零指引，
+      // 与本批 CONTRACT.md 声明的「诚实拒绝可改选」呈现语义脱节。
+      return "mate.error.dispatchRejected";
     default:
       return "mate.error.generic";
   }

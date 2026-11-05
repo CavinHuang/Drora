@@ -68,6 +68,10 @@ export const mateMessagesEn = {
   "mate.error.auto": "auto mode is locked until the trust gate opens.",
   "mate.error.validation":
     "Validation failed: the allowlist cannot be empty and a dispatch target is required.",
+  // ---- F1 呈现语义收口（2026-11-06 二轮审查）：probe 诚实拒绝是设计路径（卡未消费
+  // 可改选/等待建议后重放），不落 generic「操作失败」。 ----
+  "mate.error.dispatchRejected":
+    "Target workspace probe failed; the decision card is left untouched. Pick another target or wait for a suggestion, then retry.",
   "mate.error.generic": "The action failed.",
   "mate.error.read": "Could not read the ticket snapshot. Retrying on the next update.",
   "mate.workspace.untargeted": "No target workspace",
@@ -244,6 +248,10 @@ export const mateMessagesZh = {
   "mate.error.yolo": "yolo 档必须人工放行。",
   "mate.error.auto": "信任门未达标，auto 模式未开放。",
   "mate.error.validation": "校验失败：名单不能为空，且放行需要派发目标 workspace。",
+  // ---- F1 呈现语义收口（2026-11-06 二轮审查）：probe 诚实拒绝是设计路径（卡未消费
+  // 可改选/等待建议后重放），不落 generic「操作失败」。 ----
+  "mate.error.dispatchRejected":
+    "目标 workspace 探测失败，决策卡未消费；可改选目标或等待建议后重放。",
   "mate.error.generic": "操作失败。",
   "mate.error.read": "工单快照读取失败，等待下一次推送恢复。",
   "mate.workspace.untargeted": "未指名目标",

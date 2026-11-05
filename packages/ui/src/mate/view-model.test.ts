@@ -231,8 +231,10 @@ describe("resolveMateErrorMessageId", () => {
     expect(resolveMateErrorMessageId({ code: ASSISTANT_ERROR_CODES.validationFailed })).toBe(
       "mate.error.validation",
     );
+    // 2026-11-06 二轮审查：dispatchRejected（probe 诚实拒绝，卡未消费可改选/重放）出
+    // 专属文案，不再落 generic「操作失败」——与 CONTRACT.md F1「诚实拒绝可改选」一致。
     expect(resolveMateErrorMessageId({ code: ASSISTANT_ERROR_CODES.dispatchRejected })).toBe(
-      "mate.error.generic",
+      "mate.error.dispatchRejected",
     );
     expect(resolveMateErrorMessageId(undefined)).toBe("mate.error.generic");
   });

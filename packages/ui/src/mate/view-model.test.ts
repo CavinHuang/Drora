@@ -17,7 +17,9 @@ import {
   deriveMateStatusLine,
   deriveMateViewModel,
   findMateDecisionForTicket,
+  findMateTicketIdForDecision,
   isMateActiveTicket,
+  isMateAutoNoticeDecision,
   isMateAutoSwitchAvailable,
   isMateObserveDecision,
   isMatePendingDecision,
@@ -27,6 +29,7 @@ import {
   mateRouterSuggestionKindMessageId,
   mateStaleBadgeKind,
   mateTicketGenerationNumber,
+  mateTriggerOutcomeFeedbackMessageId,
   mateUnconfirmedIncrement,
   resolveMateBudgetActive,
   resolveMateErrorMessageId,
@@ -486,5 +489,52 @@ describe("P4 resolveMateUsageGenerations 按代成本", () => {
     const rows = resolveMateUsageGenerations(withGenerations);
     expect(rows?.map((row) => row.generation)).toEqual([1, 2]);
     expect(resolveMateUsageGenerations(ticket({ id: "T-p4" }))).toBeNull();
+  });
+});
+
+describe("F4 isMateAutoNoticeDecision / findMateTicketIdForDecision（auto 告知卡投影）", () => {
+  it("auto_notice×gate → true；user 处置/其他 outcome → false", () => {
+    expect(
+      isMateAutoNoticeDecision(
+        decision({ id: 1, outcome: ASSISTANT_OUTCOMES.autoNotice, decidedBy: "gate" }),
+      ),
+    ).toBe(true);
+    // decided_by 恒 gate（spec §6 落地注记）：user 形态不属于告知卡集（防御）。
+    expect(
+      isMateAutoNoticeDecision(
+        decision({ id: 2, outcome: ASSISTANT_OUTCOMES.autoNotice, decidedBy: "user" }),
+      ),
+    ).toBe(false);
+    expect(
+      isMateAutoNoticeDecision(decision({ id: 3, outcome: ASSISTANT_OUTCOMES.decisionCard })),
+    ).toBe(false);
+  });
+
+  it("工单号回查按 ticket.decisionId 精确匹配；无关联/裁剪 → null 诚实降级", () => {
+    const snap = snapshot({
+      tickets: [
+        ticket({ id: "T-1", decisionId: 7 }),
+        ticket({ id: "T-2", decisionId: null }),
+      ],
+    });
+    expect(findMateTicketIdForDecision(snap, 7)).toBe("T-1");
+    expect(findMateTicketIdForDecision(snap, 8)).toBeNull();
+  });
+});
+
+describe("F2 mateTriggerOutcomeFeedbackMessageId（触发反馈封闭映射）", () => {
+  it("decision_card/would_accept/ignored 三态各有键；auto_notice 与未知 outcome → null", () => {
+    expect(mateTriggerOutcomeFeedbackMessageId(ASSISTANT_OUTCOMES.decisionCard)).toBe(
+      "mate.trigger.feedback.decisionCard",
+    );
+    expect(mateTriggerOutcomeFeedbackMessageId(ASSISTANT_OUTCOMES.wouldAccept)).toBe(
+      "mate.trigger.feedback.wouldAccept",
+    );
+    expect(mateTriggerOutcomeFeedbackMessageId(ASSISTANT_OUTCOMES.ignored)).toBe(
+      "mate.trigger.feedback.ignored",
+    );
+    // auto_notice 呈现面是告知卡（isMateAutoNoticeDecision），配置区不出第二处文案。
+    expect(mateTriggerOutcomeFeedbackMessageId(ASSISTANT_OUTCOMES.autoNotice)).toBeNull();
+    expect(mateTriggerOutcomeFeedbackMessageId("anything-else")).toBeNull();
   });
 });

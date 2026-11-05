@@ -80,6 +80,27 @@ export function isMateObserveDecision(decision: AssistantDecisionView): boolean 
   return decision.outcome === ASSISTANT_OUTCOMES.wouldAccept;
 }
 
+/**
+ * auto 告知卡（F4，spec §6 auto 执行语义「执行（出告知卡）」的 UI 兑现）：outcome=
+ * auto_notice 且 decidedBy=gate（服务侧恒 gate——不计入放行率分母/分子，spec §6 落地
+ * 注记）。只读呈现，无处置动作（工单本体已有工单行/汇报卡承载状态）。
+ */
+export function isMateAutoNoticeDecision(decision: AssistantDecisionView): boolean {
+  return decision.outcome === ASSISTANT_OUTCOMES.autoNotice && decision.decidedBy === "gate";
+}
+
+/**
+ * auto 告知卡的工单号回查：按 ticket.decisionId 精确匹配（与 findMateDecisionForTicket
+ * 同款反向投影）。工单被快照容量裁剪（ticketsMax LRU）后返回 null——调用方诚实降级
+ * 不渲染工单号，不猜测。
+ */
+export function findMateTicketIdForDecision(
+  snap: AssistantSnapshot,
+  decisionId: number,
+): string | null {
+  return snap.tickets.find((ticket) => ticket.decisionId === decisionId)?.id ?? null;
+}
+
 /** 进行中工单：dispatched（已派发未开局）与 running（turn started 后）都算。 */
 export function isMateActiveTicket(status: AssistantTicketView["status"]): boolean {
   return (
@@ -420,5 +441,25 @@ export function resolveMateErrorMessageId(
       return "mate.error.validation";
     default:
       return "mate.error.generic";
+  }
+}
+
+/**
+ * 触发结果反馈行键（F2：双测试触发按钮的即时反馈，此前 off/observe 触发静默无反馈）。
+ * 封闭映射只覆盖三态：decision_card / would_accept / ignored（ignored 文案说明
+ * 「off 模式下已记录不执行」）。auto_notice 不在此——其呈现面是决策卡区的只读告知卡
+ * （isMateAutoNoticeDecision），不在配置区重复出两处文案；未知 outcome 返回 null
+ * 不渲染（封闭集合外不发明文案）。
+ */
+export function mateTriggerOutcomeFeedbackMessageId(outcome: string): string | null {
+  switch (outcome) {
+    case ASSISTANT_OUTCOMES.decisionCard:
+      return "mate.trigger.feedback.decisionCard";
+    case ASSISTANT_OUTCOMES.wouldAccept:
+      return "mate.trigger.feedback.wouldAccept";
+    case ASSISTANT_OUTCOMES.ignored:
+      return "mate.trigger.feedback.ignored";
+    default:
+      return null;
   }
 }

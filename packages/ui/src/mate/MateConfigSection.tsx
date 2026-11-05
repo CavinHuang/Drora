@@ -7,7 +7,11 @@ import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { Button } from "@/components/ui/button.js";
 import { Switch } from "@/components/ui/switch.js";
 import { cn } from "@/components/lib/utils.js";
-import { resolveMateErrorMessageId, type MateErrorMessageId } from "./view-model.js";
+import {
+  mateTriggerOutcomeFeedbackMessageId,
+  resolveMateErrorMessageId,
+  type MateErrorMessageId,
+} from "./view-model.js";
 import { useMateStore } from "@/store/mateStore.js";
 import { useOptionalServices } from "@/hooks/useServices.jsx";
 import { useSettings } from "@/hooks/useSettingService.js";
@@ -19,9 +23,16 @@ import { useSettings } from "@/hooks/useSettingService.js";
  * P2 审查修复补交互入口）｜双测试触发按钮（点名=explicit / 未指名=inferred，直调
  * recordTrigger；P3 前替代 im 未指名形态，00 master plan §2）。
  *
- * 触发目标 = 本 pane 的 workspace（tab.workspaceIdentity 由容器传入）：P1 本地 Source
- * 只在本 workspace 语境触发，服务侧 approve 以 decision.workspace_identity 兜底。
- * 动作失败按 mate.error.* 出 role=alert 行，不在 store 落错误状态。
+ * 触发目标 = workspaceKey（AGENTS 身份键=workspaceIdentity?.trim()||workspacePath）恒
+ * 透传（F1 修复，2026-11-06）：本地 tab 的 workspaceIdentity 恒 undefined，旧实现缺席
+ * 即不带 target → trigger.workspace_identity=NULL → 服务 approve 兜底链全落空
+ * （validationFailed「缺少派发目标 workspace」，默认桌面场景放行必失败）。本地 tab 的
+ * workspaceKey=本地绝对路径，恰是 workspaceProbe 端口的合法形态；远程 tab 的
+ * workspaceKey=远程 identity，probe 诚实拒绝、卡不消费可改选（spec §8「拒绝猜测，问人」）。
+ *
+ * 动作失败按 mate.error.* 出 role=alert 行；触发成功按返回 outcome 出 role=status
+ * 反馈行（F2：decision_card/would_accept/ignored 三态封闭映射，off 模式静默修复），
+ * 均不在 store 落状态。
  */
 export const MateConfigSection = memo(function MateConfigSection({
   service,
@@ -29,18 +40,15 @@ export const MateConfigSection = memo(function MateConfigSection({
   mode,
   allowlist,
   worktreeDisabled,
-  workspaceIdentity,
   dailyQuota,
 }: {
   service: IAssistantTicketService;
-  /** 本 workspace 分域键（store 动作 single-flight 按 workspace 隔离）。 */
+  /** 本 workspace 分域键（store 动作 single-flight 按 workspace 隔离；兼触发 target）。 */
   workspaceKey: string;
   mode: AssistantMode;
   allowlist: readonly string[];
   /** W1 worktree 开关当前值（快照投影；唯一事实源，本组件不落本地副本）。 */
   worktreeDisabled: boolean;
-  /** 本 pane 所属 workspace 的 identity（触发 target；缺席=不携带由服务兜底）。 */
-  workspaceIdentity?: string;
   /** P4 第二棒（04 详设 §4）：生效每日配额（快照 quota.quota 投影；缺席=旧 Host 不渲染）。 */
   dailyQuota?: number;
 }) {
@@ -76,15 +84,22 @@ export const MateConfigSection = memo(function MateConfigSection({
 
   const [triggerText, setTriggerText] = useState("");
   const [failure, setFailure] = useState<MateErrorMessageId | null>(null);
+  // F2：触发成功反馈（outcome → 文案键封闭映射；null=本态无反馈行）。只作即时反馈，
+  // 持续呈现仍由快照推送承接（决策卡/观察行/工单行），不在 store 落状态。
+  const [triggerFeedback, setTriggerFeedback] = useState<string | null>(null);
 
   // 传输层异常（store 留 warn 日志后原样上抛）与失败臂同路出 role=alert，不留
   // unhandled rejection（PR-1B 二审发现 7）；错误码是封闭集合，异常一律落 generic。
-  const run = (pending: Promise<AssistantResult<unknown>>, onSuccess?: () => void): void => {
+  // onSuccess 回调收到结果值（F2：recordTrigger 按返回 outcome 出反馈行需要它）。
+  const run = (
+    pending: Promise<AssistantResult<unknown>>,
+    onSuccess?: (value: unknown) => void,
+  ): void => {
     pending
       .then((result) => {
         if (result.ok) {
           setFailure(null);
-          onSuccess?.();
+          onSuccess?.(result.value);
         } else {
           setFailure(resolveMateErrorMessageId(result.error));
         }
@@ -116,9 +131,17 @@ export const MateConfigSection = memo(function MateConfigSection({
       recordTrigger(service, workspaceKey, {
         text,
         simulated,
-        ...(workspaceIdentity ? { targetWorkspaceIdentity: workspaceIdentity } : {}),
+        // F1：target=workspaceKey 恒透传（AGENTS 身份键=identity?.trim()||path）。
+        // 旧实现仅在 tab.workspaceIdentity 真值时携带——本地 tab 恒 undefined，
+        // trigger.workspace_identity=NULL 使 approve 兜底链全落空成死卡。
+        targetWorkspaceIdentity: workspaceKey,
       }),
-      () => setTriggerText(""),
+      (value) => {
+        setTriggerText("");
+        setTriggerFeedback(
+          mateTriggerOutcomeFeedbackMessageId((value as { outcome?: string }).outcome ?? ""),
+        );
+      },
     );
   };
 
@@ -314,6 +337,18 @@ export const MateConfigSection = memo(function MateConfigSection({
           </Button>
         </div>
       </div>
+
+      {/* F2：触发成功反馈行（decision_card/would_accept/ignored 三态封闭映射；
+          auto_notice 不在此——呈现面是决策卡区告知卡，不重复出两处文案）。 */}
+      {triggerFeedback !== null ? (
+        <p
+          role="status"
+          className="text-ui-sm text-foreground-subtle"
+          data-testid="mate-trigger-feedback"
+        >
+          {intl.formatMessage({ id: triggerFeedback })}
+        </p>
+      ) : null}
 
       {failure !== null ? (
         <p role="alert" className="text-ui-sm text-destructive" data-testid="mate-config-error">

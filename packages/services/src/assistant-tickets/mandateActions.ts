@@ -15,11 +15,33 @@ import {
   AssistantStoreBusyError,
   AssistantStoreMigrationError,
   type AssistantDatabase,
+  type AssistantDatabaseRaw,
 } from "./assistantDatabase.js";
 import type { AssistantResult } from "./assistantTickets.js";
 
 function nowMs(): number {
   return Date.now();
+}
+
+/**
+ * 「校验失败撤销」mandate 的唯一写路径（2026-11-06 审查 G1 收敛：此前本语义有三处
+ * 逐字重复的内联 SQL——dispatchEngine.markTicketFailed / ticketLedger teamActivity /
+ * ticketLedger turn_failed——与本服务面 revokeMandate（SELECT mandate_id 后按 id 撤）
+ * 双路径并存，违反 AGENTS「避免多条写入路径」纪律）。裁决：生产路径全部收敛到本函数
+ * （事务内传 raw 复用同一连接，不拆分事务边界），revokeMandate 服务方法同走此路径。
+ * 语句形态保持生产侧原样（WHERE ticket_id + state='active'，幂等：无活动 mandate 时
+ * 零行更新）；调用方各自维持原有的 ended_ms 时域（Date.now()/nowMs）与 end_reason
+ * 前缀（dispatch_failed/team_/turn_），本函数不改写语义。
+ */
+export function revokeActiveMandateInTransaction(
+  raw: AssistantDatabaseRaw,
+  input: { ticketId: string; reason: string; endedMs: number },
+): void {
+  raw
+    .prepare(
+      "UPDATE mandate SET state = ?, ended_ms = ?, end_reason = ? WHERE ticket_id = ? AND state = ?",
+    )
+    .run("revoked", input.endedMs, input.reason, input.ticketId, "active");
 }
 
 export interface MandateActionsDeps {
@@ -88,15 +110,14 @@ export function createMandateActions(deps: MandateActionsDeps): {
     async revokeMandate(input) {
       try {
         db.transaction((raw) => {
-          const ticket = raw
-            .prepare("SELECT mandate_id FROM ticket WHERE id = ?")
-            .get(input.ticketId) as { mandate_id: string } | undefined;
-          if (!ticket) return;
-          raw
-            .prepare(
-              "UPDATE mandate SET state = ?, ended_ms = ?, end_reason = ? WHERE id = ? AND state = ?",
-            )
-            .run("revoked", nowMs(), input.reason, ticket.mandate_id, "active");
+          // G1 收敛：唯一写路径 revokeActiveMandateInTransaction（原 SELECT+按 id 撤
+          // 与生产内联 UPDATE-by-ticket_id 双路径并存；语义等价——工单当前活动 mandate
+          // 至多一条，语句形态与生产三处一致）。
+          revokeActiveMandateInTransaction(raw, {
+            ticketId: input.ticketId,
+            reason: input.reason,
+            endedMs: nowMs(),
+          });
         });
         deps.publish();
         return { ok: true, value: { ok: true } };

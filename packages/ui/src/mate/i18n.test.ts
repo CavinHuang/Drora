@@ -13,9 +13,11 @@ import zhCN from "../i18n/locales/zh-CN.js";
  */
 
 /** Mate 面板组件消费的全部 mate.* 键（MatePaneHeader/MateTrustBar/MateDecisionCard/
- *  MateTicketRow/MateReportCard/MateObserveRow/MateConfigSection/MateSidePane）。 */
+ *  MateTicketRow/MateReportCard/MateObserveRow/MateAutoNoticeRow/MateConfigSection/
+ *  MateSidePane）。 */
 const MATE_CONSUMED_KEYS: readonly string[] = [
-  // 面板标题（tab 条经 sidePane.mate 消费；本键预留给 P2 Surface A/C 标题位）。
+  // 面板标题（核真 2026-11-06：词典保留键，当前无组件消费——P2 Surface A/C 标题位从未
+  // 启用，tab 条经 sidePane.mate 消费；键保留作模块名锚点，勿再声称「预留待启用」）。
   "mate.title",
   "mate.filter.decision",
   "mate.filter.running",
@@ -155,6 +157,28 @@ const MATE_CONSUMED_KEYS: readonly string[] = [
   "mate.trust.autoSwitch.irreversible",
   "mate.trust.autoSwitch.failed",
   "mate.trust.gate.progress",
+  // G5 补齐（2026-11-06 审查；显式清单曾漏 9 个 formatMessage 可达键——均经 view-model
+  // 封闭映射函数出键，词典侧 zh/en 均在，此处补齐使断言 2 覆盖面与 docstring 一致）：
+  // 权限档 yolo（matePermissionTierMessageId——决策卡建议档徽标可达）。
+  "mate.card.tier.yolo",
+  // Router 建议四臂（mateRouterSuggestionKindMessageId）。
+  "mate.router.suggested.dispatch",
+  "mate.router.suggested.attach",
+  "mate.router.suggested.hold",
+  "mate.router.suggested.reject",
+  // 触发来源四枚举（mateSourceKindMessageId——决策卡/观察行来源徽标）。
+  "mate.source.local",
+  "mate.source.feishu",
+  "mate.source.phone",
+  "mate.source.github",
+  // F2（2026-11-06 审查）：触发成功反馈行（MateConfigSection role=status；
+  // mateTriggerOutcomeFeedbackMessageId 三态封闭映射）。
+  "mate.trigger.feedback.decisionCard",
+  "mate.trigger.feedback.wouldAccept",
+  "mate.trigger.feedback.ignored",
+  // F4（2026-11-06 审查）：auto 告知卡（MateAutoNoticeRow；spec §6「执行（出告知卡）」）。
+  "mate.autoNotice.label",
+  "mate.autoNotice.ticket",
 ];
 
 /** tab 条与 launcher 消费（sidePaneTabPresentation / AnimatedSidePanePanel launcher）。 */

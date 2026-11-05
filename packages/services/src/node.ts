@@ -36,7 +36,7 @@ import { createGenUiService } from "./gen-ui/node.js";
 /* eslint-disable max-lines -- host process 服务注册和启动装配需要集中维护，拆散后会更难追踪依赖注入顺序 */
 // Node.js service implementations — NOT safe to import in browser code
 import { randomBytes } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { mkdirSync, readFileSync } from "node:fs";
 import { homedir, hostname } from "node:os";
 import { getAppConfigDir, getAssistantWorkspaceDir, getConversationWorkspaceDir } from "./paths.js";
 import { join } from "node:path";
@@ -3582,6 +3582,11 @@ export function createLocalServices(options: {
     return sessionId;
   }
   setAssistantRouterPort(async ({ card }) => {
+    // mate-home 目录唯一创建方（2026-11-06 审查 F5 修复）：Router/assistant 会话的
+    // workspacePath=getAssistantWorkspaceDir()，此前全仓无 mkdir——CLI 会话目录不存在时
+    // spawn 走 droraAgentSpawnCwd fallback cwd（resolveDroraAgentSpawnCwd），真实落位
+    // 与设计不符。幂等 recursive 预建一次，放 `droraAgentSpawnCwd` 能选中真实目录。
+    mkdirSync(getAssistantWorkspaceDir(), { recursive: true });
     // 串行化评估（同一 Router 会话轮转内 turn 不重叠；fire-and-forget 评估在服务侧并发
     // 触发时按到达顺序排队，事件驱动完成、禁超时兜底）。
     const run = assistantRouterEvaluations.chain.then(async (): Promise<

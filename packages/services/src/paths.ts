@@ -56,7 +56,10 @@ export function getConversationWorkspaceDir(): string {
  * Drora Mate assistant 虚拟 workspace 的落位目录（specs/drora-personal-assistant.md §1.1
  * 定案，02 详设 §1.1）：~/.drora/workspace/mate-home，与共享对话目录同族、不进用户仓库。
  * identity（ASSISTANT_IDENTITY="drora-mate"）才是隔离键；本目录只承担 cwd 与 CLI 会话
- * 状态落位，惰性创建（首次 assistant 派发时由目标侧建目录）。
+ * 状态落位。创建方（2026-11-06 审查 F5 注释改事实）：宿主侧唯一创建点=services node.ts
+ * Router 装配段（setAssistantRouterPort 前）的幂等 mkdirSync(recursive)——旧注释所称
+ * 「首次派发时由目标侧建目录」与事实不符（派发无 mkdir，目录缺失时 spawn 走
+ * droraAgentSpawnCwd fallback cwd）。
  */
 export function getAssistantWorkspaceDir(): string {
   return join(getDroraDataRootDir(), "workspace", "mate-home");

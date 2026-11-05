@@ -5,6 +5,7 @@ import type { MateSidePaneTab } from "@/lib/workspaceSidePane.js";
 import { useAssistantTickets } from "@/hooks/useAssistantTickets.js";
 import { useMateStore } from "@/store/mateStore.js";
 import {
+  MateAutoNoticeRow,
   MateConfigSection,
   MateDecisionCard,
   MateDigestCard,
@@ -19,6 +20,7 @@ import {
   deriveMateStatusLine,
   deriveMateViewModel,
   isMateActiveTicket,
+  isMateAutoNoticeDecision,
   isMateAwaitingVerification,
   isMateObserveDecision,
   isMatePendingDecision,
@@ -125,6 +127,12 @@ export const MateSidePane = memo(function MateSidePane({
     () => snapshot?.decisions.filter(isMateObserveDecision) ?? [],
     [snapshot],
   );
+  // F4（spec §6 auto「执行（出告知卡）」的 UI 兑现）：auto_notice 告知卡此前只在工单行
+  // 体现，决策卡区无呈现面。只读行卡，随决策档（decision/all）展示。
+  const autoNoticeDecisions = useMemo(
+    () => snapshot?.decisions.filter(isMateAutoNoticeDecision) ?? [],
+    [snapshot],
+  );
   const showDecisions = filter === "decision" || filter === "all";
   const showObserves = filter === "observe" || filter === "all";
 
@@ -187,7 +195,7 @@ export const MateSidePane = memo(function MateSidePane({
   }
 
   const isEmpty =
-    (!showDecisions || pendingDecisions.length === 0) &&
+    (!showDecisions || (pendingDecisions.length === 0 && autoNoticeDecisions.length === 0)) &&
     (!showObserves || observeDecisions.length === 0) &&
     viewModel.groups.length === 0;
 
@@ -242,6 +250,15 @@ export const MateSidePane = memo(function MateSidePane({
                 ))}
               </div>
             ) : null}
+            {/* F4：auto 告知卡区（spec §6「执行（出告知卡）」）。只读行卡随决策档展示；
+                工单号按 ticket.decisionId 反查，全量快照透传（裁剪降级在行卡内判定）。 */}
+            {showDecisions && autoNoticeDecisions.length > 0 ? (
+              <div className="flex flex-col gap-1.5">
+                {autoNoticeDecisions.map((decision) => (
+                  <MateAutoNoticeRow key={decision.id} decision={decision} snapshot={snapshot} />
+                ))}
+              </div>
+            ) : null}
             {viewModel.groups.map((group) => (
               <MateWorkspaceGroup key={group.key} group={group}>
                 {group.tickets.map((ticket) =>
@@ -288,6 +305,9 @@ export const MateSidePane = memo(function MateSidePane({
           </div>
         )}
       </div>
+      {/* F1：触发目标=workspaceKey（AGENTS 身份键），MateConfigSection 不再区分
+          workspaceIdentity 形态——本地 tab 的 workspaceIdentity 恒 undefined，
+          旧的条件透传正是放行链断点。 */}
       <MateConfigSection
         service={service}
         workspaceKey={workspaceKey}
@@ -295,7 +315,6 @@ export const MateSidePane = memo(function MateSidePane({
         allowlist={snapshot.allowlist}
         worktreeDisabled={snapshot.worktreeDisabled}
         dailyQuota={snapshot.quota?.quota}
-        {...(tab.workspaceIdentity ? { workspaceIdentity: tab.workspaceIdentity } : {})}
       />
     </div>
   );

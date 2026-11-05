@@ -35,6 +35,7 @@ import {
   type AssistantIncarnation,
 } from "./incarnation.js";
 import { createGenerationRollover } from "./generationRollover.js";
+import { revokeActiveMandateInTransaction } from "./mandateActions.js";
 import { verifyTicketArtifacts } from "./reportCompletion.js";
 import { createQueuedRelease } from "./queuedRelease.js";
 import {
@@ -430,11 +431,13 @@ export function createDispatchEngine(deps: DispatchEngineDeps): {
         raw
           .prepare("UPDATE ticket SET status = ?, fail_reason = ?, updated_ms = ? WHERE id = ?")
           .run(ASSISTANT_TICKET_STATUSES.failed, reason, nowMs(), ticketId);
-        raw
-          .prepare(
-            "UPDATE mandate SET state = 'revoked', ended_ms = ?, end_reason = ? WHERE ticket_id = ? AND state = 'active'",
-          )
-          .run(nowMs(), `dispatch_failed: ${reason}`, ticketId);
+        // G1 收敛：mandate 撤销唯一写路径 mandateActions.revokeActiveMandateInTransaction
+        // （原内联 SQL 与 mandateActions 双路径并存；事务内传 raw 复用同一连接）。
+        revokeActiveMandateInTransaction(raw, {
+          ticketId,
+          reason: `dispatch_failed: ${reason}`,
+          endedMs: nowMs(),
+        });
       });
       deps.publish();
     } catch (error) {

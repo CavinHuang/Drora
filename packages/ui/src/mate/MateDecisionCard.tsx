@@ -43,8 +43,12 @@ import { MateSourceBadge } from "./MateSourceBadge.js";
  *   只携带 queued 标志，本卡不伪造 reason。
  *
  * 动作全走 mateStore（service 作参数注入）；失败按 resolveMateErrorMessageId 出
- * role=alert 行，不在 store 落错误状态。目标 workspace 不由本卡选择（P1 语义保留）：
- * 建议预填值随放行显式传，服务侧 decision.workspace_identity 仍兜底。
+ * role=alert 行，不在 store 落错误状态。本卡不提供目标选择控件（P1 语义保留）：放行
+ * 目标=Router 建议预填值，缺省**显式**回落本 pane 的 workspaceKey（F1 修复，2026-11-06
+ * ——本地 tab 的 workspaceIdentity 恒 undefined，旧实现只在有建议目标时显式传参，其余
+ * 形态依赖服务兜底链 decision.workspace_identity，而旧触发未落 target 时该值 NULL，
+ * 全链落空成 validationFailed「缺少派发目标」死卡）；服务侧 decision.workspace_identity
+ * 仍兜底（托盘 decide / auto 无目标降级同链自然闭合）。
  */
 export const MateDecisionCard = memo(function MateDecisionCard({
   decision,
@@ -106,12 +110,10 @@ export const MateDecisionCard = memo(function MateDecisionCard({
       approveDecision(service, workspaceKey, {
         decisionId: decision.id,
         permissionTier: approveTier,
-        // 建议目标预填：dispatch 与 attach 建议都携带 targetWorkspaceIdentity
-        // （服务侧 approve 对两种 kind 的建议 arm.target 做同参兜底，显式传更诚实）。
-        ...((suggestion?.kind === "dispatch" || suggestion?.kind === "attach") &&
-        suggestion.targetWorkspaceIdentity
-          ? { targetWorkspaceIdentity: suggestion.targetWorkspaceIdentity }
-          : {}),
+        // 放行目标（F1 修复）：建议目标预填优先（dispatch/attach 建议的 arm.target，
+        // 服务侧同参校验兜底）；无建议/建议无目标时显式回落本 pane workspaceKey——
+        // 比只靠服务兜底链诚实（旧触发 target 未落库时兜底链全空成死卡）。
+        targetWorkspaceIdentity: suggestion?.targetWorkspaceIdentity ?? workspaceKey,
         ...extra,
       }),
     );
@@ -306,10 +308,8 @@ export const MateDecisionCard = memo(function MateDecisionCard({
                     decisionId: decision.id,
                     briefAppendix: appendix,
                     permissionTier: approveTier,
-                    ...((suggestion?.kind === "dispatch" || suggestion?.kind === "attach") &&
-                    suggestion.targetWorkspaceIdentity
-                      ? { targetWorkspaceIdentity: suggestion.targetWorkspaceIdentity }
-                      : {}),
+                    // F1 同主放行臂：建议目标预填优先，缺省显式回落 workspaceKey。
+                    targetWorkspaceIdentity: suggestion?.targetWorkspaceIdentity ?? workspaceKey,
                     ...(suggestion?.kind === "attach" && suggestion.sessionId
                       ? { attachToSessionId: suggestion.sessionId }
                       : {}),

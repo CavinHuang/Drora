@@ -8,6 +8,7 @@ export {
   deriveMateViewModel,
   findMateDecisionForTicket,
   isMateActiveTicket,
+  isMateAutoNoticeDecision,
   isMateAutoSwitchAvailable,
   isMateAwaitingVerification,
   isMateObserveDecision,
@@ -32,17 +33,16 @@ export type {
   MateViewModel,
   MateViewCounts,
 } from "./view-model.js";
-// P3 桌宠接缝投影（spec §11 落地注记；MatePetSync 发布方与验收资产共用）。
-export {
-  deriveMatePetBubble,
-  matePetBubbleKey,
-  matePetReportSummary,
-  projectMatePet,
-} from "./petProjection.js";
+// P3 桌宠接缝投影（spec §11 落地注记）：barrel 只外泄 MatePetSync 发布方消费的
+// projectMatePet/deriveMatePetBubble；matePetBubbleKey/matePetReportSummary 是
+// petProjection 内部辅助（模块外零引用，G3 审查 2026-11-06 收敛）——经 petProjection
+// 自测直连 "./petProjection.js" 消费，不经 barrel 外泄。
+export { deriveMatePetBubble, projectMatePet } from "./petProjection.js";
 export type { MateLocalUiState } from "./contract.js";
 export { mateTicketLampTone, MATE_LAMP_TONE_CLASS } from "./statusTone.js";
 export type { MateLampTone } from "./statusTone.js";
 export { MateLamp } from "./MateLamp.js";
+export { MateAutoNoticeRow } from "./MateAutoNoticeRow.js";
 export { MatePaneHeader } from "./MatePaneHeader.js";
 export { MateStatusStrip } from "./MateStatusStrip.js";
 export { MateDigestCard } from "./MateDigestCard.js";

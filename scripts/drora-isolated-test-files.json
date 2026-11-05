@@ -6,6 +6,7 @@
   "packages/desktop/test/pluginE2EAdmissionScripts.test.ts",
   "packages/desktop/test/windowHostControllerMateOverlay.test.ts",
   "packages/desktop/test/windowsInstallerCompile.test.ts",
+  "packages/services/test/assistantDispatchTarget.test.ts",
   "packages/services/test/assistantFrameLedger.test.ts",
   "packages/services/test/assistantP2Flows.test.ts",
   "packages/services/test/assistantP4Host.test.ts",

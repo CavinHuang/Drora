@@ -26,6 +26,10 @@ export const mateMessagesEn = {
   "mate.trust.autoSwitch.list": "Allowlist: {allowlist} · Soft budget: {budget} active per workspace",
   "mate.trust.autoSwitch.confirm": "Switch to auto",
   "mate.trust.autoSwitch.failed": "The switch failed; the trust gate may have closed again.",
+  // ---- F4（2026-11-06 审查）：auto 告知卡（spec §6「执行（出告知卡）」的 UI 兑现；
+  // 只读行卡，工单号按 ticket.decisionId 反查、缺席不渲染） ----
+  "mate.autoNotice.label": "Auto-executed per the auto rules",
+  "mate.autoNotice.ticket": "Ticket {ticketId}",
   "mate.card.approve": "Approve",
   "mate.card.ignore": "Ignore",
   "mate.card.edit": "Append & approve",
@@ -54,6 +58,10 @@ export const mateMessagesEn = {
   "mate.config.trigger.explicit": "Named trigger",
   "mate.config.trigger.inferred": "Unaddressed trigger",
   "mate.config.triggerPlaceholder": "Trigger text (recorded verbatim)",
+  // ---- F2（2026-11-06 审查）：触发成功反馈行（outcome 三态封闭映射；off 静默修复） ----
+  "mate.trigger.feedback.decisionCard": "Recorded: a decision card is waiting for your approval.",
+  "mate.trigger.feedback.wouldAccept": "Recorded as an observation (would-accept; not executed).",
+  "mate.trigger.feedback.ignored": "Recorded in off mode; not executed.",
   "mate.error.store.busy": "The ledger store is busy. Try again shortly.",
   "mate.error.store.migration": "The ledger store failed to migrate.",
   "mate.error.yolo": "The yolo tier requires human approval.",
@@ -196,6 +204,10 @@ export const mateMessagesZh = {
   "mate.trust.autoSwitch.list": "名单：{allowlist} · 软预算：每 workspace {budget} 个活动工单",
   "mate.trust.autoSwitch.confirm": "确认切换",
   "mate.trust.autoSwitch.failed": "切换失败：信任门可能已回落未达标。",
+  // ---- F4（2026-11-06 审查）：auto 告知卡（spec §6「执行（出告知卡）」的 UI 兑现；
+  // 只读行卡，工单号按 ticket.decisionId 反查、缺席不渲染） ----
+  "mate.autoNotice.label": "已按 auto 规则自动执行",
+  "mate.autoNotice.ticket": "工单号 {ticketId}",
   "mate.card.approve": "放行",
   "mate.card.ignore": "忽略",
   "mate.card.edit": "追加说明后放行",
@@ -223,6 +235,10 @@ export const mateMessagesZh = {
   "mate.config.trigger.explicit": "点名触发",
   "mate.config.trigger.inferred": "未指名触发",
   "mate.config.triggerPlaceholder": "输入触发原文（verbatim 记录）",
+  // ---- F2（2026-11-06 审查）：触发成功反馈行（outcome 三态封闭映射；off 静默修复） ----
+  "mate.trigger.feedback.decisionCard": "已记录：决策卡已生成，等待放行。",
+  "mate.trigger.feedback.wouldAccept": "已记录：观察中（would-accept，零执行）。",
+  "mate.trigger.feedback.ignored": "off 模式下已记录不执行。",
   "mate.error.store.busy": "台账库忙，请稍后重试。",
   "mate.error.store.migration": "台账库迁移失败。",
   "mate.error.yolo": "yolo 档必须人工放行。",

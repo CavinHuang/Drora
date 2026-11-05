@@ -103,6 +103,26 @@ expandedDecisionId` 三件 UI 局部态，按 workspace 分域（`byWorkspace`�
   （admitDisturbance 自身推快照会触发 effect 重跑——重跑即取消会让气泡永不出现，
   e2e 实测捕获）。兑现 P3「配额归配额中心同一计数」注记。
 
+## 审查修复批（2026-11-06，运行链可用性/交付完整性审查）
+
+- **放行/触发目标契约（F1）**：触发与放行的 `targetWorkspaceIdentity` **恒等于
+  `workspaceKey`**（AGENTS 身份键 `workspaceIdentity?.trim()||workspacePath`）。本地 tab
+  的 `tab.workspaceIdentity` 恒 undefined（node.ts prepareProjectExecution 显式
+  undefined），旧实现「仅在 identity 真值时透传」使 `trigger.workspace_identity=NULL`
+  → 服务 approve 兜底链全落空（validationFailed「缺少派发目标」死卡）。本地形态
+  workspaceKey=本地绝对路径（workspaceProbe 端口合法形态）；远程形态=远程 identity，
+  probe 诚实拒绝、卡不消费可改选（spec §8）。`MateConfigSection` 的
+  `workspaceIdentity` prop 随之移除（死参数即断链根源）。
+- **auto 告知卡（F4）**：`MateAutoNoticeRow` 只读行卡（MateObserveRow 同款形态），
+  谓词 `isMateAutoNoticeDecision`（outcome=auto_notice×decidedBy=gate），随决策档展示；
+  工单号经 `findMateTicketIdForDecision`（ticket.decisionId 反查）缺席不渲染。兑现
+  spec §6「执行（出告知卡）」的 UI 侧。
+- **触发反馈行（F2）**：MateConfigSection 按返回 outcome 出 role=status 反馈
+  （`mateTriggerOutcomeFeedbackMessageId` 三态封闭映射；auto_notice 不在配置区重复出文案）。
+- **barrel 收敛（G3）**：`matePetBubbleKey`/`matePetReportSummary` 为 petProjection
+  内部辅助（模块外零引用），移出 index.ts 公开入口；`projectMatePet`/`deriveMatePetBubble`
+  （MatePetSync 发布方消费）不变。
+
 ## 与其它模块的交集
 
 - `services`（assistant-tickets）：channel 代理消费快照与动作；类型引用只走 services

@@ -19,6 +19,7 @@ import { ASSISTANT_SNAPSHOT_LIMITS, ASSISTANT_TICKET_STATUSES } from "@drora/sha
 
 import { createServiceLogger } from "../logger/serviceLogger.js";
 import type { AssistantDatabase } from "./assistantDatabase.js";
+import { revokeActiveMandateInTransaction } from "./mandateActions.js";
 import { parseWriteDomainColumn } from "./writeDomain.js";
 
 const logger = createServiceLogger("assistant-tickets");
@@ -132,11 +133,13 @@ export function createTicketLedger(deps: TicketLedgerDeps): {
           )
           .run(nextStatus, failReason, Math.max(input.atMs, row.updated_ms), input.ticketId);
         if (nextStatus === ASSISTANT_TICKET_STATUSES.failed) {
-          raw
-            .prepare(
-              "UPDATE mandate SET state = 'revoked', ended_ms = ?, end_reason = ? WHERE ticket_id = ? AND state = 'active'",
-            )
-            .run(Date.now(), `team_${input.teamStatus}`, input.ticketId);
+          // G1 收敛：mandate 撤销唯一写路径（原内联 SQL；ended_ms 保持 Date.now() 时域
+          // ——ledger 单调守卫在该时域，勿改用 atMs）。
+          revokeActiveMandateInTransaction(raw, {
+            ticketId: input.ticketId,
+            reason: `team_${input.teamStatus}`,
+            endedMs: Date.now(),
+          });
         }
         if (becameTerminal) {
           // 终态后续动作（queued 释放/worktree 清理）在事务提交后执行，失败不回滚归账。
@@ -317,11 +320,13 @@ export function createTicketLedger(deps: TicketLedgerDeps): {
           );
         if (!terminal && (input.kind === "turn_failed" || input.kind === "turn_cancelled")) {
           // mandate 撤销与工单更新同事务（markTicketFailed 同款语义，三途径之二）。
-          raw
-            .prepare(
-              "UPDATE mandate SET state = 'revoked', ended_ms = ?, end_reason = ? WHERE ticket_id = ? AND state = 'active'",
-            )
-            .run(Date.now(), `turn_${input.kind}: ${failReason}`, input.ticketId);
+          // G1 收敛：唯一写路径 mandateActions.revokeActiveMandateInTransaction（ended_ms
+          // 保持 Date.now() 时域——ledger 单调守卫在该时域，勿改用 atMs）。
+          revokeActiveMandateInTransaction(raw, {
+            ticketId: input.ticketId,
+            reason: `turn_${input.kind}: ${failReason}`,
+            endedMs: Date.now(),
+          });
         }
         if (becameTerminal) {
           pendingTerminal.push({

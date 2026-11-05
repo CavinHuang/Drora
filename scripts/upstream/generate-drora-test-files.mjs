@@ -79,6 +79,11 @@ const forkIsolated = norm([
   // --project drora-fork-isolated 定向执行）。
   "packages/services/test/assistantSourceIngest.test.ts",
   "packages/services/test/assistantSourceRegistry.test.ts",
+  // Drora Mate P3 接缝批（2026-11-05）：桌宠桥路由纯核 + tray 速览 DOM 与投影/气泡
+  // 纯函数随 mate 回归同组（view-model.test.ts 先例；门禁以 --project drora-fork-isolated
+  // 定向执行）。
+  "packages/desktop/test/desktopPetMateSeam.test.ts",
+  "packages/ui/src/mate/petProjection.test.ts",
   "packages/drora-server-cli/test/runtimeUpdateIntegration.test.ts",
   "packages/ui/test/pdfJsCMapSupport.test.ts",
 ]).filter((f) => existsSync(resolve(root, f)));

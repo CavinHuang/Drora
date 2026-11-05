@@ -22,6 +22,8 @@ import { ServiceProvider } from "../../src/hooks/useServices.js";
 import { TooltipProvider } from "../../src/components/ui/tooltip.js";
 import { MateSidePane } from "../../src/app-shell/MateSidePane.js";
 import { MateSessionLine } from "../../src/mate/session-line.js";
+import { MatePetSync } from "../../src/root/MatePetSync.js";
+import type { IPlatformService } from "@drora/shared";
 import type { MateSidePaneTab } from "../../src/lib/workspaceSidePane.js";
 import "../../src/styles.css";
 
@@ -511,6 +513,9 @@ function Fixture() {
   const [lastBrief, setLastBrief] = useState("");
   const [lastApprove, setLastApprove] = useState("");
   const [lastIngest, setLastIngest] = useState("");
+  // P3 桌宠接缝发布方验收：捕获 MatePetSync 经 platform.publishMatePet 发布的最新投影
+  // （真实 Main 转发/宠物窗渲染在 desktop matePetBridge/tray DOM 单测与真机链路覆盖）。
+  const [lastProjection, setLastProjection] = useState("");
   const {
     service,
     approveDirect,
@@ -535,6 +540,13 @@ function Fixture() {
   const accessor = useMemo(
     () => ({ assistantTicketService: service }) as IServiceAccessor,
     [service],
+  );
+  const petPlatform = useMemo(
+    () =>
+      ({
+        publishMatePet: (projection: unknown) => setLastProjection(JSON.stringify(projection)),
+      }) as unknown as IPlatformService,
+    [],
   );
   const handleApproveAgain = useCallback(async () => {
     // 场景 4：绕过 UI 直调服务（同 decisionId 二次放行），断言不二派。
@@ -645,10 +657,15 @@ function Fixture() {
               <div className="w-full" data-testid="fixture-session-line-absent">
                 <MateSessionLine activity={undefined} />
               </div>
+              {/* P3 桌宠接缝：发布方组件（窗口 Host services 作用域同构）+ 投影读点。 */}
+              <div className="w-full" data-testid="fixture-mate-pet-sync">
+                <MatePetSync platform={petPlatform} />
+              </div>
               <output data-testid="fixture-open-session">{openSession ?? ""}</output>
               <output data-testid="fixture-last-brief">{lastBrief}</output>
               <output data-testid="fixture-approve-input">{lastApprove}</output>
               <output data-testid="fixture-last-ingest">{lastIngest}</output>
+              <output data-testid="fixture-mate-pet-projection">{lastProjection}</output>
             </div>
             <div className="mx-auto" style={{ width: 480, height: 780 }}>
               <MateSidePane

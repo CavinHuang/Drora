@@ -96,18 +96,22 @@ export function matePetBubbleKey(report: MatePetLatestReport): string {
 }
 
 /**
- * 气泡状态机（纯函数）：给上一登记键与本帧汇报，返回是否弹泡与下一登记键。
- * - shownKey=null（冷启动首帧）：只登记不弹——历史汇报直达 tray 速览。
- * - key 与登记键不同（会话期间新到达）：弹泡并推进登记键。
- * - 同键重复帧：不弹（同工单 usage/状态后续更新不重弹）。
+ * 气泡状态机（纯函数）：给上一帧的汇报登记态与本帧汇报，返回是否弹泡与下一登记态。
+ * - previous=null（发布方挂载后首帧，含冷启动已存在的旧汇报）：只登记不弹——历史汇报
+ *   直达 tray 速览最新汇报行。
+ * - 上一帧无汇报（key=null）本帧出现汇报、或汇报键变化（同工单换代后再次终态）：
+ *   弹泡——会话期间新到达的汇报必须提示。
+ * - 同键重复帧：不弹；汇报被快照容量裁剪（本帧 report=null）不弹且保留登记键——
+ *   同一汇报键在发布方生命周期内至多弹一次。
  */
 export function deriveMatePetBubble(
-  shownKey: string | null,
+  previous: { readonly key: string | null } | null,
   report: MatePetLatestReport | null,
-): { show: boolean; nextKey: string | null } {
-  if (!report) return { show: false, nextKey: shownKey };
+): { show: boolean; next: { readonly key: string | null } } {
+  if (previous === null) {
+    return { show: false, next: { key: report ? matePetBubbleKey(report) : null } };
+  }
+  if (!report) return { show: false, next: { key: previous.key } };
   const key = matePetBubbleKey(report);
-  if (shownKey === null) return { show: false, nextKey: key };
-  if (key === shownKey) return { show: false, nextKey: shownKey };
-  return { show: true, nextKey: key };
+  return { show: key !== previous.key, next: { key } };
 }

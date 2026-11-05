@@ -56,13 +56,20 @@ export function inspectRetiredAppUnitEvidence(markdown, { engineeringTests = new
 }
 
 export async function inspectCoverageMatrices(root = repoRoot) {
-  // 现行清单 = engineering + drora 双显式清单（AGENTS.md「工程 Vitest 为 engineering+drora
-  // 双显式清单」）：两份清单里的测试都是保留集，coverage matrix 引用它们不加 retired: 前缀。
-  // 修复背景：PR-1B 在矩阵引用 packages/services/test/assistantTicketsService.test.ts
-  // （drora 清单、在跑），首版只豁免 engineering 清单而把它误判为退役 App 单测。
+  // 现行保留集 = engineering + drora 并发清单 + drora-fork-isolated 串行清单三份显式清单：
+  // 串行清单是 drora 侧第二工程（vitest.config.ts「Drora 保留回归…串行隔离」），经 mate P2
+  // 门禁平移（d156000e9）与 drora 并发清单互斥登记、执行通道唯一，同属 AGENTS「自研回归」
+  // 保留集；三份清单里的测试都在跑，coverage matrix 引用它们不加 retired: 前缀。
+  // 修复背景一：PR-1B 在矩阵引用 packages/services/test/assistantTicketsService.test.ts
+  // （当时在 drora 清单、在跑），首版只豁免 engineering 清单而把它误判为退役 App 单测。
+  // 修复背景二（2026-11-05 mate P4 门禁第 1 轮）：P2/P3 平移把 assistant* 服务测试等 mate
+  // 回归互斥移入 drora-isolated-test-files.json 后，本函数仍只并 engineering+drora 两清单，
+  // 终审矩阵如实引用在跑的 assistantTicketsService/assistantP4Report 服务单测再次被误判为
+  // 退役证据——按 spec「retired-app-unit-evidence 按本仓实际保留面适配」，串行清单并入现行集。
   const engineeringTests = new Set([
     ...JSON.parse(await readFile(resolve(root, "scripts/engineering-test-files.json"), "utf8")),
     ...JSON.parse(await readFile(resolve(root, "scripts/drora-test-files.json"), "utf8")),
+    ...JSON.parse(await readFile(resolve(root, "scripts/drora-isolated-test-files.json"), "utf8")),
   ]);
   const directory = resolve(root, "docs/testing");
   const files = (await readdir(directory))

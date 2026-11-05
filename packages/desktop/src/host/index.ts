@@ -94,6 +94,7 @@ import {
   OffPeakModelUnavailableError,
   OffPeakPermanentDispatchError,
   computeMateActivityByWorkspace,
+  getAssistantTicketsHostFace,
   type BotProjectConnection,
   type HostApiNetworkTransport,
   type OffPeakRequestAuthBuilder,
@@ -151,6 +152,7 @@ import {
   type RemoteMediaPreviewProxy,
 } from "./remoteMediaPreviewProxy.js";
 import { watchCronRunBotDelivery } from "./cronBotDelivery.js";
+import { startMateWatchdogCron, type MateWatchdogCronHandle } from "./cronMateWatchdog.js";
 import { createHostRemoteWorkspaceProxyState } from "./hostRemoteWorkspaceProxyState.js";
 import {
   createServerRemoteWorkspaceServiceCollection,
@@ -2470,6 +2472,24 @@ function wireMateActivityBridge(services: ServiceCollection): void {
   }
 }
 
+// Drora Mate watchdog cron（04 详设 §1；spec §10 P4 落地注记）：进程内单例定时器，
+// 每 tick 经 host face 调服务内部 watchdog 轮（到轮判定/节流在服务侧按 kv 裁决——
+// watchdog_interval_ms 可调 15 分钟/轮缺省）。face 按最新服务集合动态解析（服务集合
+// 换代跟随新实例），定时器句柄不重建；纯读台账+标记+配额判定，不进任何会话。
+let mateWatchdogFaceServices: ServiceCollection | null = null;
+let mateWatchdogCron: MateWatchdogCronHandle | null = null;
+function wireMateWatchdogCron(services: ServiceCollection): void {
+  mateWatchdogFaceServices = services;
+  if (mateWatchdogCron) return;
+  mateWatchdogCron = startMateWatchdogCron({
+    resolveFace: () =>
+      mateWatchdogFaceServices
+        ? getAssistantTicketsHostFace(mateWatchdogFaceServices)
+        : null,
+    logWarn: (message, error) => logger.warn(message, error),
+  });
+}
+
 const windowHostControllerRuntime = createWindowHostControllerRuntime({
   onRunStarted: (run) =>
     parentPort?.postMessage({
@@ -4242,6 +4262,7 @@ parentPort.on("message", async (e: Electron.MessageEvent) => {
               initializedServices.getOptional(IClientConfigService);
             activeHostApiNetworkTransport = hostApiNetworkTransport;
             wireMateActivityBridge(initializedServices);
+            wireMateWatchdogCron(initializedServices);
             return initializedServices;
           },
         });

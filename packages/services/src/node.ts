@@ -660,13 +660,15 @@ import {
   setAssistantSessionsIndexPort,
   setAssistantWorkspaceProbePort,
   setAssistantGitWorktreePort,
+  setAssistantSettingsPort,
 } from "./assistant-tickets/assistantPorts.js";
 import type {
   AssistantSessionSummaryLite,
   AssistantSessionsIndexWatchDelta,
 } from "./assistant-tickets/assistantPorts.js";
 import { ROUTER_KV_KEYS, shouldRotateRouterSession } from "./assistant-tickets/routerShell.js";
-import { ASSISTANT_ERROR_CODES, ASSISTANT_IDENTITY } from "@drora/shared";
+import type { AssistantWatchdogRoundResult } from "./assistant-tickets/watchdog.js";
+import { ASSISTANT_ERROR_CODES, ASSISTANT_IDENTITY, ASSISTANT_SETTINGS_KEYS } from "@drora/shared";
 import type { SessionSummary } from "@drora/shared/drora-protocol-v4";
 import { createGitCommandProvider } from "./git/providers/gitCommandProvider.js";
 import { isAbsolute } from "node:path";
@@ -883,6 +885,21 @@ const taskAutoArchiveDisposers = new WeakMap<ServiceCollection, () => void>();
 // Drora Mate Source 注册表 dispose（P3）：停全部 Source + 退订台账快照（attach 助手
 // 语义：先退订后停源）；同步/等待两条 dispose 路径都调用。
 const assistantSourceDisposers = new WeakMap<ServiceCollection, () => void>();
+// Drora Mate watchdog host face（P4，04 详设 §1）：desktop host 定时器
+// （host/cronMateWatchdog.ts）经此调用服务内部 watchdog 轮——到轮判定在服务内按 kv
+// 裁决，定时器只负责 tick。WeakMap 照 assistantSourceDisposers 先例（服务集合换代
+// 不串实例；renderer 不可达——host face 不进 channel 代理面）。
+export interface AssistantTicketsHostFace {
+  runWatchdogRound(input?: {
+    nowMs?: number;
+  }): Promise<AssistantWatchdogRoundResult>;
+}
+const assistantTicketsHostFaces = new WeakMap<ServiceCollection, AssistantTicketsHostFace>();
+export function getAssistantTicketsHostFace(
+  services: ServiceCollection,
+): AssistantTicketsHostFace | null {
+  return assistantTicketsHostFaces.get(services) ?? null;
+}
 // TaskIndexRepo / OffPeakTaskRepo 等各自持有 tasks-index.sqlite 的连接句柄；
 // dispose 链必须统一关闭：Windows 上句柄悬着会让宿主回收后临时目录 rm 撞 EBUSY
 // （stdioDesktopPresentationSurface 单测稳定复现），Linux 的 unlink-while-open 语义掩盖了泄漏。
@@ -3900,6 +3917,26 @@ export function createLocalServices(options: {
     },
   });
   sqliteReposToClose.push({ close: () => assistantDatabase.close() });
+
+  // AppSettings 端口（P4 配额中心，04 详设 §4）：每日打扰配额 droraMateDailyQuota 实时读
+  // ——判定每次 admitDisturbance/watchdog 轮都经此读（settings.get 为异步 IO，端口即
+  // 闭包）；键字面量 contracts ASSISTANT_SETTINGS_KEYS 单出处。设置服务缺席（远端降级
+  // 形态）→ undefined（quotaCenter 归一回落缺省 5）。
+  setAssistantSettingsPort({
+    readDailyQuota: async () => {
+      try {
+        const settings = await settingService.get();
+        return settings[ASSISTANT_SETTINGS_KEYS.dailyQuota];
+      } catch {
+        return undefined;
+      }
+    },
+  });
+  // watchdog host face（P4，04 详设 §1）：desktop host cron 经 getAssistantTicketsHostFace
+  // 取轮入口；awaitingCandidates 接缝（§3 工件核验）本批缺省空——判据不激活。
+  assistantTicketsHostFaces.set(services, {
+    runWatchdogRound: (input) => assistantTicketService.runWatchdogRound(input),
+  });
 
   // Source 注册表（03 详设 §1-§5，P3 host 侧批次）：飞书=bots assistantForwarder 出口
   // （桥已在前置声明）；手机=submitSourceEntry 通道事件面（本 Source 的运行态门 + 桥

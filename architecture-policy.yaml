@@ -1427,6 +1427,10 @@ global:
   acceptedUpstreamSnapshot: scripts/architecture/upstream-snapshot.json
 
 exceptions:
+  - id: mate-watchdog-host-cron-new-file
+    rule: unmanaged-new-file
+    paths: [ packages/desktop/src/host/cronMateWatchdog.ts ]
+    reason: P4 watchdog 定时器挂载（04 详设 §1 落地注记）照 startManualClaimHeartbeat（host/cronRunLifecycle.ts）的 setInterval 先例落 host 目录同位新文件；纯 tick 驱动（到轮判定/判据/标记在 managed assistant-tickets/watchdog.ts），经 services/node host face 调用，不进任何会话。desktop host 目录接管不在本轮范围。
   - id: window-host-attachment-rpc-policy-existing-edit
     rule: unmanaged-new-file
     paths: [ packages/desktop/src/host/windowHostAttachmentRpcPolicy.ts ]

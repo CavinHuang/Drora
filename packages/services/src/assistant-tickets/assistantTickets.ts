@@ -28,6 +28,23 @@ export interface AssistantTriggerView {
   readonly identity: string;
   readonly text: string;
   readonly atMs: number;
+  /** P2：触发目标 workspace（mateActivity 聚合与决策卡预填的归属键；缺席=未指定）。 */
+  readonly targetWorkspaceIdentity?: string | null;
+}
+
+/**
+ * Router 建议预填（02 详设 §1.3：决策卡预填 Router 建议与证据，人终审 Y/N/E）。
+ * kind 与 services routerDecision.ts 的 RouterDecision 四臂对齐（UI type-only）。
+ */
+export interface AssistantRouterSuggestionView {
+  readonly kind: "dispatch" | "attach" | "hold" | "reject";
+  readonly targetWorkspaceIdentity?: string;
+  readonly sessionId?: string;
+  readonly permissionTier?: AssistantPermissionTier;
+  readonly briefBase?: "verbatim" | "verbatim+appendix";
+  readonly appendix?: string;
+  readonly reason?: string;
+  readonly evidence: readonly string[];
 }
 
 export interface AssistantDecisionView {
@@ -40,7 +57,19 @@ export interface AssistantDecisionView {
   readonly decidedMs: number;
   /** 决策卡可用：对应的 trigger 正文预览（verbatim 首行截断）。 */
   readonly triggerText: string;
+  /** P2：Router 评估状态（pending=评估中；suggested=有建议；failed=降级 Tier3 问人）。 */
+  readonly routerState?: "pending" | "suggested" | "failed";
+  /** P2：Router 建议预填（schema 校验通过才有；failed 时缺省）。 */
+  readonly routerSuggestion?: AssistantRouterSuggestionView;
+  /** P2：Router 评估失败原因（诚实展示，不重试模型）。 */
+  readonly routerError?: string;
 }
+
+/** 写域视图（02 详设 §4；UI 据此明示隔离形态——worktree=目录级，paths=声明域，workspace=未隔离）。 */
+export type AssistantWriteDomainView =
+  | { readonly kind: "workspace" }
+  | { readonly kind: "worktree"; readonly path: string; readonly branch: string }
+  | { readonly kind: "paths"; readonly paths: readonly string[] };
 
 export interface AssistantTicketView {
   readonly id: string;
@@ -53,12 +82,24 @@ export interface AssistantTicketView {
   readonly targetWorkspaceIdentity: string | null;
   readonly sessionId: string | null;
   readonly updatedAtMs: number;
+  /** P2：派发模式（A=独立；B=建队；C=附着；未派发=undefined）。 */
+  readonly dispatchMode?: "A" | "B" | "C";
+  /** P2：写域（spec §9；queued/approved 即有值）。 */
+  readonly writeDomain?: AssistantWriteDomainView;
+  /** P2：已归档代际数（+1=当前代序号）。 */
+  readonly generationCount?: number;
+  /** P2：当代锚（最后成功投递的 commandId；null=尚未投递）。 */
+  readonly anchorCommandId?: string | null;
+  /** P2：queued 原因（软预算告知卡文案）。 */
+  readonly queuedReason?: string | null;
 }
 
 export interface AssistantConfigView {
   readonly mode: AssistantMode;
   readonly allowlist: readonly string[];
   readonly budgetMaxActivePerWorkspace: number;
+  /** P2：W1 worktree 用户开关（spec §9：关闭 → W2 声明域；kv worktree_disabled，缺省 false）。 */
+  readonly worktreeDisabled: boolean;
 }
 
 export interface AssistantTrustView {
@@ -67,7 +108,8 @@ export interface AssistantTrustView {
 }
 
 export interface AssistantSnapshot {
-  readonly version: 1;
+  /** v2（2026-11-05，P2）：决策卡 Router 建议预填 + 工单写域/代际/锚/模式字段。 */
+  readonly version: 2;
   readonly mode: AssistantMode;
   readonly allowlist: readonly string[];
   readonly budget: { readonly maxActivePerWorkspace: number };
@@ -109,13 +151,19 @@ export interface IAssistantTicketService {
    * 决策卡人工放行（explicit×observe 路径；P1 Mode A 直派）。
    * briefAppendix 追加段拼在 verbatim 原文之后（原文永不改写）；
    * permissionTier 缺省取 build；同 decision 重复放行幂等返回首次 ticketId。
+   * P2 扩展：dispatchMode='B' → 建队（prompt 驱动 /team，spec §7）；
+   * attachToSessionId 非空 → Mode C 附着该既有会话（派发桥校验存在/归属后投递，
+   * 决策卡从 Router attach 建议预填，"开新会话"恒为人工选项）；
+   * 软预算满/写域冲突 → 工单 queued + 返回 queued:true（告知卡文案在 ticket.queuedReason）。
    */
   approveDecision(input: {
     decisionId: number;
     briefAppendix?: string;
     permissionTier?: Exclude<AssistantPermissionTier, typeof ASSISTANT_PERMISSION_TIERS.yolo>;
     targetWorkspaceIdentity?: string;
-  }): Promise<AssistantResult<{ ticketId: string; sessionId: string }>>;
+    dispatchMode?: "A" | "B";
+    attachToSessionId?: string;
+  }): Promise<AssistantResult<{ ticketId: string; sessionId: string; queued?: boolean }>>;
 
   /** 忽略决策卡（N）：decision 记 rejected，trigger 保留。 */
   ignoreDecision(input: { decisionId: number }): Promise<AssistantResult<{ ok: true }>>;

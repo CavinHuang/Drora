@@ -53,22 +53,136 @@ export interface TicketLedgerDeps {
   readonly db: AssistantDatabase;
   /** 归账后推送快照（服务闭包的 publish）。 */
   readonly publish: () => void;
+  /**
+   * P2：工单进入终态后的后续动作钩子（事务提交后调用；queued FIFO 释放、W1 worktree
+   * 清理挂这里——钩子内部异常只记日志，不回滚已提交归账）。
+   */
+  readonly onTicketTerminal?: (input: {
+    readonly ticketId: string;
+    readonly workspaceIdentity: string;
+    readonly status: string;
+  }) => void;
 }
 
 export function createTicketLedger(deps: TicketLedgerDeps): {
   /** 归账一条事件；返回本条是否使工单进入终态（帧接线据此退订）。 */
   applyTicketTurnEvent(input: AssistantTicketTurnEventInput): boolean;
+  /**
+   * P2 第三信号（02 详设 §5）：sessions-index teamActivity 归账（Mode B 工单）。
+   * team completed→done；cancelled/archived→failed（reason=team_<status>，诚实留痕）；
+   * 其余状态→running。单调纪律与 usage 累进同 applyTicketTurnEvent。
+   */
+  applyTicketTeamEvent(input: {
+    readonly ticketId: string;
+    readonly teamStatus: string;
+    readonly atMs: number;
+  }): boolean;
 } {
   const { db, publish } = deps;
+
+  function applyTicketTeamEvent(input: {
+    ticketId: string;
+    teamStatus: string;
+    atMs: number;
+  }): boolean {
+    try {
+      let becameTerminal = false;
+      // 事务内收集、提交后派发（钩子异常只记日志，不回滚已提交归账）。
+      const pendingTerminal: Array<{
+        ticketId: string;
+        workspaceIdentity: string;
+        status: string;
+      }> = [];
+      db.transaction((raw) => {
+        const row = raw
+          .prepare("SELECT status, usage_accum, updated_ms, target_workspace_identity FROM ticket WHERE id = ?")
+          .get(input.ticketId) as
+          | { status: string; usage_accum: string; updated_ms: number; target_workspace_identity: string }
+          | undefined;
+        if (!row) return;
+        if (input.atMs < row.updated_ms) return; // 单调丢弃：迟到/重放事件整体忽略
+        const terminal =
+          row.status === ASSISTANT_TICKET_STATUSES.done ||
+          row.status === ASSISTANT_TICKET_STATUSES.failed;
+        if (terminal) return; // 终态工单不再改写状态（team 信号无 usage 维度）
+        const nextStatus =
+          input.teamStatus === "completed"
+            ? ASSISTANT_TICKET_STATUSES.done
+            : input.teamStatus === "cancelled" || input.teamStatus === "archived"
+              ? ASSISTANT_TICKET_STATUSES.failed
+              : ASSISTANT_TICKET_STATUSES.running;
+        const failReason =
+          nextStatus === ASSISTANT_TICKET_STATUSES.failed ? `team_${input.teamStatus}` : null;
+        if (
+          nextStatus === ASSISTANT_TICKET_STATUSES.done ||
+          nextStatus === ASSISTANT_TICKET_STATUSES.failed
+        ) {
+          becameTerminal = true;
+        }
+        raw
+          .prepare(
+            "UPDATE ticket SET status = ?, fail_reason = COALESCE(?, fail_reason), updated_ms = ? WHERE id = ?",
+          )
+          .run(nextStatus, failReason, Math.max(input.atMs, row.updated_ms), input.ticketId);
+        if (nextStatus === ASSISTANT_TICKET_STATUSES.failed) {
+          raw
+            .prepare(
+              "UPDATE mandate SET state = 'revoked', ended_ms = ?, end_reason = ? WHERE ticket_id = ? AND state = 'active'",
+            )
+            .run(Date.now(), `team_${input.teamStatus}`, input.ticketId);
+        }
+        if (becameTerminal) {
+          // 终态后续动作（queued 释放/worktree 清理）在事务提交后执行，失败不回滚归账。
+          pendingTerminal.push({
+            ticketId: input.ticketId,
+            workspaceIdentity: row.target_workspace_identity,
+            status: nextStatus,
+          });
+        }
+      });
+      publish();
+      flushTerminalHooks(pendingTerminal);
+      return becameTerminal;
+    } catch (error) {
+      logger.error("assistant-tickets teamActivity 归账异常", error);
+      return false;
+    }
+  }
+
+  /** 终态钩子派发（事务提交后；钩子异常只记日志——归账事实已提交，不能被后续动作回滚）。 */
+  function flushTerminalHooks(
+    pending: ReadonlyArray<{ ticketId: string; workspaceIdentity: string; status: string }>,
+  ): void {
+    if (!deps.onTicketTerminal) return;
+    for (const entry of pending) {
+      try {
+        deps.onTicketTerminal(entry);
+      } catch (error) {
+        logger.warn("assistant-tickets 终态后续动作失败", error);
+      }
+    }
+  }
 
   function applyTicketTurnEvent(input: AssistantTicketTurnEventInput): boolean {
     try {
       let becameTerminal = false;
+      const pendingTerminal: Array<{
+        ticketId: string;
+        workspaceIdentity: string;
+        status: string;
+      }> = [];
       db.transaction((raw) => {
         const row = raw
-          .prepare("SELECT status, usage_accum, updated_ms FROM ticket WHERE id = ?")
+          .prepare(
+            "SELECT status, usage_accum, updated_ms, target_workspace_identity FROM ticket WHERE id = ?",
+          )
           .get(input.ticketId) as
-          | { status: string; usage_accum: string; updated_ms: number }
+          | {
+              status: string;
+              usage_accum: string;
+              updated_ms: number;
+              target_workspace_identity: string;
+            }
           | undefined;
         if (!row) return;
         if (input.atMs < row.updated_ms) return; // 单调丢弃：迟到/重放事件整体忽略
@@ -166,8 +280,16 @@ export function createTicketLedger(deps: TicketLedgerDeps): {
             )
             .run(Date.now(), `turn_${input.kind}: ${failReason}`, input.ticketId);
         }
+        if (becameTerminal) {
+          pendingTerminal.push({
+            ticketId: input.ticketId,
+            workspaceIdentity: row.target_workspace_identity,
+            status: nextStatus,
+          });
+        }
       });
       publish();
+      flushTerminalHooks(pendingTerminal);
       return becameTerminal;
     } catch (error) {
       logger.error("assistant-tickets turn 事件归账异常", error);
@@ -175,7 +297,7 @@ export function createTicketLedger(deps: TicketLedgerDeps): {
     }
   }
 
-  return { applyTicketTurnEvent };
+  return { applyTicketTurnEvent, applyTicketTeamEvent };
 }
 
 function resolveEventStatus(kind: AssistantTicketTurnEventKind): string {

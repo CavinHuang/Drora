@@ -1,28 +1,24 @@
 /**
- * Drora Mate 工单服务实现（01 详设 §1/§3/§4；specs/drora-personal-assistant.md §5）。
- * 单一写者：trigger+decision+mandate+ticket 全部经本服务事务写（mate.sqlite）；
- * 工单状态/usage 归账在 P1 由 turn 事件面驱动（ticketLedger 接线属装配层，本文件
- * 提供 applyTicketTurnEvent 内部落账入口）。事件驱动，禁超时兜底；失败写原因不自动重试。
+ * Drora Mate 工单服务实现（01 详设 §1/§3/§4；02 详设 §1-§5 P2 host 内核）。
+ * 单一写者：trigger+decision+mandate+ticket+router_evaluation 全部经本服务事务写
+ * （mate.sqlite）；派发生命周期（带序 commandId/锚回写/Mode A·B·C/换代/queued FIFO/
+ * W1 worktree/帧归账）委托 dispatchEngine（本文件是唯一编排者，引擎是唯一执行者）。
+ * 事件驱动，禁超时兜底；失败写原因不自动重试。
  */
 
 import { createUuid } from "@drora/shared";
 import {
+  ASSISTANT_DEFAULTS,
   ASSISTANT_ERROR_CODES,
   ASSISTANT_MODES,
   ASSISTANT_OUTCOMES,
   ASSISTANT_PERMISSION_TIERS,
-  ASSISTANT_SNAPSHOT_LIMITS,
   ASSISTANT_TICKET_STATUSES,
   type AssistantMode,
   type AssistantPermissionTier,
 } from "@drora/shared";
 import { createServiceLogger } from "../logger/serviceLogger.js";
 import { evaluateAdmission } from "./admissionGate.js";
-import {
-  createTicketLedger,
-  parseTicketFrameEvents,
-  type AssistantTicketTurnEventInput,
-} from "./ticketLedger.js";
 import {
   AssistantDatabase,
   openAssistantDatabase,
@@ -36,6 +32,18 @@ import {
   type AssistantResult,
   type AssistantSnapshot,
 } from "./assistantTickets.js";
+import type { AssistantTicketTurnEventInput } from "./ticketLedger.js";
+import { buildAssistantSnapshot } from "./assistantSnapshot.js";
+import { createDispatchEngine } from "./dispatchEngine.js";
+import { getAssistantPorts } from "./assistantPorts.js";
+import { composeCandidateCard, composeTeamLeadBrief } from "./routerShell.js";
+import { parseRouterDecisionText } from "./routerDecision.js";
+import { resolveAnchorVerdict } from "./incarnation.js";
+import {
+  detectWriteDomainOverlap,
+  planBudgetAdmission,
+  type AssistantWriteDomain,
+} from "./writeDomain.js";
 
 const logger = createServiceLogger("assistant-tickets");
 
@@ -43,12 +51,14 @@ const KV_KEYS = {
   mode: "mode",
   allowlist: "allowlist",
   budgetMaxActivePerWorkspace: "budget_max_active_per_workspace",
+  worktreeDisabled: "worktree_disabled",
 } as const;
 
 const DEFAULT_CONFIG: AssistantConfigView = {
   mode: ASSISTANT_MODES.observe,
   allowlist: [],
-  budgetMaxActivePerWorkspace: 1,
+  budgetMaxActivePerWorkspace: ASSISTANT_DEFAULTS.budgetMaxActivePerWorkspace,
+  worktreeDisabled: false,
 };
 
 function nowMs(): number {
@@ -66,35 +76,45 @@ export interface AssistantTicketsServiceOptions {
   database?: AssistantDatabase;
 }
 
-interface TicketRow {
-  id: string;
-  mandate_id: string;
-  brief: string;
-  target_workspace_identity: string;
-  status: string;
-  incarnation_current: string;
-  usage_accum: string;
-  output_summary: string | null;
-  fail_reason: string | null;
-  updated_ms: number;
-}
-
 export function createAssistantTicketsService(
   options: AssistantTicketsServiceOptions,
 ): IAssistantTicketService & {
   /** host 内部 ledger 入口（01 §3；不在 IAssistantTicketService——channel 代理面只含
    * 接口方法，renderer 不可达）。装配层（node.ts ticketLedger 接线）与单测消费。 */
-  applyTicketTurnEvent(input: AssistantTicketTurnEventInput): void;
+  applyTicketTurnEvent(input: AssistantTicketTurnEventInput): boolean;
+  /** host 内部：teamActivity 第三信号归账（02 §5；sessions-index 桥喂入）。 */
+  applyTicketTeamEvent(input: {
+    ticketId: string;
+    teamStatus: string;
+    atMs: number;
+  }): boolean;
+  /** host 内部：按 sessionId 反查工单的 teamActivity 归账（Mode B 桥路径）。 */
+  applyTeamActivityForSession(input: {
+    sessionId: string;
+    teamStatus: string;
+    atMs: number;
+  }): boolean;
+  /** host 内部：sessions-index session.removed → 换代重派（spec §8 触发源②）。 */
+  notifySessionRemoved(sessionId: string): void;
+  /** host 内部：follow-up Tier1 直投（P3 Source 接线；测试直驱）。 */
+  followUp(input: {
+    ticketId: string;
+    text: string;
+  }): Promise<AssistantResult<{ ticketId: string; sessionId: string }>>;
+  /** host 内部：换代重派（spec §8 三触发源；测试直驱）。 */
+  recycle(input: {
+    ticketId: string;
+    cause: string;
+    note?: string;
+  }): Promise<AssistantResult<{ ticketId: string; sessionId: string }>>;
 } {
   const db = options.database ?? openAssistantDatabase(options.databasePath);
   const localIdentity = options.localIdentity;
   const emitters = new Set<SnapshotEmitter>();
   /** decisionId → {ticketId, sessionId} 幂等登记（同卡二次放行返回首次结果）。 */
   const dispatchIndex = new Map<number, { ticketId: string; sessionId: string }>();
-  /** turn 事件归账终点（01 §3；实现委托 ticketLedger.ts，publish 为提升声明可安全引用）。 */
-  const ledger = createTicketLedger({ db, publish });
-  /** sessionId → 订阅句柄（派发成功即挂，终态/stop 即卸）。 */
-  const sessionWatches = new Map<string, { dispose(): void; ticketId: string }>();
+  /** 派发引擎（唯一执行者：带序 commandId/锚/Mode A·B·C/换代/queued FIFO/W1/归账）。 */
+  const engine = createDispatchEngine({ db, publish, readConfig });
 
   // ------------------------------------------------------------------
   // kv 配置（P1 全存台账 kv，不动 AppSettings——01 §1.4）
@@ -115,114 +135,12 @@ export function createAssistantTicketsService(
     const budgetMaxActivePerWorkspace = budgetRaw
       ? Number(budgetRaw)
       : DEFAULT_CONFIG.budgetMaxActivePerWorkspace;
-    return { mode, allowlist, budgetMaxActivePerWorkspace };
-  }
-
-  function buildSnapshot(): AssistantSnapshot {
-    const raw = db.raw;
-    const config = readConfig(raw);
-    const triggers = (
-      raw
-        .prepare(
-          "SELECT id, source_kind, simulated_strength, identity, text, at_ms FROM trigger ORDER BY at_ms DESC LIMIT ?",
-        )
-        .all(ASSISTANT_SNAPSHOT_LIMITS.triggersMax) as Array<{
-        id: string;
-        source_kind: string;
-        simulated_strength: string;
-        identity: string;
-        text: string;
-        at_ms: number;
-      }>
-    ).map((row) => ({
-      id: row.id,
-      sourceKind: row.source_kind,
-      strength: row.simulated_strength as AssistantSnapshot["triggers"][number]["strength"],
-      identity: row.identity,
-      text: row.text,
-      atMs: row.at_ms,
-    }));
-    const decisions = (
-      raw
-        .prepare(
-          `SELECT d.id, d.trigger_id, d.strength, d.mode, d.outcome, d.decided_by, d.decided_ms, t.text AS trigger_text
-         FROM admission_decision d JOIN trigger t ON t.id = d.trigger_id
-         ORDER BY d.decided_ms DESC LIMIT ?`,
-        )
-        .all(ASSISTANT_SNAPSHOT_LIMITS.decisionsMax) as Array<{
-        id: number;
-        trigger_id: string;
-        strength: string;
-        mode: string;
-        outcome: string;
-        decided_by: string;
-        decided_ms: number;
-        trigger_text: string;
-      }>
-    ).map((row) => ({
-      id: row.id,
-      triggerId: row.trigger_id,
-      strength: row.strength as AssistantSnapshot["decisions"][number]["strength"],
-      mode: row.mode as AssistantSnapshot["decisions"][number]["mode"],
-      outcome: row.outcome,
-      decidedBy: row.decided_by as AssistantSnapshot["decisions"][number]["decidedBy"],
-      decidedMs: row.decided_ms,
-      triggerText: row.trigger_text,
-    }));
-    const ticketRows = (
-      raw
-        .prepare(
-          `SELECT id, brief, status, target_workspace_identity, incarnation_current, usage_accum,
-                output_summary, fail_reason, updated_ms
-         FROM ticket ORDER BY created_ms DESC LIMIT ?`,
-        )
-        .all(ASSISTANT_SNAPSHOT_LIMITS.ticketsMax) as unknown as TicketRow[]
-    ).map((row) => ticketRowToView(row));
-    const wouldAcceptCount = (
-      raw
-        .prepare("SELECT COUNT(*) AS n FROM admission_decision WHERE outcome = ?")
-        .get(ASSISTANT_OUTCOMES.wouldAccept) as { n: number }
-    ).n;
-    const releaseCount = (
-      raw
-        .prepare(
-          "SELECT COUNT(*) AS n FROM admission_decision WHERE outcome = ? AND decided_by = ?",
-        )
-        .get(ASSISTANT_OUTCOMES.decisionCard, "user") as { n: number }
-    ).n;
-
-    return {
-      version: 1,
-      mode: config.mode,
-      allowlist: config.allowlist,
-      budget: { maxActivePerWorkspace: config.budgetMaxActivePerWorkspace },
-      trust: { wouldAcceptCount, releaseCount },
-      triggers,
-      decisions,
-      tickets: ticketRows,
-      updatedAtMs: nowMs(),
-    };
-  }
-
-  function ticketRowToView(row: TicketRow): AssistantSnapshot["tickets"][number] {
-    const incarnation = JSON.parse(row.incarnation_current) as { sessionId?: string };
-    const usage = JSON.parse(row.usage_accum) as { inputTokens?: number; outputTokens?: number };
-    return {
-      id: row.id,
-      brief: row.brief.slice(0, ASSISTANT_SNAPSHOT_LIMITS.briefPreviewMax),
-      status: row.status,
-      permissionTier: ASSISTANT_PERMISSION_TIERS.build,
-      usage: { inputTokens: usage.inputTokens ?? 0, outputTokens: usage.outputTokens ?? 0 },
-      outputSummary: row.output_summary,
-      failReason: row.fail_reason,
-      targetWorkspaceIdentity: row.target_workspace_identity,
-      sessionId: incarnation.sessionId ?? null,
-      updatedAtMs: row.updated_ms,
-    };
+    const worktreeDisabled = readKv(raw, KV_KEYS.worktreeDisabled) === "true";
+    return { mode, allowlist, budgetMaxActivePerWorkspace, worktreeDisabled };
   }
 
   function publish(): void {
-    const snapshot = buildSnapshot();
+    const snapshot = buildAssistantSnapshot(db.raw, readConfig(db.raw));
     for (const emit of emitters) {
       try {
         emit(snapshot);
@@ -237,6 +155,83 @@ export function createAssistantTicketsService(
     reason?: string,
   ): AssistantResult<T> {
     return { ok: false, error: { code, reason } };
+  }
+
+  // ------------------------------------------------------------------
+  // Router 候选卡循环（02 §1.3）：决策卡产出后异步送 Router 评估，建议预填进
+  // router_evaluation；校验失败/通道失败 → state=failed（Tier3 问人，不重试模型）。
+  // ------------------------------------------------------------------
+
+  function scheduleRouterEvaluation(decisionId: number, trigger: {
+    id: string;
+    text: string;
+    strength: string;
+    identity: string;
+    atMs: number;
+    workspaceIdentity: string | null;
+  }): void {
+    const { router } = getAssistantPorts();
+    if (!router) return; // 通道未装配：决策卡无建议（Tier3 语义），P1 行为原样
+    try {
+      db.transaction((raw) => {
+        raw
+          .prepare(
+            "INSERT INTO router_evaluation(decision_id, state, decided_ms) VALUES (?, 'pending', ?) ON CONFLICT(decision_id) DO NOTHING",
+          )
+          .run(decisionId, nowMs());
+      });
+    } catch (error) {
+      logger.warn("assistant-tickets router 评估登记失败", error);
+      return;
+    }
+    const card = composeCandidateCard({
+      triggerId: trigger.id,
+      text: trigger.text,
+      strength: trigger.strength,
+      identity: trigger.identity,
+      atMs: trigger.atMs,
+      targetWorkspaceIdentity: trigger.workspaceIdentity,
+    });
+    void (async () => {
+      const result = await router({ card: card.input });
+      let finalize: { state: "suggested" | "failed"; verdict?: string; error?: string };
+      if (!result.ok) {
+        finalize = { state: "failed", error: result.reason };
+      } else {
+        const parsed = parseRouterDecisionText(result.output);
+        finalize = parsed.ok
+          ? { state: "suggested", verdict: JSON.stringify(parsed.decision) }
+          : { state: "failed", error: parsed.reason };
+      }
+      db.transaction((raw) => {
+        raw
+          .prepare(
+            "UPDATE router_evaluation SET state = ?, verdict = ?, error = ?, decided_ms = ? WHERE decision_id = ? AND state = 'pending'",
+          )
+          .run(
+            finalize.state,
+            finalize.verdict ?? null,
+            finalize.error ?? null,
+            nowMs(),
+            decisionId,
+          );
+      });
+      publish();
+    })().catch((error) => {
+      logger.warn("assistant-tickets router 评估异常（决策卡降级 Tier3）", error);
+      try {
+        db.transaction((raw) => {
+          raw
+            .prepare(
+              "UPDATE router_evaluation SET state = 'failed', error = ?, decided_ms = ? WHERE decision_id = ? AND state = 'pending'",
+            )
+            .run(String(error), nowMs(), decisionId);
+        });
+        publish();
+      } catch (recordError) {
+        logger.warn("assistant-tickets router 评估异常落账失败", recordError);
+      }
+    });
   }
 
   // ------------------------------------------------------------------
@@ -266,7 +261,7 @@ export function createAssistantTicketsService(
               input.text,
               nowMs(),
             );
-          raw
+          const info = raw
             .prepare(
               "INSERT INTO admission_decision(trigger_id, strength, mode, outcome, reason_code, decided_by, decided_ms) VALUES (?,?,?,?,?,?,?)",
             )
@@ -279,14 +274,44 @@ export function createAssistantTicketsService(
               "gate",
               nowMs(),
             );
-          return { triggerId, outcome: verdict.outcome };
+          return {
+            triggerId,
+            outcome: verdict.outcome,
+            decisionId: Number(info.lastInsertRowid),
+            strength: verdict.strength,
+          };
         });
         logger.info("assistant-tickets trigger recorded", {
           triggerId: outcome.triggerId,
           outcome: outcome.outcome,
         });
+        if (outcome.outcome === ASSISTANT_OUTCOMES.decisionCard) {
+          // 候选卡循环（02 §1.3）：fire-and-forget，事件驱动回填建议；无建议前人工照常终审。
+          const triggerRow = db.raw
+            .prepare("SELECT id, text, simulated_strength, identity, workspace_identity, at_ms FROM trigger WHERE id = ?")
+            .get(outcome.triggerId) as
+            | {
+                id: string;
+                text: string;
+                simulated_strength: string;
+                identity: string;
+                workspace_identity: string | null;
+                at_ms: number;
+              }
+            | undefined;
+          if (triggerRow) {
+            scheduleRouterEvaluation(outcome.decisionId, {
+              id: triggerRow.id,
+              text: triggerRow.text,
+              strength: triggerRow.simulated_strength,
+              identity: triggerRow.identity,
+              atMs: triggerRow.at_ms,
+              workspaceIdentity: triggerRow.workspace_identity,
+            });
+          }
+        }
         publish();
-        return { ok: true, value: outcome };
+        return { ok: true, value: { triggerId: outcome.triggerId, outcome: outcome.outcome } };
       } catch (error) {
         if (error instanceof AssistantStoreBusyError) return fail(ASSISTANT_ERROR_CODES.storeBusy);
         if (error instanceof AssistantStoreMigrationError)
@@ -296,18 +321,64 @@ export function createAssistantTicketsService(
     },
 
     async approveDecision(input) {
-      // yolo 必须决策卡人工放行——本接口即人工路径，但 P1 直派通道不开放 yolo（spec §2.5）。
+      // yolo 必须决策卡人工放行——本接口即人工路径，但不开放 yolo 直派通道（spec §2.5）。
       // 类型层已排除 yolo（Exclude），运行时防线兜住 any 绕道。
       const tier: AssistantPermissionTier =
         input.permissionTier ?? ASSISTANT_PERMISSION_TIERS.build;
       if ((tier as AssistantPermissionTier) === ASSISTANT_PERMISSION_TIERS.yolo) {
         return fail(ASSISTANT_ERROR_CODES.yoloRequiresHumanApproval);
       }
+      if (input.attachToSessionId != null && input.attachToSessionId.trim() === "") {
+        return fail(ASSISTANT_ERROR_CODES.validationFailed, "attachToSessionId 不能为空串");
+      }
       const existing = dispatchIndex.get(input.decisionId);
       if (existing) {
-        return { ok: true, value: existing };
+        return { ok: true, value: { ...existing } };
       }
       try {
+        const config = readConfig(db.raw);
+        // Router 建议预填（02 §1.3）：attach 建议在人按 Y 时生效（派发桥随后仍校验目标）。
+        const suggestionRow = db.raw
+          .prepare("SELECT state, verdict FROM router_evaluation WHERE decision_id = ?")
+          .get(input.decisionId) as { state: string; verdict: string | null } | undefined;
+        const suggestion =
+          suggestionRow?.state === "suggested" && suggestionRow.verdict
+            ? (JSON.parse(suggestionRow.verdict) as {
+                kind?: string;
+                arm?: { sessionId?: string; targetWorkspaceIdentity?: string };
+              })
+            : undefined;
+        const attachSessionId =
+          input.attachToSessionId?.trim() ||
+          (suggestion?.kind === "attach" ? suggestion.arm?.sessionId : undefined);
+        const suggestedTarget =
+          suggestion?.kind === "attach" || suggestion?.kind === "dispatch"
+            ? suggestion.arm?.targetWorkspaceIdentity
+            : undefined;
+        // Tier2 附着预检（02 §2 派发桥校验）：在放行事务**之前**校验目标存在/归属——
+        // 失败时决策卡不被消费、不建票，人工可改选"开新会话"（Tier3 选项恒在）。
+        if (attachSessionId) {
+          const decisionRow = db.raw
+            .prepare(
+              "SELECT t.workspace_identity FROM admission_decision d JOIN trigger t ON t.id = d.trigger_id WHERE d.id = ?",
+            )
+            .get(input.decisionId) as { workspace_identity: string | null } | undefined;
+          const preIdentity =
+            input.targetWorkspaceIdentity ?? suggestedTarget ?? decisionRow?.workspace_identity ?? "";
+          if (!preIdentity) {
+            return fail(ASSISTANT_ERROR_CODES.validationFailed, "附着缺少目标 workspace 归属");
+          }
+          const probe = await engine.probeAttachTarget({
+            targetIdentity: preIdentity,
+            sessionId: attachSessionId,
+          });
+          if (probe.kind !== "ok") {
+            return fail(
+              ASSISTANT_ERROR_CODES.attachTargetInvalid,
+              `附着目标校验失败：${resolveAnchorVerdict(probe).reason}`,
+            );
+          }
+        }
         const created = db.transaction(
           (
             raw,
@@ -318,6 +389,7 @@ export function createAssistantTicketsService(
                 brief: string;
                 targetIdentity: string;
                 tier: AssistantPermissionTier;
+                decisionId: number;
               }> & { alreadyExisted?: undefined })
             | {
                 ok: true;
@@ -347,12 +419,10 @@ export function createAssistantTicketsService(
                 `outcome=${decision.outcome} 不可放行`,
               );
             }
-            // 并发幂等兜底（PR-1B 三审发现 7；01 §2「decisionId→ticketId 唯一索引」）：
-            // 首个放行的派发 IO 在途时 dispatchIndex 尚未记账（set 在 await runDispatch
-            // 之后），同 decisionId 的第二次 approve 会穿过前置内存检查。单写者事务
-            // 串行化下在此按 decision_id 查已建工单，命中即幂等返回首次结果（sessionId
-            // 未回写时为空串，诚实反映在途），不再建第二张票；UNIQUE 索引
-            // idx_ticket_decision_id 是跨进程第二道防线。
+            // 并发幂等兜底（PR-1B 三审发现 7）：首个放行的派发 IO 在途时 dispatchIndex
+            // 尚未记账，同 decisionId 的第二次 approve 会穿过前置内存检查。单写者事务
+            // 串行化下在此按 decision_id 查已建工单，命中即幂等返回首次结果；UNIQUE
+            // 索引 idx_ticket_decision_id 是跨进程第二道防线。
             const existingTicket = raw
               .prepare("SELECT id, incarnation_current FROM ticket WHERE decision_id = ?")
               .get(input.decisionId) as { id: string; incarnation_current: string } | undefined;
@@ -360,8 +430,6 @@ export function createAssistantTicketsService(
               const existingIncarnation = JSON.parse(existingTicket.incarnation_current) as {
                 sessionId?: string;
               };
-              // alreadyExisted 标记：调用方据此跳过派发直接幂等返回——返回裸 success 会被
-              // 当成「新建成功」而把已有工单再派一遍（本轮插桩实测，PR-1B 三审发现 7）。
               return {
                 ok: true as const,
                 alreadyExisted: true as const,
@@ -373,11 +441,17 @@ export function createAssistantTicketsService(
             const mandateId = `M-${createUuid()}`;
             const ts = nowMs();
             const targetIdentity =
-              input.targetWorkspaceIdentity ?? decision.workspace_identity ?? "";
+              input.targetWorkspaceIdentity ?? suggestedTarget ?? decision.workspace_identity ?? "";
             if (!targetIdentity) {
               return fail(ASSISTANT_ERROR_CODES.validationFailed, "缺少派发目标 workspace");
             }
-            const scope = JSON.stringify({ permissionTier: tier, writeDomain: "workspace" });
+            if (attachSessionId && !input.targetWorkspaceIdentity && !suggestedTarget) {
+              return fail(ASSISTANT_ERROR_CODES.validationFailed, "附着缺少目标 workspace 归属");
+            }
+            const scope = JSON.stringify({
+              permissionTier: tier,
+              writeDomain: attachSessionId ? "attach" : "workspace",
+            });
             raw
               .prepare(
                 "INSERT INTO mandate(id, ticket_id, scope, state, created_cause) VALUES (?,?,?,?,'accept')",
@@ -404,6 +478,8 @@ export function createAssistantTicketsService(
                   sessionId: null,
                   boundAtMs: ts,
                   cause: "dispatched",
+                  anchorCommandId: null,
+                  dispatchSeq: 0,
                 }),
                 "[]",
                 "{}",
@@ -412,48 +488,33 @@ export function createAssistantTicketsService(
               );
             // 修复（PR-1B 审查发现 2，2026-11-05）：放行即人工决策，除 reaffirm outcome 外
             // 必须把 decided_by 写为 user——trust.releaseCount 的 SQL 口径是
-            // decision_card+decided_by='user'（见 buildSnapshot :176-180），漏写会让放行后
-            // 卡片仍留在待决策集（UI isMatePendingDecision 判 decidedBy=gate）且 releaseCount 恒 0。
+            // decision_card+decided_by='user'，漏写会让放行后卡片仍留在待决策集。
             raw
               .prepare("UPDATE admission_decision SET outcome = ?, decided_by = ? WHERE id = ?")
               .run(ASSISTANT_OUTCOMES.decisionCard, "user", decision.id);
             return {
               ok: true as const,
-              value: { ticketId, mandateId, brief, targetIdentity, tier },
+              value: { ticketId, mandateId, brief, targetIdentity, tier, decisionId: decision.id },
             };
           },
         );
         if (created.alreadyExisted) {
-          // 并发第二次放行：工单已在首个放行事务中建好（可能派发仍在途），幂等返回
-          // 首次 ticketId/sessionId（sessionId 未回写时为空串，诚实反映在途），不重派。
+          // 并发第二次放行：工单已在首个放行事务中建好，幂等返回首次结果，不重派。
           return {
             ok: true as const,
-            value: { ticketId: created.ticketId, sessionId: created.sessionId },
+            value: {
+              ticketId: created.ticketId,
+              sessionId: created.sessionId,
+            },
           };
         }
         if (!created.ok) return created;
-
-        // 派发（事务外：v4 通道是异步 IO；失败→ticket=failed+reason，诚实留痕不静默重试）。
-        // 实际 v4 调用由装配层注入的 dispatcher 完成（见 AssistantDispatchPort）；
-        // P1 单测以 fake dispatcher 验证幂等/失败路径。
-        const dispatchResult = await runDispatch(created.value);
-        if (!dispatchResult.ok) {
-          markTicketFailed(
-            created.value.ticketId,
-            dispatchResult.error.reason ?? dispatchResult.error.code,
-          );
-          return dispatchResult;
-        }
-        dispatchIndex.set(input.decisionId, dispatchResult.value);
-        // 帧接线（01 §3 订阅生命周期）：派发成功即订阅该会话帧；工单终态或用户 stop
-        // 时退订（watchTicket 内部按 becameTerminal 自动退订）。
-        watchTicket(
-          created.value.ticketId,
-          dispatchResult.value.sessionId,
-          created.value.targetIdentity,
-        );
-        publish();
-        return dispatchResult;
+        return await runPostApproval(created.value, {
+          decisionId: created.value.decisionId,
+          attachSessionId,
+          dispatchMode: input.dispatchMode ?? "A",
+          budgetMaxActivePerWorkspace: config.budgetMaxActivePerWorkspace,
+        });
       } catch (error) {
         if (error instanceof AssistantStoreBusyError) return fail(ASSISTANT_ERROR_CODES.storeBusy);
         if (error instanceof AssistantStoreMigrationError)
@@ -533,8 +594,10 @@ export function createAssistantTicketsService(
         });
         if (sessionRow) {
           const incarnation = JSON.parse(sessionRow.incarnation_current) as { sessionId?: string };
-          if (incarnation.sessionId) unwatchSession(incarnation.sessionId);
+          if (incarnation.sessionId) engine.unwatchSession(incarnation.sessionId);
         }
+        // 用户 stop 的直改终态也走终态后续（worktree 清理 + queued FIFO 释放）。
+        engine.handleManualStop(input.ticketId);
         publish();
         return { ok: true, value: { ok: true } };
       } catch (error) {
@@ -619,7 +682,7 @@ export function createAssistantTicketsService(
     },
 
     async getSnapshot() {
-      return buildSnapshot();
+      return buildAssistantSnapshot(db.raw, readConfig(db.raw));
     },
 
     onDidChange(listener) {
@@ -631,166 +694,132 @@ export function createAssistantTicketsService(
       };
     },
 
-    // host 内部 ledger 入口（01 §3 归账；不在 IAssistantTicketService——renderer 经
-    // channel 代理只见接口方法面，本方法仅装配层可触达）。归账实现委托 ticketLedger.ts。
-    applyTicketTurnEvent: ledger.applyTicketTurnEvent,
+    // host 内部入口（renderer 经 channel 代理只见接口方法面，本组方法仅装配层/测试可触达）。
+    applyTicketTurnEvent: engine.applyTicketTurnEvent,
+    applyTicketTeamEvent: engine.applyTicketTeamEvent,
+    applyTeamActivityForSession: engine.applyTeamActivityForSession,
+    notifySessionRemoved: engine.notifySessionRemoved,
+    followUp: engine.followUp,
+    recycle: engine.recycle,
   };
 
   // ------------------------------------------------------------------
-  // 内部：帧接线与失败落账（帧源由装配层注入 setAssistantFrameSource；单测注入 fake）
+  // 放行后编排（事务外）：写域规划 → 软预算/写域冲突排队闸 → Mode A/B/C 派发。
+  // 事件顺序：建票事务（status=dispatched）→ planDispatchTarget（W1 git add，幂等）
+  // → budget/conflict 检查（排除自身行）→ queue 或 dispatch；失败→failed+reason。
   // ------------------------------------------------------------------
 
-  /** 派发成功后挂帧订阅（01 §3）：帧→解析→归账，终态自动退订；同 sessionId 防御性去重。 */
-  function watchTicket(ticketId: string, sessionId: string, workspaceIdentity: string): void {
-    if (!frameSource) return;
-    const existing = sessionWatches.get(sessionId);
-    if (existing) {
-      existing.dispose();
-      sessionWatches.delete(sessionId);
-    }
-    const handle = frameSource.subscribe(sessionId, workspaceIdentity || undefined, (candidate) => {
-      let becameTerminal = false;
-      for (const event of parseTicketFrameEvents(candidate, sessionId)) {
-        if (ledger.applyTicketTurnEvent({ ...event, ticketId })) {
-          becameTerminal = true;
-        }
+  async function runPostApproval(
+    created: {
+      ticketId: string;
+      brief: string;
+      targetIdentity: string;
+      tier: AssistantPermissionTier;
+    },
+    options: {
+      decisionId: number;
+      attachSessionId?: string;
+      dispatchMode: "A" | "B";
+      budgetMaxActivePerWorkspace: number;
+    },
+  ): Promise<AssistantResult<{ ticketId: string; sessionId: string; queued?: boolean }>> {
+    // Mode C：派发桥校验（存在/归属）+ W3 冲突检查在 attachDispatch/排队闸内。
+    if (options.attachSessionId) {
+      const targetIdentity = created.targetIdentity;
+      const queuedReason = evaluateQueueGate(
+        created.ticketId,
+        targetIdentity,
+        { kind: "workspace" },
+        options.budgetMaxActivePerWorkspace,
+      );
+      if (queuedReason) {
+        engine.setWriteDomain(created.ticketId, { kind: "workspace" });
+        engine.queueTicket(created.ticketId, queuedReason);
+        return { ok: true, value: { ticketId: created.ticketId, sessionId: "", queued: true } };
       }
-      if (becameTerminal) unwatchSession(sessionId);
-    });
-    sessionWatches.set(sessionId, { dispose: handle.dispose, ticketId });
-  }
-
-  function unwatchSession(sessionId: string): void {
-    const handle = sessionWatches.get(sessionId);
-    if (!handle) return;
-    sessionWatches.delete(sessionId);
-    handle.dispose();
-  }
-
-  function markTicketFailed(ticketId: string, reason: string): void {
-    try {
-      db.transaction((raw) => {
-        raw
-          .prepare("UPDATE ticket SET status = ?, fail_reason = ?, updated_ms = ? WHERE id = ?")
-          .run(ASSISTANT_TICKET_STATUSES.failed, reason, nowMs(), ticketId);
-        raw
-          .prepare(
-            "UPDATE mandate SET state = 'revoked', ended_ms = ?, end_reason = ? WHERE ticket_id = ? AND state = 'active'",
-          )
-          .run(nowMs(), `dispatch_failed: ${reason}`, ticketId);
+      const result = await engine.attachDispatch({
+        ticketId: created.ticketId,
+        text: created.brief,
+        targetIdentity,
+        sessionId: options.attachSessionId,
+      });
+      if (!result.ok) return result;
+      dispatchIndex.set(options.decisionId, {
+        ticketId: created.ticketId,
+        sessionId: result.value.sessionId,
       });
       publish();
-    } catch (error) {
-      logger.error("assistant-tickets 失败落账异常", error);
+      return { ok: true, value: { ticketId: created.ticketId, sessionId: result.value.sessionId } };
     }
-  }
-
-  /** 派发成功回写：incarnation.sessionId + status=running（闭包内事务）。 */
-  function applyDispatchSuccess(ticketId: string, sessionId: string): void {
-    try {
-      db.transaction((raw) => {
-        const row = raw
-          .prepare("SELECT incarnation_current FROM ticket WHERE id = ?")
-          .get(ticketId) as { incarnation_current: string } | undefined;
-        if (!row) return;
-        const incarnation = JSON.parse(row.incarnation_current) as { sessionId?: string };
-        incarnation.sessionId = sessionId;
-        raw
-          .prepare(
-            "UPDATE ticket SET incarnation_current = ?, status = ?, updated_ms = ? WHERE id = ?",
-          )
-          .run(JSON.stringify(incarnation), ASSISTANT_TICKET_STATUSES.running, nowMs(), ticketId);
-      });
-    } catch (error) {
-      logger.error("assistant-tickets 派发回写异常", error);
-    }
-  }
-
-  /** 闭包内派发：调用装配层端口 + 回写（dispatchTicket 模块级壳经此完成全部副作用）。 */
-  async function runDispatch(created: {
-    ticketId: string;
-    brief: string;
-    targetIdentity: string;
-    tier: AssistantPermissionTier;
-  }): Promise<AssistantResult<{ ticketId: string; sessionId: string }>> {
-    if (!dispatchPort) {
-      return fail(ASSISTANT_ERROR_CODES.dispatchRejected, "派发通道未装配（dispatch port 未注入）");
-    }
-    const result = await dispatchPort({
+    const plan = await engine.planDispatchTarget({
       ticketId: created.ticketId,
-      brief: created.brief,
-      targetWorkspaceIdentity: created.targetIdentity,
-      permissionTier:
-        created.tier === ASSISTANT_PERMISSION_TIERS.yolo
-          ? ASSISTANT_PERMISSION_TIERS.build
-          : created.tier,
+      targetIdentity: created.targetIdentity,
+      // Mode B（02 §5）：lead 团队会话跑主工作区，不做 W1 worktree。
+      allowWorktree: options.dispatchMode === "A",
     });
-    if (result.ok) {
-      applyDispatchSuccess(created.ticketId, result.value.sessionId);
+    if (!plan.ok) {
+      engine.markTicketFailed(created.ticketId, plan.reason);
+      return fail(ASSISTANT_ERROR_CODES.dispatchRejected, plan.reason);
     }
-    return result;
+    const ownDomain = plan.domain ?? { kind: "workspace" as const };
+    const queuedReason = evaluateQueueGate(
+      created.ticketId,
+      created.targetIdentity,
+      ownDomain,
+      options.budgetMaxActivePerWorkspace,
+    );
+    if (queuedReason) {
+      engine.setWriteDomain(created.ticketId, ownDomain);
+      engine.queueTicket(created.ticketId, queuedReason);
+      return { ok: true, value: { ticketId: created.ticketId, sessionId: "", queued: true } };
+    }
+    // Mode B（02 §5）：lead 会话 + /team 流程指示（prompt 驱动，审批门原样）。
+    const brief = options.dispatchMode === "B" ? composeTeamLeadBrief(created.brief) : created.brief;
+    const result = await engine.dispatchNewTicket({
+      ticketId: created.ticketId,
+      brief,
+      targetIdentity: created.targetIdentity,
+      tier: created.tier === ASSISTANT_PERMISSION_TIERS.yolo ? ASSISTANT_PERMISSION_TIERS.build : created.tier,
+      mode: options.dispatchMode,
+      ...(plan.hostPath ? { hostPath: plan.hostPath } : {}),
+      ...(plan.domain ? { domain: plan.domain } : {}),
+    });
+    if (!result.ok) return result;
+    dispatchIndex.set(options.decisionId, {
+      ticketId: created.ticketId,
+      sessionId: result.value.sessionId,
+    });
+    publish();
+    return {
+      ok: true,
+      value: { ticketId: created.ticketId, sessionId: result.value.sessionId },
+    };
+  }
+
+  /**
+   * 排队闸（spec §9）：软预算（活动工单计数，排除自身行）或同 workspace 活动工单写域
+   * 重叠（W2 声明域 / W3 附着整域 vs 其他域；worktree 恒不冲突）。命中→queued 原因文案，
+   * 否则 undefined。预算为软约束：并发放行的窗口内竞态按设计容忍（无硬上限、无全局锁）。
+   */
+  function evaluateQueueGate(
+    ticketId: string,
+    identity: string,
+    ownDomain: AssistantWriteDomain,
+    budget: number,
+  ): string | undefined {
+    const budgetVerdict = planBudgetAdmission({
+      activeCount: engine.activeCountFor(identity, ticketId),
+      budgetMaxActivePerWorkspace: budget,
+    });
+    if (budgetVerdict.action === "queue") {
+      return budgetVerdict.reason;
+    }
+    const conflict = engine
+      .listActiveWriteDomains(identity)
+      .some((entry) => entry.ticketId !== ticketId && detectWriteDomainOverlap(entry.domain, ownDomain));
+    if (conflict) {
+      return "同 workspace 存在写域重叠的活动工单（W2/W3 派发桥比对），进入队列等待释放";
+    }
+    return undefined;
   }
 }
-
-// ---------------------------------------------------------------------------
-// 派发端口：v4 通道接线在装配层（node.ts 注入 droraAgentService.sendConversationCommandV4）；
-// 本文件只定义端口形状与缺省（未注入=不可派发，approve 返回 dispatch.rejected——诚实降级，
-// 不假装派发成功）。单测注入 fake 验证幂等/失败路径（01 §6）。
-// ---------------------------------------------------------------------------
-
-export interface AssistantDispatchRequest {
-  readonly ticketId: string;
-  readonly brief: string;
-  readonly targetWorkspaceIdentity: string;
-  readonly permissionTier: Exclude<AssistantPermissionTier, typeof ASSISTANT_PERMISSION_TIERS.yolo>;
-}
-
-export interface AssistantDispatchResultValue {
-  readonly ticketId: string;
-  readonly sessionId: string;
-}
-
-export type AssistantDispatchResult = AssistantResult<AssistantDispatchResultValue>;
-
-export type AssistantDispatchPort = (
-  request: AssistantDispatchRequest,
-) => Promise<AssistantDispatchResult>;
-
-/** 装配层注入点（node.ts setAssistantDispatchPort；服务工厂闭包直读模块级变量）。 */
-let dispatchPort: AssistantDispatchPort | null = null;
-
-export function setAssistantDispatchPort(port: AssistantDispatchPort | null): void {
-  dispatchPort = port;
-}
-
-// ---------------------------------------------------------------------------
-// 帧源端口：会话 conversation 帧的订阅句柄（装配层接 droraAgentService
-// onDynamicConversationFrame；本模块不 import drora-agent，与派发端口同一分层纪律）。
-// ---------------------------------------------------------------------------
-
-export interface AssistantFrameSourcePort {
-  /**
-   * 订阅一个会话的 conversation 帧。candidate 为上游 safeParse 通过的 wire 帧
-   * （droraAgentService.ts:2826 fire 前已验），callback 内部只做防御式解析。
-   */
-  subscribe(
-    sessionId: string,
-    workspaceIdentity: string | undefined,
-    onFrame: (candidate: unknown) => void,
-  ): { dispose(): void };
-}
-
-let frameSource: AssistantFrameSourcePort | null = null;
-
-export function setAssistantFrameSource(port: AssistantFrameSourcePort | null): void {
-  frameSource = port;
-}
-
-export type {
-  AssistantTicketTurnEventInput,
-  AssistantTicketTurnEventKind,
-} from "./ticketLedger.js";
-
-// 死代码清理（PR-1B 二审发现 4）：原 getAssistantDispatchPort 定义后零调用（服务闭包
-// 直读模块级 dispatchPort），照 lint no-unused-vars 点名移除；装配层仍经
-// setAssistantDispatchPort 注入。

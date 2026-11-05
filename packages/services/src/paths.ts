@@ -52,6 +52,16 @@ export function getConversationWorkspaceDir(): string {
   return join(getDroraDataRootDir(), "workspace", "default");
 }
 
+/**
+ * Drora Mate assistant 虚拟 workspace 的落位目录（specs/drora-personal-assistant.md §1.1
+ * 定案，02 详设 §1.1）：~/.drora/workspace/mate-home，与共享对话目录同族、不进用户仓库。
+ * identity（ASSISTANT_IDENTITY="drora-mate"）才是隔离键；本目录只承担 cwd 与 CLI 会话
+ * 状态落位，惰性创建（首次 assistant 派发时由目标侧建目录）。
+ */
+export function getAssistantWorkspaceDir(): string {
+  return join(getDroraDataRootDir(), "workspace", "mate-home");
+}
+
 /** {dataBaseDir}/.drora/v2 */
 export function getAppConfigDir(): string {
   return join(getDroraDataRootDir(), "v2");

@@ -199,4 +199,37 @@ function runAssistantMigrations(raw: AssistantDatabaseRaw): void {
       "INSERT INTO kv(key, value, updated_ms) VALUES ('schema_version', '1', strftime('%s','now') * 1000) ON CONFLICT(key) DO NOTHING",
     );
   }
+
+  if (currentVersion < 2) {
+    // v2（2026-11-05，P2 host 内核）——只加不破：
+    // ① router_evaluation：Router 决策预填（02 详设 §1.2/§1.3；新表，不动 v1 admission_decision），
+    //    decision_id 主键即「一决策至多一份评估」幂等约束。
+    raw.exec(`CREATE TABLE IF NOT EXISTS router_evaluation (
+      decision_id INTEGER PRIMARY KEY,
+      state TEXT NOT NULL,
+      verdict TEXT,
+      error TEXT,
+      decided_ms INTEGER NOT NULL
+    )`);
+    // ② ticket P2 列：写域/派发模式/queued 原因。ALTER ADD COLUMN 幂等守卫（中途失败的
+    //    重入安全）；v1 旧行 NULL → 视图回退 workspace 语义（P1 形态诚实降级）。
+    addColumnIfMissing(raw, "ticket", "write_domain", "TEXT");
+    addColumnIfMissing(raw, "ticket", "dispatch_mode", "TEXT");
+    addColumnIfMissing(raw, "ticket", "queued_reason", "TEXT");
+    raw.exec(
+      "INSERT INTO kv(key, value, updated_ms) VALUES ('schema_version', '2', strftime('%s','now') * 1000) ON CONFLICT(key) DO UPDATE SET value = '2', updated_ms = excluded.updated_ms",
+    );
+  }
+}
+
+/** ALTER TABLE ADD COLUMN 的幂等封装（PRAGMA table_info 查列存在性；迁移重入安全）。 */
+function addColumnIfMissing(
+  raw: AssistantDatabaseRaw,
+  table: string,
+  column: string,
+  declaration: string,
+): void {
+  const columns = raw.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;
+  if (columns.some((entry) => entry.name === column)) return;
+  raw.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${declaration}`);
 }

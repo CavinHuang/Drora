@@ -35,7 +35,7 @@ import { createGenUiService } from "./gen-ui/node.js";
 import { randomBytes } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { homedir, hostname } from "node:os";
-import { getAppConfigDir, getConversationWorkspaceDir } from "./paths.js";
+import { getAppConfigDir, getAssistantWorkspaceDir, getConversationWorkspaceDir } from "./paths.js";
 import { join } from "node:path";
 import {
   createNodeProviderRuntimePathEnv,
@@ -643,15 +643,34 @@ import { createCommandsService } from "./commands/commandsService.js";
 import { createHooksService } from "./hooks/hooksService.js";
 import { createMemoryService } from "./memory/memoryService.js";
 // Drora Mate 工单服务（specs/drora-personal-assistant.md；台账 16——自研新模块装配）。
+// P2 host 内核：派发/附着/帧/Router/会话索引/探测/git worktree 七端口桥全在装配层
+// （assistant-tickets 模块纪律：不 import drora-agent）。
 import {
   openAssistantDatabase,
   resolveAssistantDatabasePath,
 } from "./assistant-tickets/assistantDatabase.js";
-import { setAssistantDispatchPort } from "./assistant-tickets/assistantTicketsService.js";
-import { setAssistantFrameSource } from "./assistant-tickets/assistantTicketsService.js";
+import {
+  setAssistantDispatchPort,
+  setAssistantAttachPort,
+  setAssistantFrameSource,
+  setAssistantRouterPort,
+  setAssistantSessionsIndexPort,
+  setAssistantWorkspaceProbePort,
+  setAssistantGitWorktreePort,
+} from "./assistant-tickets/assistantPorts.js";
+import type {
+  AssistantSessionSummaryLite,
+  AssistantSessionsIndexWatchDelta,
+} from "./assistant-tickets/assistantPorts.js";
+import { ROUTER_KV_KEYS, shouldRotateRouterSession } from "./assistant-tickets/routerShell.js";
+import { ASSISTANT_IDENTITY } from "@drora/shared";
+import type { SessionSummary } from "@drora/shared/drora-protocol-v4";
+import { createGitCommandProvider } from "./git/providers/gitCommandProvider.js";
+import { isAbsolute } from "node:path";
+import { stat } from "node:fs/promises";
 import { createAssistantTicketsService } from "./assistant-tickets/assistantTicketsService.js";
 import { IAssistantTicketService } from "./assistant-tickets/assistantTickets.js";
-import { createHostCommandEnvelope } from "./drora-agent/droraV4HostCommand.js";
+import { createHostCommandEnvelope, assertV4CommandAckOk } from "./drora-agent/droraV4HostCommand.js";
 
 import { createSettingsSyncService } from "./settings-sync/settingsSyncService.js";
 import {
@@ -3342,9 +3361,10 @@ export function createLocalServices(options: {
   // 「仅桌面可用」的门控在 client 侧能力位（renderer main.tsx 显式传
   // assistantTicketService:true），不在 Host 注册面。
   // 库连接惰性（assistantDatabase 内部首次访问才建文件），环境问题不炸启动。
-  // 派发端口（P1 Mode A）：v4 通道接线——createSession/sendText 走 droraAgentService
-  // 的 sendConversationCommandV4（对齐 droraTaskServiceAdapter 形态；permissionTier
-  // 载体=config.mode，payload.permissionScope 是 z.literal("session") 不承载权限档）。
+  // P2 host 内核（02 详设 §1-§6）端口族接线。共享事实：
+  // - v4 目标与 P1 同形（workspacePath=hostPath||共享对话目录，workspaceIdentity=identity||undefined）；
+  // - permissionTier 载体=config.mode（payload.permissionScope 是 z.literal("session") 不承载）；
+  // - assistant 虚拟 workspace：workspacePath=getAssistantWorkspaceDir()、identity=ASSISTANT_IDENTITY。
   const assistantDbPath = resolveAssistantDatabasePath(getAppConfigDir());
   const assistantDatabase = openAssistantDatabase(assistantDbPath);
   const assistantTicketService = createAssistantTicketsService({
@@ -3353,77 +3373,473 @@ export function createLocalServices(options: {
     // 由名单映射替换为真实 user identity）。
     localIdentity: `local@${hostname()}`,
   });
-  setAssistantDispatchPort(
-    async (request: {
-      ticketId: string;
-      brief: string;
-      targetWorkspaceIdentity: string;
-      permissionTier: "build" | "guarded";
-    }) => {
-      try {
-        const workspacePath = getConversationWorkspaceDir();
-        const workspaceId = request.targetWorkspaceIdentity || workspacePath;
-        const createAck = await droraAgentService.sendConversationCommandV4({
-          workspacePath,
-          workspaceIdentity: request.targetWorkspaceIdentity || undefined,
-          envelope: createHostCommandEnvelope({
-            type: "createSession",
-            sessionId: null,
-            payload: {
-              workspaceId,
-              config: { mode: request.permissionTier },
-            },
-          }),
-        });
-        if (createAck.result?.type !== "createSession" || !createAck.result.sessionId) {
-          return {
-            ok: false as const,
-            error: {
-              code: "mate.dispatch.rejected" as const,
-              reason: `createSession ACK 异常：${JSON.stringify(createAck.result ?? null).slice(0, 200)}`,
-            },
-          };
-        }
-        const sessionId = createAck.result.sessionId;
-        await droraAgentService.sendConversationCommandV4({
-          workspacePath,
-          workspaceIdentity: request.targetWorkspaceIdentity || undefined,
-          envelope: createHostCommandEnvelope({
-            type: "sendText",
-            payload: { text: request.brief, heldQueueDisposition: "keepQueueAndSend" },
-            sessionId,
-            commandId: request.ticketId,
-            clientId: "drora-mate",
-          }),
-        });
-        return { ok: true as const, value: { ticketId: request.ticketId, sessionId } };
-      } catch (error) {
+  const assistantHostPathFor = (hostPath: string | undefined): string =>
+    hostPath ?? getConversationWorkspaceDir();
+  const assistantIdentityFor = (identity: string): string | undefined => identity || undefined;
+  function assistantSendV4(params: {
+    hostPath: string | undefined;
+    identity: string;
+    envelope: ReturnType<typeof createHostCommandEnvelope>;
+  }): Promise<Awaited<ReturnType<typeof droraAgentService.sendConversationCommandV4>>> {
+    return droraAgentService.sendConversationCommandV4({
+      workspacePath: assistantHostPathFor(params.hostPath),
+      workspaceIdentity: assistantIdentityFor(params.identity),
+      envelope: params.envelope,
+    });
+  }
+  function toAssistantPortError(error: unknown, code: "mate.dispatch.rejected" | "mate.attach.invalid") {
+    return {
+      ok: false as const,
+      error: { code, reason: error instanceof Error ? error.message : String(error) },
+    };
+  }
+  // 派发端口（Mode A/B）：v4 createSession + sendText（带序 commandId 由引擎生成=锚）。
+  setAssistantDispatchPort(async (request) => {
+    try {
+      const createAck = await assistantSendV4({
+        hostPath: request.hostPath,
+        identity: request.targetWorkspaceIdentity,
+        envelope: createHostCommandEnvelope({
+          type: "createSession",
+          sessionId: null,
+          payload: {
+            workspaceId: request.targetWorkspaceIdentity || assistantHostPathFor(request.hostPath),
+            config: { mode: request.permissionTier },
+          },
+        }),
+      });
+      if (createAck.result?.type !== "createSession" || !createAck.result.sessionId) {
         return {
           ok: false as const,
           error: {
             code: "mate.dispatch.rejected" as const,
-            reason: error instanceof Error ? error.message : String(error),
+            reason: `createSession ACK 异常：${JSON.stringify(createAck.result ?? null).slice(0, 200)}`,
           },
         };
       }
-    },
-  );
+      const sessionId = createAck.result.sessionId;
+      await assistantSendV4({
+        hostPath: request.hostPath,
+        identity: request.targetWorkspaceIdentity,
+        envelope: createHostCommandEnvelope({
+          type: "sendText",
+          payload: { text: request.brief, heldQueueDisposition: "keepQueueAndSend" },
+          sessionId,
+          commandId: request.commandId,
+          clientId: "drora-mate",
+        }),
+      });
+      return { ok: true as const, value: { ticketId: request.ticketId, sessionId } };
+    } catch (error) {
+      return toAssistantPortError(error, "mate.dispatch.rejected");
+    }
+  });
+  // 附着端口（Mode C / follow-up）：同一 v4 sendText 通道投既有会话（busy 排队合法）。
+  setAssistantAttachPort(async (request) => {
+    try {
+      await assistantSendV4({
+        hostPath: request.hostPath,
+        identity: request.targetWorkspaceIdentity,
+        envelope: createHostCommandEnvelope({
+          type: "sendText",
+          payload: { text: request.text, heldQueueDisposition: "keepQueueAndSend" },
+          sessionId: request.sessionId,
+          commandId: request.commandId,
+          clientId: "drora-mate",
+        }),
+      });
+      return { ok: true as const, value: { ticketId: request.ticketId, sessionId: request.sessionId } };
+    } catch (error) {
+      return toAssistantPortError(error, "mate.attach.invalid");
+    }
+  });
   services.register(IAssistantTicketService, assistantTicketService);
-  // 帧源端口：ticketLedger 的真实事件源（01 §3）。workspace 目标与派发端口完全同形
-  // （conversationWorkspaceDir + identity||undefined）——resolveWorkspaceKey 两侧一致，
-  // 会话帧才会落进同一 emitter。candidate 上游 safeParse 已验，服务侧防御式解析。
+  // 帧源端口：ticketLedger 的真实事件源（01 §3）。hostPath 与派发/附着同形——
+  // resolveWorkspaceKey 两侧一致会话帧才落进同一 emitter；candidate 上游 safeParse 已验。
   setAssistantFrameSource({
-    subscribe(sessionId, workspaceIdentity, onFrame) {
-      const target = {
-        workspacePath: getConversationWorkspaceDir(),
-        ...(workspaceIdentity ? { workspaceIdentity } : {}),
-      };
-      // 帧按 topic=conversation/<sessionId> 过滤；过滤器由 ticketLedger.parseTicketFrameEvents
-      // 内部的 topic 相等判断承担（此处不做第二份过滤）。
-      const disposable = droraAgentService.onDynamicConversationFrame(target)((candidate) => {
+    subscribe(sessionId, workspaceIdentity, hostPath, onFrame) {
+      const disposable = droraAgentService.onDynamicConversationFrame({
+        workspacePath: assistantHostPathFor(hostPath),
+        ...(assistantIdentityFor(workspaceIdentity ?? "")
+          ? { workspaceIdentity: assistantIdentityFor(workspaceIdentity ?? "") }
+          : {}),
+      })((candidate) => {
         onFrame(candidate);
       });
       return { dispose: () => disposable.dispose() };
+    },
+  });
+  // Router 端口（02 §1.1/§1.3）：assistant 虚拟 workspace 会话壳 + 轮转簿记（kv）+
+  // 候选卡投递 → 事件驱动等该轮 assistantText complete 输出。无状态壳：路由约言随每张
+  // 候选卡重发（服务侧 composeCandidateCard 已含），轮转即新建会话，无浓缩交接依赖。
+  const assistantRouterEvaluations = {
+    chain: Promise.resolve() as Promise<unknown>,
+  };
+  function assistantKvGet(key: string): string | undefined {
+    const row = assistantDatabase.raw.prepare("SELECT value FROM kv WHERE key = ?").get(key) as
+      | { value: string }
+      | undefined;
+    return row?.value;
+  }
+  function assistantKvSet(key: string, value: string): void {
+    assistantDatabase.raw
+      .prepare(
+        "INSERT INTO kv(key, value, updated_ms) VALUES (?,?,?) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_ms = excluded.updated_ms",
+      )
+      .run(key, value, Date.now());
+  }
+  async function assistantCreateRouterSession(): Promise<string> {
+    const ack = await assistantSendV4({
+      hostPath: getAssistantWorkspaceDir(),
+      identity: ASSISTANT_IDENTITY,
+      envelope: createHostCommandEnvelope({
+        type: "createSession",
+        sessionId: null,
+        payload: { workspaceId: ASSISTANT_IDENTITY, config: { mode: "build" } },
+      }),
+    });
+    if (ack.result?.type !== "createSession" || !ack.result.sessionId) {
+      throw new Error(`Router 会话创建失败：${JSON.stringify(ack.result ?? null).slice(0, 200)}`);
+    }
+    return ack.result.sessionId;
+  }
+  async function ensureAssistantRouterSession(): Promise<string> {
+    const seq = Number(assistantKvGet(ROUTER_KV_KEYS.seq) ?? "0");
+    const currentSessionId = assistantKvGet(ROUTER_KV_KEYS.currentSessionId) ?? null;
+    const ticketsSinceRotation = Number(
+      assistantKvGet(ROUTER_KV_KEYS.ticketsSinceRotation) ?? "0",
+    );
+    if (!shouldRotateRouterSession({ seq, currentSessionId, ticketsSinceRotation })) {
+      return currentSessionId!;
+    }
+    const nextSeq = seq + 1;
+    const sessionId = await assistantCreateRouterSession();
+    assistantKvSet(ROUTER_KV_KEYS.seq, String(nextSeq));
+    assistantKvSet(ROUTER_KV_KEYS.currentSessionId, sessionId);
+    assistantKvSet(ROUTER_KV_KEYS.ticketsSinceRotation, "0");
+    createServiceLogger("assistant-tickets").info("Router 会话轮转", { seq: nextSeq });
+    return sessionId;
+  }
+  setAssistantRouterPort(async ({ card }) => {
+    // 串行化评估（同一 Router 会话轮转内 turn 不重叠；fire-and-forget 评估在服务侧并发
+    // 触发时按到达顺序排队，事件驱动完成、禁超时兜底）。
+    const run = assistantRouterEvaluations.chain.then(async (): Promise<
+      { ok: true; output: string } | { ok: false; reason: string }
+    > => {
+      try {
+        const sessionId = await ensureAssistantRouterSession();
+        const commandId = `router-eval-${randomUUID()}`;
+        let resolveOutput: ((output: string) => void) | null = null;
+        const outputPromise = new Promise<string>((resolve) => {
+          resolveOutput = resolve;
+        });
+        const disposable = droraAgentService.onDynamicConversationFrame({
+          workspacePath: getAssistantWorkspaceDir(),
+          workspaceIdentity: ASSISTANT_IDENTITY,
+        })((candidate) => {
+          // 防御式解析（对齐 ticketLedger 帧纪律）：assistantText 行 complete → 该轮输出。
+          if (typeof candidate !== "object" || candidate === null) return;
+          const frame = candidate as {
+            topic?: unknown;
+            payload?: { kind?: unknown; deltas?: unknown };
+          };
+          if (frame.topic !== `conversation/${sessionId}` || frame.payload?.kind !== "deltas") return;
+          if (!Array.isArray(frame.payload.deltas)) return;
+          for (const delta of frame.payload.deltas) {
+            if (typeof delta !== "object" || delta === null) continue;
+            const d = delta as { op?: unknown; row?: { kind?: unknown; state?: unknown; text?: unknown } };
+            if (
+              (d.op === "row.appended" || d.op === "row.upserted") &&
+              typeof d.row === "object" &&
+              d.row !== null &&
+              d.row.kind === "assistantText" &&
+              d.row.state === "complete" &&
+              typeof d.row.text === "string"
+            ) {
+              resolveOutput?.(d.row.text);
+              return;
+            }
+          }
+        });
+        try {
+          await assistantSendV4({
+            hostPath: getAssistantWorkspaceDir(),
+            identity: ASSISTANT_IDENTITY,
+            envelope: createHostCommandEnvelope({
+              type: "sendText",
+              payload: { text: card, heldQueueDisposition: "keepQueueAndSend" },
+              sessionId,
+              commandId,
+              clientId: "drora-mate",
+            }),
+          });
+          const tickets = Number(assistantKvGet(ROUTER_KV_KEYS.ticketsSinceRotation) ?? "0") + 1;
+          assistantKvSet(ROUTER_KV_KEYS.ticketsSinceRotation, String(tickets));
+          const output = await outputPromise;
+          return { ok: true as const, output };
+        } finally {
+          disposable.dispose();
+        }
+      } catch (error) {
+        return {
+          ok: false as const,
+          reason: error instanceof Error ? error.message : String(error),
+        };
+      }
+    });
+    assistantRouterEvaluations.chain = run.catch(() => undefined);
+    return await run;
+  });
+  // 会话索引端口（Tier2 候选/锚对账/生命周期+teamActivity 源）：按 (identity, hostPath)
+  // 惰性订阅 sessions-index；快照/增量内存投影有界；reconcile 可用时锚对账走持久事实。
+  interface AssistantSessionsIndexSubState {
+    sessions: Map<string, AssistantSessionSummaryLite>;
+    ready: Promise<void>;
+    resolveReady: (() => void) | null;
+    watchers: Set<(delta: AssistantSessionsIndexWatchDelta) => void>;
+    subscriptionId: string | null;
+    disposed: boolean;
+  }
+  const assistantSessionsIndexSubs = new Map<string, AssistantSessionsIndexSubState>();
+  function assistantSessionSummaryToLite(summary: SessionSummary): AssistantSessionSummaryLite {
+    return {
+      sessionId: summary.sessionId,
+      title: summary.title,
+      phase: summary.phase,
+      sessionEnded: summary.sessionEnded,
+      updatedAtMs: summary.lastActivityAt,
+      ...(summary.teamActivity
+        ? {
+            teamActivity: {
+              status: summary.teamActivity.status,
+              ...(summary.teamActivity.name ? { name: summary.teamActivity.name } : {}),
+            },
+          }
+        : {}),
+    };
+  }
+  function assistantSessionsIndexKey(identity: string, hostPath?: string): string {
+    return `${identity || getConversationWorkspaceDir()}\u0000${hostPath ?? ""}`;
+  }
+  function ensureAssistantSessionsIndexSub(
+    identity: string,
+    hostPath: string | undefined,
+  ): AssistantSessionsIndexSubState | null {
+    const key = assistantSessionsIndexKey(identity, hostPath);
+    const existing = assistantSessionsIndexSubs.get(key);
+    if (existing && !existing.disposed) return existing;
+    const target = {
+      workspacePath: hostPath ?? getConversationWorkspaceDir(),
+      ...(assistantIdentityFor(identity) ? { workspaceIdentity: assistantIdentityFor(identity) } : {}),
+    };
+    const state: AssistantSessionsIndexSubState = {
+      sessions: new Map(),
+      ready: undefined as unknown as Promise<void>,
+      resolveReady: null,
+      watchers: new Set(),
+      subscriptionId: null,
+      disposed: false,
+    };
+    state.ready = new Promise<void>((resolve) => {
+      state.resolveReady = resolve;
+    });
+    const applyDelta = (delta: AssistantSessionsIndexWatchDelta): void => {
+      for (const watcher of state.watchers) {
+        try {
+          watcher(delta);
+        } catch (error) {
+          createServiceLogger("assistant-tickets").warn("sessions-index 观察者回调失败", error);
+        }
+      }
+    };
+    void (async () => {
+      try {
+        const result = await droraAgentService.subscribeSessionsIndexV4({
+          ...target,
+          visibility: "background",
+          subscriberScope: "assistant-tickets",
+          runtimePolicy: "existing-only",
+        });
+        if (state.disposed) return;
+        state.subscriptionId = result.ack.subscriptionId;
+        const disposable = droraAgentService.onDynamicSessionsIndexFrame(target)((candidate) => {
+          if (state.disposed) return;
+          if (typeof candidate !== "object" || candidate === null) return;
+          const frame = candidate as {
+            payload?: {
+              kind?: unknown;
+              snapshot?: { sessions?: unknown };
+              deltas?: unknown;
+            };
+          };
+          if (frame.payload?.kind === "snapshot" && Array.isArray(frame.payload.snapshot?.sessions)) {
+            state.sessions = new Map(
+              (frame.payload.snapshot.sessions as SessionSummary[]).map((summary) => [
+                summary.sessionId,
+                assistantSessionSummaryToLite(summary),
+              ]),
+            );
+            state.resolveReady?.();
+            state.resolveReady = null;
+            return;
+          }
+          if (frame.payload?.kind === "deltas" && Array.isArray(frame.payload.deltas)) {
+            for (const delta of frame.payload.deltas) {
+              if (typeof delta !== "object" || delta === null) continue;
+              const d = delta as {
+                op?: unknown;
+                session?: unknown;
+                sessionId?: unknown;
+              };
+              if (d.op === "session.upserted" && typeof d.session === "object" && d.session !== null) {
+                const summary = assistantSessionSummaryToLite(d.session as SessionSummary);
+                state.sessions.set(summary.sessionId, summary);
+                applyDelta({ kind: "upserted", summary });
+              } else if (d.op === "session.removed" && typeof d.sessionId === "string") {
+                state.sessions.delete(d.sessionId);
+                applyDelta({ kind: "removed", sessionId: d.sessionId });
+              }
+            }
+          }
+        });
+        const originalDispose = disposable.dispose.bind(disposable);
+        disposable.dispose = () => {
+          state.disposed = true;
+          originalDispose();
+        };
+      } catch (error) {
+        createServiceLogger("assistant-tickets").warn("sessions-index 订阅失败（诚实降级）", error);
+        state.resolveReady?.();
+        state.resolveReady = null;
+      }
+    })();
+    assistantSessionsIndexSubs.set(key, state);
+    return state;
+  }
+  setAssistantSessionsIndexPort({
+    async listSessions(identity, hostPath) {
+      const state = ensureAssistantSessionsIndexSub(identity, hostPath);
+      if (!state) return { ok: false as const, reason: "会话索引不可用" };
+      await state.ready;
+      if (state.disposed) return { ok: false as const, reason: "会话索引已断开" };
+      return { ok: true as const, sessions: [...state.sessions.values()] };
+    },
+    async probeSession(identity, sessionId, hostPath) {
+      // 优先 reconcile 单会话持久事实（缺席快照≠删除）；reconcile 缺席/失败回退缓存投影。
+      const target = {
+        workspacePath: hostPath ?? getConversationWorkspaceDir(),
+        ...(assistantIdentityFor(identity) ? { workspaceIdentity: assistantIdentityFor(identity) } : {}),
+      };
+      if (typeof droraAgentService.reconcileSessionsIndexV4 === "function") {
+        try {
+          const result = await droraAgentService.reconcileSessionsIndexV4({
+            ...target,
+            sessionIds: [sessionId],
+          });
+          const entry = result.sessions.find((candidate) => candidate.sessionId === sessionId);
+          if (entry?.exists) {
+            return entry.deleted ? ({ kind: "missing", deleted: true } as const) : ({ kind: "ok" } as const);
+          }
+          return { kind: "missing", deleted: false } as const;
+        } catch (error) {
+          createServiceLogger("assistant-tickets").warn("锚对账 reconcile 失败，回退快照投影", error);
+        }
+      }
+      const state = assistantSessionsIndexSubs.get(assistantSessionsIndexKey(identity, hostPath));
+      if (state && state.sessions.has(sessionId)) return { kind: "ok" } as const;
+      return {
+        kind: "unavailable",
+        reason: "reconcile 不可用且快照无该会话（缺席≠删除，不猜测）",
+      };
+    },
+    watchSessions(identity, hostPath, onDelta) {
+      const state = ensureAssistantSessionsIndexSub(identity, hostPath);
+      if (!state) return { dispose: () => undefined };
+      state.watchers.add(onDelta);
+      return {
+        dispose: () => {
+          state.watchers.delete(onDelta);
+        },
+      };
+    },
+  });
+  // workspace 探测端口（写域 W1 前置）：P2 本地限定——identity 必须是本地绝对路径
+  // （决策卡目标选择传递真实路径）；远程/虚拟目标如实探测失败 → 引擎降级 workspace 域
+  // （未隔离明示，不阻断派发）。identity→path 的完整 resolver 随 P3 Source 接线。
+  setAssistantWorkspaceProbePort(async (identity) => {
+    const trimmed = identity.trim();
+    if (!isAbsolute(trimmed)) {
+      return { ok: false as const, reason: "目标非本地绝对路径（P2 W1 本地限定）" };
+    }
+    try {
+      const statResult = await stat(trimmed);
+      if (!statResult.isDirectory()) {
+        return { ok: false as const, reason: "目标不是目录" };
+      }
+    } catch {
+      return { ok: false as const, reason: "目标目录不存在" };
+    }
+    let isGitRoot = false;
+    try {
+      await stat(join(trimmed, ".git"));
+      isGitRoot = true;
+    } catch {
+      isGitRoot = false;
+    }
+    return { ok: true as const, workspacePath: trimmed, isGitRoot };
+  });
+  // git worktree 端口（02 §4）：复用 gitCommandProvider 的 spawn/超时/截断语义；
+  // add 幂等（同路径已检出=续用；分支已存在=复用检出）；remove 失败如实返回（台账留痕）。
+  const assistantGitCommands = createGitCommandProvider();
+  setAssistantGitWorktreePort({
+    async addWorktree({ workspacePath, path, branch }) {
+      try {
+        const listed = await assistantGitCommands.run({
+          cwd: workspacePath,
+          args: ["worktree", "list", "--porcelain"],
+        });
+        const alreadyCheckedOut =
+          listed.exitCode === 0 &&
+          listed.stdout
+            .split(/\r?\n/)
+            .some((line) => line.trim() === `worktree ${path}` || line.trim() === `worktree ${path.replace(/\\/g, "/")}`);
+        if (alreadyCheckedOut) return { ok: true as const };
+        const branchLookup = await assistantGitCommands.run({
+          cwd: workspacePath,
+          args: ["rev-parse", "--verify", "--quiet", branch],
+        });
+        const addArgs =
+          branchLookup.exitCode === 0
+            ? ["worktree", "add", path, branch]
+            : ["worktree", "add", path, "-b", branch];
+        const added = await assistantGitCommands.run({ cwd: workspacePath, args: addArgs });
+        if (added.exitCode !== 0) {
+          return {
+            ok: false as const,
+            reason: added.stderr.trim() || added.stdout.trim() || `git exitCode=${added.exitCode}`,
+          };
+        }
+        return { ok: true as const };
+      } catch (error) {
+        return { ok: false as const, reason: error instanceof Error ? error.message : String(error) };
+      }
+    },
+    async removeWorktree({ path }) {
+      try {
+        const removed = await assistantGitCommands.run({
+          cwd: path,
+          args: ["worktree", "remove", path],
+        });
+        if (removed.exitCode !== 0) {
+          return {
+            ok: false as const,
+            reason: removed.stderr.trim() || removed.stdout.trim() || `git exitCode=${removed.exitCode}`,
+          };
+        }
+        return { ok: true as const };
+      } catch (error) {
+        return { ok: false as const, reason: error instanceof Error ? error.message : String(error) };
+      }
     },
   });
   sqliteReposToClose.push({ close: () => assistantDatabase.close() });

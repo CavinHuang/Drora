@@ -19,9 +19,11 @@ import {
 } from "../src/assistant-tickets/assistantDatabase.js";
 import {
   createAssistantTicketsService,
+} from "../src/assistant-tickets/assistantTicketsService.js";
+import {
   setAssistantDispatchPort,
   setAssistantFrameSource,
-} from "../src/assistant-tickets/assistantTicketsService.js";
+} from "../src/assistant-tickets/assistantPorts.js";
 import { parseTicketFrameEvents } from "../src/assistant-tickets/ticketLedger.js";
 
 const LOCAL_IDENTITY = "local-user";
@@ -533,7 +535,7 @@ describe("帧接线（01 §3：订阅生命周期+归账映射）", () => {
       value: { ticketId: request.ticketId, sessionId: `sess-${request.ticketId.slice(0, 6)}` },
     }));
     setAssistantFrameSource({
-      subscribe(sessionId, identity, onFrame) {
+      subscribe(sessionId, identity, _hostPath, onFrame) {
         watched.push({ sessionId, identity });
         sinks.set(sessionId, onFrame);
         return { dispose: () => disposed.push(sessionId) };
@@ -613,7 +615,7 @@ describe("帧接线（01 §3：订阅生命周期+归账映射）", () => {
     }));
     const sinks = new Map<string, (candidate: unknown) => void>();
     setAssistantFrameSource({
-      subscribe(sessionId, _identity, onFrame) {
+      subscribe(sessionId, _identity, _hostPath, onFrame) {
         sinks.set(sessionId, onFrame);
         return { dispose: () => sinks.delete(sessionId) };
       },
@@ -691,7 +693,7 @@ describe("帧接线（01 §3：订阅生命周期+归账映射）", () => {
     }));
     const disposed: string[] = [];
     setAssistantFrameSource({
-      subscribe(sessionId, _identity, _onFrame) {
+      subscribe(sessionId, _identity, _hostPath, _onFrame) {
         return { dispose: () => disposed.push(sessionId) };
       },
     });

@@ -21,6 +21,10 @@ import {
   resolveAnchorVerdict,
   serializeIncarnation,
 } from "../src/assistant-tickets/incarnation.js";
+import {
+  parseDispatchIntent,
+  serializeDispatchIntent,
+} from "../src/assistant-tickets/dispatchIntent.js";
 import { ASSISTANT_DEFAULTS, ASSISTANT_GENERATION_CAUSES } from "@drora/shared";
 
 describe("writeDomain 规划（02 §4）", () => {
@@ -195,6 +199,26 @@ describe("代际（02 §3；spec §8）", () => {
     expect(resolveAnchorVerdict({ kind: "ok" }).mismatch).toBe(false);
     expect(resolveAnchorVerdict({ kind: "missing", deleted: true }).reason).toContain("删除");
     expect(resolveAnchorVerdict({ kind: "missing", deleted: false }).reason).toContain("fork/rewind");
-    expect(resolveAnchorVerdict({ kind: "unavailable", reason: "通道未装配" }).mismatch).toBe(true);
+  });
+});
+
+describe("dispatchIntent（P2 审查修复：queued 释放按落库意图重放派发形态）", () => {
+  it("序列化往返：A/B/C 三模式（C 必带 attachSessionId）", () => {
+    const intentA = { mode: "A" as const, tier: "build" as const };
+    expect(parseDispatchIntent(serializeDispatchIntent(intentA))).toEqual(intentA);
+    const intentB = { mode: "B" as const, tier: "guarded" as const };
+    expect(parseDispatchIntent(serializeDispatchIntent(intentB))).toEqual(intentB);
+    const intentC = { mode: "C" as const, tier: "build" as const, attachSessionId: "sess-u" };
+    expect(parseDispatchIntent(serializeDispatchIntent(intentC))).toEqual(intentC);
+  });
+
+  it("诚实降级：缺列/坏 JSON/未知 mode/yolo tier/C 缺 sessionId → undefined（回退 Mode A/build）", () => {
+    expect(parseDispatchIntent(null)).toBeUndefined();
+    expect(parseDispatchIntent("")).toBeUndefined();
+    expect(parseDispatchIntent("not-json")).toBeUndefined();
+    expect(parseDispatchIntent(JSON.stringify({ mode: "Z", tier: "build" }))).toBeUndefined();
+    expect(parseDispatchIntent(JSON.stringify({ mode: "A", tier: "yolo" }))).toBeUndefined();
+    expect(parseDispatchIntent(JSON.stringify({ mode: "C", tier: "build" }))).toBeUndefined();
+    expect(parseDispatchIntent(JSON.stringify({ mode: "A" }))).toBeUndefined();
   });
 });

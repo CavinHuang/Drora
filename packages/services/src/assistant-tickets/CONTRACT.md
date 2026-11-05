@@ -23,9 +23,12 @@ Drora Mate 个人助理工单台账（specs/drora-personal-assistant.md；台账
 - 带序 commandId 与锚（02 §3）：`<ticketId>-<投递序号>`（incarnation.dispatchSeq 行内
   计数，与锚回写同事务——详设 kv 计数器的等价原子化，偏差已登记）；anchor=最后成功
   sendText 的 commandId；follow-up/换代前经会话索引对账（reconcile 优先，缺席≠删除）。
-- 换代（spec §8）：触发源仅锚失配/生命周期删除归档/lease 失效（禁超时）；换代事务=
-  旧代归档（appendGeneration 闭合纪律，最多一代 active）+浓缩段重派（原文+产出摘要+
-  usage 合计+未确认增量标注）+续用同一 worktree；usage_accum 按 ticketId 记账不改写。
+- 换代（spec §8）：触发源仅锚失配/生命周期删除归档/lease 失效（禁超时）；锚对账的
+  unavailable（reconcile 抛错/快照投影未就绪）=不可校验，**不是失配**——followUp 如实
+  报错（anchorMismatch 码+原因），不换代、不猜测、不自动重试（端口契约注释同口径）；
+  换代事务=旧代归档（appendGeneration 闭合纪律，最多一代 active）+浓缩段重派（原文+
+  产出摘要+usage 合计+未确认增量标注）+续用同一 worktree；usage_accum 按 ticketId
+  记账不改写。
 - 写域（02 §4）：W1=本地 git 根 worktree `.drora/mate/<ticketId>` + 分支 `mate/<id>`
   （终态清理保留分支，清理失败追加 fail_reason 附属日志；换代续用不重复 add）；
   W2=非 git/关 W1 → 声明域（空集=待声明整域，彼此互斥）；W3=附着不隔离但查冲突。
@@ -33,7 +36,12 @@ Drora Mate 个人助理工单台账（specs/drora-personal-assistant.md；台账
   探测不可用（远程/非本地路径）→ 降级 workspace 域（未隔离明示，不阻断派发）。
 - 软预算（spec §9）：默认 3（ASSISTANT_DEFAULTS 单出处），活动=dispatched/running；
   超出或写域重叠 → queued（queued_reason=告知卡文案）+终态 FIFO 释放（created_ms 序；
-  详设 kv cursor 的等价简化，偏差已登记）。
+  详设 kv cursor 的等价简化，偏差已登记）。释放前双重复检：预算（活动计数）与队头
+  写域冲突（与当前活动工单比对，重叠则保持 queued 并终止本轮释放——FIFO 不越位，
+  不变量「两两写域不相交」在释放侧同被强制）。释放按建票事务落库的 ticket.dispatch_intent
+  重放派发形态（dispatchIntent.ts：mode/attachSessionId/tier；Mode B 重套 /team 指示、
+  Mode C 走 attachDispatch 附着原目标、权限档恢复放行值）——用户放行动作不因排队被
+  静默改写（spec §2.4/§7）。
 - Mode B（02 §5）：prompt 驱动建队（lead 会话 + /team 指示，审批门原样）；teamActivity
   第三信号经 sessions-index 桥按 sessionId 反查归账（completed→done、cancelled/archived
   →failed、其余→running）。

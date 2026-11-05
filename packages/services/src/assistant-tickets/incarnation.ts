@@ -130,6 +130,15 @@ export type AnchorProbe =
   | { readonly kind: "missing"; readonly deleted: boolean }
   | { readonly kind: "unavailable"; readonly reason: string };
 
+/**
+ * 锚校验判定（P2 审查修复语义）：mismatch 仅由 missing（reconcile 确认会话失位/删除）
+ * 触发——换代触发源封闭为 spec §8 三源（锚失配/生命周期删除归档/lease 失效）。
+ * unavailable=「不可校验」，不是失配：此前把 unavailable 归为 mismatch 会让 reconcile
+ * 抛错/快照未就绪的正常工单被误换代重派（归档旧代+新会话重发 brief → 任务重复执行），
+ * 且扩大了 spec §8 的封闭触发源、与 assistantPorts.probeSession 契约注释（「通道不可用
+ * → 调用方按不可校验处置：直投降级问人/如实报错」）直接矛盾。调用方对 unavailable
+ * 的处置在 followUp（generationRollover.ts）：如实报错，不换代、不猜测、不自动重试。
+ */
 export function resolveAnchorVerdict(probe: AnchorProbe): {
   mismatch: boolean;
   reason: string;
@@ -141,5 +150,5 @@ export function resolveAnchorVerdict(probe: AnchorProbe): {
       reason: probe.deleted ? "锚会话已删除" : "锚会话已失位（fork/rewind/归档）",
     };
   }
-  return { mismatch: true, reason: `锚对账不可用：${probe.reason}` };
+  return { mismatch: false, reason: `锚对账不可用：${probe.reason}` };
 }

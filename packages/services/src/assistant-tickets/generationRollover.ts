@@ -148,6 +148,16 @@ export function createGenerationRollover(deps: GenerationRolloverDeps): {
       incarnation.sessionId,
       incarnation.hostPath,
     );
+    // 不可校验 ≠ 失配（P2 审查修复）：reconcile 抛错/快照投影未就绪 → unavailable。
+    // 此前该分支被当作失配触发换代重派——正常运行中的工单被误归档换代会话并重发
+    // brief（任务重复执行风险），且扩大了 spec §8 的封闭换代触发源。按端口契约处置：
+    // 如实报错（anchorMismatch 码+原因），不换代、不猜测、不自动重试（事件+校验驱动）。
+    if (probe.kind === "unavailable") {
+      return fail(
+        ASSISTANT_ERROR_CODES.anchorMismatch,
+        `锚对账不可用，follow-up 暂不投递（不换代、不猜测）：${probe.reason}`,
+      );
+    }
     const verdict = resolveAnchorVerdict(probe);
     if (verdict.mismatch) {
       // 触发源①：锚失配（fork/rewind/删除）→ 换代重派（台账浓缩），follow-up 随新代投递。

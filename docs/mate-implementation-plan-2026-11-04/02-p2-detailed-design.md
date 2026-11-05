@@ -73,7 +73,9 @@ sequenceDiagram
 
 ## 6. assistantActivity（host 侧挂载）
 
-- 事实源=TicketService 快照；挂载点=host 任务行 overlay（`windowHostControllerService.ts:128` teamActivity overlay 同位）：`sessionOverlay` 合成 `mate: {activeCount, pendingDecisions, updatedAtMs}`（键 `SESSION_MATE_ACTIVITY_KEY` 在 contracts/assistant.ts 单出处；schema `sessions-index-mate-activity.ts`，controller task activity 可选字段）。**落地确认（2026-11-05）**：走主路径——mate 仅搭载 controller/tasks-index 任务行 activity（host→client wire），CLI→host 的 sessions-index wire 不加字段，CLI 零改动成立，风险表回退方案不触发。
+- 事实源=TicketService 快照；挂载点=host 任务行 overlay（`windowHostControllerService.ts:128` teamActivity overlay 同位）：`sessionOverlay` 合成 `mate: {activeCount, pendingDecisions, updatedAtMs}`（键 `SESSION_MATE_ACTIVITY_KEY` 在 contracts/assistant.ts 单出处；schema `sessionMateActivitySchema` 在 contracts/assistant.ts 受管根
+（drora-protocol-v4/index.ts 仅 re-export；原案 sessions-index-mate-activity.ts 文件随
+架构门禁修复不设立）。**落地确认（2026-11-05）**：走主路径——mate 仅搭载 controller/tasks-index 任务行 activity（host→client wire），CLI→host 的 sessions-index wire 不加字段，CLI 零改动成立，风险表回退方案不触发。
 - workspace 归属：按工单 `target_workspace_identity` 聚合（活动=dispatched/running；待决策=decision_card×gate 未决），桌面与手机经 controller 快照透传同字段；`mate/session-line.ts` 消费同字段挂左侧行（TaskListItem/task-row 接缝，随 Surface 批次交付）。
 - 双链路同验用例：desktop continuous 实时变化 vs 手机 replayable 回放一致；重连 resync 后一致。
 

@@ -27,7 +27,7 @@ preset 无 bash、无写盘工具，只做路由、派发、盯单、汇报。
 | 产品名   | Drora Mate / 大副（i18n：zh「大副」/ en "Mate"）                                                                                                               |
 | 服务模块 | `packages/services/src/assistant-tickets/`                                                                                                                     |
 | UI 模块  | `ui-mate/` 新文件族（复用 teamActivity 三面接缝先例）                                                                                                          |
-| 协议     | P2 起为 `packages/shared/src/drora-protocol-v4/sessions-index-mate-activity.ts`（assistantActivity wire schema；原设想的 `assistant.ts` v4 命令族随 S2-T0 (a) 路线不设立）        |
+| 协议     | P2 起为 `packages/shared/src/contracts/assistant.ts`（assistantActivity wire schema=`sessionMateActivitySchema`，drora-protocol-v4/index.ts 仅 re-export；原设想的 `assistant.ts` v4 命令族随 S2-T0 (a) 路线不设立）        |
 | 契约常量 | `packages/shared/src/contracts/assistant.ts`（新文件）                                                                                                         |
 | 命令入口 | `/mate`（CLI `.drora/commands` 自定义命令 + UI 导航端口）                                                                                                      |
 | 设置键   | `drora.mate.*`（P4 启用，01 §1.4）；持久化=数据目录 `mate/` 下库文件 `mate.sqlite`（contracts/assistant.ts ASSISTANT_STORAGE_KEYS 单一出处；00 §8.5 命名统一） |
@@ -253,8 +253,10 @@ useModelCapabilities 同构形态，00 §8 二审 B2）。
    非 CLI 投影——保持 CLI 零改动；P2 已落地：`controller/tasks-index` 帧 task row
    activity 携带可选 `mate: {activeCount, pendingDecisions, updatedAtMs}`（键
    `SESSION_MATE_ACTIVITY_KEY` 在 contracts/assistant.ts 单出处，schema 在
-   drora-protocol-v4/sessions-index-mate-activity.ts），desktop 与手机经 controller
-   快照透传同源消费；CLI→host 的 sessions-index wire 不加字段，旧帧字段缺席合法；
+   schema `sessionMateActivitySchema` 在 contracts/assistant.ts 受管根，
+   drora-protocol-v4/index.ts 仅 re-export——7ff226e66 架构门禁修复迁位；台账 16 同口径），
+   desktop 与手机经 controller 快照透传同源消费；CLI→host 的 sessions-index wire 不加字段，
+   旧帧字段缺席合法；
    `mate/session-line.ts` 接缝随 Surface 批次交付）；手机单列+drawer，
    推送=决策卡精简版，footerSlot 同源。
 

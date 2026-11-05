@@ -215,8 +215,11 @@ export const MateTicketDetail = memo(function MateTicketDetail({
 });
 
 /**
- * 代际站时间线（mate scope token）：竖轨=--color-mate-trace；当前代/锚站圆点与轨段
- * 用 --color-mate-trace-strong；站内文案层不编码状态色（状态语义只在头部灯）。
+ * 代际站时间线（mate scope token，DESIGN.md「Mate ticket timeline colors」）：轨段分两档
+ * ——通向当前代站的活跃段=--color-mate-trace，其余空闲段=--color-mate-rule
+ * （sub-hairline repeated furniture，弱于 --color-border；P2 审查修复：rule token 四主题
+ * 已定义且登记 DESIGN.md 却零消费，按登记语义补齐）；当前代站圆点与描边=
+ * --color-mate-trace-strong；站内文案层不编码状态色（状态语义只在头部灯）。
  */
 function MateTimelineStations({
   ticket,
@@ -278,7 +281,12 @@ function MateTimelineStations({
               <span
                 aria-hidden
                 className="absolute left-[5px] top-4 bottom-0 w-px"
-                style={{ backgroundColor: "var(--color-mate-trace)" }}
+                style={{
+                  // 轨段两档（DESIGN.md）：通向当前代站=trace 活跃段，其余=rule 空闲段。
+                  backgroundColor: stations[index + 1]?.current
+                    ? "var(--color-mate-trace)"
+                    : "var(--color-mate-rule)",
+                }}
               />
             ) : null}
             <span

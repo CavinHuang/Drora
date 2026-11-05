@@ -14,6 +14,10 @@ P2 Router 决策(a 路线结构化文本)+Mode B/C+代际锚校验+W1/W2+assista
    +Surface A/C 落点 + /mate 入口   ✅ 已实施(feat/mate-p2：host 内核批 + Surface 批；
    打扰配额/键盘流/usage 按代分解等 P4 件随 P4)
 P3 Source 注册表(飞书/手机/GitHub)+Thread 直通+桌宠接缝(含 tray 直达)
+   ✅ 已实施(feat/mate-p3：host 批=Source 注册表/飞书回调出口/手机事件面桥/GitHub 轮询/
+   直通/回复端口；接缝批=桌宠 MATE_PET_COMMANDS 桥+tray 速览+badge/气泡+导航端口+
+   UI Source 呈现/通道站+验收资产。遗留：飞书/GitHub 真实凭据连通与飞书回复端口真机
+   接线、跨卡 Y/N/E 全局键盘流(03 未定义焦点/竞争裁决设计)、气泡打扰配额闸随 P4 配额中心)
 P4 watchdog(automation)+auto 信任门(唯一入口+配额默认5)+汇报卡完整版
 语音入口：随 voice-agent spec 排期对齐后单列（不在 P1-P4 内，见 §8）
 ```

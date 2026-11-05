@@ -6261,3 +6261,29 @@ P2 无事实源不渲染）；MSA02 dispatch 建议卡（建议/目标/证据 ve
 显式传（UI 缺口，e2e 首跑捕获，approve 双路径补齐）。Mate 单测 view-model 21 项
 （新增 8 项 P2 投影）+i18n 键守护+store 9 项全绿。候选仍为 pending，未 promotion；
 真实 Host 端到端（候选卡→建议→人放行、换代重派、双链路同验）随总闸联调验收。
+
+## Mate（大副）P3 Source/桌宠接缝批增量（2026-11-05）
+
+MSP01–06：`packages/desktop/test/e2e/conversation-session/manual-review/pending/mate-source-pet.test.mjs`。
+层级：同 MOUI/MSA 先例的真实 React renderer 浏览器候选（同一 fixture
+`packages/ui/test/fixtures/mate-browser.fixture.tsx`，P1/P2 控件共存——两资产同轮回归
+通过）。服务为 fixture 内存版 IAssistantTicketService synthetic；P3 批新增 ingest 同构
+语义（channel_ref 命中活动工单→直通不建卡、放行回填 ticket.channel_ref、anchor 序号
+推进，真实链路在 host 侧 sources/ 由服务单测锁定）与 `root/MatePetSync.tsx` 挂载
+（publishMatePet 捕获读点 `fixture-mate-pet-projection`——真实 Main 转发/宠物窗渲染在
+desktop 单测与 Electron 真机链路，不进本 renderer 夹具）。
+覆盖 03 详设 §7 场景 5 UI 侧 + spec §11 P3 落地注记：MSP01 手机点名决策卡来源徽标
+（data-source-kind=phone，文案「手机」）；MSP02 放行回填 channel_ref → 详情时间线
+「通道绑定（直通）」站（串接值本身，UI 不解析格式）+ 同通道追加直通（fixture-last-ingest
+读点 direct:T-x:<原文>，决策卡集保持为空）；MSP03 投影发布（待决策出清跟随）；
+MSP04 气泡差分（挂载后首报弹泡 bubble=latestReport 同帧同票、第二票终态推进到新票；
+「挂载已有旧汇报只登记不弹」由 petProjection 单测 previous=null 分支锁定）；MSP05
+观察行 local 徽标（「观察中」档）；MSP06 双语（en Local）。
+本轮实跑：chromium headless，MSP01–06 单用例 26.3s，0 fail；同轮 MOUI01–06 27.3s 与
+MSA01–09 27.0s 回归 0 fail（fixture 扩展向后兼容）。配套单测：desktopPetMateSeam
+（Main 桥路由纯核来源窗口/zod 校验/命令映射 + tray 速览 DOM 分区/Y-N 回传/点卡直达/
+空态收敛/防注入，jsdom 5 项）+ petProjection（投影有界/排序/终态汇报摘要/气泡三态
+差分/来源封闭映射，7 项）——均入 drora-fork-isolated 串行清单（生成器收敛，remoteServiceAccess
+手登条目按 P2 先例保持手登现状）；mate 回归 11 文件 146 项绿。候选仍为 pending，未
+promotion、未 CI admission；Electron 真机桌宠（badge 数=任务中心待决策、单击出 tray、
+tray 放行一致性）与飞书/GitHub 真实凭据连通随总闸联调验收（specs §14 P3 验收行）。

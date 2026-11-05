@@ -1,11 +1,13 @@
 # Drora Mate（个人助理「大副」）设计 spec
 
 - 日期：2026-11-04
-- 状态：P3 host 侧已实施（feat/mate-p3：Source 注册表 + 飞书/手机/GitHub Source 事件面 +
-  Thread 直通；桌宠接缝（§6）、UI 入口、master plan 状态更新与验收资产随 P3 下一棒）。
-  前序：P2 已实施（feat/mate-p2，host 内核 + Surface 批次）；P1 已交付（feat/mate-p1）。
-  实现与本文的偏差按 00-master-plan §8/§9、03 详设回填注记与 assistant-tickets
-  CONTRACT.md 登记。
+- 状态：P3 已实施（feat/mate-p3 两批：host 批=Source 注册表 + 飞书/手机/GitHub Source
+  事件面 + Thread 直通 + 终态回复端口；接缝批=桌宠接缝（§11 P3 落地注记：MATE_PET_COMMANDS
+  通道/Main 桥/tray 速览/badge/气泡/导航端口）+ UI 入口（决策卡/观察行来源徽标、工单详情
+  直通通道站、双语 i18n）+ 验收资产）。前序：P2 已实施（feat/mate-p2，host 内核 + Surface
+  批次）；P1 已交付（feat/mate-p1）。实现与本文的偏差按 00-master-plan §8/§9、03 详设
+  回填注记、ui-mate 与 assistant-tickets CONTRACT.md 登记；无真实凭据的连通（飞书/GitHub
+  真机、飞书回复端口接线）与跨卡 Y/N/E 全局键盘流为已登记遗留。
 - 基线：main @ 42bacc627（upstream **v3.17.2 已整并**：b3e44cb2a 六段合并 + a9fe401ee 源同步）。
   本 spec §3/§7 引用的四个接缝路径（`apps/drora-cli/packages/core/src/team/hub.ts`、
   `drora-protocol-v4/sessions-index.ts`、services 的 drora-session 与 bot-project-runtime）
@@ -325,7 +327,7 @@ desktop-continuous：Router 会话实时流。web-remote-replayable：手机只�
 | W0   | 本 spec + 差异台账                                                      | 评审通过                                                                                                                                                    |
 | P1   | 准入域模型（含 Mandate）+ observe + 手动放行直派（Mode A）+ 观察记录 UI | 本地双触发（点名=explicit→决策卡放行 / 未指名=inferred→would-accept）→会话执行→完成记录含实耗；im/手机 Source 后移 P3；typecheck/lint/architecture:check 绿 |
 | P2   | assistant preset + Mode B/C + 代际 + Surface A/C                        | E2E：候选卡→建议→人放行；follow-up 直投；换代重派标注增量；手机快照透传；双链路各验一遍。**已实施（feat/mate-p2，两批）**：host 内核批=Router 决策 schema+候选卡循环、Mode B/C 派发、代际锚校验、W1/W2、assistantActivity host 挂载及单测；Surface 批=MateStatusStrip 状态条+Router 预填决策卡（dispatch/attach/hold/reject 四臂呈现与预填放行、failed 降级、queued 告知）、MateTicketDetail 四页签（时间线=代际站 mate-trace token/汇报/证据/成本）、工单行 queued/模式/代际徽标、MateSessionLine 任务行 mate 徽标（controller tasks-index 透传）、/mate 文档片段；服务快照 v2 补 `decisionId` 可选投影（证据页签关联）。单测与浏览器验收资产（fixture+`mate-surface-ac.test.mjs`）随批交付；真实 Host 端到端（候选卡→建议→人放行、换代重派、双链路）随总闸联调验收 |
-| P3   | Source 插件化（github）+ Tier1 直通                                     | GitHub 点名建单；同 ticket follow-up 直投不过 Router。**host 侧已实施（feat/mate-p3）**：Source 注册表（assistant-tickets/sources/，按 kv 配置惰性启停）、飞书 Source（bots `assistantForwarder` 回调出口，bots 内部逻辑零改动）、手机 Source（事件面定型，接缝见 03 详设 §3 探查回填）、GitHub Source（comments 轮询 ETag+游标，点名=整词 @+名单映射）、Thread 直通（channel_ref 命中→followUp 直投，不过 gate 不过 Router）、工单终态 Source 回复端口。无真实凭据：飞书/GitHub 真机连通与回复通道真实接线列为遗留；桌宠接缝/UI 入口/验收资产随下一棒 |
+| P3   | Source 插件化（github）+ Tier1 直通                                     | GitHub 点名建单；同 ticket follow-up 直投不过 Router。**已实施（feat/mate-p3，host 批+接缝批）**：Source 注册表（assistant-tickets/sources/，按 kv 配置惰性启停）、飞书 Source（bots `assistantForwarder` 回调出口，bots 内部逻辑零改动）、手机 Source（channel 可见 `submitSourceEntry`，identity=host 本机用户防伪造，事件面见 03 详设 §3 探查回填）、GitHub Source（comments 轮询 ETag+游标，点名=整词 @+名单映射）、Thread 直通（channel_ref 命中→followUp 直投，不过 gate 不过 Router）、工单终态 Source 回复端口；桌宠接缝（MATE_PET_COMMANDS 单出处、Main 桥只转发、菜单「打开大副」/tray 速览 Y+N/badge 待决策数/汇报气泡、rendererEvent 导航端口三点共用）、UI 呈现（决策卡/观察行来源徽标=decision.sourceKind、工单详情直通通道站、双语 i18n）。验收：场景 1-4 服务链路由 host 批单测锁定（assistantSourceIngest/assistantSourceRegistry.test.ts，146 项 mate 回归绿）；场景 5 UI 侧由 desktopPetMateSeam（桥路由+托盘 DOM）+ petProjection（投影/气泡差分）单测与浏览器验收资产 mate-source-pet.test.mjs（MSP01-06：徽标/通道站/直通不建卡/投影发布/气泡推进/双语，实跑通过；P1/P2 资产同轮回归通过）覆盖。遗留：飞书/GitHub 真实凭据连通与飞书回复端口真机接线、桌宠真机点击链路与跨卡 Y/N/E 全局键盘流（03 未定义设计）、气泡打扰配额闸随 P4 配额中心 |
 | P4   | watchdog + auto 门                                                      | 停滞被标记并通知；auto 需信任条达标+确认 dialog                                                                                                             |
 
 ## 15. 明确不做（反模式）

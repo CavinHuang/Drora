@@ -135,7 +135,9 @@ test(
       assert.equal(await page.getByTestId("mate-mode-auto").isDisabled(), true);
       await page.getByTestId("mate-mode-auto-wrap").hover();
       // ControlHintTooltip 同时渲染可见内容与无障碍副本，strict mode 下取 first。
-      await page.getByText("auto 在信任门达标后开放（P4）").first().waitFor();
+      // 文案随 P4 信任门落地更新（dfe8742ca：mate.config.mode.auto.locked 改为带口径
+      // 提示），本资产断言同步对齐（修复：P4 第一棒改文案后未回归本资产）。
+      await page.getByText("信任门达标后开放 auto（放行率与样本数）").first().waitFor();
       const doneCountBeforeResync = await page.getByTestId("mate-report-done").count();
       const observeCountBeforeResync = await page.getByTestId("mate-observe-row").count();
       await page.getByTestId("fixture-resync").click();

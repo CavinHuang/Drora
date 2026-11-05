@@ -22,12 +22,17 @@ import {
   isMateObserveDecision,
   isMatePendingDecision,
   isMateQueuedTicket,
+  isMateAwaitingVerification,
   matePermissionTierMessageId,
   mateRouterSuggestionKindMessageId,
+  mateStaleBadgeKind,
   mateTicketGenerationNumber,
+  mateUnconfirmedIncrement,
   resolveMateBudgetActive,
   resolveMateErrorMessageId,
+  resolveMateQuotaLine,
   resolveMateTrustGateProgress,
+  resolveMateUsageGenerations,
 } from "./view-model.js";
 
 /** 统一钟：让 updatedAtMs 排序断言可读。 */
@@ -416,5 +421,70 @@ describe("P4 resolveMateTrustGateProgress 进度参数", () => {
       }),
     ).toEqual({ rate: 75, samples: 12, minRate: 80, minSamples: 15 });
     expect(resolveMateTrustGateProgress({ wouldAcceptCount: 1, releaseCount: 1 })).toBeNull();
+  });
+});
+
+
+// ---------------------------------------------------------------------------
+// P4 第二棒投影（04 详设 §3/§4 UI 侧）：配额行/核验滞留/未确认增量/停滞徽标/按代成本
+// ---------------------------------------------------------------------------
+
+describe("P4 resolveMateQuotaLine 配额行", () => {
+  it("快照带 quota → 投影 used/quota/remaining；缺席（旧 Host）→ null 不渲染", () => {
+    const withQuota = snapshot();
+    (withQuota as { quota?: unknown }).quota = {
+      date: "2026-11-05",
+      quota: 5,
+      used: { decision: 1, report: 2, bubble: 0 },
+      total: 3,
+      remaining: 2,
+      pendingDigest: [],
+    };
+    expect(resolveMateQuotaLine(withQuota)).toEqual({ used: 3, quota: 5, remaining: 2 });
+    expect(resolveMateQuotaLine(snapshot())).toBeNull();
+  });
+});
+
+describe("P4 isMateAwaitingVerification / mateUnconfirmedIncrement / mateStaleBadgeKind", () => {
+  it("awaiting_output 判定并入活动位口径（isMateActiveTicket 同步）", () => {
+    expect(isMateAwaitingVerification(ASSISTANT_TICKET_STATUSES.awaitingOutput)).toBe(true);
+    expect(isMateAwaitingVerification(ASSISTANT_TICKET_STATUSES.running)).toBe(false);
+    expect(isMateActiveTicket(ASSISTANT_TICKET_STATUSES.awaitingOutput)).toBe(true);
+  });
+
+  it("未确认增量：换代且未确认 → {gen, prev}；已确认/未换代 → null", () => {
+    const gen2 = ticket({ id: "T-p4", generationCount: 1 });
+    expect(mateUnconfirmedIncrement(gen2)).toEqual({ gen: 2, prev: 1 });
+    expect(
+      mateUnconfirmedIncrement(ticket({ id: "T-p4", generationCount: 1, incrementsConfirmedMs: T0 })),
+    ).toBeNull();
+    expect(mateUnconfirmedIncrement(ticket({ id: "T-p4", generationCount: 0 }))).toBeNull();
+    expect(mateUnconfirmedIncrement(ticket({ id: "T-p4" }))).toBeNull();
+  });
+
+  it("stale 徽标：staleSinceMs 有值按封闭类别映射；缺席/未知类别 → null", () => {
+    expect(mateStaleBadgeKind(ticket({ id: "T-p4", staleSinceMs: T0, staleKind: "running_stall" }))).toBe(
+      "running_stall",
+    );
+    expect(
+      mateStaleBadgeKind(ticket({ id: "T-p4", staleSinceMs: T0, staleKind: "awaiting_unverified" })),
+    ).toBe("awaiting_unverified");
+    expect(mateStaleBadgeKind(ticket({ id: "T-p4", staleSinceMs: T0, staleKind: "queued_starve" }))).toBeNull();
+    expect(mateStaleBadgeKind(ticket({ id: "T-p4" }))).toBeNull();
+  });
+});
+
+describe("P4 resolveMateUsageGenerations 按代成本", () => {
+  it("generation 升序排序返回；字段缺席（旧 Host）→ null 诚实降级", () => {
+    const withGenerations = ticket({
+      id: "T-p4",
+      usageByGeneration: [
+        { generation: 2, inputTokens: 64, outputTokens: 256, durationMs: 30_000, current: true },
+        { generation: 1, inputTokens: 64, outputTokens: 200, durationMs: 120_000 },
+      ],
+    });
+    const rows = resolveMateUsageGenerations(withGenerations);
+    expect(rows?.map((row) => row.generation)).toEqual([1, 2]);
+    expect(resolveMateUsageGenerations(ticket({ id: "T-p4" }))).toBeNull();
   });
 });

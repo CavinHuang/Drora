@@ -783,7 +783,7 @@ export function createAssistantTicketsService(
       runAssistantWatchdogRound(
         { db, publish, readDailyQuota: quotaService.readDailyQuotaLive },
         {
-          ...(input ?? {}),
+          ...input,
           awaitingCandidates: input?.awaitingCandidates ?? collectAwaitingCandidates(db.raw, nowMs()),
         },
       ),

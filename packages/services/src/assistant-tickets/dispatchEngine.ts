@@ -35,12 +35,9 @@ import {
   type AssistantIncarnation,
 } from "./incarnation.js";
 import { createGenerationRollover } from "./generationRollover.js";
-import { composeTeamLeadBrief } from "./routerShell.js";
-import { parseDispatchIntent } from "./dispatchIntent.js";
 import { verifyTicketArtifacts } from "./reportCompletion.js";
 import { createQueuedRelease } from "./queuedRelease.js";
 import {
-  detectWriteDomainOverlap,
   parseWriteDomainColumn,
   planWriteDomain,
   isSameWorktreeDomain,

@@ -11,15 +11,12 @@
  */
 import { ASSISTANT_ERROR_CODES } from "@drora/shared";
 import { ASSISTANT_TICKET_STATUSES } from "@drora/shared";
-import { createServiceLogger } from "../logger/serviceLogger.js";
 import {
   AssistantStoreBusyError,
   AssistantStoreMigrationError,
   type AssistantDatabase,
 } from "./assistantDatabase.js";
 import type { AssistantResult } from "./assistantTickets.js";
-
-const logger = createServiceLogger("assistant-tickets");
 
 function nowMs(): number {
   return Date.now();

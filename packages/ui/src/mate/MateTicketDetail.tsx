@@ -1,6 +1,5 @@
 import { memo, useState } from "react";
 import { ArrowLeftIcon, HourglassIcon } from "lucide-react";
-import { ASSISTANT_TICKET_STATUSES } from "@drora/shared";
 import type {
   AssistantResult,
   AssistantSnapshot,

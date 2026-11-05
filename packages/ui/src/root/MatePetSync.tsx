@@ -20,11 +20,26 @@ import { ASSISTANT_DISTURBANCE_KINDS } from "@drora/shared";
  * 差分命中时先过 `admitDisturbance(kind=bubble, summary=汇报首行)` 统一计数判定——
  * 未放行（超额聚合次日摘要）或判定通道失败皆不发布气泡帧（fail-closed；summary 已入
  * digest，汇报仍在 tray 速览与面板可见）；decision 类永不抑制的语义由服务侧保证。
+ *
+ * **在途闸与快照推送的竞态（e2e 实测捕获）**：admitDisturbance 判定本身会推快照
+ * （配额计数变化），触发本 effect 重跑——若按「重跑即失效」处理，在途的气泡帧永远
+ * 被取消、气泡永不出现。处置：判定在途期间（pendingBubbleKeyRef 非空）跳过无弹泡帧
+ * 的发布（不与在途判定竞争写入），判定落定后发布带裁决的气泡帧；登记键已在判定前
+ * 推进，重跑帧不会二次差分弹泡（同键不重弹语义不变）。
  */
 export function MatePetSync({ platform }: { platform: IPlatformService }) {
   const { snapshot, service } = useAssistantTickets();
   // 上一帧汇报登记态（null=尚未发布过任何帧；deriveMatePetBubble 语义见 petProjection）。
   const previousReportRef = useRef<{ readonly key: string | null } | null>(null);
+  // 在途气泡闸的汇报键（null=无在途判定；判定落定时清除）。
+  const pendingBubbleKeyRef = useRef<string | null>(null);
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
   useEffect(() => {
     if (!snapshot) return;
     const projection = projectMatePet(snapshot);
@@ -41,16 +56,19 @@ export function MatePetSync({ platform }: { platform: IPlatformService }) {
       }
     };
     if (!decision.show) {
-      publish(false);
+      // 在途闸期间跳过无弹泡帧（见文件头竞态注记）；无在途闸才发布常规帧。
+      if (pendingBubbleKeyRef.current === null) publish(false);
       return;
     }
     // 气泡闸：先计数判定（kind=bubble 可抑制类）。判定通道缺席/失败/未放行 → 不弹泡
     // （fail-closed，配额语义优先于提示面；登记键已推进，同帧不重试——下一次新汇报
-    // 重新差分）。in-flight 竞态由 cancelled 旗标防串帧。
-    let cancelled = false;
+    // 重新差分）。在途闸键登记先于判定（重跑帧据此让路）。
+    const reportKey = projection.latestReport
+      ? `${projection.latestReport.ticketId}:${projection.latestReport.updatedAtMs}`
+      : null;
+    pendingBubbleKeyRef.current = reportKey;
     // 闸判定的摘要=投影 latestReport.summary（petProjection 已按首行截断；同一投影值
-    // 单一口径，不再回读原票）。判定通道=窗口 Host 工单服务（useAssistantTickets 同源）；
-    // 服务/通道缺席或失败 → 本帧不弹泡（fail-closed）。
+    // 单一口径，不再回读原票）。判定通道=窗口 Host 工单服务（useAssistantTickets 同源）。
     const summary = projection.latestReport?.summary ?? "";
     const gate: Promise<{ allowed: boolean }> = service
       ? service
@@ -59,18 +77,17 @@ export function MatePetSync({ platform }: { platform: IPlatformService }) {
       : Promise.resolve({ allowed: false });
     gate
       .then((verdict) => {
-        if (cancelled) return;
+        pendingBubbleKeyRef.current = null;
+        if (!mountedRef.current) return; // 卸载后不发布（无消费方）。
         publish(verdict.allowed);
       })
       .catch((error: unknown) => {
+        pendingBubbleKeyRef.current = null;
         logger.warn("[mate-pet] 气泡配额判定失败（本帧不弹泡）", {
           error: error instanceof Error ? error.message : String(error),
         });
-        if (!cancelled) publish(false);
+        if (mountedRef.current) publish(false);
       });
-    return () => {
-      cancelled = true;
-    };
   }, [platform, snapshot, service]);
   return null;
 }

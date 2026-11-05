@@ -1,0 +1,628 @@
+/**
+ * Mate 面板浏览器验收夹具的服务工厂（mate-browser.fixture.tsx 拆出——单文件 ≤800 行
+ * 纪律；2026-11-05 P4 第二棒）。内存版 IAssistantTicketService synthetic：recordTrigger/
+ * approveDecision/onDidChange 全部内存实现 + 推送，不代表真实 Host/CLI。语义对齐点
+ * （approve 置 decided_by=user/二次放行幂等/终局定时推进/P4 核验滞留与配额判定同构简化）
+ * 见 mate-browser.fixture.tsx 文件头与 mate-p4-ui.test.mjs。
+ */
+import {
+  ASSISTANT_MODES,
+  ASSISTANT_OUTCOMES,
+  ASSISTANT_PERMISSION_TIERS,
+  ASSISTANT_STRENGTHS,
+  ASSISTANT_TICKET_STATUSES,
+} from "@drora/shared";
+import type { AssistantMode } from "@drora/shared";
+import type {
+  AssistantDecisionView,
+  AssistantRouterSuggestionView,
+  AssistantSnapshot,
+  AssistantTicketView,
+  AssistantTriggerView,
+  IAssistantTicketService,
+} from "@drora/services";
+import type { MateSidePaneTab } from "../../src/lib/workspaceSidePane.js";
+
+/** 夹具 workspace tab（工厂注入决策卡/建票的 target 归属；fixture 组件共用同实例）。 */
+export const tab: MateSidePaneTab = {
+  id: "mate:fixture-ws",
+  type: "mate",
+  openedAt: 0,
+  workspaceKey: "fixture-ws",
+  workspacePath: "/fixture/ws",
+  workspaceIdentity: "fixture/workspace",
+};
+
+interface FixtureDecision {
+  id: number;
+  triggerId: string;
+  outcome: string;
+  decidedBy: "gate" | "user";
+  triggerText: string;
+  decidedMs: number;
+  sourceKind: string;
+  routerState?: "pending" | "suggested" | "failed";
+  routerSuggestion?: AssistantRouterSuggestionView;
+  routerError?: string;
+}
+
+interface FixtureTicket {
+  id: string;
+  brief: string;
+  status: string;
+  targetWorkspaceIdentity: string;
+  sessionId: string | null;
+  outputSummary: string | null;
+  failReason: string | null;
+  usage: { inputTokens: number; outputTokens: number };
+  updatedAtMs: number;
+  dispatchMode?: "A" | "B" | "C";
+  decisionId?: number | null;
+  anchorCommandId?: string | null;
+  generationCount?: number;
+  queuedReason?: string | null;
+  channelRef?: string | null;
+  // P4 第二棒（04 详设 §3）：核验滞留/增量确认/按代成本投影（快照同形可选字段）。
+  awaitingSinceMs?: number | null;
+  incrementsConfirmedMs?: number | null;
+  usageByGeneration?: AssistantTicketView["usageByGeneration"];
+  briefFull?: string;
+}
+
+/** approveDecision 入参捕获（Surface A 预填传参断言读点）。 */
+/** approveDecision 入参捕获（Surface A 预填传参断言读点）。 */
+export type FixtureApproveInput = Parameters<IAssistantTicketService["approveDecision"]>[0];
+
+export function createMateFixtureService(
+  onBrief?: (brief: string) => void,
+  onApproveInput?: (input: FixtureApproveInput) => void,
+  /** P4 第二棒：打扰闸判定读点回调（bubble 气泡闸 e2e 实时断言用）。 */
+  onAdmit?: (record: string) => void,
+) {
+  let seq = 0;
+  let mode: AssistantMode = ASSISTANT_MODES.observe;
+  let allowlist: string[] = ["fixture/user-a"];
+  let updatedAtMs = 1_000;
+  let lastApproveInput: FixtureApproveInput | null = null;
+  // P2 软预算默认回 3（contracts ASSISTANT_DEFAULTS；P1 fixture 曾用 1）。
+  let budgetMax = 3;
+  // W1 worktree 用户开关（P2 审查修复补交互入口；setWorktreeDisabled 唯一写路径）。
+  let worktreeDisabled = false;
+  let queueNextApprove = false;
+  let rolloverNextApprove = false;
+  // P4 第二棒：下一次终局进核验滞留（awaiting_output）开关。
+  let awaitNextTicket = false;
+  // P3 接缝批：手机入口 ingest 结果读点（direct:<ticketId>:<text> / gate:<triggerId>:<outcome>）。
+  let lastIngest = "";
+  // P4 配额中心内存版（IAssistantTicketService 形状补齐；判定语义与服务 admitDisturbance
+  // 同构简化：decision 永不抑制仍计数、report/bubble 超配额聚合当日 digest）。
+  const quotaDay = { date: "", decision: 0, report: 0, bubble: 0, digest: [] as string[], digestDelivered: false };
+  let dailyQuota = 5;
+  // P4 第二棒：watchdog 通知区内存版（snapshot.watchdogNotices 投影源）+ 上次闸判定读点。
+  const watchdogNotices: Array<{ ticketId: string; kind: string; summary: string; atMs: number }> = [];
+  let lastAdmit = "";
+  const triggers: AssistantTriggerView[] = [];
+  const decisions: FixtureDecision[] = [];
+  const tickets: FixtureTicket[] = [];
+  const ticketByDecision = new Map<number, { ticketId: string; sessionId: string }>();
+  const listeners = new Set<(snapshot: AssistantSnapshot) => void>();
+
+  function publish(): void {
+    updatedAtMs += 1;
+    const snapshot = buildSnapshot();
+    for (const listener of listeners) listener(snapshot);
+  }
+
+  function buildSnapshot(): AssistantSnapshot {
+    const ticketViews: AssistantTicketView[] = tickets.map((ticket) => ({
+      id: ticket.id,
+      brief: ticket.brief,
+      status: ticket.status,
+      permissionTier: ASSISTANT_PERMISSION_TIERS.build,
+      usage: { ...ticket.usage },
+      outputSummary: ticket.outputSummary,
+      failReason: ticket.failReason,
+      targetWorkspaceIdentity: ticket.targetWorkspaceIdentity,
+      sessionId: ticket.sessionId,
+      updatedAtMs: ticket.updatedAtMs,
+      ...(ticket.dispatchMode ? { dispatchMode: ticket.dispatchMode } : {}),
+      ...(ticket.decisionId !== undefined ? { decisionId: ticket.decisionId } : {}),
+      ...(ticket.anchorCommandId !== undefined ? { anchorCommandId: ticket.anchorCommandId } : {}),
+      ...(ticket.generationCount !== undefined ? { generationCount: ticket.generationCount } : {}),
+      ...(ticket.queuedReason !== undefined ? { queuedReason: ticket.queuedReason } : {}),
+      ...(ticket.channelRef !== undefined ? { channelRef: ticket.channelRef } : {}),
+      ...(ticket.awaitingSinceMs !== undefined ? { awaitingSinceMs: ticket.awaitingSinceMs } : {}),
+      ...(ticket.incrementsConfirmedMs !== undefined
+        ? { incrementsConfirmedMs: ticket.incrementsConfirmedMs }
+        : {}),
+      ...(ticket.usageByGeneration !== undefined
+        ? { usageByGeneration: ticket.usageByGeneration }
+        : {}),
+      ...(ticket.briefFull !== undefined ? { briefFull: ticket.briefFull } : {}),
+    }));
+    const decisionViews: AssistantDecisionView[] = decisions.map((decision) => ({
+      id: decision.id,
+      triggerId: decision.triggerId,
+      strength: ASSISTANT_STRENGTHS.explicit,
+      mode: ASSISTANT_MODES.observe,
+      outcome: decision.outcome,
+      decidedBy: decision.decidedBy,
+      decidedMs: decision.decidedMs,
+      triggerText: decision.triggerText,
+      sourceKind: decision.sourceKind,
+      ...(decision.routerState ? { routerState: decision.routerState } : {}),
+      ...(decision.routerSuggestion ? { routerSuggestion: decision.routerSuggestion } : {}),
+      ...(decision.routerError ? { routerError: decision.routerError } : {}),
+    }));
+    return {
+      version: 2,
+      mode,
+      allowlist: [...allowlist],
+      budget: { maxActivePerWorkspace: budgetMax },
+      worktreeDisabled,
+      trust: {
+        wouldAcceptCount: decisions.filter(
+          (item) => item.outcome === ASSISTANT_OUTCOMES.wouldAccept,
+        ).length,
+        releaseCount: decisions.filter(
+          (item) => item.outcome === ASSISTANT_OUTCOMES.decisionCard && item.decidedBy === "user",
+        ).length,
+      },
+      triggers: [...triggers],
+      decisions: decisionViews,
+      tickets: ticketViews,
+      quota: (() => {
+        const today = new Date().toISOString().slice(0, 10);
+        if (quotaDay.date !== today) {
+          quotaDay.date = today;
+          quotaDay.decision = 0;
+          quotaDay.report = 0;
+          quotaDay.bubble = 0;
+          quotaDay.digest = [];
+        }
+        const total = quotaDay.decision + quotaDay.report + quotaDay.bubble;
+        return {
+          date: quotaDay.date,
+          quota: dailyQuota,
+          used: { decision: quotaDay.decision, report: quotaDay.report, bubble: quotaDay.bubble },
+          total,
+          remaining: Math.max(0, dailyQuota - total),
+          pendingDigest: quotaDay.digestDelivered ? [] : [{ date: quotaDay.date, items: [...quotaDay.digest] }],
+        };
+      })(),
+      watchdogNotices: watchdogNotices.slice(-5).map((notice) => ({ ...notice })),
+      updatedAtMs,
+    };
+  }
+
+  function finishTicket(ticketId: string): void {
+    const ticket = tickets.find((item) => item.id === ticketId);
+    if (!ticket || ticket.status !== ASSISTANT_TICKET_STATUSES.dispatched) return;
+    ticket.status = ASSISTANT_TICKET_STATUSES.running;
+    ticket.updatedAtMs = Date.now();
+    publish();
+    setTimeout(() => {
+      if (ticket.status !== ASSISTANT_TICKET_STATUSES.running) return;
+      // P4 第二棒：fixture-await-next 开关 → 终局进 awaiting_output（核验滞留面：快照
+      // awaitingSinceMs+按代成本投影+增量横幅由 rolloverNext/确认列驱动），与服务
+      // 「turn ended+核验未通过」语义同构简化——真实核验在 host 侧 reportCompletion。
+      if (awaitNextTicket) {
+        awaitNextTicket = false;
+        ticket.status = ASSISTANT_TICKET_STATUSES.awaitingOutput as string;
+        ticket.awaitingSinceMs = Date.now();
+        ticket.usage = { inputTokens: 96, outputTokens: 300 };
+        ticket.usageByGeneration = [
+          { generation: 1, inputTokens: 48, outputTokens: 120, durationMs: 90_000 },
+          { generation: 2, inputTokens: 48, outputTokens: 180, durationMs: 45_000, current: true },
+        ];
+        ticket.outputSummary = "完成：fixture 汇报首行摘要（核验未通过滞留）";
+        ticket.updatedAtMs = Date.now();
+        publish();
+        return;
+      }
+      ticket.status = ASSISTANT_TICKET_STATUSES.done;
+      ticket.usage = { inputTokens: 128, outputTokens: 456 };
+      // P4 第二棒：done 工单也带按代成本投影（单代=当代一行；多代随 rolloverNext）。
+      ticket.usageByGeneration =
+        (ticket.generationCount ?? 0) > 0
+          ? [
+              { generation: 1, inputTokens: 64, outputTokens: 200, durationMs: 120_000 },
+              { generation: 2, inputTokens: 64, outputTokens: 256, durationMs: 30_000, current: true },
+            ]
+          : [{ generation: 1, inputTokens: 128, outputTokens: 456, durationMs: 150_000, current: true }];
+      ticket.outputSummary = "完成：fixture 汇报首行摘要";
+      ticket.updatedAtMs = Date.now();
+      publish();
+    }, 1400);
+  }
+
+  /** 注入带 Router 建议的决策卡（P2 Surface 呈现与预填传参验收；真实评估在 host 侧）。 */
+  function injectRouterDecision(
+    routerState: "suggested" | "failed",
+    suggestion?: AssistantRouterSuggestionView,
+    text = "点名：Router 预填场景",
+  ): number {
+    seq += 1;
+    const triggerId = `TR-${seq}`;
+    triggers.push({
+      id: triggerId,
+      sourceKind: "local",
+      strength: ASSISTANT_STRENGTHS.explicit,
+      identity: "fixture/user-a",
+      text,
+      atMs: Date.now(),
+      targetWorkspaceIdentity: tab.workspaceIdentity,
+    });
+    decisions.push({
+      id: seq,
+      triggerId,
+      outcome: ASSISTANT_OUTCOMES.decisionCard,
+      decidedBy: "gate",
+      triggerText: text,
+      decidedMs: Date.now(),
+      sourceKind: "local",
+      routerState,
+      ...(suggestion ? { routerSuggestion: suggestion } : {}),
+      ...(routerState === "failed" ? { routerError: "router evaluation schema mismatch" } : {}),
+    });
+    publish();
+    return seq;
+  }
+
+  const service: IAssistantTicketService = {
+    async recordTrigger(input) {
+      seq += 1;
+      const triggerId = `TR-${seq}`;
+      triggers.push({
+        id: triggerId,
+        sourceKind: "local",
+        strength: input.simulated,
+        identity: "fixture/user-a",
+        text: input.text,
+        atMs: Date.now(),
+        ...(input.targetWorkspaceIdentity
+          ? { targetWorkspaceIdentity: input.targetWorkspaceIdentity }
+          : {}),
+      });
+      const outcome =
+        input.simulated === ASSISTANT_STRENGTHS.explicit
+          ? ASSISTANT_OUTCOMES.decisionCard
+          : ASSISTANT_OUTCOMES.wouldAccept;
+      decisions.push({
+        id: seq,
+        triggerId,
+        outcome,
+        decidedBy: "gate",
+        triggerText: input.text,
+        decidedMs: Date.now(),
+        sourceKind: "local",
+      });
+      publish();
+      return { ok: true, value: { triggerId, outcome } };
+    },
+
+    async approveDecision(input) {
+      lastApproveInput = { ...input };
+      onApproveInput?.(lastApproveInput);
+      // P1 验收场景 4：同 decision 二次放行幂等返回首次结果（不二派）。
+      const existing = ticketByDecision.get(input.decisionId);
+      if (existing) return { ok: true, value: existing };
+      const decision = decisions.find((item) => item.id === input.decisionId);
+      if (!decision || decision.outcome !== ASSISTANT_OUTCOMES.decisionCard) {
+        return { ok: false, error: { code: "mate.decision.not_found" } };
+      }
+      seq += 1;
+      const ticketId = `T-${seq}`;
+      const sessionId = `sess-${seq}`;
+      const brief = input.briefAppendix
+        ? `${decision.triggerText}\n${input.briefAppendix}`
+        : decision.triggerText;
+      // 契约语义：放行即 decided_by=user（卡片脱离待决策集；releaseCount 积累）。
+      decision.decidedBy = "user";
+      // P3 接缝批：trigger.channel_ref 回填 ticket.channel_ref（assistantSnapshot 同列
+      // 语义——放行建票即绑定通道，同通道 follow-up 命中即直通）。
+      const triggerChannelRef =
+        triggers.find((trigger) => trigger.id === decision.triggerId)?.channelRef ?? null;
+      if (queueNextApprove) {
+        // P2 软预算排队（specs §9）：工单 queued 立项+告知文案，不推进终态。
+        queueNextApprove = false;
+        tickets.push({
+          id: ticketId,
+          brief,
+          briefFull: brief,
+          status: ASSISTANT_TICKET_STATUSES.queued,
+          targetWorkspaceIdentity: input.targetWorkspaceIdentity ?? tab.workspaceIdentity ?? "",
+          sessionId,
+          outputSummary: null,
+          failReason: null,
+          usage: { inputTokens: 0, outputTokens: 0 },
+          updatedAtMs: Date.now(),
+          dispatchMode: input.dispatchMode ?? "A",
+          decisionId: input.decisionId,
+          anchorCommandId: null,
+          generationCount: 0,
+          queuedReason: "同 workspace 活动工单已达软预算 3，已进入排队",
+        });
+        ticketByDecision.set(input.decisionId, { ticketId, sessionId });
+        onBrief?.(brief);
+        publish();
+        return { ok: true, value: { ticketId, sessionId, queued: true } };
+      }
+      tickets.push({
+        id: ticketId,
+        brief,
+        briefFull: brief,
+        status: ASSISTANT_TICKET_STATUSES.dispatched,
+        targetWorkspaceIdentity: input.targetWorkspaceIdentity ?? tab.workspaceIdentity ?? "",
+        sessionId,
+        outputSummary: null,
+        failReason: null,
+        usage: { inputTokens: 0, outputTokens: 0 },
+        updatedAtMs: Date.now(),
+        dispatchMode: input.attachToSessionId ? "C" : (input.dispatchMode ?? "A"),
+        decisionId: input.decisionId,
+        anchorCommandId: `${ticketId}-1`,
+        generationCount: rolloverNextApprove ? 1 : 0,
+        channelRef: triggerChannelRef,
+      });
+      rolloverNextApprove = false;
+      ticketByDecision.set(input.decisionId, { ticketId, sessionId });
+      // 01 §6 场景 3 的验收读点：brief=原文+追加段两段（E 改单不改写原文）。
+      onBrief?.(brief);
+      publish();
+      setTimeout(() => finishTicket(ticketId), 400);
+      return { ok: true, value: { ticketId, sessionId } };
+    },
+
+    async ignoreDecision(input) {
+      const decision = decisions.find((item) => item.id === input.decisionId);
+      if (decision) {
+        decision.outcome = ASSISTANT_OUTCOMES.rejected;
+        decision.decidedBy = "user";
+        publish();
+      }
+      return { ok: true, value: { ok: true } };
+    },
+
+    // P3 Source 注册表手机入口（03 详设 §3 事件面定型）：fixture 按 recordTrigger 同构
+    // 模拟（identity=fixture 本机用户、sourceKind=phone），供手机入口浏览器验收复用。
+    // P3 接缝批补齐服务同构语义：channel_ref 命中活动工单 → 直通（不建新 trigger/
+    // decision，原文并入 brief 尾行模拟 follow-up 投递、anchor 序号推进）；放行建票时
+    // trigger.channel_ref 回填 ticket.channel_ref（assistantSnapshot 同列语义）。
+    async submitSourceEntry(input) {
+      if (input.channelRef) {
+        const bound = tickets.find(
+          (ticket) =>
+            ticket.channelRef === input.channelRef &&
+            ticket.status !== ASSISTANT_TICKET_STATUSES.done &&
+            ticket.status !== ASSISTANT_TICKET_STATUSES.failed,
+        );
+        if (bound) {
+          const seqNo =
+            bound.anchorCommandId && /-(\d+)$/.test(bound.anchorCommandId)
+              ? Number(/-(\d+)$/.exec(bound.anchorCommandId)?.[1]) + 1
+              : 1;
+          bound.anchorCommandId = `${bound.id}-${seqNo}`;
+          bound.updatedAtMs = Date.now();
+          lastIngest = `direct:${bound.id}:${input.text}`;
+          publish();
+          return {
+            ok: true,
+            value: {
+              triggerId: null,
+              outcome: null,
+              directThrough: true,
+              ticketId: bound.id,
+              sessionId: bound.sessionId ?? undefined,
+            },
+          };
+        }
+      }
+      seq += 1;
+      const triggerId = `TR-${seq}`;
+      triggers.push({
+        id: triggerId,
+        sourceKind: "phone",
+        strength: input.mention ? ASSISTANT_STRENGTHS.explicit : ASSISTANT_STRENGTHS.inferred,
+        identity: "fixture/user-a",
+        text: input.text,
+        atMs: input.atMs ?? Date.now(),
+        ...(input.remoteSessionId ? { remoteSessionId: input.remoteSessionId } : {}),
+        ...(input.channelRef ? { channelRef: input.channelRef } : {}),
+        ...(input.targetWorkspaceIdentity
+          ? { targetWorkspaceIdentity: input.targetWorkspaceIdentity }
+          : {}),
+      });
+      const outcome =
+        input.mention && allowlist.includes("fixture/user-a")
+          ? ASSISTANT_OUTCOMES.decisionCard
+          : ASSISTANT_OUTCOMES.wouldAccept;
+      decisions.push({
+        id: seq,
+        triggerId,
+        outcome,
+        decidedBy: "gate",
+        triggerText: input.text,
+        decidedMs: Date.now(),
+        sourceKind: "phone",
+      });
+      lastIngest = `gate:${triggerId}:${outcome}`;
+      publish();
+      return {
+        ok: true,
+        value: { triggerId, outcome, directThrough: false },
+      };
+    },
+
+    async dismissObservation(input) {
+      for (const decision of decisions) {
+        if (
+          decision.triggerId === input.triggerId &&
+          decision.outcome === ASSISTANT_OUTCOMES.wouldAccept
+        ) {
+          decision.outcome = ASSISTANT_OUTCOMES.ignored;
+          decision.decidedBy = "user";
+        }
+      }
+      publish();
+      return { ok: true, value: { ok: true } };
+    },
+
+    async stopMandate() {
+      return { ok: true, value: { ok: true } };
+    },
+
+    // P4 第二棒（04 详设 §3）人工出口（fixture 内存版同构语义）：核验确认=非 awaiting
+    // 拒绝（ticketNotFound）、awaiting→done+增量横幅仍在；增量确认=置确认时刻（幂等）。
+    async confirmTicketOutput(input) {
+      const ticket = tickets.find((item) => item.id === input.ticketId);
+      if (
+        !ticket ||
+        ticket.status !== (ASSISTANT_TICKET_STATUSES.awaitingOutput as string)
+      ) {
+        return { ok: false, error: { code: "mate.ticket.not_found" } };
+      }
+      ticket.status = ASSISTANT_TICKET_STATUSES.done;
+      ticket.awaitingSinceMs = null;
+      publish();
+      return { ok: true, value: { ok: true } };
+    },
+
+    async confirmTicketIncrements(input) {
+      const ticket = tickets.find((item) => item.id === input.ticketId);
+      if (!ticket) return { ok: false, error: { code: "mate.ticket.not_found" } };
+      ticket.incrementsConfirmedMs = Date.now();
+      publish();
+      return { ok: true, value: { ok: true } };
+    },
+
+    async revokeMandate() {
+      return { ok: true, value: { ok: true } };
+    },
+
+    async setMode(next) {
+      mode = next;
+      publish();
+      return { ok: true, value: { ok: true } };
+    },
+
+    async setAllowlist(identities) {
+      allowlist = [...identities];
+      publish();
+      return { ok: true, value: { ok: true } };
+    },
+
+    async setWorktreeDisabled(disabled) {
+      worktreeDisabled = disabled;
+      publish();
+      return { ok: true, value: { ok: true } };
+    },
+
+    async getConfig() {
+      return {
+        ok: true as const,
+        value: {
+          mode,
+          allowlist: [...allowlist],
+          budgetMaxActivePerWorkspace: budgetMax,
+          worktreeDisabled: false,
+        },
+      };
+    },
+
+    async getSnapshot() {
+      return buildSnapshot();
+    },
+
+    async admitDisturbance(input) {
+      const today = new Date().toISOString().slice(0, 10);
+      if (quotaDay.date !== today) {
+        quotaDay.date = today;
+        quotaDay.decision = 0;
+        quotaDay.report = 0;
+        quotaDay.bubble = 0;
+        quotaDay.digest = [];
+        quotaDay.digestDelivered = false;
+      }
+      quotaDay[input.kind] += 1;
+      const total = quotaDay.decision + quotaDay.report + quotaDay.bubble;
+      const aggregated = input.kind !== "decision" && total > dailyQuota;
+      if (aggregated && input.summary) {
+        quotaDay.digest.push(input.summary.slice(0, 200));
+      }
+      // P4 第二棒：闸判定读点（气泡闸 e2e 实时断言 bubble admit 到达且带摘要）。
+      lastAdmit = `${input.kind}:${input.summary ?? ""}:${!aggregated}`;
+      onAdmit?.(lastAdmit);
+      publish();
+      return {
+        ok: true as const,
+        value: {
+          allowed: !aggregated,
+          date: today,
+          used: total,
+          quota: dailyQuota,
+          aggregated,
+        },
+      };
+    },
+
+    async getDisturbanceQuota() {
+      const snapshot = buildSnapshot();
+      return { ok: true as const, value: snapshot.quota! };
+    },
+
+    async markDailyDigestDelivered() {
+      quotaDay.digestDelivered = true;
+      publish();
+      return { ok: true as const, value: { ok: true as const } };
+    },
+
+    onDidChange(listener) {
+      listeners.add(listener);
+      return {
+        dispose: () => {
+          listeners.delete(listener);
+        },
+      };
+    },
+  };
+  return {
+    service,
+    buildSnapshot,
+    approveDirect: service.approveDecision,
+    resync: publish,
+    injectRouterDecision,
+    submitSource: service.submitSourceEntry,
+    /** 手机入口 ingest 结果读点（direct:<ticketId>:<text> / gate:<triggerId>:<outcome>）。 */
+    lastIngest(): string {
+      return lastIngest;
+    },
+    queueNext(): void {
+      queueNextApprove = true;
+    },
+    rolloverNext(): void {
+      rolloverNextApprove = true;
+    },
+    // ---- P4 第二棒验收控件（mate-p4-ui.test.mjs 消费；P1-P3 场景不点不触发） ----
+    /** 下一次终局进核验滞留（awaiting_output；快照带 awaitingSinceMs+按代成本投影）。 */
+    awaitNext(): void {
+      awaitNextTicket = true;
+    },
+    /** 注入一条 watchdog 通知（快照 watchdogNotices ≤5 投影源）。 */
+    injectNotice(ticketId: string, kind: string, summary: string): void {
+      watchdogNotices.push({ ticketId, kind, summary, atMs: Date.now() });
+      publish();
+    },
+    /** 推送 N 条 report 类打扰（超额即聚合 digest；e2e 断言摘要卡与状态条配额行）。 */
+    pushReports(count: number, summary: string): void {
+      for (let index = 0; index < count; index += 1) {
+        void service.admitDisturbance({ kind: "report", summary });
+      }
+      publish();
+    },
+    /** 气泡闸判定读点（kind:summary:allowed）。 */
+    lastAdmit(): string {
+      return lastAdmit;
+    },
+  };
+}

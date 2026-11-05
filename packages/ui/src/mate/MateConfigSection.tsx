@@ -51,7 +51,7 @@ export const MateConfigSection = memo(function MateConfigSection({
   // P4 第二棒：每日配额调整走 AppSettings（useSettings 写 droraMateDailyQuota，键字面量
   // contracts ASSISTANT_SETTINGS_KEYS 单出处）。settings 服务缺席（本仓夹具/远端降级形态）
   // → 输入禁用（诚实降级，不建第二条写路径）。
-  const { settings: sharedSettings, update: updateSharedSettings } = useSettings();
+  const { update: updateSharedSettings } = useSettings();
   const settingsServicePresent = useOptionalServices()?.settingService != null;
   const quotaEditable = settingsServicePresent;
   // 配额草稿：生效值=快照投影（服务闭包缓存）；AppSettings 原始值缺席（缺省 5）时也以

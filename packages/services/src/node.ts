@@ -889,7 +889,10 @@ const assistantSourceDisposers = new WeakMap<ServiceCollection, () => void>();
 // Drora Mate watchdog host face（P4，04 详设 §1）：desktop host 定时器
 // （host/cronMateWatchdog.ts）经此调用服务内部 watchdog 轮——到轮判定在服务内按 kv
 // 裁决，定时器只负责 tick。WeakMap 照 assistantSourceDisposers 先例（服务集合换代
-// 不串实例；renderer 不可达——host face 不进 channel 代理面）。
+// 不串实例）。边界注记（P4 修复轮核实）：host face 对象本身不进 channel，但
+// runWatchdogRound 在注册进 channel 的服务实例上（ProxyChannel 暴露全部函数属性，
+// assistantTicketsService 注记即对账点）——本 WeakMap 提供的是「host 免持全实例引用」
+// 的窄入口，不是 renderer 隔离；误调兜底=kv 到轮节流+纯标记/通知语义。
 export interface AssistantTicketsHostFace {
   runWatchdogRound(input?: {
     nowMs?: number;

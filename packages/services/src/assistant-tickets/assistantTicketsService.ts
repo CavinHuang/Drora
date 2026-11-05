@@ -79,8 +79,11 @@ export interface AssistantTicketsServiceOptions {
 export function createAssistantTicketsService(
   options: AssistantTicketsServiceOptions,
 ): IAssistantTicketService & {
-  /** host 内部 ledger 入口（01 §3；不在 IAssistantTicketService——channel 代理面只含
-   * 接口方法，renderer 不可达）。装配层（node.ts ticketLedger 接线）与单测消费。 */
+  /** host 内部 ledger 入口（01 §3；不在 IAssistantTicketService 类型面）。装配层
+   * （node.ts ticketLedger 接线）与单测消费。边界注记（P4 修复轮核实）：服务实例
+   * 整体注册进 channel，ProxyChannel.fromService 遍历实例全部可枚举函数属性——本
+   * 方法与 runWatchdogRound 等工厂附加方法在 channel 面上实际可调，边界是约定+
+   * 兜底（ledger 单调纪律拒绝乱序归账），不是结构隔离。 */
   applyTicketTurnEvent(input: AssistantTicketTurnEventInput): boolean;
   /** host 内部：teamActivity 第三信号归账（02 §5；sessions-index 桥喂入）。 */
   applyTicketTeamEvent(input: {
@@ -109,15 +112,20 @@ export function createAssistantTicketsService(
   }): Promise<AssistantResult<{ ticketId: string; sessionId: string }>>;
   /**
    * host 内部：Source 注册表统一入口（03 详设 §1——飞书/GitHub 事件经装配层注入；
-   * channelRef 命中活动工单→直通 Tier1，否则真实强度规则进 gate）。renderer 不可达：
-   * channel 代理面只含接口方法（submitSourceEntry 才是 channel 可见入口，identity 由
-   * host 决定，防伪造）。
+   * channelRef 命中活动工单→直通 Tier1，否则真实强度规则进 gate）。边界注记（P4
+   * 修复轮核实）：本方法在 channel 面上经 ProxyChannel 实际可调（实例整体注册），
+   * 「只有 submitSourceEntry 可达」是约定不是结构隔离——身份伪造防线在 ingest 内部
+   * 强制规则（mention && allowlist 真实强度判定，identity 自报不提权）与
+   * submitSourceEntry 的 host 侧 identity 注入。
    */
   ingestSourceEvent(event: MateSourceEvent): Promise<AssistantResult<AssistantSourceIngestValue>>;
   /**
    * host 内部：P4 watchdog 轮（04 详设 §1；host/cronMateWatchdog.ts 定时器驱动）。
-   * 到轮判定（kv interval）在轮内裁决；renderer 不可达。awaitingCandidates 是 §3
-   * 工件核验的接缝入参（本批缺席=判据不激活）。
+   * 到轮判定（kv interval）在轮内裁决。边界注记（P4 修复轮核实）：本方法在 channel
+   * 面上经 ProxyChannel 实际可调（实例整体注册，见 applyTicketTurnEvent 注记），
+   * 非结构隔离——误调兜底=kv 到轮节流（interval 内 ran=false 零副作用）+纯标记/
+   * 通知语义（永不改状态机）。awaitingCandidates 是 §3 工件核验的接缝入参（缺席=
+   * 判据不激活）。
    */
   runWatchdogRound(input?: {
     nowMs?: number;

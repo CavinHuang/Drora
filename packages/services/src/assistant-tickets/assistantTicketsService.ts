@@ -8,22 +8,16 @@
 
 import { createUuid } from "@drora/shared";
 import {
-  ASSISTANT_DEFAULTS,
   ASSISTANT_ERROR_CODES,
   ASSISTANT_MODES,
   ASSISTANT_OUTCOMES,
   ASSISTANT_PERMISSION_TIERS,
   ASSISTANT_TICKET_STATUSES,
-  type AssistantMode,
   type AssistantPermissionTier,
 } from "@drora/shared";
 import { createServiceLogger } from "../logger/serviceLogger.js";
 import { evaluateAdmission } from "./admissionGate.js";
-import {
-  ASSISTANT_KV_KEYS,
-  readAssistantConfig,
-  readAssistantKv,
-} from "./assistantConfig.js";
+import { ASSISTANT_KV_KEYS, readAssistantConfig } from "./assistantConfig.js";
 import {
   AssistantDatabase,
   openAssistantDatabase,

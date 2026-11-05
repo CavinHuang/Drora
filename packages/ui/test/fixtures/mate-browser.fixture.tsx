@@ -127,12 +127,17 @@ function createMateFixtureService(
   let worktreeDisabled = false;
   let queueNextApprove = false;
   let rolloverNextApprove = false;
+  // P4 第二棒：下一次终局进核验滞留（awaiting_output）开关。
+  let awaitNextTicket = false;
   // P3 接缝批：手机入口 ingest 结果读点（direct:<ticketId>:<text> / gate:<triggerId>:<outcome>）。
   let lastIngest = "";
   // P4 配额中心内存版（IAssistantTicketService 形状补齐；判定语义与服务 admitDisturbance
   // 同构简化：decision 永不抑制仍计数、report/bubble 超配额聚合当日 digest）。
   const quotaDay = { date: "", decision: 0, report: 0, bubble: 0, digest: [] as string[], digestDelivered: false };
   let dailyQuota = 5;
+  // P4 第二棒：watchdog 通知区内存版（snapshot.watchdogNotices 投影源）+ 上次闸判定读点。
+  const watchdogNotices: Array<{ ticketId: string; kind: string; summary: string; atMs: number }> = [];
+  let lastAdmit = "";
   const triggers: AssistantTriggerView[] = [];
   const decisions: FixtureDecision[] = [];
   const tickets: FixtureTicket[] = [];
@@ -222,7 +227,7 @@ function createMateFixtureService(
           pendingDigest: quotaDay.digestDelivered ? [] : [{ date: quotaDay.date, items: [...quotaDay.digest] }],
         };
       })(),
-      watchdogNotices: [],
+      watchdogNotices: watchdogNotices.slice(-5).map((notice) => ({ ...notice })),
       updatedAtMs,
     };
   }
@@ -235,8 +240,33 @@ function createMateFixtureService(
     publish();
     setTimeout(() => {
       if (ticket.status !== ASSISTANT_TICKET_STATUSES.running) return;
+      // P4 第二棒：fixture-await-next 开关 → 终局进 awaiting_output（核验滞留面：快照
+      // awaitingSinceMs+按代成本投影+增量横幅由 rolloverNext/确认列驱动），与服务
+      // 「turn ended+核验未通过」语义同构简化——真实核验在 host 侧 reportCompletion。
+      if (awaitNextTicket) {
+        awaitNextTicket = false;
+        ticket.status = ASSISTANT_TICKET_STATUSES.awaitingOutput as string;
+        ticket.awaitingSinceMs = Date.now();
+        ticket.usage = { inputTokens: 96, outputTokens: 300 };
+        ticket.usageByGeneration = [
+          { generation: 1, inputTokens: 48, outputTokens: 120, durationMs: 90_000 },
+          { generation: 2, inputTokens: 48, outputTokens: 180, durationMs: 45_000, current: true },
+        ];
+        ticket.outputSummary = "完成：fixture 汇报首行摘要（核验未通过滞留）";
+        ticket.updatedAtMs = Date.now();
+        publish();
+        return;
+      }
       ticket.status = ASSISTANT_TICKET_STATUSES.done;
       ticket.usage = { inputTokens: 128, outputTokens: 456 };
+      // P4 第二棒：done 工单也带按代成本投影（单代=当代一行；多代随 rolloverNext）。
+      ticket.usageByGeneration =
+        (ticket.generationCount ?? 0) > 0
+          ? [
+              { generation: 1, inputTokens: 64, outputTokens: 200, durationMs: 120_000 },
+              { generation: 2, inputTokens: 64, outputTokens: 256, durationMs: 30_000, current: true },
+            ]
+          : [{ generation: 1, inputTokens: 128, outputTokens: 456, durationMs: 150_000, current: true }];
       ticket.outputSummary = "完成：fixture 汇报首行摘要";
       ticket.updatedAtMs = Date.now();
       publish();
@@ -555,6 +585,8 @@ function createMateFixtureService(
       if (aggregated && input.summary) {
         quotaDay.digest.push(input.summary.slice(0, 200));
       }
+      // P4 第二棒：闸判定读点（气泡闸 e2e 断言 bubble admit 到达且带摘要）。
+      lastAdmit = `${input.kind}:${input.summary ?? ""}:${!aggregated}`;
       publish();
       return {
         ok: true as const,
@@ -605,6 +637,27 @@ function createMateFixtureService(
     rolloverNext(): void {
       rolloverNextApprove = true;
     },
+    // ---- P4 第二棒验收控件（mate-p4-ui.test.mjs 消费；P1-P3 场景不点不触发） ----
+    /** 下一次终局进核验滞留（awaiting_output；快照带 awaitingSinceMs+按代成本投影）。 */
+    awaitNext(): void {
+      awaitNextTicket = true;
+    },
+    /** 注入一条 watchdog 通知（快照 watchdogNotices ≤5 投影源）。 */
+    injectNotice(ticketId: string, kind: string, summary: string): void {
+      watchdogNotices.push({ ticketId, kind, summary, atMs: Date.now() });
+      publish();
+    },
+    /** 推送 N 条 report 类打扰（超额即聚合 digest；e2e 断言摘要卡与状态条配额行）。 */
+    pushReports(count: number, summary: string): void {
+      for (let index = 0; index < count; index += 1) {
+        void service.admitDisturbance({ kind: "report", summary });
+      }
+      publish();
+    },
+    /** 气泡闸判定读点（kind:summary:allowed）。 */
+    lastAdmit(): string {
+      return lastAdmit;
+    },
   };
 }
 
@@ -614,6 +667,8 @@ function Fixture() {
   const [lastBrief, setLastBrief] = useState("");
   const [lastApprove, setLastApprove] = useState("");
   const [lastIngest, setLastIngest] = useState("");
+  // P4 第二棒验收读点：气泡闸判定（fixture-last-admit）。
+  const [lastAdmit, setLastAdmit] = useState("");
   // P3 桌宠接缝发布方验收：捕获 MatePetSync 经 platform.publishMatePet 发布的最新投影
   // （真实 Main 转发/宠物窗渲染在 desktop matePetBridge/tray DOM 单测与真机链路覆盖）。
   const [lastProjection, setLastProjection] = useState("");
@@ -626,6 +681,10 @@ function Fixture() {
     lastIngest: readLastIngest,
     queueNext,
     rolloverNext,
+    awaitNext,
+    injectNotice,
+    pushReports,
+    lastAdmit: readLastAdmit,
   } = useMemo(
     () =>
       createMateFixtureService(setLastBrief, (input) =>
@@ -737,6 +796,25 @@ function Fixture() {
               <button data-testid="fixture-rollover-next" onClick={rolloverNext}>
                 Rollover next approve
               </button>
+              {/* P4 第二棒：核验滞留终局/watchdog 通知/超额摘要/气泡闸读点。 */}
+              <button data-testid="fixture-await-next" onClick={awaitNext}>
+                Await (unverified) next
+              </button>
+              <button
+                data-testid="fixture-inject-notice"
+                onClick={() => injectNotice("T-notice-1", "running_stall", "工单运行停滞超过 30 分钟无新事件")}
+              >
+                Inject watchdog notice
+              </button>
+              <button data-testid="fixture-push-reports" onClick={() => pushReports(4, "汇报推送：已完成 fixture 场景")}>
+                Push 4 report disturbances
+              </button>
+              <button
+                data-testid="fixture-read-admit"
+                onClick={() => setLastAdmit(readLastAdmit())}
+              >
+                Read last admit
+              </button>
               {/* P3 接缝批：手机 Source 入口（phone 徽标决策卡 + channel_ref 直通）。 */}
               <button data-testid="fixture-inject-phone" onClick={handlePhoneNamed}>
                 Inject phone named trigger
@@ -767,6 +845,7 @@ function Fixture() {
               <output data-testid="fixture-approve-input">{lastApprove}</output>
               <output data-testid="fixture-last-ingest">{lastIngest}</output>
               <output data-testid="fixture-mate-pet-projection">{lastProjection}</output>
+              <output data-testid="fixture-last-admit">{lastAdmit}</output>
             </div>
             <div className="mx-auto" style={{ width: 480, height: 780 }}>
               <MateSidePane

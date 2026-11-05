@@ -14,16 +14,19 @@ const MATE_STATUS_MODE_MESSAGE_ID: Record<MateStatusLine["mode"], string> = {
  * 大副会话状态条（02 详设 §1.4 Surface A：mode/活动工单数摘要行）。
  *
  * 单行只读投影：mode 徽标 + `deriveMateStatusLine` 一次折叠（活动数=软预算口径
- * dispatched+running；queued 单列；pending=待决策卡数）。数据与 MatePaneHeader 的
+ * dispatched+running+awaiting；queued 单列；pending=待决策卡数）。数据与 MatePaneHeader 的
  * 过滤计数同源（同一快照、同一 view-model 口径函数），不构成第二状态。
  *
- * **打扰配额不渲染（诚实省略）**：每日配额默认 5 与全端生效是 P4 交付（specs §14），
- * P2 无事实源；快照无配额字段，本组件不得伪造。
+ * **P4 第二棒（04 详设 §4）**：补配额行——`resolveMateQuotaLine`（当日三类累计/生效
+ * 配额/余量）；snapshot.quota 缺席（旧 Host）不渲染（诚实降级，P2 形态原样）。
  */
 export const MateStatusStrip = memo(function MateStatusStrip({
   status,
+  quota,
 }: {
   status: MateStatusLine;
+  /** 配额行投影（resolveMateQuotaLine；缺席=旧 Host 快照，不渲染）。 */
+  quota?: { used: number; quota: number; remaining: number } | null;
 }) {
   const { intl } = useDroraIntl();
   return (
@@ -54,6 +57,14 @@ export const MateStatusStrip = memo(function MateStatusStrip({
           },
         )}
       </span>
+      {quota ? (
+        <span
+          className="shrink-0 text-ui-xs text-foreground-subtlest"
+          data-testid="mate-status-quota"
+        >
+          {intl.formatMessage({ id: "mate.status.quota" }, quota)}
+        </span>
+      ) : null}
     </div>
   );
 });

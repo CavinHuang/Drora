@@ -9,16 +9,21 @@ export {
   findMateDecisionForTicket,
   isMateActiveTicket,
   isMateAutoSwitchAvailable,
+  isMateAwaitingVerification,
   isMateObserveDecision,
   isMatePendingDecision,
   isMateQueuedTicket,
   matePermissionTierMessageId,
   mateRouterSuggestionKindMessageId,
   mateSourceKindMessageId,
+  mateStaleBadgeKind,
   mateTicketGenerationNumber,
+  mateUnconfirmedIncrement,
   resolveMateBudgetActive,
   resolveMateErrorMessageId,
+  resolveMateQuotaLine,
   resolveMateTrustGateProgress,
+  resolveMateUsageGenerations,
 } from "./view-model.js";
 export type {
   MateErrorMessageId,
@@ -40,6 +45,7 @@ export type { MateLampTone } from "./statusTone.js";
 export { MateLamp } from "./MateLamp.js";
 export { MatePaneHeader } from "./MatePaneHeader.js";
 export { MateStatusStrip } from "./MateStatusStrip.js";
+export { MateDigestCard } from "./MateDigestCard.js";
 export { MateTrustBar } from "./MateTrustBar.js";
 export { MateWorkspaceGroup } from "./MateWorkspaceGroup.js";
 export { MateDecisionCard } from "./MateDecisionCard.js";

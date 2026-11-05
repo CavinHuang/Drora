@@ -5,7 +5,11 @@ import { formatTaskRelativeTime } from "@/lib/taskListItemPresentation.js";
 import { cn } from "@/components/lib/utils.js";
 
 import { MateLamp } from "./MateLamp.js";
-import { mateTicketGenerationNumber, isMateQueuedTicket } from "./view-model.js";
+import {
+  mateTicketGenerationNumber,
+  isMateQueuedTicket,
+  mateStaleBadgeKind,
+} from "./view-model.js";
 import { mateTicketLampTone } from "./statusTone.js";
 
 /** brief/trigger 预览统一取首行（服务侧 120 字截断可能仍含换行，01 §1.2 首行口径）。 */
@@ -31,6 +35,8 @@ const MATE_MODE_HINT_MESSAGE_ID: Record<"A" | "B" | "C", string> = {
  * - generationCount>0：第 N 代（N=归档数+1，mateTicketGenerationNumber 单一口径）；
  * - writeDomain：worktree/paths/workspace 三形态 title 提示（worktreeDisabled 时服务侧
  *   即发 paths/workspace 域，行内只按快照事实渲染，无独立开关读取）。
+ * - P4 第二棒：stale 停滞徽标（watchdog 判据投影，04 详设 §1——「停滞」短徽标+title
+ *   全称，与 queued 徽标同 warning-surface 色系不发明新色）。
  * 点击仅切换选中（mateStore.selectedTicketId，P2 下钻 Surface C 详情视图）。
  */
 export const MateTicketRow = memo(function MateTicketRow({
@@ -44,6 +50,9 @@ export const MateTicketRow = memo(function MateTicketRow({
 }) {
   const { intl } = useDroraIntl();
   const queued = isMateQueuedTicket(ticket.status);
+  // P4 第二棒（04 详设 §1）：watchdog 停滞标记徽标（staleSinceMs 唯一事实源；
+  // 判据解除同轮清除后徽标自然消失——行内不落本地状态）。
+  const staleKind = mateStaleBadgeKind(ticket);
   return (
     <button
       type="button"
@@ -69,6 +78,15 @@ export const MateTicketRow = memo(function MateTicketRow({
             data-testid="mate-ticket-queued"
           >
             {intl.formatMessage({ id: "mate.ticket.queued" })}
+          </span>
+        ) : null}
+        {staleKind ? (
+          <span
+            className="rounded-sm bg-warning-surface px-1.5 py-0.5 text-ui-xs text-warning-surface-foreground"
+            title={intl.formatMessage({ id: `mate.watchdog.kind.${staleKind}` })}
+            data-testid="mate-ticket-stale"
+          >
+            {intl.formatMessage({ id: "mate.ticket.stale" })}
           </span>
         ) : null}
         {ticket.dispatchMode ? (

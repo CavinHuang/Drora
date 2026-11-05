@@ -69,12 +69,16 @@ export function projectMatePet(snapshot: AssistantSnapshot): MatePetProjection {
     .slice(0, MATE_PET_PROJECTION_LIMITS.activeMax)
     .map((ticket) => ({
       ticketId: ticket.id,
+      // P4 第二棒（04 详设 §3）：核验滞留 awaiting_output→"awaiting"（shared schema
+      // 只加不破；旧宠物窗未知值走 matePetStatusLabel 兜底分支）。
       status:
         ticket.status === ASSISTANT_TICKET_STATUSES.queued
           ? "queued"
           : ticket.status === ASSISTANT_TICKET_STATUSES.running
             ? "running"
-            : "dispatched",
+            : ticket.status === ASSISTANT_TICKET_STATUSES.awaitingOutput
+              ? "awaiting"
+              : "dispatched",
       brief: firstLine(ticket.brief, MATE_PET_PROJECTION_LIMITS.textMax),
       targetWorkspaceIdentity: ticket.targetWorkspaceIdentity ?? "",
     }));

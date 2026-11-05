@@ -1,5 +1,6 @@
 import { memo, useEffect, useState } from "react";
 import type { AssistantMode } from "@drora/shared";
+import { ASSISTANT_SETTINGS_KEYS } from "@drora/shared";
 import type { AssistantResult, IAssistantTicketService } from "@drora/services";
 import { useDroraIntl } from "@/i18n/IntlProvider.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
@@ -8,6 +9,8 @@ import { Switch } from "@/components/ui/switch.js";
 import { cn } from "@/components/lib/utils.js";
 import { resolveMateErrorMessageId, type MateErrorMessageId } from "./view-model.js";
 import { useMateStore } from "@/store/mateStore.js";
+import { useOptionalServices } from "@/hooks/useServices.jsx";
+import { useSettings } from "@/hooks/useSettingService.js";
 
 /**
  * 配置区（01 §5 MateConfigSection）：模式（observe 锁定展示；auto 恒禁用+达标 tooltip，
@@ -27,6 +30,7 @@ export const MateConfigSection = memo(function MateConfigSection({
   allowlist,
   worktreeDisabled,
   workspaceIdentity,
+  dailyQuota,
 }: {
   service: IAssistantTicketService;
   /** 本 workspace 分域键（store 动作 single-flight 按 workspace 隔离）。 */
@@ -37,11 +41,27 @@ export const MateConfigSection = memo(function MateConfigSection({
   worktreeDisabled: boolean;
   /** 本 pane 所属 workspace 的 identity（触发 target；缺席=不携带由服务兜底）。 */
   workspaceIdentity?: string;
+  /** P4 第二棒（04 详设 §4）：生效每日配额（快照 quota.quota 投影；缺席=旧 Host 不渲染）。 */
+  dailyQuota?: number;
 }) {
   const { intl } = useDroraIntl();
   const setAllowlist = useMateStore((state) => state.setAllowlist);
   const setWorktreeDisabled = useMateStore((state) => state.setWorktreeDisabled);
   const recordTrigger = useMateStore((state) => state.recordTrigger);
+  // P4 第二棒：每日配额调整走 AppSettings（useSettings 写 droraMateDailyQuota，键字面量
+  // contracts ASSISTANT_SETTINGS_KEYS 单出处）。settings 服务缺席（本仓夹具/远端降级形态）
+  // → 输入禁用（诚实降级，不建第二条写路径）。
+  const { settings: sharedSettings, update: updateSharedSettings } = useSettings();
+  const settingsServicePresent = useOptionalServices()?.settingService != null;
+  const quotaEditable = settingsServicePresent;
+  // 配额草稿：生效值=快照投影（服务闭包缓存）；AppSettings 原始值缺席（缺省 5）时也以
+  // 生效值回填草稿——保存即把当前生效值固化进 AppSettings（语义等价，判定本就实时读）。
+  const [quotaDraft, setQuotaDraft] = useState(() => `${dailyQuota ?? ""}`);
+  const [quotaDirty, setQuotaDirty] = useState(false);
+  useEffect(() => {
+    if (quotaDirty || dailyQuota === undefined) return;
+    setQuotaDraft(`${dailyQuota}`);
+  }, [dailyQuota, quotaDirty]);
 
   // 名单草稿：快照推送是唯一事实，但**编辑中不被推送覆盖**（PR-1B 三审发现 2）——
   // 同面板任意动作（recordTrigger/approve 等）都会触发 publish，服务端每次
@@ -105,6 +125,27 @@ export const MateConfigSection = memo(function MateConfigSection({
   const handleWorktreeToggle = (checked: boolean): void => {
     // 快照推送是唯一事实：开关只发服务动作，不落本地副本（服务确认值随下次快照回填）。
     run(setWorktreeDisabled(service, workspaceKey, !checked));
+  };
+
+  // P4 第二棒（04 详设 §4）：每日配额保存——0-200 整数（validationAppSettings 同界，
+  // 契约 ASSISTANT_SETTINGS_KEYS.dailyQuota 单出处键）。越界/非整数本地拒绝（不落请求）。
+  const handleSaveQuota = (): void => {
+    const parsed = Number(quotaDraft);
+    if (
+      quotaDraft.trim() === "" ||
+      !Number.isSafeInteger(parsed) ||
+      parsed < 0 ||
+      parsed > 200
+    ) {
+      setFailure("mate.config.quota.invalid");
+      return;
+    }
+    updateSharedSettings({ [ASSISTANT_SETTINGS_KEYS.dailyQuota]: parsed })
+      .then(() => {
+        setFailure(null);
+        setQuotaDirty(false);
+      })
+      .catch(() => setFailure("mate.error.generic"));
   };
 
   return (
@@ -200,6 +241,45 @@ export const MateConfigSection = memo(function MateConfigSection({
           </span>
         </ControlHintTooltip>
       </div>
+
+      {/* P4 第二棒（04 详设 §4 调整入口）：每日打扰配额（条/日；0=非决策类全静音聚合，
+          决策类不受限）。settings 服务缺席时输入禁用（诚实降级，不建第二条写路径）。 */}
+      {dailyQuota !== undefined ? (
+        <div className="flex flex-col gap-1.5" data-testid="mate-config-quota">
+          <label htmlFor="mate-quota-input" className="text-ui-xs text-foreground-subtlest">
+            {intl.formatMessage({ id: "mate.config.quota.label" })}
+          </label>
+          <div className="flex items-center gap-1.5">
+            <input
+              id="mate-quota-input"
+              type="number"
+              min={0}
+              max={200}
+              step={1}
+              value={quotaDraft}
+              disabled={!quotaEditable}
+              onChange={(event) => {
+                setQuotaDraft(event.target.value);
+                setQuotaDirty(true);
+              }}
+              className="w-24 rounded-lg border border-input-border bg-input px-2 py-1.5 font-mono text-ui-sm text-foreground focus:border-input-border-focused focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
+              data-testid="mate-quota-input"
+            />
+            <Button
+              size="xs"
+              variant="outline"
+              disabled={!quotaEditable || !quotaDirty}
+              onClick={handleSaveQuota}
+              data-testid="mate-quota-save"
+            >
+              {intl.formatMessage({ id: "common.save" })}
+            </Button>
+          </div>
+          <p className="text-ui-xs text-foreground-subtlest">
+            {intl.formatMessage({ id: "mate.config.quota.hint" })}
+          </p>
+        </div>
+      ) : null}
 
       <div className="flex flex-col gap-1.5">
         <label htmlFor="mate-trigger-input" className="text-ui-xs text-foreground-subtlest">

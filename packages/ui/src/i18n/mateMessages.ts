@@ -140,6 +140,40 @@ export const mateMessagesEn = {
 
   // ---- P3 Thread 直通（工单详情时间线通道绑定站；spec §5） ----
   "mate.detail.timeline.channel": "Channel binding (direct-through)",
+
+  // ---- P4 第二棒：汇报卡完整版 + 配额中心 UI（04 详设 §3/§4；spec §11 P4 落地注记） ----
+  "mate.status.quota": "Disturbances {used}/{quota} · {remaining} left today",
+  "mate.report.awaiting": "Output unverified",
+  "mate.report.awaiting.since":
+    "The artifact check has not passed; held since {since}. You can confirm the delivery manually.",
+  "mate.report.confirmOutput": "Confirm delivery",
+  "mate.report.increment":
+    "Generation {gen} restart: changes at the end of generation {prev} were not confirmed.",
+  "mate.report.increment.confirm": "Acknowledge",
+  "mate.ticket.stale": "Stalled",
+  "mate.watchdog.kind.running_stall": "Running stalled",
+  "mate.watchdog.kind.awaiting_unverified": "Output unverified",
+  "mate.watchdog.kind.queued_starve": "Queued too long",
+  "mate.digest.title": "Quiet-hours digest",
+  "mate.digest.quotaUsed": "{used}/{quota} disturbances today",
+  "mate.digest.markDelivered": "Mark delivered",
+  "mate.config.quota.label": "Daily disturbance quota",
+  "mate.config.quota.hint":
+    "Pushes per day across surfaces (decision cards are never suppressed). 0 aggregates all non-decision pushes into the next-day digest.",
+  "mate.config.quota.invalid": "The quota must be an integer between 0 and 200.",
+  "mate.detail.timeline.awaiting": "Artifact check held",
+  "mate.detail.timeline.awaiting.since": "Held since {since}; confirm manually or wait for re-check",
+  "mate.detail.evidence.briefFull": "Brief verbatim (full)",
+  "mate.detail.evidence.artifacts": "Artifacts",
+  "mate.detail.evidence.artifacts.worktree": "Worktree {path} (branch {branch})",
+  "mate.detail.evidence.artifacts.paths": "Declared write domain: {paths}",
+  "mate.detail.evidence.artifacts.none": "No git artifacts (no worktree isolation)",
+  "mate.detail.cost.generation": "Generation {gen}",
+  "mate.detail.cost.duration": "{duration}",
+  "mate.detail.cost.duration.current": "{duration} so far",
+  "mate.detail.cost.duration.seconds": "{count}s",
+  "mate.detail.cost.duration.minutes": "{count}m",
+  "mate.detail.cost.duration.hours": "{count}h",
 };
 
 export const mateMessagesZh = {
@@ -270,4 +304,38 @@ export const mateMessagesZh = {
 
   // ---- P3 Thread 直通（工单详情时间线通道绑定站；spec §5） ----
   "mate.detail.timeline.channel": "通道绑定（直通）",
+
+  // ---- P4 第二棒：汇报卡完整版 + 配额中心 UI（04 详设 §3/§4；spec §11 P4 落地注记） ----
+  "mate.status.quota": "今日打扰 {used}/{quota} · 余 {remaining}",
+  "mate.report.awaiting": "产出待核验",
+  "mate.report.awaiting.since":
+    "工件核验未通过，自 {since} 起滞留；可人工确认交付。",
+  "mate.report.confirmOutput": "人工确认交付",
+  "mate.report.increment":
+    "第 {gen} 代重启，第 {prev} 代末尾改动未确认。",
+  "mate.report.increment.confirm": "确认增量",
+  "mate.ticket.stale": "停滞",
+  "mate.watchdog.kind.running_stall": "运行停滞",
+  "mate.watchdog.kind.awaiting_unverified": "产出待核验",
+  "mate.watchdog.kind.queued_starve": "排队过久",
+  "mate.digest.title": "安静期摘要",
+  "mate.digest.quotaUsed": "今日打扰 {used}/{quota}",
+  "mate.digest.markDelivered": "标记已投递",
+  "mate.config.quota.label": "每日打扰配额",
+  "mate.config.quota.hint":
+    "各端每日推送上限（条/日；决策卡永不抑制）。0=非决策类推送全部聚合进次日摘要。",
+  "mate.config.quota.invalid": "配额必须是 0-200 的整数。",
+  "mate.detail.timeline.awaiting": "工件核验滞留",
+  "mate.detail.timeline.awaiting.since": "自 {since} 起滞留；等待核验或人工确认交付",
+  "mate.detail.evidence.briefFull": "brief 原文（全量）",
+  "mate.detail.evidence.artifacts": "工件",
+  "mate.detail.evidence.artifacts.worktree": "worktree {path}（分支 {branch}）",
+  "mate.detail.evidence.artifacts.paths": "声明写域：{paths}",
+  "mate.detail.evidence.artifacts.none": "无 git 工件（未隔离写域）",
+  "mate.detail.cost.generation": "第 {gen} 代",
+  "mate.detail.cost.duration": "{duration}",
+  "mate.detail.cost.duration.current": "迄今 {duration}",
+  "mate.detail.cost.duration.seconds": "{count} 秒",
+  "mate.detail.cost.duration.minutes": "{count} 分钟",
+  "mate.detail.cost.duration.hours": "{count} 小时",
 };

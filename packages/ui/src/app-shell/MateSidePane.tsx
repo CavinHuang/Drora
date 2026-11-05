@@ -7,6 +7,7 @@ import { useMateStore } from "@/store/mateStore.js";
 import {
   MateConfigSection,
   MateDecisionCard,
+  MateDigestCard,
   MateObserveRow,
   MatePaneHeader,
   MateReportCard,
@@ -18,10 +19,12 @@ import {
   deriveMateStatusLine,
   deriveMateViewModel,
   isMateActiveTicket,
+  isMateAwaitingVerification,
   isMateObserveDecision,
   isMatePendingDecision,
   isMateQueuedTicket,
   resolveMateBudgetActive,
+  resolveMateQuotaLine,
 } from "@/mate/index.js";
 import { EMPTY_MATE_WORKSPACE_STATE } from "@/store/mateStore.js";
 
@@ -131,9 +134,14 @@ export const MateSidePane = memo(function MateSidePane({
     () => (snapshot === null ? 0 : resolveMateBudgetActive(snapshot)),
     [snapshot],
   );
-  // 大副会话状态条（02 详设 §1.4）：mode/活动/排队/待决策单行投影（同源同口径函数）。
+  // 大副会话状态条（02 详设 §1.4）：mode/活动/排队/待决策单行投影（同源同口径函数）；
+  // P4 第二棒补配额行（resolveMateQuotaLine，snapshot.quota 缺席=不渲染）。
   const statusLine = useMemo(
     () => (snapshot === null ? null : deriveMateStatusLine(snapshot)),
+    [snapshot],
+  );
+  const quotaLine = useMemo(
+    () => (snapshot === null ? null : resolveMateQuotaLine(snapshot)),
     [snapshot],
   );
   // Surface C 下钻：selectedTicketId 非空且工单仍在快照时渲染详情二级视图（工单被
@@ -165,10 +173,12 @@ export const MateSidePane = memo(function MateSidePane({
   if (selectedTicket !== null) {
     return (
       <div className="flex h-full min-h-0 flex-col" data-testid="mate-side-pane">
-        <MateStatusStrip status={statusLine} />
+        <MateStatusStrip status={statusLine} quota={quotaLine} />
         <MateTicketDetail
           snap={snapshot}
           ticket={selectedTicket}
+          service={service}
+          workspaceKey={workspaceKey}
           onBack={() => selectTicket(workspaceKey, null)}
           {...(onOpenMateSession ? { onOpenSession: handleOpenSession } : {})}
         />
@@ -183,7 +193,7 @@ export const MateSidePane = memo(function MateSidePane({
 
   return (
     <div className="flex h-full min-h-0 flex-col" data-testid="mate-side-pane">
-      <MateStatusStrip status={statusLine} />
+      <MateStatusStrip status={statusLine} quota={quotaLine} />
       <MatePaneHeader
         filter={filter}
         counts={viewModel.counts}
@@ -215,6 +225,9 @@ export const MateSidePane = memo(function MateSidePane({
           </div>
         ) : (
           <div className="flex flex-col gap-4">
+            {/* P4 第二棒（04 详设 §4）：配额中心摘要卡（watchdog 通知+未投递摘要分节；
+                两节皆空整卡不渲染——组件内判定，容器不复制该口径）。 */}
+            <MateDigestCard snapshot={snapshot} service={service} workspaceKey={workspaceKey} />
             {showDecisions && pendingDecisions.length > 0 ? (
               <div className="flex flex-col gap-1.5">
                 {pendingDecisions.map((decision) => (
@@ -234,7 +247,18 @@ export const MateSidePane = memo(function MateSidePane({
                 {group.tickets.map((ticket) =>
                   // queued 是工单行形态（排队灯档+queuedReason 进详情），不进汇报卡——
                   // P2 软预算排队（specs §9）是活动前的等待态，汇报语义只属于终态。
-                  isMateActiveTicket(ticket.status) || isMateQueuedTicket(ticket.status) ? (
+                  // P4 第二棒：awaiting_output 进汇报卡（核验滞留面=汇报语义的滞留态，
+                  // 04 详设 §3），dispatched/running/queued 仍为工单行。
+                  isMateAwaitingVerification(ticket.status) ? (
+                    <MateReportCard
+                      key={ticket.id}
+                      ticket={ticket}
+                      service={service}
+                      workspaceKey={workspaceKey}
+                      onOpenDetail={(ticketId) => selectTicket(workspaceKey, ticketId)}
+                      {...(onOpenMateSession ? { onOpenSession: handleOpenSession } : {})}
+                    />
+                  ) : isMateActiveTicket(ticket.status) || isMateQueuedTicket(ticket.status) ? (
                     <MateTicketRow
                       key={ticket.id}
                       ticket={ticket}
@@ -245,6 +269,8 @@ export const MateSidePane = memo(function MateSidePane({
                     <MateReportCard
                       key={ticket.id}
                       ticket={ticket}
+                      service={service}
+                      workspaceKey={workspaceKey}
                       onOpenDetail={(ticketId) => selectTicket(workspaceKey, ticketId)}
                       {...(onOpenMateSession ? { onOpenSession: handleOpenSession } : {})}
                     />
@@ -268,6 +294,7 @@ export const MateSidePane = memo(function MateSidePane({
         mode={snapshot.mode}
         allowlist={snapshot.allowlist}
         worktreeDisabled={snapshot.worktreeDisabled}
+        dailyQuota={snapshot.quota?.quota}
         {...(tab.workspaceIdentity ? { workspaceIdentity: tab.workspaceIdentity } : {})}
       />
     </div>

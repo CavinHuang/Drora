@@ -22,6 +22,10 @@ type MateApproveDecisionInput = Parameters<IAssistantTicketService["approveDecis
 type MateIgnoreDecisionInput = Parameters<IAssistantTicketService["ignoreDecision"]>[0];
 /** dismissObservation 入参。 */
 type MateDismissObservationInput = Parameters<IAssistantTicketService["dismissObservation"]>[0];
+/** P4 第二棒：工件核验人工确认入参。 */
+type MateConfirmOutputInput = Parameters<IAssistantTicketService["confirmTicketOutput"]>[0];
+/** P4 第二棒：换代增量确认入参。 */
+type MateConfirmIncrementsInput = Parameters<IAssistantTicketService["confirmTicketIncrements"]>[0];
 
 /** 无记录 workspace 的初始局部态（模块级常量：zustand 选择器回退需稳定引用防重渲染）。 */
 export const EMPTY_MATE_WORKSPACE_STATE: MateLocalUiState = {
@@ -85,6 +89,23 @@ interface MateState {
     service: IAssistantTicketService,
     workspaceKey: string,
     disabled: boolean,
+  ): Promise<AssistantResult<{ ok: true }>>;
+  /** P4 第二棒（04 详设 §3）：工件核验人工确认（awaiting_output → done+终态钩子）。 */
+  confirmTicketOutput(
+    service: IAssistantTicketService,
+    workspaceKey: string,
+    input: MateConfirmOutputInput,
+  ): Promise<AssistantResult<{ ok: true }>>;
+  /** P4 第二棒（04 详设 §3）：换代增量人工确认（置 increments_confirmed_ms，横幅出清）。 */
+  confirmTicketIncrements(
+    service: IAssistantTicketService,
+    workspaceKey: string,
+    input: MateConfirmIncrementsInput,
+  ): Promise<AssistantResult<{ ok: true }>>;
+  /** P4 配额中心（04 详设 §4）：次日摘要投递回执（MateDigestCard「标记已投递」）。 */
+  markDailyDigestDelivered(
+    service: IAssistantTicketService,
+    workspaceKey: string,
   ): Promise<AssistantResult<{ ok: true }>>;
 }
 
@@ -234,6 +255,23 @@ export const useMateStore = create<MateState>((set, get) => {
     setWorktreeDisabled(service, workspaceKey, disabled) {
       const key = `ws:${workspaceKey}:worktreeDisabled:${disabled ? "1" : "0"}`;
       return runSingleFlight(key, () => service.setWorktreeDisabled(disabled));
+    },
+
+    // P4 第二棒（04 详设 §3/§4）：人工确认/摘要回执动作——single-flight 同款纪律，
+    // key 含 ticketId（跨 workspace 同 id 工单是同库同行，但 key 域隔离仍按 workspace）。
+    confirmTicketOutput(service, workspaceKey, input) {
+      const key = `ws:${workspaceKey}:confirmOutput:${input.ticketId}`;
+      return runSingleFlight(key, () => service.confirmTicketOutput(input));
+    },
+
+    confirmTicketIncrements(service, workspaceKey, input) {
+      const key = `ws:${workspaceKey}:confirmIncrements:${input.ticketId}`;
+      return runSingleFlight(key, () => service.confirmTicketIncrements(input));
+    },
+
+    markDailyDigestDelivered(service, workspaceKey) {
+      const key = `ws:${workspaceKey}:digestDelivered`;
+      return runSingleFlight(key, () => service.markDailyDigestDelivered());
     },
   };
 });

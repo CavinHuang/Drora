@@ -1,7 +1,14 @@
 import { memo, useState } from "react";
-import { ArrowLeftIcon } from "lucide-react";
-import type { AssistantSnapshot, AssistantTicketView } from "@drora/services";
+import { ArrowLeftIcon, HourglassIcon } from "lucide-react";
+import { ASSISTANT_TICKET_STATUSES } from "@drora/shared";
+import type {
+  AssistantResult,
+  AssistantSnapshot,
+  AssistantTicketView,
+  IAssistantTicketService,
+} from "@drora/services";
 import { useDroraIntl } from "@/i18n/IntlProvider.js";
+import { formatTaskRelativeTime } from "@/lib/taskListItemPresentation.js";
 import { Button } from "@/components/ui/button.js";
 import { cn } from "@/components/lib/utils.js";
 
@@ -9,25 +16,34 @@ import { MateLamp } from "./MateLamp.js";
 import { mateTicketLampTone } from "./statusTone.js";
 import {
   findMateDecisionForTicket,
+  isMateAwaitingVerification,
   mateTicketGenerationNumber,
   mateRouterSuggestionKindMessageId,
+  mateStaleBadgeKind,
+  mateUnconfirmedIncrement,
+  resolveMateErrorMessageId,
+  resolveMateUsageGenerations,
 } from "./view-model.js";
+import { useMateStore } from "@/store/mateStore.js";
 
 /**
- * 工单详情二级视图（02 详设 §7 Surface C：返回按钮+四页签 时间线/汇报/证据/成本）。
+ * 工单详情二级视图（02 详设 §7 Surface C：返回按钮+四页签 时间线/汇报/证据/成本；
+ * P4 第二棒按 04 详设 §3 完整版升级）。
  *
  * 全部内容是快照投影（specs §11「所有面是 TicketService 快照的投影」），事实裁剪诚实
  * 标注（与 spec §11.3 落地注记一致）：
  * - 时间线=代际站：queued 站（queuedReason）→ 派发站（dispatchMode+sessionId）→ 锚站
- *   （anchorCommandId 或「尚未投递」）→ 当前代站（第 generationCount+1 代，强强调）。
+ *   （anchorCommandId 或「尚未投递」）→ 工件核验站（awaitingSinceMs 有值：滞留起始+
+ *   「人工确认交付」按钮）→ 当前代站（第 generationCount+1 代，强强调）。
  *   轨/站用 mate scope token（--color-mate-trace 族，DESIGN.md 已登记；不挪用 workflow
  *   家族）；站状态语义仍用共享状态色（灯=mateTicketLampTone）。
- * - 汇报页=output_summary/fail_reason；无汇报显示「尚无汇报」。
- * - 证据页=决策卡关联（快照 v2 ticket.decisionId→decisions[].id）：trigger verbatim+
- *   Router 建议 reason/evidence；无关联（手动建票或卡被快照容量裁剪）→ brief 原文
- *   诚实降级（不猜触发文本）。
- * - 成本页=usage input/output 合计+「按代分解随 P4」说明（快照只有 usage_accum 合计，
- *   不伪造逐代数据；specs §8 换代不换账）。
+ * - 汇报页=output_summary/fail_reason；awaiting 滞留提示+确认按钮；无汇报显示「尚无汇报」。
+ * - 证据页（P4 全量只读）：决策卡关联（trigger verbatim+Router 建议 reason/evidence）+
+ *   **briefFull 全量 verbatim**（快照可选字段，缺席=预览 120 字诚实降级）+**工件链接**
+ *   （writeDomain：worktree=path+branch；paths/workspace=「无 git 工件」）；无关联（手动
+ *   建票或卡被快照容量裁剪）→ brief 原文诚实降级（不猜触发文本）。
+ * - 成本页（P4 按代分解）：usageByGeneration 分代行（每代 input/output/时长，当代=迄今，
+ *   Σ=合计）；字段缺席（旧 Host）沿用 P2 合计+说明诚实降级（不伪造逐代数据，specs §8）。
  *
  * 页签选择是纯视图态（本组件 useState，不入 mateStore——store 三件局部态契约不变）。
  */
@@ -43,19 +59,48 @@ const MATE_DETAIL_TABS: ReadonlyArray<{ id: MateDetailTab; messageId: string; te
 export const MateTicketDetail = memo(function MateTicketDetail({
   snap,
   ticket,
+  service,
+  workspaceKey,
   onBack,
   onOpenSession,
 }: {
   snap: AssistantSnapshot;
   ticket: AssistantTicketView;
+  /** 服务动作入口（核验滞留的「人工确认交付」经 mateStore single-flight；04 详设 §3）。 */
+  service: IAssistantTicketService;
+  /** workspace 分域键（mateStore 动作隔离）。 */
+  workspaceKey: string;
   onBack: () => void;
   onOpenSession?: (sessionId: string) => void;
 }) {
   const { intl } = useDroraIntl();
   const [tab, setTab] = useState<MateDetailTab>("timeline");
+  const confirmOutput = useMateStore((state) => state.confirmTicketOutput);
+  const confirmIncrements = useMateStore((state) => state.confirmTicketIncrements);
+  // 人工确认失败臂（role=alert；成功由快照推送收敛——awaiting 站/横幅随状态出清）。
+  const [failure, setFailure] = useState<string | null>(null);
   const generation = mateTicketGenerationNumber(ticket);
   const linkedDecision = findMateDecisionForTicket(snap, ticket);
   const suggestion = linkedDecision?.routerSuggestion;
+  const increment = mateUnconfirmedIncrement(ticket);
+  const staleKind = mateStaleBadgeKind(ticket);
+  const usageGenerations = resolveMateUsageGenerations(ticket);
+  const runConfirm = (pending: Promise<AssistantResult<unknown>>): void => {
+    setFailure(null);
+    pending
+      .then((result) => {
+        if (!result.ok) setFailure(resolveMateErrorMessageId(result.error));
+      })
+      .catch(() => setFailure("mate.error.generic"));
+  };
+  const runIncrementConfirm = (): void => {
+    setFailure(null);
+    confirmIncrements(service, workspaceKey, { ticketId: ticket.id })
+      .then((result) => {
+        if (!result.ok) setFailure(resolveMateErrorMessageId(result.error));
+      })
+      .catch(() => setFailure("mate.error.generic"));
+  };
 
   return (
     <div className="flex h-full min-h-0 flex-col" data-testid="mate-ticket-detail">
@@ -74,6 +119,14 @@ export const MateTicketDetail = memo(function MateTicketDetail({
           {intl.formatMessage({ id: "mate.detail.title" })}
         </span>
         <MateLamp tone={mateTicketLampTone(ticket.status)} />
+        {staleKind ? (
+          <span
+            className="shrink-0 rounded-sm bg-warning-surface px-1.5 py-0.5 text-ui-xs text-warning-surface-foreground"
+            data-testid="mate-detail-stale"
+          >
+            {intl.formatMessage({ id: `mate.watchdog.kind.${staleKind}` })}
+          </span>
+        ) : null}
         <span className="ml-auto shrink-0 font-mono text-ui-xs text-foreground-subtle">
           {ticket.id}
         </span>
@@ -108,6 +161,49 @@ export const MateTicketDetail = memo(function MateTicketDetail({
         ) : null}
         {tab === "report" ? (
           <div className="flex flex-col gap-2" data-testid="mate-detail-report">
+            {increment ? (
+              <div
+                className="flex flex-wrap items-center gap-2 rounded-md bg-surface px-2 py-1.5"
+                data-testid="mate-detail-increment"
+              >
+                <span className="min-w-0 flex-1 break-words text-ui-xs text-foreground-subtle">
+                  {intl.formatMessage({ id: "mate.report.increment" }, increment)}
+                </span>
+                <Button
+                  size="xs"
+                  variant="outline"
+                  onClick={runIncrementConfirm}
+                  data-testid="mate-detail-increment-confirm"
+                >
+                  {intl.formatMessage({ id: "mate.report.increment.confirm" })}
+                </Button>
+              </div>
+            ) : null}
+            {isMateAwaitingVerification(ticket.status) ? (
+              <div
+                className="flex flex-wrap items-center gap-2 rounded-md bg-surface px-2 py-1.5"
+                data-testid="mate-detail-awaiting"
+              >
+                <HourglassIcon aria-hidden className="size-4 shrink-0 text-warning" />
+                <span className="min-w-0 flex-1 break-words text-ui-xs text-foreground-subtle">
+                  {intl.formatMessage(
+                    { id: "mate.report.awaiting.since" },
+                    { since: formatTaskRelativeTime(ticket.awaitingSinceMs ?? ticket.updatedAtMs, intl) },
+                  )}
+                </span>
+                <Button
+                  size="xs"
+                  onClick={() =>
+                    runConfirm(
+                      confirmOutput(service, workspaceKey, { ticketId: ticket.id }),
+                    )
+                  }
+                  data-testid="mate-detail-confirm-output"
+                >
+                  {intl.formatMessage({ id: "mate.report.confirmOutput" })}
+                </Button>
+              </div>
+            ) : null}
             {ticket.outputSummary ? (
               <>
                 <p className="text-ui-xs text-foreground-subtlest">
@@ -194,6 +290,46 @@ export const MateTicketDetail = memo(function MateTicketDetail({
                 </blockquote>
               </>
             )}
+            {/* P4 第二棒（04 详设 §3 证据页签全量只读）：briefFull verbatim + 工件链接。
+                briefFull 缺席（旧 Host）不渲染本节——不伪造「全量」。 */}
+            {ticket.briefFull ? (
+              <>
+                <p className="mt-1 text-ui-xs text-foreground-subtlest">
+                  {intl.formatMessage({ id: "mate.detail.evidence.briefFull" })}
+                </p>
+                <blockquote
+                  className="whitespace-pre-wrap break-words rounded-md bg-surface px-2.5 py-2 text-ui-sm text-foreground"
+                  data-testid="mate-detail-evidence-brief-full"
+                >
+                  {ticket.briefFull}
+                </blockquote>
+              </>
+            ) : null}
+            <p className="mt-1 text-ui-xs text-foreground-subtlest">
+              {intl.formatMessage({ id: "mate.detail.evidence.artifacts" })}
+            </p>
+            {ticket.writeDomain ? (
+              <p
+                className="break-words font-mono text-ui-xs text-foreground-subtle"
+                data-testid="mate-detail-evidence-artifacts"
+              >
+                {ticket.writeDomain.kind === "worktree"
+                  ? intl.formatMessage(
+                      { id: "mate.detail.evidence.artifacts.worktree" },
+                      { path: ticket.writeDomain.path, branch: ticket.writeDomain.branch },
+                    )
+                  : ticket.writeDomain.kind === "paths"
+                    ? intl.formatMessage(
+                        { id: "mate.detail.evidence.artifacts.paths" },
+                        { paths: ticket.writeDomain.paths.join(", ") },
+                      )
+                    : intl.formatMessage({ id: "mate.detail.evidence.artifacts.none" })}
+              </p>
+            ) : (
+              <p className="text-ui-xs text-foreground-subtlest">
+                {intl.formatMessage({ id: "mate.detail.evidence.artifacts.none" })}
+              </p>
+            )}
           </div>
         ) : null}
         {tab === "cost" ? (
@@ -204,15 +340,83 @@ export const MateTicketDetail = memo(function MateTicketDetail({
                 { input: ticket.usage.inputTokens, output: ticket.usage.outputTokens },
               )}
             </p>
-            <p className="text-ui-xs text-foreground-subtle" role="note">
-              {intl.formatMessage({ id: "mate.detail.cost.perGeneration" })}
-            </p>
+            {/* P4 第二棒（04 详设 §3 按代成本）：usageByGeneration 分代行（Σ=合计，服务
+                投影不变式）；字段缺席（旧 Host）沿用 P2 说明诚实降级，不伪造逐代数据。 */}
+            {usageGenerations ? (
+              <ul
+                className="flex flex-col gap-1.5"
+                data-testid="mate-detail-cost-generations"
+              >
+                {usageGenerations.map((row) => (
+                  <li
+                    key={row.generation}
+                    className="flex items-center gap-2 rounded-md bg-surface px-2 py-1.5"
+                  >
+                    <span
+                      className={cn(
+                        "shrink-0 text-ui-xs",
+                        row.current
+                          ? "font-medium text-foreground"
+                          : "text-foreground-subtle",
+                      )}
+                      data-testid="mate-detail-cost-generation-label"
+                    >
+                      {intl.formatMessage({ id: "mate.detail.cost.generation" }, { gen: row.generation })}
+                    </span>
+                    <span className="font-mono text-ui-xs text-foreground-subtle">
+                      {intl.formatMessage(
+                        { id: "mate.report.cost" },
+                        { input: row.inputTokens, output: row.outputTokens },
+                      )}
+                    </span>
+                    <span className="ml-auto shrink-0 text-ui-xs text-foreground-subtlest">
+                      {intl.formatMessage(
+                        {
+                          id: row.current
+                            ? "mate.detail.cost.duration.current"
+                            : "mate.detail.cost.duration",
+                        },
+                        { duration: formatDuration(row.durationMs, intl) },
+                      )}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-ui-xs text-foreground-subtle" role="note">
+                {intl.formatMessage({ id: "mate.detail.cost.perGeneration" })}
+              </p>
+            )}
           </div>
         ) : null}
       </div>
+      {failure !== null ? (
+        <p role="alert" className="px-3 pb-2 text-ui-sm text-destructive" data-testid="mate-detail-error">
+          {intl.formatMessage({ id: failure })}
+        </p>
+      ) : null}
     </div>
   );
 });
+
+/**
+ * 分代时长展示（04 详设 §3「每代 inputTokens/输出/时长」）：秒级 <60s、分钟级 <1h、
+ * 其余小时（粗粒度即可——时长是成本辅助维度，不参与任何判定语义）。
+ */
+function formatDuration(durationMs: number, intl: ReturnType<typeof useDroraIntl>["intl"]): string {
+  const seconds = Math.round(durationMs / 1000);
+  if (seconds < 60) {
+    return intl.formatMessage({ id: "mate.detail.cost.duration.seconds" }, { count: seconds });
+  }
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) {
+    return intl.formatMessage({ id: "mate.detail.cost.duration.minutes" }, { count: minutes });
+  }
+  return intl.formatMessage(
+    { id: "mate.detail.cost.duration.hours" },
+    { count: Math.round(minutes / 60) },
+  );
+}
 
 /**
  * 代际站时间线（mate scope token，DESIGN.md「Mate ticket timeline colors」）：轨段分两档
@@ -271,6 +475,18 @@ function MateTimelineStations({
       ? ticket.anchorCommandId
       : intl.formatMessage({ id: "mate.detail.timeline.anchorNone" }),
   });
+  // P4 第二棒（04 详设 §3 工件核验站）：awaiting_output 滞留=「产出待核验」站，展示
+  // 滞留起始（相对时间口径与工单行一致）；判据解除（done/新 turn）后字段出清即站消失。
+  if (ticket.awaitingSinceMs !== null && ticket.awaitingSinceMs !== undefined) {
+    stations.push({
+      key: "awaiting",
+      label: intl.formatMessage({ id: "mate.detail.timeline.awaiting" }),
+      detail: intl.formatMessage(
+        { id: "mate.detail.timeline.awaiting.since" },
+        { since: formatTaskRelativeTime(ticket.awaitingSinceMs, intl) },
+      ),
+    });
+  }
   stations.push({
     key: "current",
     label: intl.formatMessage({ id: "mate.detail.timeline.current" }, { gen: generation }),

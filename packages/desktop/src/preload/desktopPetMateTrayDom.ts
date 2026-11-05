@@ -21,6 +21,10 @@ export function matePetStatusLabel(status: string, zh: boolean): string {
       return zh ? "已派发" : "Dispatched";
     case "running":
       return zh ? "进行中" : "Running";
+    // P4 第二棒（04 详设 §3）：工件核验滞留档（shared schema 只加不破，旧窗未知值
+    // 走 default 兜底展示原值）。
+    case "awaiting":
+      return zh ? "待核验" : "Unverified";
     case "done":
       return zh ? "已完成" : "Completed";
     case "failed":

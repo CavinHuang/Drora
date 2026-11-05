@@ -83,7 +83,11 @@ export function isMateObserveDecision(decision: AssistantDecisionView): boolean 
 /** 进行中工单：dispatched（已派发未开局）与 running（turn started 后）都算。 */
 export function isMateActiveTicket(status: AssistantTicketView["status"]): boolean {
   return (
-    status === ASSISTANT_TICKET_STATUSES.dispatched || status === ASSISTANT_TICKET_STATUSES.running
+    status === ASSISTANT_TICKET_STATUSES.dispatched ||
+    status === ASSISTANT_TICKET_STATUSES.running ||
+    // P4 第二棒（04 详设 §3）：工件核验滞留占活动位（worktree 未清理，终态才释放）——
+    // 与服务侧 activeCountFor 同口径（queuedRelease.ts ACTIVE_STATUSES）。
+    status === ASSISTANT_TICKET_STATUSES.awaitingOutput
   );
 }
 
@@ -163,6 +167,68 @@ export function resolveMateTrustGateProgress(trust: AssistantTrustView): {
     minRate: Math.round(trust.gateThresholds.minRate * 100),
     minSamples: trust.gateThresholds.minSamples,
   };
+}
+
+// ---------------------------------------------------------------------------
+// P4 第二棒投影（04 详设 §3/§4 UI 侧）：配额行/核验滞留/未确认增量/按代成本
+// ---------------------------------------------------------------------------
+
+/** 状态条配额行投影：snapshot.quota 缺席（旧 Host）→ null 不渲染（诚实降级）。 */
+export function resolveMateQuotaLine(snap: AssistantSnapshot): {
+  used: number;
+  quota: number;
+  remaining: number;
+} | null {
+  if (!snap.quota) return null;
+  return {
+    used: snap.quota.total,
+    quota: snap.quota.quota,
+    remaining: snap.quota.remaining,
+  };
+}
+
+/** 工单是否处于工件核验滞留（04 详设 §3；awaiting_output 非终态、占活动位）。 */
+export function isMateAwaitingVerification(status: AssistantTicketView["status"]): boolean {
+  return status === ASSISTANT_TICKET_STATUSES.awaitingOutput;
+}
+
+/**
+ * 未确认增量行（spec §2.4 诚实规则，04 详设 §3）：换代工单（generationCount>0）且
+ * 尚未人工确认（incrementsConfirmedMs 缺席/NULL）时常驻显示；确认按钮置列后出清。
+ * 文案措辞与换代浓缩段同源（「第 N 代重启，第 N-1 代末尾改动未确认」）——本函数只
+ * 出代数参数，不复制第二份措辞。
+ */
+export function mateUnconfirmedIncrement(ticket: AssistantTicketView): {
+  gen: number;
+  prev: number;
+} | null {
+  if ((ticket.generationCount ?? 0) <= 0) return null;
+  if (ticket.incrementsConfirmedMs !== null && ticket.incrementsConfirmedMs !== undefined) {
+    return null;
+  }
+  const gen = mateTicketGenerationNumber(ticket);
+  return { gen, prev: gen - 1 };
+}
+
+/** watchdog 停滞徽标参数（工单行/汇报卡；staleSinceMs 缺席=未标记）。 */
+export function mateStaleBadgeKind(
+  ticket: AssistantTicketView,
+): "running_stall" | "awaiting_unverified" | null {
+  if (ticket.staleSinceMs === null || ticket.staleSinceMs === undefined) return null;
+  return ticket.staleKind === "running_stall" || ticket.staleKind === "awaiting_unverified"
+    ? ticket.staleKind
+    : null;
+}
+
+/**
+ * 按代成本行排序（成本页签）：generation 升序；旧 Host 字段缺席返回 null（诚实降级
+ * 为合计说明）。Σ行=usage 合计（服务投影不变式），UI 不再二次校账。
+ */
+export function resolveMateUsageGenerations(
+  ticket: AssistantTicketView,
+): NonNullable<AssistantTicketView["usageByGeneration"]> | null {
+  if (!ticket.usageByGeneration) return null;
+  return [...ticket.usageByGeneration].sort((a, b) => a.generation - b.generation);
 }
 
 // ---------------------------------------------------------------------------
@@ -330,7 +396,9 @@ export type MateErrorMessageId =
   | "mate.error.yolo"
   | "mate.error.auto"
   | "mate.error.validation"
-  | "mate.error.generic";
+  | "mate.error.generic"
+  // P4 第二棒（04 详设 §4）：每日配额草稿本地校验失败（0-200 整数界）。
+  | "mate.config.quota.invalid";
 
 /** 服务失败臂 → 文案键；未知码一律落 generic，不把原始错误文本直接展示给用户。 */
 export function resolveMateErrorMessageId(

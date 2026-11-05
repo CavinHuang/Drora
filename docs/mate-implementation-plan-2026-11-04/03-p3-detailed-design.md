@@ -59,6 +59,26 @@ interface MateSource {
 | IPC 字面量         | shared 常量区新增 `MATE_PET_COMMANDS`（照 PlatformChannels 形态）          | 不裸写                                                                                                                                                           |
 
 宠物本体（动画/manifest/Codex 兼容）零改动；pet/tray 不建第二 Host。
+  **落地注记（2026-11-05，接缝批次开工定型）**：数据通道照 DesktopPetPublish 同构——
+  主窗口 renderer 把 TicketService 快照投影为有界 `MatePetProjection`（shared
+  assistantPet.ts schema；待决策 ≤5/进行中 ≤5/最新汇报一条），Renderer→Main 走
+  `MATE_PET_COMMANDS.publish`（contracts/assistant.ts 单出处，照 PlatformChannels 形态），
+  Main 校验来源窗口（isMainWindow+safeParse）后经 `render` 转发给宠物窗/tray 窗；
+  badge=待决策数（>0 时 destructive 级优先显示，=0 回落既有活动数语义——任务活动
+  计数不回退）；气泡=最新汇报按 ticketId+updatedAtMs 判新，点击直达对应工单详情
+  （汇报全文在详情汇报页签），**每日打扰配额计数归 P4 配额中心**——P3 不建第二计数器
+  （避免重复状态），气泡只按事件驱动显示。
+- 导航端口（本节三件共用的 Main→Renderer 通道）：`MATE_PET_COMMANDS.rendererEvent`
+  三事件 open-mate / open-ticket / decide——菜单「打开大副」、tray 点卡直达、气泡点击
+  共用；renderer 侧执行既有 handleOpenMateSidePane + mateStore.selectTicket + service
+  动作（tray 放行=decide approve，默认 build 档，与面板放行同参同服务）。02 号 §7
+  「CLI /mate 命令触发即开面板」依赖的 renderer 导航通道即本端口；CLI 命令执行体在
+  host 进程，host→Main 的导航回调通道 03 未定义，本批不发明——/mate 文档片段保持
+  P2 形态（提示词引导+人工打开面板），直连属后续批次。
+- 装配落点：Main 侧桥=desktop/src/main 新文件 matePetBridge.ts（校验/路由纯核 +
+  ipcMain 包装），挂接点=drora-extensions/desktopPet.ts 的宠物扩展装配（官方 Main
+  index.ts 零改动语义不变）；托盘速览 DOM=desktopPetOverlayContent tray 模板扩展 +
+  desktopPetTray.ts 消费 render 帧，命令经 `MATE_PET_COMMANDS.command` 回 Main。
 
 ## 7. P3 验收
 
@@ -67,3 +87,11 @@ interface MateSource {
 3. 手机私聊助理→决策卡推送→放行；手机全程无 runtime 建立断言。
 4. follow-up 直通：同 thread 追加消息→不产生新 trigger、Router 无日志、目标会话收到输入。
 5. 桌宠：badge 数=任务中心待决策数；单击出 tray；tray 放行与主窗口状态一致。
+  **落地注记（2026-11-05，接缝批次验收分工）**：场景 1-4 的服务侧链路已由 host 批
+  单测锁定（assistantSourceIngest/assistantSourceRegistry.test.ts：飞书点名→决策卡、
+  未指名→would-accept、GitHub ETag+游标、手机 submitSourceEntry+无 runtime、
+  直通不建新票且 decisions 数不变+目标会话收到 attachTexts、终态回复端口一次）。
+  场景 5 与 UI 呈现面（Source 徽标/直通通道站）由接缝批交付：桌面侧桥路由纯核 +
+  tray DOM 单测（jsdom/node:test）、MatePetProjection 投影单测（ui fork-isolated）、
+  浏览器验收（mate fixture 扩展 + mjs：投影发布/导航直达/decide 传参/Source 徽标/
+  通道站/双语），真机桌宠点击链路（Electron 窗口坐标交互）随总闸联调验收。

@@ -276,6 +276,32 @@ useModelCapabilities 同构形态，00 §8 二审 B2）。
 完成=success、失败=destructive；工单行/卡片标题行必带实耗。遵守 DESIGN.md（text-ui-\*
 强制、elevation 克制、i18n、断点语义不变）。
 
+**P3 UI 面落地注记（2026-11-05，feat/mate-p3 接缝批次）**：各 Source 的呈现=决策卡/
+观察行补来源徽标（快照 v2 增量可选字段 decision.sourceKind——trigger JOIN 既有列，
+只加不破）；Thread 直通呈现=工单详情时间线「直通通道」站（ticket.channel_ref 有值即
+渲染，展示不透明串接值本身、不解析格式——串接格式是 host 侧 sources/channelRef.ts
+单出处，UI 不复制第二解析）。
+
+**P3 桌宠接缝事件面（2026-11-05，feat/mate-p3 接缝批次；03 详设 §6 落地形态）**：
+五件全落桌面 pet/tray 既有基建，宠物本体（动画/manifest/Codex 兼容）零改动，
+pet/tray 不建第二 Host：
+- 数据=主窗口 renderer 把 TicketService 快照投影为有界 MatePetProjection
+  （待决策 ≤5/进行中 ≤5/最新汇报一条；schema 在 shared assistantPet.ts，通道字面量
+  `MATE_PET_COMMANDS` 在 contracts/assistant.ts 单出处），经 Main 转发给宠物窗
+  （badge）与 tray 窗（速览区）；Main 只转发、校验来源窗口，不持工单事实。
+- 导航端口=Main→Renderer 的 rendererEvent（open-mate/open-ticket/decide 三事件）：
+  菜单「打开大副」、tray 点卡直达、气泡点击共用同一端口；renderer 侧执行既有
+  handleOpenMateSidePane + mateStore.selectTicket + service 动作——tray 放行与主窗口
+  状态一致（同一 service、同一快照推送，无第二条写入路径）。
+- badge：宠物窗渲染层，待决策数>0 时优先显示（destructive 级）；=0 回落既有活动数
+  语义（任务活动计数不回退）。
+- 气泡：宠物窗渲染层，新汇报一句话（按 ticketId+更新时刻判新），点击直达对应工单
+  详情（汇报全文在详情汇报页签）；**每日打扰配额计数归 P4 配额中心**（03 详设 §6
+  「P4 配额中心同一计数」——P4 事实源不存在，P3 不建第二计数器，气泡按事件驱动
+  显示、不设配额闸）。
+- tray 速览几何复用 desktopPetInteractionLayout 330×400；速览内放行/忽略经 decide
+  事件回主窗口 renderer 执行（权限档=默认 build，与面板放行同参）。
+
 ## 12. 双链路语义
 
 desktop-continuous：Router 会话实时流。web-remote-replayable：手机只见快照+汇报回放，

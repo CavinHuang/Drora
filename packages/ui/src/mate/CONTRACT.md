@@ -80,6 +80,29 @@ expandedDecisionId` 三件 UI 局部态，按 workspace 分域（`byWorkspace`�
 - **直通绑定呈现**：工单详情时间线「直通通道」站渲染 `ticket.channelRef` 不透明串接值
   （格式=host 侧 sources/channelRef.ts 单出处，UI 不复制第二解析）。
 
+## P4 增量（2026-11-05，第二棒：汇报卡完整版 + 配额中心 UI，04 详设 §3/§4）
+
+- **状态灯六档**：新增 awaiting 档（04 §3 工件核验滞留）——与 queued 同为 warning
+  空心（不发明新色，滞留文本伴随灯出现）；`isMateActiveTicket` 并入 awaiting_output
+  （与服务 queuedRelease ACTIVE_STATUSES 同口径，软预算活动数一致）。
+- **汇报卡完整版**：容器按状态路由 done/failed/**awaiting_output** → `MateReportCard`
+  （awaiting 卡=滞留提示+「人工确认交付」；done/failed 卡补「未确认增量」常驻横幅
+  （generationCount>0 且 incrementsConfirmedMs 缺席，`mateUnconfirmedIncrement` 纯函数
+  出 {gen, prev}）+「确认增量」按钮；stale 停滞徽标 `mateStaleBadgeKind` 封闭映射）。
+  动作经 mateStore single-flight（confirmTicketOutput/confirmTicketIncrements）。
+- **Surface C 增强**：时间线补「工件核验滞留」站（awaitingSinceMs）；成本页签按代分解
+  （`resolveMateUsageGenerations`，Σ=合计；字段缺席沿用 P2 说明诚实降级）；证据页签补
+  briefFull 全量 verbatim 与工件链接（writeDomain 只读；paths/workspace=「无 git 工件」）。
+- **配额中心 UI**：状态条配额行（`resolveMateQuotaLine`，snapshot.quota 缺席不渲染）；
+  `MateDigestCard` 摘要卡（watchdogNotices ≤5 与 quota.pendingDigest 分节，「标记已投递」
+  =markDailyDigestDelivered 回执，两节皆空整卡不渲染）；MateConfigSection 每日配额行
+  （草稿-dirty 纪律同名单编辑，写 AppSettings `droraMateDailyQuota` 经 useSettings；
+  settings 服务缺席输入禁用）。
+- **气泡闸**（root/MatePetSync）：弹泡差分命中先过 `admitDisturbance(kind=bubble)`，
+  未放行/判定通道失败皆不发布气泡帧（fail-closed）；在途判定期间跳过无弹泡帧发布
+  （admitDisturbance 自身推快照会触发 effect 重跑——重跑即取消会让气泡永不出现，
+  e2e 实测捕获）。兑现 P3「配额归配额中心同一计数」注记。
+
 ## 与其它模块的交集
 
 - `services`（assistant-tickets）：channel 代理消费快照与动作；类型引用只走 services

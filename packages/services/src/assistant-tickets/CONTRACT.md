@@ -66,11 +66,20 @@ ticket.channel_ref）；Thread 直通 Tier1。
   第三信号经 sessions-index 桥按 sessionId 反查归账（completed→done、cancelled/archived
   →failed、其余→running）。
 - turn 事件归账（01 §3）：`applyTicketTurnEvent` host 内部入口——状态机/usage 差值/
-  单调丢弃不变；P1 语义原样（turn_completed→done，awaiting_output 四态恢复随 P4 汇报
-  管线）。帧接线经 `setAssistantFrameSource`（P2 起带 hostPath 定位——W1 会话落位
-  worktree 目录）。
+  单调丢弃不变；**P4 第二棒（04 详设 §3）**：W1 worktree 工单 turn_completed 不再直落
+  done——进 `awaiting_output`（schema v6 列 awaiting_since_ms）交只读核验（新端口
+  `setAssistantArtifactVerifyPort`，node.ts 经 gitCommandProvider rev-parse/merge-base
+  零写引用；判定矩阵在 reportCompletion.ts：通过→done、无提交→滞留喂 watchdog
+  awaiting 判据（>60min→stale+通知）、端口缺席→P1 形态降级 done、git 失败→滞留待
+  人工）；人工出口=`confirmTicketOutput`（awaiting→done+终态后续）与
+  `confirmTicketIncrements`（置 increments_confirmed_ms，唯一写路径）。awaiting_output
+  占软预算活动位（queuedRelease.ts ACTIVE_STATUSES 单一口径，UI isMateActiveTicket
+  同参）。快照增量投影：usageByGeneration（落窗归代 Σ=合计）/briefFull/awaitingSinceMs/
+  incrementsConfirmedMs。FIFO 释放子侧拆 queuedRelease.ts、mandate stop/revoke 拆
+  mandateActions.ts（单文件 ≤800 行纪律，行为不变）。
 - 端口纪律：本模块不 import drora-agent/git——v4 命令、会话索引、workspace 探测、
-  git worktree 七端口全在装配层（services/node.ts set*，assistantPorts.ts 唯一形状）；
+  git worktree、工件只读核验（P4 第二棒）、AppSettings 配额读（P4）八端口全在装配层
+  （services/node.ts set*，assistantPorts.ts 唯一形状）；
   未注入按各语义诚实降级（派发=dispatch.rejected、Router=无建议、会话索引=候选空集/
   锚不可校验、探测=跳过 W1 规划按 workspace 域派发）。Router 端口双臂解除（装配层实现）：候选卡
   turn 的 assistantText complete→输出、failed/interrupted→{ok:false}（帧状态即事件

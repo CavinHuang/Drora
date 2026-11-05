@@ -25,7 +25,8 @@ export interface AssistantIncarnation {
   readonly cause: string;
   /** 本代最后一次成功投递的 commandId（anchor；null=尚未投递）。 */
   anchorCommandId?: string | null;
-  /** 本代已投递次数（=下一次投递序号；与 kv dispatch_seq 双记账，行内为准）。 */
+  /** 本代已投递次数（=下一次投递序号；行内记账——kv dispatch_seq 计数已按 P2 偏差
+   * 登记移除（CONTRACT.md「行内记账」），此处仅 incarnation 行一处事实源）。 */
   dispatchSeq?: number;
   /** W1 续用域（换代不重复 add）。 */
   worktree?: { readonly path: string; readonly branch: string };

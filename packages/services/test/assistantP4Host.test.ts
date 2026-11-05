@@ -9,6 +9,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   ASSISTANT_ERROR_CODES,
   ASSISTANT_MODES,
+  ASSISTANT_PERMISSION_TIERS,
   ASSISTANT_OUTCOMES,
   ASSISTANT_STRENGTHS,
   ASSISTANT_TICKET_STATUSES,
@@ -305,6 +306,66 @@ describe("auto explicit 直派（04 详设 §2）", () => {
       .get(dispatched[0].ticketId) as { channel_ref: string | null };
     expect(channel.channel_ref).toBeNull(); // 本事件未携带 channelRef → NULL（与人工放行同规则）
   });
+
+  // 2026-11-05 全链审查修复 P1 回归：旧实现 recordSourceTrigger 对账参误比
+  // autoPlan.finalOutcome——无目标降级计划与事务内 auto_notice 恒不等，回落
+  // auto_notice 但建票要求目标非空 → 不建票/不出卡/不进 Router/不计配额，只落一条
+  // 语义为「已自动执行」的 auto_notice（静默丢单+虚假告知卡）。飞书/GitHub 事件默认
+  // 不带 workspaceIdentity，生产默认路径即命中。
+  it("Source 入口 auto explicit 无目标 → 降级 decision_card（auto_missing_target），零派发零建票", async () => {
+    const { service, db } = createService();
+    kvSet(db, "mode", ASSISTANT_MODES.auto);
+    let dispatched = 0;
+    setAssistantDispatchPort(async (request) => {
+      dispatched += 1;
+      return { ok: true, value: { ticketId: request.ticketId, sessionId: "x" } };
+    });
+    const ingested = await service.ingestSourceEvent({
+      kind: "feishu",
+      identity: LOCAL_IDENTITY,
+      text: "飞书自动点名但没说目标",
+      mention: true,
+      atMs: Date.now(),
+    });
+    expect(ingested.ok).toBe(true);
+    if (!ingested.ok) return;
+    expect(ingested.value.outcome).toBe(ASSISTANT_OUTCOMES.decisionCard);
+    expect(dispatched).toBe(0);
+    expect((await service.getSnapshot()).tickets).toHaveLength(0);
+    const decision = (await service.getSnapshot()).decisions[0];
+    const row = db.raw
+      .prepare("SELECT outcome, reason_code FROM admission_decision WHERE id = ?")
+      .get(decision?.id) as { outcome: string; reason_code: string | null };
+    // 不是孤儿 auto_notice：决策卡可操作 + 诚实 reason。
+    expect(row.outcome).toBe(ASSISTANT_OUTCOMES.decisionCard);
+    expect(row.reason_code).toBe("auto_missing_target");
+  });
+
+  it("Source 入口 auto explicit 探测失败 → 降级 decision_card（auto_target_probe_failed），决策卡不消费", async () => {
+    const { service, db } = createService();
+    kvSet(db, "mode", ASSISTANT_MODES.auto);
+    setAssistantWorkspaceProbePort(async () => ({
+      ok: false as const,
+      reason: "目录不存在",
+    }));
+    const ingested = await service.ingestSourceEvent({
+      kind: "github",
+      identity: LOCAL_IDENTITY,
+      text: "GitHub 自动点名但目标探测失败",
+      mention: true,
+      atMs: Date.now(),
+      workspaceIdentity: "ws-missing",
+    });
+    expect(ingested.ok).toBe(true);
+    if (!ingested.ok) return;
+    expect(ingested.value.outcome).toBe(ASSISTANT_OUTCOMES.decisionCard);
+    expect((await service.getSnapshot()).tickets).toHaveLength(0);
+    const decision = (await service.getSnapshot()).decisions[0];
+    const row = db.raw
+      .prepare("SELECT reason_code FROM admission_decision WHERE id = ?")
+      .get(decision?.id) as { reason_code: string | null };
+    expect(row.reason_code).toBe("auto_target_probe_failed");
+  });
 });
 
 describe("auto inferred：Router 建议臂自动执行（evidence 强约束）", () => {
@@ -343,6 +404,71 @@ describe("auto inferred：Router 建议臂自动执行（evidence 强约束）",
     expect(snapshot.tickets[0]?.targetWorkspaceIdentity).toBe("ws-b");
     // auto 执行不进放行率统计（decided_by 恒 gate）。
     expect(snapshot.trust.releaseCount).toBe(0);
+  });
+
+  // 2026-11-05 全链审查修复 P2-4 回归：schema 只校验形状，「引用原文」此前仅靠约言
+  // ——Router 幻觉引文可在 auto 下自动建票。auto 执行门补结构性包含校验。
+  it("evidence 非触发原文子串（幻觉引文）→ 不自动执行，留卡问人", async () => {
+    const { service, db } = createService();
+    kvSet(db, "mode", ASSISTANT_MODES.auto);
+    let dispatched = 0;
+    setAssistantDispatchPort(async (request) => {
+      dispatched += 1;
+      return { ok: true, value: { ticketId: request.ticketId, sessionId: "x" } };
+    });
+    setAssistantRouterPort(async () => ({
+      ok: true,
+      output: JSON.stringify({
+        dispatch: {
+          targetWorkspaceIdentity: "ws-b",
+          permissionTier: "build",
+          briefBase: "verbatim",
+        },
+        evidence: [{ quote: "这句引文不在触发原文里（幻觉产物）" }],
+      }),
+    }));
+    const recorded = await service.recordTrigger({
+      text: "未指名的自动任务",
+      simulated: ASSISTANT_STRENGTHS.inferred,
+    });
+    expect(recorded.ok).toBe(true);
+    await flushAsync();
+    expect(dispatched).toBe(0);
+    const snapshot = await service.getSnapshot();
+    expect(snapshot.decisions[0]?.outcome).toBe(ASSISTANT_OUTCOMES.decisionCard);
+    expect(snapshot.tickets).toHaveLength(0);
+  });
+
+  it("evidence 原文子串 + guarded 建议档 → 自动建票，快照 permissionTier=guarded（真值投影回归）", async () => {
+    const { service, db } = createService();
+    kvSet(db, "mode", ASSISTANT_MODES.auto);
+    const dispatched: string[] = [];
+    setAssistantDispatchPort(async (request) => {
+      dispatched.push(request.ticketId);
+      return { ok: true, value: { ticketId: request.ticketId, sessionId: "sess-guarded" } };
+    });
+    setAssistantRouterPort(async () => ({
+      ok: true,
+      output: JSON.stringify({
+        dispatch: {
+          targetWorkspaceIdentity: "ws-b",
+          permissionTier: "guarded",
+          briefBase: "verbatim",
+        },
+        evidence: [{ quote: "guarded 自动任务" }],
+      }),
+    }));
+    const recorded = await service.recordTrigger({
+      text: "guarded 自动任务",
+      simulated: ASSISTANT_STRENGTHS.inferred,
+    });
+    expect(recorded.ok).toBe(true);
+    await flushAsync();
+    expect(dispatched).toHaveLength(1);
+    const snapshot = await service.getSnapshot();
+    expect(snapshot.decisions[0]?.outcome).toBe(ASSISTANT_OUTCOMES.autoNotice);
+    // P3 回归：旧实现恒投影 build（死值）；真值=落库 dispatch_intent.tier。
+    expect(snapshot.tickets[0]?.permissionTier).toBe(ASSISTANT_PERMISSION_TIERS.guarded);
   });
 
   it("hold 臂 / 空 evidence / 评估失败 → 留在 decision_card 问人，不建票", async () => {

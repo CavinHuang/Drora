@@ -374,7 +374,8 @@ import { z } from "zod";
 /** host 侧 TicketService 快照合成的任务行 mate 摘要（strict、有界、旧帧缺席合法）。 */
 export const sessionMateActivitySchema = z
   .object({
-    /** 目标 workspace 的活动工单数（dispatched/running）。 */
+    /** 目标 workspace 的活动工单数（软预算口径 dispatched/running/awaiting_output——
+     * awaiting 占预算位，04 详设 §3；与 isBudgetActiveStatus 单一出处同集）。 */
     activeCount: z
       .number()
       .int()

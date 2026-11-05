@@ -14,7 +14,7 @@
  * 纯模块：无 IO；probe 结果由装配层注入（identity→workspacePath/isGitRoot 解析在 host）。
  */
 import { join } from "node:path";
-import { ASSISTANT_DEFAULTS } from "@drora/shared";
+import { ASSISTANT_DEFAULTS, ASSISTANT_TICKET_STATUSES } from "@drora/shared";
 
 /** W1 路径/分支字面量（02 §4 设计原文；测试锁定）。 */
 export const MATE_WORKTREE_DIR_SEGMENTS = [".drora", "mate"] as const;
@@ -148,7 +148,19 @@ export function planBudgetAdmission(input: BudgetQueueInput): BudgetQueueVerdict
   return { action: "admit" };
 }
 
-/** 活动工单判定（预算计数口径；queued 不占预算）。 */
+/**
+ * 软预算活动状态集（**单一出处**；2026-11-05 全链审查修复口径分叉）：dispatched/
+ * running + awaiting_output（04 详设 §3——核验滞留工单的写域/预算位未释放，终态才
+ * 释放）。queuedRelease 的三处 SQL 与 UI isMateActiveTicket 均与本集对齐；queued 不
+ * 占预算。
+ */
+export const ASSISTANT_BUDGET_ACTIVE_STATUSES = [
+  ASSISTANT_TICKET_STATUSES.dispatched,
+  ASSISTANT_TICKET_STATUSES.running,
+  ASSISTANT_TICKET_STATUSES.awaitingOutput,
+] as const;
+
+/** 活动工单判定（消费 ASSISTANT_BUDGET_ACTIVE_STATUSES；预算计数口径）。 */
 export function isBudgetActiveStatus(status: string): boolean {
-  return status === "dispatched" || status === "running";
+  return (ASSISTANT_BUDGET_ACTIVE_STATUSES as readonly string[]).includes(status);
 }

@@ -3843,7 +3843,9 @@ export function createLocalServices(options: {
   // （决策卡目标选择传递真实路径）。探测失败处置（2026-11-05 审查修复三口径收口）：
   // 端口在位而目标探测失败 → 服务在放行事务前预检拒绝、决策卡不消费（spec §8
   // 「拒绝猜测，问人」，attach 预检同构）；端口缺席（未 set*）→ 服务跳过 W1 规划按
-  // workspace 域派发（P1 形态未隔离明示）。identity→path 的完整 resolver 随 P3 Source 接线。
+  // workspace 域派发（P1 形态未隔离明示）。identity→path 的完整 resolver（远程目标，
+  // botRemoteWorkspaceService 通道）为**遗留**——P3 Source 批次未交付，W1 仍只覆盖
+  // 本地目标（05 实施报告 §6 遗留清单登记，勿再按「随 P3 接线」理解）。
   setAssistantWorkspaceProbePort(async (identity) => {
     const trimmed = identity.trim();
     if (!isAbsolute(trimmed)) {

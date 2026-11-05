@@ -36,7 +36,7 @@
 - 统计（kv 聚合，watchdog 同轮更新）：`releaseRate = 人工放行数 / (would_accept 数 + 人工放行数)`；样本数=`would_accept+放行` 总数。
 - 开放条件：`releaseRate ≥ 0.8 且样本 ≥ 15`（阈值 kv 可调）。
 - 唯一入口：Surface B `MateTrustBar` 达标后出现「切换 auto」→ 确认 dialog（不可逆提示：列出当前名单与预算）→ `setMode("auto")` 解锁（P1 的 `mate.auto.locked` 拒绝码移除）。
-- auto 下规则：explicit→直接执行（告示卡）；inferred→Router 评估**必须命中 evidence 引用原文**（01 号 §1.2 schema 强校验），否则降级 Tier3 问人。
+- auto 下规则：explicit→直接执行（告示卡）；inferred→Router 评估**必须命中 evidence 引用原文**（schema 校验形状，原文包含校验在 auto 执行门——每条 evidence 须为触发原文子串，失配降级 Tier3 问人；2026-11-05 审查修复批定案），否则降级 Tier3 问人。
   **落地注记（2026-11-05，feat/mate-p4 host 侧批次）**：统计口径=admission_decision
   实时 SQL（与快照 trust 同一出处）；kv `trust_gate_stats` 为 watchdog 同轮落账的
   审计投影，**setMode 判定读实时 counts 不读 kv 缓存**（单一事实源，无第二判定路径）；

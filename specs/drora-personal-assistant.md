@@ -165,13 +165,20 @@ P2 起派发幂等键升级：commandId=`<ticketId>-<投递序号>`（kv 计数�
   不读缓存）。开放条件 `releaseRate ≥ 0.8 且样本 ≥ 15`（阈值 kv `trust_gate_min_rate` /
   `trust_gate_min_samples` 可调，缺省 ASSISTANT_TRUST_GATE_DEFAULTS 单出处）。
   `setMode("auto")` 由「P1 恒拒」改为信任门判定：未达标仍 `mate.auto.locked`，达标即
-  解锁（确认 dialog 是 UI 侧不可逆提示，服务侧不二次确认）。auto 下规则：explicit 带
+  解锁（确认 dialog 是 UI 侧不可逆提示，服务侧不二次确认）。
+  **审查修复批（2026-11-05，全链审查 P1/P2）**：Source 入口预检对账基准修正——比较
+  「事务内 verdict vs 预检 verdict」（与 recordTrigger 同参；旧实现误比
+  autoPlan.finalOutcome，无目标降级计划与 auto_notice 恒不等 → 飞书/GitHub 无目标
+  事件被静默丢单并落虚假 auto_notice）；另补孤儿 auto_notice 守卫（预检 observe→
+  事务 auto 翻转时降级 decision_card 问人，explicit 触发必有可操作出口）。
+  auto 下规则：explicit 带
   目标 → 直接建票派发（Mode A/默认 build 档，decision 记新 outcome `auto_notice`=
   告知卡，decided_by 恒 gate——不计入放行率分母/分子）；explicit 无目标 → 降级
   decision_card 进 Router 候选卡循环（目标探测失败同降级，问人不猜测）；inferred →
-  Router 建议须 dispatch/attach 臂且 evidence ≥1 条（schema 强校验已含原文引用约束，
-  空 evidence 不算命中）才自动建票派发，hold/reject/评估失败/探测失败一律留在
-  decision_card 问人。模式在执行时点复核（gate 与派发之间切回 observe → 建议不自动
+  Router 建议须 dispatch/attach 臂且 evidence ≥1 条（zod schema 校验形状；「引用原文」
+  由 auto 执行门做结构性包含校验——每条 evidence 须为触发原文子串，任一失配即不自动
+  执行留卡问人，2026-11-05 审查修复批补齐；人工放行不受影响）才自动建票派发，
+  hold/reject/评估失败/探测失败一律留在 decision_card 问人。模式在执行时点复核（gate 与派发之间切回 observe → 建议不自动
   执行）。
 
 ## 7. 派发桥与三种打通模式
@@ -225,6 +232,11 @@ Mate 带证据选择，派发桥校验后生效）；Tier3 决策卡问人（低
 **P2 落地注记**：anchor=最后一次成功 sendText 的 commandId（=`<ticketId>-<投递序号>`）；
 投递前经 host 会话索引对账（`reconcileSessionsIndexV4` 存在/删除语义）校验锚仍可寻位；
 换代续用同一 worktree/分支，usage_accum 按 ticketId 记账不改写。
+**审查修复批二（2026-11-05，全链审查 P1/P2）**：换代退订修复——旧会话退订须在换代
+事务改写 incarnation_current **之前**捕获 sessionId（旧实现事务后读行恒 no-op：旧代
+帧订阅泄漏、旧代事件归账新代、旧会话删除时对新代二次换代）；换代重派档位自落库
+dispatch_intent 恢复（旧实现硬编码 build，guarded 工单换代被静默降档）。派发回写补
+终态守卫——stop 后在途 ACK 不复活 running/不重挂订阅（旧实现无条件回写）。
 **审查修复（2026-11-05）**：对账「不可用」（reconcile 抛错/快照投影未就绪）≠锚失配，
 不触发换代重派——触发源仍封闭为上表三源；follow-up 在不可校验时如实报错（不猜测、
 不重试），另开会话/问人由人工决策承接。workspace 探测失败（远程/非本地路径/目录

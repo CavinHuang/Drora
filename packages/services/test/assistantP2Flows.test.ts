@@ -898,7 +898,16 @@ describe("换代（spec §8；02 §3）", () => {
       // 第 1 次派发=初代（sess-gen1）；第 2 次=换代重派（sess-gen2）。
       return { ok: true, value: { ticketId: request.ticketId, sessionId: `sess-gen${commandIds.length}` } };
     });
-    setAssistantFrameSource({ subscribe() { return { dispose: () => undefined }; } });
+    // P1-2 回归（2026-11-05 全链审查修复）：跟踪订阅/退订——换代必须在事务改写
+    // incarnation 之前退订旧会话（旧实现事务后读行 sessionId=null → unwatch 恒 no-op）。
+    const frameSubscribed: string[] = [];
+    const frameDisposed: string[] = [];
+    setAssistantFrameSource({
+      subscribe(sessionId: string) {
+        frameSubscribed.push(sessionId);
+        return { dispose: () => frameDisposed.push(sessionId) };
+      },
+    });
     // follow-up 换代后的直投走 attach 端口（Mode C 通道）——第三段 commandId 记在附着面。
     setAssistantAttachPort(async (request) => {
       commandIds.push(request.commandId);
@@ -937,6 +946,10 @@ describe("换代（spec §8；02 §3）", () => {
     const ticket = (await service.getSnapshot()).tickets[0];
     expect(ticket?.generationCount).toBe(1);
     expect(ticket?.anchorCommandId).toBe(`${approved.value.ticketId}-3`);
+    // 初代订阅→换代退订旧会话→新代订阅（第三次=attach 直投对 sess-gen2 的重挂自替）。
+    // 关键回归信号：sess-gen1 的退订发生在换代路径（旧实现恒 no-op，frameDisposed 为空）。
+    expect(frameSubscribed).toEqual(["sess-gen1", "sess-gen2", "sess-gen2"]);
+    expect(frameDisposed).toEqual(["sess-gen1", "sess-gen2"]);
   }, 20_000);
 
   it("session.removed（触发源②）→ notifySessionRemoved → 换代重派", async () => {

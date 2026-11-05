@@ -681,7 +681,7 @@ describe("帧接线（01 §3：订阅生命周期+归账映射）", () => {
   });
 
   it("state.updated usage→usage_snapshot 差值记账（不改状态）；assistantText failed→failed+mandate 撤销", async () => {
-    const { service } = createService();
+    const { service, db } = createService();
     const recorded = await service.recordTrigger({
       text: "usage 验收",
       simulated: ASSISTANT_STRENGTHS.explicit,
@@ -711,7 +711,9 @@ describe("帧接线（01 §3：订阅生命周期+归账映射）", () => {
       const sink = sinks.get(sessionId);
       if (!sink) return;
 
-      // 轮内 usage：输入 100/输出 50 → 累进；状态不变（无行事件）。
+      // 轮内 usage：输入 100/输出 50/cache 10/7 → 累进；状态不变（无行事件）。
+      // cacheWriteTokens 断言=2026-11-05 全链审查修复 P2-3 回归：旧实现误读平铺层，
+      // 生产 wire 嵌套形态下该字段恒记 0（快照视图只投影 input/output，故直查台账行）。
       sink(
         frame(
           sessionId,
@@ -720,7 +722,16 @@ describe("帧接线（01 §3：订阅生命周期+归账映射）", () => {
             deltas: [
               {
                 op: "state.updated",
-                patch: { usage: { cumulative: { inputTokens: 100, outputTokens: 50 } } },
+                patch: {
+                  usage: {
+                    cumulative: {
+                      inputTokens: 100,
+                      outputTokens: 50,
+                      cacheReadTokens: 10,
+                      cacheWriteTokens: 7,
+                    },
+                  },
+                },
               },
             ],
           },
@@ -731,6 +742,15 @@ describe("帧接线（01 §3：订阅生命周期+归账映射）", () => {
       let ticket = after.tickets.find((t) => t.id === approved.value.ticketId);
       expect(ticket?.usage).toEqual({ inputTokens: 100, outputTokens: 50 });
       expect(ticket?.status).toBe(ASSISTANT_TICKET_STATUSES.running);
+      const usageAccum = JSON.parse(
+        (
+          db.raw
+            .prepare("SELECT usage_accum FROM ticket WHERE id = ?")
+            .get(approved.value.ticketId) as { usage_accum: string }
+        ).usage_accum,
+      ) as Record<string, number>;
+      expect(usageAccum.cacheReadTokens).toBe(10);
+      expect(usageAccum.cacheWriteTokens).toBe(7);
 
       // assistantText failed → failed + 退订。
       sink(
@@ -752,6 +772,58 @@ describe("帧接线（01 §3：订阅生命周期+归账映射）", () => {
       ticket = after.tickets.find((t) => t.id === approved.value.ticketId);
       expect(ticket?.status).toBe(ASSISTANT_TICKET_STATUSES.failed);
       expect(ticket?.failReason).toBe("assistant_row_failed");
+    } finally {
+      setAssistantDispatchPort(null);
+      setAssistantFrameSource(null);
+    }
+  });
+
+  // 2026-11-05 全链审查修复 P2-5 回归：派发端口 IO 在途时用户 stop → 工单已 failed；
+  // 迟到的派发 ACK 不得把终态复活为 running（旧实现无条件回写+重挂订阅，且 stop 释放
+  // 的 queued 名额形成超放）。守卫=commitDispatchSuccess 事务内终态检查。
+  it("stop 在派发 ACK 在途 → 终态守卫拦下回写（不复活 running/不挂订阅）", async () => {
+    const { service } = createService();
+    const recorded = await service.recordTrigger({
+      text: "stop 竞态验收",
+      simulated: ASSISTANT_STRENGTHS.explicit,
+      targetWorkspaceIdentity: "ws-a",
+    });
+    if (!recorded.ok) return;
+    const decision = (await service.getSnapshot()).decisions[0];
+    let releaseAck: (() => void) | null = null;
+    setAssistantDispatchPort(
+      (request) =>
+        new Promise((resolve) => {
+          releaseAck = () =>
+            resolve({ ok: true, value: { ticketId: request.ticketId, sessionId: "sess-late" } });
+        }),
+    );
+    const subscribed: string[] = [];
+    setAssistantFrameSource({
+      subscribe(sessionId: string) {
+        subscribed.push(sessionId);
+        return { dispose: () => undefined };
+      },
+    });
+    try {
+      const approving = service.approveDecision({
+        decisionId: decision.id,
+        targetWorkspaceIdentity: "ws-a",
+      });
+      await new Promise((resolve) => setTimeout(resolve, 30)); // 让派发挂起在端口上
+      // 建票事务先于派发完成（postApproval 顺序），挂起期间票已在库。
+      const ticketId = (await service.getSnapshot()).tickets[0]?.id;
+      expect(ticketId).toBeDefined();
+      const stopped = await service.stopMandate({ ticketId: ticketId as string });
+      expect(stopped.ok).toBe(true);
+      releaseAck?.(); // 迟到的 ACK
+      const approved = await approving;
+      expect(approved.ok).toBe(true);
+      await new Promise((resolve) => setTimeout(resolve, 30));
+      const ticket = (await service.getSnapshot()).tickets[0];
+      expect(ticket?.status).toBe(ASSISTANT_TICKET_STATUSES.failed);
+      expect(ticket?.failReason).toBe("stopped_by_user");
+      expect(subscribed).toEqual([]); // 守卫拦下 → 不挂新会话订阅
     } finally {
       setAssistantDispatchPort(null);
       setAssistantFrameSource(null);

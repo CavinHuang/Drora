@@ -103,13 +103,22 @@ export function createAssistantRecordTrigger(deps: AssistantTriggerRecordDeps): 
           config,
         );
         // 预检与事务之间模式翻转（罕见竞态）：以事务内 verdict 为准，auto 预检计划
-        // 仅在 verdict 一致时采纳——翻转后的 auto 意图经 Router 建议钩子恢复，不猜测。
+        // 仅在 verdict 一致时采纳。翻转后的 auto 意图经 Router 建议钩子恢复，不猜测。
         const planMatches = verdict.outcome === preVerdict.outcome;
-        const finalOutcome = planMatches ? autoPlan.finalOutcome : verdict.outcome;
-        const reasonCode =
+        let finalOutcome = planMatches ? autoPlan.finalOutcome : verdict.outcome;
+        let reasonCode =
           planMatches && autoPlan.finalOutcome !== verdict.outcome
             ? autoPlan.reasonCode
             : verdict.reasonCode;
+        // 孤儿 auto_notice 守卫（2026-11-05 全链审查修复，与 sourceIngest 同款）：
+        // observe→auto 翻转时 planMatches=false 落 auto_notice，而 observe 预检透传的
+        // autoPlan.autoTargetIdentity=null → 不建票不出卡，该 decision 行不进决策卡集、
+        // UI 两档均不渲染——explicit 触发从所有可操作面消失。守卫降级 decision_card
+        // 问人（复用 auto_missing_target 语义），保证触发必有可操作出口。
+        if (finalOutcome === ASSISTANT_OUTCOMES.autoNotice && !autoPlan.autoTargetIdentity) {
+          finalOutcome = ASSISTANT_OUTCOMES.decisionCard;
+          reasonCode = autoPlan.reasonCode ?? "auto_missing_target";
+        }
         const triggerId = `T-${createUuid()}`;
         const ts = nowMs();
         raw
@@ -214,13 +223,17 @@ export function createAssistantRecordTrigger(deps: AssistantTriggerRecordDeps): 
         }
       } else if (outcome.autoTicket) {
         // auto 直派：与人工放行同一 runPostApproval 编排（W1 规划/软预算排队/派发）。
-        await deps.dispatchCreatedTicket({
+        // 失败如实上抛（2026-11-05 全链审查修复，与 sourceIngest 同口径）：旧实现丢弃
+        // 返回值——DB 已由引擎落 failed 但接口返回 ok=true，语义撕裂；失败细节由
+        // runPostApproval/markTicketFailed 负责落账与推送，此处只透传错误臂。
+        const dispatched = await deps.dispatchCreatedTicket({
           decisionId: outcome.decisionId,
           ticketId: outcome.autoTicket.ticketId,
           brief: input.text,
           targetIdentity: outcome.autoTicket.targetIdentity,
           tier: outcome.autoTicket.tier,
         });
+        if (!dispatched.ok) return dispatched;
       }
       publish();
       return { ok: true, value: { triggerId: outcome.triggerId, outcome: outcome.outcome } };

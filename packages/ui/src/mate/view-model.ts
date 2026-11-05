@@ -10,9 +10,9 @@
  * - 待决策卡 = outcome=decision_card 且 decidedBy=gate（放行后 decided_by 记 user，
  *   卡片脱离待决策集；trust.releaseCount 的 SQL 口径同为 decision_card+user）；
  * - 观察行（would-accept）= outcome=would_accept（dismiss 后改记 ignored，自然出清）；
- * - 进行中 = status ∈ {dispatched, running}（P1 状态机三态简化，01 §1.1）；
- * - P2 追加 queued（specs §9 软预算排队）：排队工单不计入软预算活动数（预算口径
- *   dispatched+running 与服务侧一致），状态条单列 queued 计数。
+ * - 进行中（软预算口径）= status ∈ {dispatched, running, awaiting_output}（P4 起
+ *   awaiting 占预算位，04 §3；服务侧 isBudgetActiveStatus 单一出处同集）；
+ * - queued（specs §9 软预算排队）不计入软预算活动数，状态条单列 queued 计数。
  */
 import {
   ASSISTANT_ERROR_CODES,

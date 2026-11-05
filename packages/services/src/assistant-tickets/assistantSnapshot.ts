@@ -32,6 +32,7 @@ import {
   resolveAssistantDailyQuota,
 } from "./quotaCenter.js";
 import { readAssistantWatchdogNotices } from "./watchdog.js";
+import { parseDispatchIntent } from "./dispatchIntent.js";
 
 interface TicketRow {
   id: string;
@@ -39,6 +40,7 @@ interface TicketRow {
   status: string;
   write_domain: string | null;
   dispatch_mode: string | null;
+  dispatch_intent: string | null;
   queued_reason: string | null;
   decision_id: number | null;
   channel_ref: string | null;
@@ -233,7 +235,14 @@ function ticketRowToView(
     // P4 第二棒（04 详设 §3 证据页签）：brief 全量 verbatim（界 ticketBriefFullMax）。
     briefFull: row.brief.slice(0, ASSISTANT_SNAPSHOT_LIMITS.ticketBriefFullMax),
     status: row.status,
-    permissionTier: ASSISTANT_PERMISSION_TIERS.build,
+    // 派发档位投影（2026-11-05 全链审查修复）：旧实现恒投影 build（死值，guarded 工单
+    // 显示错误档位，会误导未来消费方）。真值=落库 dispatch_intent.tier（建票事务写、
+    // queued 释放/换代重放同源）；无 intent 的旧行（P2 v3 前数据）诚实回落 build，
+    // yolo 恒不落 intent（spec §2.5 必须人工放行）。
+    permissionTier:
+      parseDispatchIntent(row.dispatch_intent)?.tier === ASSISTANT_PERMISSION_TIERS.guarded
+        ? ASSISTANT_PERMISSION_TIERS.guarded
+        : ASSISTANT_PERMISSION_TIERS.build,
     usage: { inputTokens: usage.inputTokens ?? 0, outputTokens: usage.outputTokens ?? 0 },
     // P4 第二棒（04 详设 §3 按代成本）：usage_log 落窗归代投影（Σ=合计不丢账）。
     usageByGeneration: computeUsageByGeneration({
@@ -387,7 +396,7 @@ export function buildAssistantSnapshot(
   // P4 第二棒（04 详设 §3 按代成本）：本页工单的 usage_log 行一次查询（界 ticketsMax）。
   const ticketRowsRaw = raw
     .prepare(
-      `SELECT id, brief, status, write_domain, dispatch_mode, queued_reason, decision_id, channel_ref, target_workspace_identity,
+      `SELECT id, brief, status, write_domain, dispatch_mode, dispatch_intent, queued_reason, decision_id, channel_ref, target_workspace_identity,
             incarnation_current, incarnation_generations, usage_accum, output_summary, fail_reason, updated_ms,
             stale_ms, stale_kind, awaiting_since_ms, increments_confirmed_ms
        FROM ticket ORDER BY created_ms DESC LIMIT ?`,

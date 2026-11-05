@@ -199,6 +199,8 @@ export function createTicketLedger(deps: TicketLedgerDeps): {
         const accum = JSON.parse(row.usage_accum) as {
           inputTokens?: number;
           outputTokens?: number;
+          cacheReadTokens?: number;
+          cacheWriteTokens?: number;
           lastCumulative?: {
             inputTokens: number;
             outputTokens: number;
@@ -241,6 +243,10 @@ export function createTicketLedger(deps: TicketLedgerDeps): {
         }
         accum.inputTokens = (accum.inputTokens ?? 0) + diff.inputTokens;
         accum.outputTokens = (accum.outputTokens ?? 0) + diff.outputTokens;
+        // 修复（2026-11-05 全链审查 P2-3 补深）：cache 差值此前只落 usage_log 行，
+        // usage_accum 漏记两字段（与「Σ分代=合计不丢账」及 spec §2.3 四字段口径不一）。
+        accum.cacheReadTokens = (accum.cacheReadTokens ?? 0) + diff.cacheReadTokens;
+        accum.cacheWriteTokens = (accum.cacheWriteTokens ?? 0) + diff.cacheWriteTokens;
         accum.lastCumulative = cumulative;
 
         const terminal =
@@ -397,7 +403,10 @@ function readUsage(
     inputTokens: inputTokens ?? 0,
     outputTokens: outputTokens ?? 0,
     cacheReadTokens: num(source.cacheReadTokens) ?? 0,
-    cacheWriteTokens: num(patchUsage.cacheWriteTokens) ?? 0,
+    // 修复（2026-11-05 全链审查）：旧实现误读平铺层 patchUsage——生产 wire 形态累计值
+    // 嵌套在 cumulative（=source）下，平铺层该字段恒 undefined → cacheWriteTokens 恒记
+    // 0，cache 成本记账少收一角（spec §2.3「成本永远同行」四字段口径）。
+    cacheWriteTokens: num(source.cacheWriteTokens) ?? 0,
   };
 }
 

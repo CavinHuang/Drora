@@ -7,11 +7,13 @@
  * 单一写者纪律不变（台账写经同一 db 连接）。
  *
  * 触发源仅三种（禁超时兜底）：锚校验失配（fork/rewind）/生命周期删除归档/lease 失效
- * （远程，P3 接线）；任一时刻最多一代 active（appendGeneration 闭合纪律）。
+ * （远程——**遗留未接线**，spec §8 触发源③，见 05 实施报告 §6 遗留清单，勿再按
+ * 「随 P3 交付」理解）；任一时刻最多一代 active（appendGeneration 闭合纪律）。
  */
 import {
   ASSISTANT_ERROR_CODES,
   ASSISTANT_GENERATION_CAUSES,
+  ASSISTANT_PERMISSION_TIERS,
   ASSISTANT_TICKET_STATUSES,
   type AssistantErrorCode,
 } from "@drora/shared";
@@ -31,6 +33,7 @@ import {
   type AssistantIncarnation,
   type AssistantIncarnationGeneration,
 } from "./incarnation.js";
+import { parseDispatchIntent } from "./dispatchIntent.js";
 import { parseWriteDomainColumn, type AssistantWriteDomain } from "./writeDomain.js";
 
 const logger = createServiceLogger("assistant-tickets");
@@ -48,6 +51,8 @@ export interface GenerationRolloverTicketRow {
   brief: string;
   status: string;
   write_domain: string | null;
+  /** 派发意图（v3 起；换代重派档位恢复用——2026-11-05 全链审查修复）。 */
+  dispatch_intent: string | null;
   target_workspace_identity: string;
   incarnation_current: string;
   incarnation_generations: string;
@@ -190,13 +195,21 @@ export function createGenerationRollover(deps: GenerationRolloverDeps): {
     cause: string;
     note?: string;
   }): Promise<AssistantDispatchResult> {
+    // 换代前捕获旧 incarnation（2026-11-05 全链审查修复 P1）：旧会话退订需要换代事务
+    // 改写 incarnation_current **之前**的 sessionId——旧实现在事务后再读行，彼时
+    // sessionId 已被置 null，unwatchTicketRow 恒 no-op：旧会话帧订阅泄漏，旧代
+    // turn_completed 会以新代 ticketId 归账（单调守卫拦不住——换代后到达的帧 sentAt
+    // 通常 ≥ 换代时刻）；旧会话日后被删时泄漏的 watch 触发 notifySessionRemoved，
+    // 还会对运行中的新代再次换代（放大）。事务内仍重读行做终态复核（原子性不变）。
+    const previousRow = deps.readTicketRow(db.raw, input.ticketId);
+    if (!previousRow) {
+      return fail(ASSISTANT_ERROR_CODES.ticketNotFound, `ticket ${input.ticketId} 不存在`);
+    }
     const worktree = await (async () => {
-      const row = deps.readTicketRow(db.raw, input.ticketId);
-      if (!row) return { ok: false as const, reason: `ticket ${input.ticketId} 不存在` };
-      const existingDomain = parseWriteDomainColumn(row.write_domain);
+      const existingDomain = parseWriteDomainColumn(previousRow.write_domain);
       return deps.resolveWorktree({
         ticketId: input.ticketId,
-        targetIdentity: row.target_workspace_identity,
+        targetIdentity: previousRow.target_workspace_identity,
         ...(existingDomain ? { existingDomain } : {}),
       });
     })();
@@ -268,14 +281,22 @@ export function createGenerationRollover(deps: GenerationRolloverDeps): {
     if (!brief) {
       return fail(ASSISTANT_ERROR_CODES.ticketNotFound, "工单不存在或已终态，不可换代");
     }
-    const row = deps.readTicketRow(db.raw, input.ticketId);
-    if (!row) return fail(ASSISTANT_ERROR_CODES.ticketNotFound, "工单不存在");
-    if (deps.hasWatchForTicket(input.ticketId)) deps.unwatchTicketRow(row);
+    // 旧会话退订用事务前捕获的旧行（sessionId 仍是旧代）；新代派发成功后
+    // commitDispatchSuccess→watchTicket 挂新订阅，不与旧订阅并存。
+    if (deps.hasWatchForTicket(input.ticketId)) deps.unwatchTicketRow(previousRow);
+    // 换代重派档位（全链审查修复）：旧实现硬编码 build——guarded 工单换代后被静默降档。
+    // 从落库 dispatch_intent 恢复（与 queued FIFO 释放同源口径）；无 intent 的旧行
+    // （P2 v3 前数据）诚实回落 build。模式恒 Mode A（02 §3：换代=同 workspace 新会话，
+    // attach 工单换代也重开独立会话）。
+    const previousIntent = parseDispatchIntent(previousRow.dispatch_intent);
     const result = await deps.runDispatchCall({
       ticketId: input.ticketId,
-      targetIdentity: row.target_workspace_identity,
+      targetIdentity: previousRow.target_workspace_identity,
       briefOrText: brief,
-      tier: "build",
+      tier:
+        previousIntent?.tier === ASSISTANT_PERMISSION_TIERS.guarded
+          ? ASSISTANT_PERMISSION_TIERS.guarded
+          : ASSISTANT_PERMISSION_TIERS.build,
       mode: "A",
       ...(worktree.hostPath ? { hostPath: worktree.hostPath } : {}),
     });

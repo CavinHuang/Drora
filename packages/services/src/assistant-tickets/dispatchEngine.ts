@@ -320,8 +320,11 @@ export function createDispatchEngine(deps: DispatchEngineDeps): {
         ...(input.hostPath ? { hostPath: input.hostPath } : {}),
       });
       if (!result.ok) return result;
-      commitDispatchSuccess(input.ticketId, result.value.sessionId, commandId, seq, "C", input.hostPath);
-      watchTicket(input.ticketId, result.value.sessionId, input.targetIdentity, input.hostPath);
+      if (
+        commitDispatchSuccess(input.ticketId, result.value.sessionId, commandId, seq, "C", input.hostPath)
+      ) {
+        watchTicket(input.ticketId, result.value.sessionId, input.targetIdentity, input.hostPath);
+      }
       return result;
     }
     if (!ports.dispatch) {
@@ -337,12 +340,28 @@ export function createDispatchEngine(deps: DispatchEngineDeps): {
       ...(input.hostPath ? { hostPath: input.hostPath } : {}),
     });
     if (!result.ok) return result;
-    commitDispatchSuccess(input.ticketId, result.value.sessionId, commandId, seq, input.mode === "B" ? "B" : "A", input.hostPath);
-    watchTicket(input.ticketId, result.value.sessionId, input.targetIdentity, input.hostPath);
+    if (
+      commitDispatchSuccess(
+        input.ticketId,
+        result.value.sessionId,
+        commandId,
+        seq,
+        input.mode === "B" ? "B" : "A",
+        input.hostPath,
+      )
+    ) {
+      watchTicket(input.ticketId, result.value.sessionId, input.targetIdentity, input.hostPath);
+    }
     return result;
   }
 
-  /** 派发成功回写：incarnation{sessionId,anchor,seq,hostPath} + status=running + mode（闭包内事务）。 */
+  /**
+   * 派发成功回写：incarnation{sessionId,anchor,seq,hostPath} + status=running + mode（闭包内事务）。
+   * 终态守卫（2026-11-05 全链审查修复）：派发端口 IO 在途时用户 stopMandate 可能把工单
+   * 落成终态（failed）——无条件回写会把已停工单复活为 running 并重挂订阅，且 stop 时
+   * 释放的 queued 名额形成超放。守卫=事务内先读 status，终态（done/failed）则放弃回写
+   * 并返回 false，调用方不得 watchTicket（ledger 侧同款守卫先例：终态工单不再改写状态）。
+   */
   function commitDispatchSuccess(
     ticketId: string,
     sessionId: string,
@@ -350,13 +369,23 @@ export function createDispatchEngine(deps: DispatchEngineDeps): {
     seq: number,
     mode: "A" | "B" | "C",
     hostPath?: string,
-  ): void {
+  ): boolean {
     try {
-      db.transaction((raw) => {
+      return db.transaction((raw) => {
         const row = raw
-          .prepare("SELECT incarnation_current FROM ticket WHERE id = ?")
-          .get(ticketId) as { incarnation_current: string } | undefined;
-        if (!row) return;
+          .prepare("SELECT status, incarnation_current FROM ticket WHERE id = ?")
+          .get(ticketId) as { status: string; incarnation_current: string } | undefined;
+        if (!row) return false;
+        if (
+          row.status === ASSISTANT_TICKET_STATUSES.done ||
+          row.status === ASSISTANT_TICKET_STATUSES.failed
+        ) {
+          logger.warn("assistant-tickets 派发回写被终态守卫拦下（stop/终态先于派发 ACK 到达）", {
+            ticketId,
+            status: row.status,
+          });
+          return false;
+        }
         const incarnation = parseIncarnation(row.incarnation_current);
         const next: AssistantIncarnation = {
           ...incarnation,
@@ -370,9 +399,11 @@ export function createDispatchEngine(deps: DispatchEngineDeps): {
             "UPDATE ticket SET incarnation_current = ?, status = ?, dispatch_mode = ?, updated_ms = ? WHERE id = ?",
           )
           .run(serializeIncarnation(next), ASSISTANT_TICKET_STATUSES.running, mode, nowMs(), ticketId);
+        return true;
       });
     } catch (error) {
       logger.error("assistant-tickets 派发回写异常", error);
+      return false;
     }
   }
 

@@ -15,6 +15,7 @@ import type { AssistantDatabase, AssistantDatabaseRaw } from "./assistantDatabas
 import type { AssistantDispatchResult } from "./assistantPorts.js";
 import { parseDispatchIntent } from "./dispatchIntent.js";
 import { composeTeamLeadBrief } from "./routerShell.js";
+import { ASSISTANT_BUDGET_ACTIVE_STATUSES } from "./writeDomain.js";
 import {
   detectWriteDomainOverlap,
   parseWriteDomainColumn,
@@ -27,15 +28,9 @@ function nowMs(): number {
   return Date.now();
 }
 
-/**
- * 活动状态集（单一口径，供本模块三处 SQL 复用）：dispatched/running + P4 第二棒的
- * awaiting_output（04 详设 §3——核验滞留工单的写域/预算位未释放，终态才释放）。
- */
-const ACTIVE_STATUSES = [
-  ASSISTANT_TICKET_STATUSES.dispatched,
-  ASSISTANT_TICKET_STATUSES.running,
-  ASSISTANT_TICKET_STATUSES.awaitingOutput,
-] as const;
+// 活动状态集=writeDomain 单一出处（ASSISTANT_BUDGET_ACTIVE_STATUSES；2026-11-05
+// 全链审查修复——此前本地数组与其分叉，本模块三处 SQL 改引同一常量）。
+const ACTIVE_STATUSES = ASSISTANT_BUDGET_ACTIVE_STATUSES;
 
 export interface QueuedReleaseDeps {
   readonly db: AssistantDatabase;

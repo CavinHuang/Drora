@@ -267,6 +267,23 @@ export function createAssistantAutoDispatch(deps: AssistantAutoDispatchDeps): {
       ? verdict.evidence.filter((entry): entry is string => typeof entry === "string")
       : [];
     if (evidence.length < 1) return;
+    // 原文包含校验（2026-11-05 全链审查修复）：zod schema 只校验形状（1-80 字符字符串
+    // ≤3 条），「引用原文」此前仅靠路由约言——Router 幻觉产出非原文引文仍可在 auto 下
+    // 自动建票。auto 执行门补结构性校验：每条 evidence 须为触发原文子串，任一失配即
+    // 不自动执行（决策卡留人工终审，与探测失败/无目标同降级路径）；人工放行不受影响
+    // （人自己读卡判断引文真伪）。
+    const triggerRow = deps.db.raw
+      .prepare(
+        "SELECT t.text FROM admission_decision d JOIN trigger t ON t.id = d.trigger_id WHERE d.id = ?",
+      )
+      .get(input.decisionId) as { text: string } | undefined;
+    if (!triggerRow) return;
+    if (!evidence.every((quote) => triggerRow.text.includes(quote))) {
+      logger.info("assistant-tickets auto 建议未过原文包含校验，留卡问人", {
+        decisionId: input.decisionId,
+      });
+      return;
+    }
     const arm = verdict.arm ?? {};
     const targetIdentity =
       typeof arm.targetWorkspaceIdentity === "string" ? arm.targetWorkspaceIdentity : "";

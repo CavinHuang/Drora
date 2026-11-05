@@ -118,9 +118,10 @@ describe("软预算（spec §9：默认 3、超出排队；queued 不占预算�
     expect(ASSISTANT_DEFAULTS.budgetMaxActivePerWorkspace).toBe(3);
   });
 
-  it("活动状态口径：dispatched/running 占预算，queued/done/failed 不占", () => {
+  it("活动状态口径（单一出处）：dispatched/running/awaiting_output 占预算，其余不占", () => {
     expect(isBudgetActiveStatus("dispatched")).toBe(true);
     expect(isBudgetActiveStatus("running")).toBe(true);
+    expect(isBudgetActiveStatus("awaiting_output")).toBe(true); // P4 §3：滞留占预算位
     expect(isBudgetActiveStatus("queued")).toBe(false);
     expect(isBudgetActiveStatus("done")).toBe(false);
     expect(isBudgetActiveStatus("failed")).toBe(false);

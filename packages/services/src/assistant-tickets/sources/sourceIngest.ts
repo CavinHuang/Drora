@@ -23,6 +23,7 @@ import {
   ASSISTANT_OUTCOMES,
   ASSISTANT_SOURCE_KINDS,
   ASSISTANT_STRENGTHS,
+  ASSISTANT_TICKET_STATUSES,
   createUuid,
   type AssistantPermissionTier,
   type AssistantStrength,
@@ -140,8 +141,10 @@ export function createAssistantSourceIngest(deps: AssistantSourceIngestDeps): {
   ): Promise<AssistantResult<AssistantSourceIngestValue> | undefined> {
     const row = db.raw
       .prepare(
+        // 终态集走 contracts 常量（2026-11-05 全链审查修复：全模块唯一裸字面量处，
+        // ledger/queuedRelease/watchdog 均用 ASSISTANT_TICKET_STATUSES）。
         `SELECT id, status FROM ticket
-         WHERE channel_ref = ? AND status NOT IN ('done', 'failed')
+         WHERE channel_ref = ? AND status NOT IN ('${ASSISTANT_TICKET_STATUSES.done}', '${ASSISTANT_TICKET_STATUSES.failed}')
          ORDER BY created_ms DESC LIMIT 1`,
       )
       .get(channelRef) as { id: string; status: string } | undefined;
@@ -170,6 +173,8 @@ export function createAssistantSourceIngest(deps: AssistantSourceIngestDeps): {
     channelRef: string | null;
     remoteSessionId: string | null;
     workspaceIdentity: string | null;
+    /** 预检 verdict.outcome（事务外 evaluateAdmission 产物——对账基准，见下）。 */
+    preVerdictOutcome: string;
     /** P4 auto 预检计划（resolveAssistantAutoGateOutcome 产物；与事务内 verdict 对齐才采纳）。 */
     autoPlan: {
       finalOutcome: string;
@@ -193,14 +198,27 @@ export function createAssistantSourceIngest(deps: AssistantSourceIngestDeps): {
           ? ASSISTANT_STRENGTHS.explicit
           : ASSISTANT_STRENGTHS.inferred;
       const verdict = evaluateAdmission({ strength, identity: input.identity }, config);
-      // P4 auto 预检对账（recordTrigger 同纪律）：预检与事务间模式翻转时以事务内
-      // verdict 为准，auto 建票仅在 finalOutcome=auto_notice 且有已探测目标时发生。
-      const planMatches = verdict.outcome === input.autoPlan.finalOutcome;
-      const finalOutcome = planMatches ? input.autoPlan.finalOutcome : verdict.outcome;
-      const reasonCode =
+      // P4 auto 预检对账（2026-11-05 全链审查修复 P1）：对账基准必须与 recordTrigger
+      // 同参——比较「事务内 verdict vs 预检 verdict」（预检/事务间模式翻转检测）。旧实现
+      // 误比 autoPlan.finalOutcome：auto 降级计划（finalOutcome=decision_card）与事务内
+      // auto_notice 恒不等 → planMatches=false → 回落 auto_notice，但建票要求
+      // autoTargetIdentity 非 null（降级计划恒 null）→ 无目标 Source 事件（飞书/GitHub
+      // 默认不带 workspaceIdentity）不建票、不出决策卡、不进 Router、不计 decision
+      // 配额，只落一条语义为「已自动执行」的 auto_notice——静默丢单+虚假告知卡。
+      const planMatches = verdict.outcome === input.preVerdictOutcome;
+      let finalOutcome = planMatches ? input.autoPlan.finalOutcome : verdict.outcome;
+      let reasonCode =
         planMatches && input.autoPlan.finalOutcome !== verdict.outcome
           ? input.autoPlan.reasonCode
           : verdict.reasonCode;
+      // 孤儿 auto_notice 守卫（全链审查修复，与 triggerRecord 同款）：auto_notice 语义=
+      // 「已自动执行」必须伴随建票；预检 observe→事务 auto 翻转时 planMatches=false 落
+      // auto_notice 而 observe 预检透传的 autoPlan 无目标——该行不进决策卡集/UI 不渲染，
+      // 触发从所有可操作面消失。守卫降级 decision_card 问人，explicit 触发必有出口。
+      if (finalOutcome === ASSISTANT_OUTCOMES.autoNotice && !input.autoPlan.autoTargetIdentity) {
+        finalOutcome = ASSISTANT_OUTCOMES.decisionCard;
+        reasonCode = input.autoPlan.reasonCode ?? "auto_missing_target";
+      }
       const triggerId = `T-${createUuid()}`;
       raw
         .prepare(
@@ -353,6 +371,7 @@ export function createAssistantSourceIngest(deps: AssistantSourceIngestDeps): {
         channelRef,
         remoteSessionId: event.remoteSessionId ?? null,
         workspaceIdentity: event.workspaceIdentity ?? null,
+        preVerdictOutcome: preVerdict.outcome,
         autoPlan,
       });
       if (recorded.autoTicket && deps.dispatchCreatedTicket) {

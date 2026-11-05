@@ -8,8 +8,9 @@
  */
 import { ASSISTANT_MATE_ACTIVITY_LIMITS } from "@drora/shared";
 import type { SessionMateActivity } from "@drora/shared/drora-protocol-v4";
-import { ASSISTANT_OUTCOMES, ASSISTANT_TICKET_STATUSES } from "@drora/shared";
+import { ASSISTANT_OUTCOMES } from "@drora/shared";
 import type { AssistantSnapshot } from "./assistantTickets.js";
+import { isBudgetActiveStatus } from "./writeDomain.js";
 
 export interface MateActivityByWorkspace {
   /** key=workspaceIdentity（触发/工单的 target workspace；空 identity 不产出）。 */
@@ -17,17 +18,16 @@ export interface MateActivityByWorkspace {
 }
 
 /**
- * 折叠快照：activeCount=该 workspace 活动（dispatched/running）工单数；
- * pendingDecisions=该 workspace 未决决策卡数（outcome=decision_card 且 decided_by=gate，
- * 按其 trigger 的 target workspace 归属）。updatedAtMs=快照时刻（host 时钟）。
+ * 折叠快照：activeCount=该 workspace 活动工单数（软预算口径 dispatched/running/
+ * awaiting_output——2026-11-05 全链审查修复：awaiting_output 占预算位（04 详设 §3），
+ * 旧口径漏计导致任务行摘要与面板/软预算分叉）；pendingDecisions=该 workspace 未决
+ * 决策卡数（outcome=decision_card 且 decided_by=gate，按其 trigger 的 target
+ * workspace 归属）。updatedAtMs=快照时刻（host 时钟）。
  */
 export function computeMateActivityByWorkspace(snapshot: AssistantSnapshot): MateActivityByWorkspace {
   const activeByIdentity = new Map<string, number>();
   for (const ticket of snapshot.tickets) {
-    if (
-      ticket.status !== ASSISTANT_TICKET_STATUSES.dispatched &&
-      ticket.status !== ASSISTANT_TICKET_STATUSES.running
-    ) {
+    if (!isBudgetActiveStatus(ticket.status)) {
       continue;
     }
     const identity = ticket.targetWorkspaceIdentity?.trim();

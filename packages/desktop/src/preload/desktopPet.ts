@@ -112,11 +112,14 @@ window.addEventListener("DOMContentLoaded", () => {
     refreshHit();
   });
   // Mate 桌宠接缝（spec §11 P3；03 详设 §6）：badge 待决策数优先（destructive 级），
-  // =0 回落既有活动数语义；气泡=新汇报一句话，点击直达对应工单（Main 转发 renderer），
-  // 展示层自动隐藏计时只是呈现节流，不承担任何同步语义。
+  // =0 回落既有活动数语义；气泡内容与「是否新汇报」判定都在发布方投影（projection.bubble，
+  // renderer 差分纯函数单测锁定），本窗口只做展示、点击直达与自动隐藏（呈现节流，
+  // 不承担任何同步语义）。
   const bubble = document.getElementById("mate-bubble") as HTMLButtonElement | null;
   const bubbleText = document.getElementById("mate-bubble-text");
-  let shownBubbleKey: string | null = null;
+  // 在展气泡内容（本帧 bubble=null 的后续帧不打断展示——只有新气泡帧、计时到期与
+  // 点击会改变在展状态；时间戳仅呈现节流）。
+  let activeBubble: MatePetProjection["bubble"] = null;
   let bubbleTimer: ReturnType<typeof setTimeout> | null = null;
   const hideBubble = () => {
     if (bubble) bubble.hidden = true;
@@ -129,7 +132,7 @@ window.addEventListener("DOMContentLoaded", () => {
   const mateBadgeTitle = zhLocale ? "大副待决策" : "Mate decisions";
   if (bubble && bubbleText) {
     bubble.addEventListener("click", () => {
-      const report = mate.latestReport;
+      const report = activeBubble ?? mate.latestReport;
       if (report)
         ipcRenderer.send(MATE_PET_COMMANDS.channels.command, {
           action: "open-ticket",
@@ -141,18 +144,16 @@ window.addEventListener("DOMContentLoaded", () => {
   }
   const applyMate = () => {
     const pendingCount = mate.pendingDecisions.length;
-    const report = mate.latestReport;
-    if (report) {
-      const key = `${report.ticketId}:${report.updatedAtMs}`;
-      if (bubble && bubbleText && key !== shownBubbleKey) {
-        shownBubbleKey = key;
-        bubbleText.textContent = report.summary;
-        bubble.dataset.status = report.status;
+    if (bubble && bubbleText) {
+      if (mate.bubble) {
+        activeBubble = mate.bubble;
+        bubbleText.textContent = mate.bubble.summary;
+        bubble.dataset.status = mate.bubble.status;
         bubble.hidden = false;
         if (bubbleTimer) clearTimeout(bubbleTimer);
         bubbleTimer = setTimeout(hideBubble, 8000);
       }
-    } else hideBubble();
+    }
     return pendingCount;
   };
   apply = () => {

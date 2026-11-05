@@ -61,6 +61,12 @@ export const matePetProjectionSchema = z
     pendingDecisions: z.array(matePetPendingDecisionSchema).max(MATE_PET_PROJECTION_LIMITS.pendingMax),
     activeTickets: z.array(matePetActiveTicketSchema).max(MATE_PET_PROJECTION_LIMITS.activeMax),
     latestReport: matePetLatestReportSchema.nullable(),
+    /**
+     * 本帧新汇报气泡（发布方 renderer 按上一登记键差分判定；判定纯函数在 ui
+     * mate/petProjection.deriveMatePetBubble 单测锁定）。null=不弹；宠物窗只做展示
+     * 与自动隐藏（呈现节流，不承担同步语义）。
+     */
+    bubble: matePetLatestReportSchema.nullable(),
   })
   .strict();
 export type MatePetProjection = z.infer<typeof matePetProjectionSchema>;
@@ -70,6 +76,7 @@ export const EMPTY_MATE_PET_PROJECTION: MatePetProjection = {
   pendingDecisions: [],
   activeTickets: [],
   latestReport: null,
+  bubble: null,
 };
 
 /** Pet/Tray → Main 命令（速览点卡/放行忽略；dismiss-bubble 是宠物窗局部态不过 IPC）。 */

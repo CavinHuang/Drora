@@ -97,7 +97,7 @@ describe("projectMatePet（快照 → 桌宠有界投影）", () => {
       identity: "local@host",
     });
     // 原文首行截断（verbatim 不改写，只裁剪）。
-    expect(projection.pendingDecisions[0].text).toBe("点名原文");
+    expect(projection.pendingDecisions[0]?.text).toBe("点名原文");
   });
 
   it("进行中含 queued；终态不入；按更新时间倒序且有界", () => {
@@ -149,11 +149,11 @@ describe("projectMatePet（快照 → 桌宠有界投影）", () => {
     expect(projection.latestReport?.ticketId).toBe("T-2");
     expect(projection.latestReport?.status).toBe("failed");
     expect(projection.latestReport?.summary).toBe("失败：原因首行");
-    expect(matePetReportSummary(snap.tickets[0])).toBe("完成：首行摘要");
+    expect(matePetReportSummary(snap.tickets[0]!)).toBe("完成：首行摘要");
   });
 
   it("空快照 → 全空投影（bubble 恒 null——判定在发布方差分）", () => {
-    const projection = projectMatePet(snapshot());
+    const projection = projectMatePet(snapshot({}));
     expect(projection.pendingDecisions).toEqual([]);
     expect(projection.activeTickets).toEqual([]);
     expect(projection.latestReport).toBeNull();

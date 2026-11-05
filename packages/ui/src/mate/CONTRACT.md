@@ -68,10 +68,10 @@ expandedDecisionId` 三件 UI 局部态，按 workspace 分域（`byWorkspace`�
   跟随 `ASSISTANT_SOURCE_KINDS`，未知值不渲染。缺席（旧库行）诚实降级不渲染徽标。
 - **桌宠接缝投影**（`petProjection.ts`）：快照 → 有界 `MatePetProjection`（shared
   assistantPet.ts schema）纯函数 `projectMatePet`；气泡判定 `deriveMatePetBubble` 按
-  ticketId+updatedAtMs 登记键差分（冷启动首帧只登记不弹、同工单刷新不重弹）。发布方
-  =`root/MatePetSync.tsx`（窗口 Host services 作用域），Main 只转发（desktop
-  matePetBridge 校验来源窗口），pet/tray 不建第二 Host。**打扰配额归 P4 配额中心，
-  本模块不建第二计数器**（03 §6 注记）。
+  ticketId+updatedAtMs 登记键差分（发布方首帧只登记不弹、会话期内新到达/变化的汇报
+  弹泡）。发布方=`root/MatePetSync.tsx`（窗口 Host services 作用域），Main 只转发
+  （desktop matePetBridge 校验来源窗口），pet/tray 不建第二 Host。**打扰配额归 P4
+  配额中心，本模块不建第二计数器**（03 §6 注记）。
 - **导航端口**（`hooks/useMatePetEvents.ts`）：Main→Renderer 三事件 open-mate /
   open-ticket / decide 的执行体——面板打开走 `handleOpenMateSidePane` 同位入口、工单
   选中走 mateStore `selectTicket`（identity 键匹配已开 tab，无命中回落当前 workspace

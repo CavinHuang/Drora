@@ -103,23 +103,28 @@ export function inferVolcanoResourceId(voiceType: string): string {
 }
 
 /**
- * 火山凭据复合解析：供应商卡 API Key = `AppID:Access Token`（冒号分隔）。
- * 返回 null = 形态不合法（表单层报错文案由适配错误路径携带）。
+ * 火山凭据双形态解析（§14.2/§15）：含冒号 = 旧版控制台复合形态 `AppID:Access Token`；
+ * 无冒号 = 新版控制台单 API Key。空串/纯空白 = null（fail-closed，无出站）。
  */
-export function parseVolcanoCredentials(apiKey: string): {
-  appId: string;
-  accessKey: string;
-} | null {
-  const sep = apiKey.indexOf(":");
-  if (sep <= 0) {
+export type VolcanoCredential =
+  | { mode: "composite"; appId: string; accessKey: string }
+  | { mode: "single"; apiKey: string };
+
+export function parseVolcanoCredentials(apiKey: string): VolcanoCredential | null {
+  const trimmed = apiKey.trim();
+  if (!trimmed) {
     return null;
   }
-  const appId = apiKey.slice(0, sep).trim();
-  const accessKey = apiKey.slice(sep + 1).trim();
+  const sep = trimmed.indexOf(":");
+  if (sep < 0) {
+    return { mode: "single", apiKey: trimmed };
+  }
+  const appId = trimmed.slice(0, sep).trim();
+  const accessKey = trimmed.slice(sep + 1).trim();
   if (!appId || !accessKey) {
     return null;
   }
-  return { appId, accessKey };
+  return { mode: "composite", appId, accessKey };
 }
 
 /** 乘数语速（0.25–4）→ 火山 speech_rate [-50, 100]（1 = 0）。 */
@@ -140,20 +145,28 @@ async function synthesizeVolcano(
 ): Promise<Blob> {
   const credentials = parseVolcanoCredentials(config.apiKey);
   if (!credentials) {
-    throw new Error("火山引擎供应商卡的 API Key 需为「AppID:Access Token」形态（冒号分隔）");
+    throw new Error(
+      "火山引擎卡 API Key 需为「AppID:Access Token」（旧版控制台，冒号分隔）或新版控制台单 API Key",
+    );
   }
   const requestId = crypto.randomUUID();
+  // 凭据形态分派（§14.2）：复合 = 旧版双头；单值 = 新版 X-Api-Key。Resource-Id 两形态均必带。
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    "X-Api-Resource-Id": inferVolcanoResourceId(config.model),
+    "X-Api-Request-Id": requestId,
+  };
+  if (credentials.mode === "composite") {
+    headers["X-Api-App-Id"] = credentials.appId;
+    headers["X-Api-Access-Key"] = credentials.accessKey;
+  } else {
+    headers["X-Api-Key"] = credentials.apiKey;
+  }
   const response = await doFetch(
     `${config.baseUrl.replace(/\/+$/u, "")}/api/v3/tts/unidirectional`,
     {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Api-App-Id": credentials.appId,
-        "X-Api-Access-Key": credentials.accessKey,
-        "X-Api-Resource-Id": inferVolcanoResourceId(config.model),
-        "X-Api-Request-Id": requestId,
-      },
+      headers,
       body: JSON.stringify({
         user: { uid: "drora-tts" },
         req_params: {
@@ -213,6 +226,79 @@ async function synthesizeVolcano(
   return new Blob(chunks as BlobPart[], { type: "audio/mpeg" });
 }
 
+/**
+ * OpenAI 兼容 /audio/speech 分支（§9.6.1，从 speak 内联抽出供 synthesizeOnce 复用）。
+ * 非 2xx 抛错（speak 路径 catch → settle error，语义不变）。
+ */
+async function synthesizeOpenAiCompatible(
+  config: RemoteTtsVendorConfig,
+  text: string,
+  doFetch: (input: string, init: RequestInit) => Promise<ResponseLike>,
+  signal: AbortSignal,
+  opts?: { rate?: number; voice?: string },
+): Promise<Blob> {
+  const body: Record<string, unknown> = {
+    model: config.model,
+    input: text,
+    speed: clampTtsSpeed(opts?.rate),
+  };
+  // §9.7.3：body.voice 读云音色独立命名空间；缺省省略字段 = 厂商默认音色。
+  if (opts?.voice) {
+    body.voice = opts.voice;
+  }
+  const response = await doFetch(`${config.baseUrl.replace(/\/+$/u, "")}/audio/speech`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${config.apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+    credentials: "omit",
+    redirect: "error",
+    signal,
+  });
+  if (!response.ok) {
+    throw new Error(`cloud tts request rejected: ${response.status}`);
+  }
+  return response.blob();
+}
+
+/**
+ * 单次合成（§15 试听）：按 baseUrl 分派火山/OpenAI 分支，失败直接 throw（消息含厂商
+ * status/凭据形态提示，供表单 toast 直显）。与播报链路互不干扰（独立 AbortController）。
+ */
+export async function synthesizeOnce(
+  config: RemoteTtsVendorConfig,
+  text: string,
+  opts?: { voice?: string; rate?: number; fetch?: CloudTtsFetch; signal?: AbortSignal },
+): Promise<Blob> {
+  const doFetch = opts?.fetch ?? ((input: string, init: RequestInit) => fetch(input, init));
+  const signal = opts?.signal ?? new AbortController().signal;
+  if (isVolcanoTtsEndpoint(config.baseUrl)) {
+    return synthesizeVolcano(config, text, doFetch, signal);
+  }
+  return synthesizeOpenAiCompatible(config, text, doFetch, signal, opts);
+}
+
+/** Blob 播放（缺省实现，§15 试听与播报共用）：objectURL + HTMLAudioElement。 */
+export function playTtsBlob(blob: Blob): CloudTtsPlaybackHandle {
+  const url = URL.createObjectURL(blob);
+  const audio = new Audio(url);
+  const completed = new Promise<"end" | "error">((resolve) => {
+    audio.addEventListener("ended", () => resolve("end"), { once: true });
+    audio.addEventListener("error", () => resolve("error"), { once: true });
+  });
+  void audio.play().catch(() => undefined);
+  return {
+    completed,
+    stop: () => {
+      audio.pause();
+      audio.removeAttribute("src");
+      URL.revokeObjectURL(url);
+    },
+  };
+}
+
 export function resolveTtsEngineChoice(inputs: {
   engine: "system" | "cloud";
   vendorConfigComplete: boolean;
@@ -267,25 +353,7 @@ export function createCloudTtsAdapter(deps: CloudTtsAdapterDeps): CloudTtsPort {
     consecutiveFailures = 0;
   };
 
-  const defaultPlayBlob = (blob: Blob): CloudTtsPlaybackHandle => {
-    const url = URL.createObjectURL(blob);
-    const audio = new Audio(url);
-    const completed = new Promise<"end" | "error">((resolve) => {
-      audio.addEventListener("ended", () => resolve("end"), { once: true });
-      audio.addEventListener("error", () => resolve("error"), { once: true });
-    });
-    void audio.play().catch(() => undefined);
-    return {
-      completed,
-      stop: () => {
-        audio.pause();
-        audio.removeAttribute("src");
-        URL.revokeObjectURL(url);
-      },
-    };
-  };
-
-  const playBlob = deps.playBlob ?? defaultPlayBlob;
+  const playBlob = deps.playBlob ?? playTtsBlob;
 
   return {
     speak(u: VoiceTtsUtterance): VoiceTtsHandle {
@@ -318,33 +386,17 @@ export function createCloudTtsAdapter(deps: CloudTtsAdapterDeps): CloudTtsPort {
           if (isVolcanoTtsEndpoint(config.baseUrl)) {
             blob = await synthesizeVolcano(config, u.text, doFetch, abortController.signal);
           } else {
-            const body: Record<string, unknown> = {
-              model: config.model,
-              input: u.text,
-              speed: clampTtsSpeed(u.rate),
-            };
-            // §9.7.3：body.voice 改读 u.vendorVoice（云音色独立命名空间；缺省省略字段
-            // = 厂商默认音色）。u.voice（system 音色名）零消费——跨命名空间冲突消除。
-            if (u.vendorVoice) {
-              body.voice = u.vendorVoice;
-            }
-            const response = await doFetch(`${config.baseUrl.replace(/\/+$/u, "")}/audio/speech`, {
-              method: "POST",
-              headers: {
-                Authorization: `Bearer ${config.apiKey}`,
-                "Content-Type": "application/json",
+            // §9.7.3：云音色独立命名空间（u.vendorVoice）；u.voice（system 音色名）零消费。
+            blob = await synthesizeOpenAiCompatible(
+              config,
+              u.text,
+              doFetch,
+              abortController.signal,
+              {
+                rate: u.rate,
+                voice: u.vendorVoice,
               },
-              body: JSON.stringify(body),
-              credentials: "omit",
-              redirect: "error",
-              signal: abortController.signal,
-            });
-            if (!response.ok) {
-              logger.warn("voice.tts", "cloud tts request rejected", { status: response.status });
-              settle(handle, "error");
-              return;
-            }
-            blob = await response.blob();
+            );
           }
         } catch (error) {
           if (cancelled) {
@@ -352,6 +404,7 @@ export function createCloudTtsAdapter(deps: CloudTtsAdapterDeps): CloudTtsPort {
           }
           logger.warn("voice.tts", "cloud tts request failed", {
             type: error instanceof Error ? error.name : "unknown",
+            message: error instanceof Error ? error.message : undefined,
           });
           settle(handle, "error");
           return;

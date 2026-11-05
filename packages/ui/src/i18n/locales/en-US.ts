@@ -5449,13 +5449,25 @@ const enUS: Record<string, string> = {
   "settings.modelCapability.nav.embedding": "Semantic embedding",
   "settings.modelCapability.provider.createFirst": "Create an API Key provider card",
   "settings.modelCapability.provider.unselected": "No provider selected",
-  "settings.modelCapability.asr.provider.title": "Provider",
-  "settings.modelCapability.asr.provider.description":
-    "Speech recognition connection (Base URL and API Key) comes from the selected provider card, managed under Settings → Model providers.",
+  // §15 voice vendor template row (shared by asr/tts; specs/model-capabilities.md §15.3).
+  "settings.modelCapability.vendor.title": "Voice provider",
+  "settings.modelCapability.vendor.description":
+    "Pick a built-in voice provider or a custom endpoint card; the API key is stored once on the selected provider card and reusable by other capabilities.",
+  "settings.modelCapability.vendor.optionState": "{name} ({state})",
+  "settings.modelCapability.vendor.connected": "connected",
+  "settings.modelCapability.vendor.needsKey": "no API key",
+  "settings.modelCapability.vendor.customGroup": "Custom endpoints",
+  "settings.modelCapability.vendor.apiKey.label": "API Key",
+  "settings.modelCapability.vendor.keepCurrent": "Keep current: {id}",
+  "settings.modelCapability.vendor.createFailed":
+    "Failed to create the voice provider card. Try again later.",
+  "settings.modelCapability.vendor.credentialHint.volcano":
+    'Volcano Engine: legacy console uses "AppID:Access Token" (colon-separated); the new console uses a single API key.',
+  "settings.modelCapability.vendor.credentialHint.siliconflow":
+    "SiliconFlow API key (starts with sk-), shared with chat models.",
+  "settings.modelCapability.vendor.credentialHint.custom":
+    "The API key of the selected provider card; saving empty deletes it.",
   "settings.modelCapability.asr.baseUrlOverride.title": "Base URL override (optional)",
-  "settings.modelCapability.tts.provider.title": "Provider",
-  "settings.modelCapability.tts.provider.description":
-    "Speech synthesis connection (Base URL and API Key) comes from the selected provider card, managed under Settings → Model providers.",
   "settings.modelCapability.tts.baseUrlOverride.title": "Base URL override (optional)",
   "settings.modelCapability.imageGeneration.provider.title": "Provider",
   "settings.modelCapability.imageGeneration.provider.description":
@@ -5541,6 +5553,15 @@ const enUS: Record<string, string> = {
   "settings.modelCapability.tts.model.placeholder": "e.g. fnlp/MOSS-TTSD-v0.5",
   "settings.modelCapability.tts.voice.title": "Cloud engine voice",
   "settings.modelCapability.tts.voice.placeholder": "Vendor voice id (empty = vendor default)",
+  "settings.modelCapability.tts.voice.volcano.title": "Voice",
+  "settings.modelCapability.tts.voice.volcano.description":
+    "Volcano synthesizes per voice (voice_type): pick a built-in voice; a manually entered voice id is preserved.",
+  "settings.modelCapability.tts.preview.action": "Preview",
+  "settings.modelCapability.tts.preview.description":
+    "Synthesizes a fixed sentence with the current configuration and plays it; failures show the specific reason.",
+  "settings.modelCapability.tts.preview.loading": "Synthesizing…",
+  "settings.modelCapability.tts.preview.ok": "Preview playback started",
+  "settings.modelCapability.tts.preview.failed": "Preview failed: {message}",
   "settings.modelCapability.tts.apiKey.title": "Speech synthesis API key",
   "settings.modelCapability.tts.apiKey.description":
     "Stored encrypted; effective on the next announcement. Clearing and saving removes the key.",

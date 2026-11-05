@@ -1329,6 +1329,9 @@ modules:
       # baseUrl https/localhost 校验器（specs/model-capabilities.md §5.1 连接区模式
       # 复用；通用 URL 形态校验，非语音专属）。
       - packages/ui/src/voice/voiceVendorBaseUrl.ts
+      # §15 语音试听公开面（synthesizeOnce/playTtsBlob；settings/model-capabilities
+      # 表单跨模块消费，specs/model-capabilities.md §15.3）。
+      - packages/ui/src/voice/ttsPreview.ts
     layers:
       adapters: .
     owner: drora

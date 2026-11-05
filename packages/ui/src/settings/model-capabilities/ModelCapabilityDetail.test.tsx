@@ -19,8 +19,15 @@ window.HTMLElement.prototype.hasPointerCapture = () => false;
 window.HTMLElement.prototype.setPointerCapture = () => undefined;
 window.HTMLElement.prototype.releasePointerCapture = () => undefined;
 
-const { capabilityState, updateMock, stableServices, controllerState } = vi.hoisted(() => {
-  const updateMock = vi.fn(async (params: Record<string, unknown>) => {
+const {
+  capabilityState,
+  updateMock,
+  stableServices,
+  controllerState,
+  providerFixture,
+  previewMock,
+} = vi.hoisted(() => {
+  const updateMock = vi.fn(async (_params: Record<string, unknown>) => {
     return {
       schemaVersion: 1,
       capabilities: capabilityState.current,
@@ -38,12 +45,65 @@ const { capabilityState, updateMock, stableServices, controllerState } = vi.hois
   };
   // useModelCapabilities mock 的 controller 形状开关（unavailable 用例切 service=null）。
   const controllerState = { serviceAvailable: true };
+  // §15：供应商卡视图 fixture（可变；供应商模板建卡/Key 写入断言的数据源）。
+  const providerFixture = {
+    current: { providers: [] as Array<Record<string, unknown>>, revision: 1 },
+  };
+  const previewMock = vi.fn(async () => new Blob(["audio"], { type: "audio/mpeg" }));
   const stableServices = {
-    // §13：供应商下拉数据源（useCapabilityProviderOptions 经
-    // useProviderSettingsServiceView；空列表即可——表单测试聚焦档案写路径）。
+    // §13/§15：供应商下拉数据源 + 程序化建卡/Key overlay 写入（模板选卡与内联 Key）。
     providerSettingsService: {
-      getView: async () => ({ providers: [] }),
+      getView: async () => providerFixture.current,
       onDidChange: () => ({ dispose: () => undefined }),
+      createPersonalProvider: vi.fn(
+        async (input?: {
+          providerName?: string;
+          initialConfig?: {
+            access?: { type?: string; apiKey?: string | null };
+            api?: { type?: string; baseUrl?: string };
+          };
+        }) => {
+          const card = {
+            providerId: `card-${providerFixture.current.providers.length + 1}`,
+            providerName: input?.providerName ?? "",
+            enabled: true,
+            effectiveConfig: {
+              api: { baseUrl: input?.initialConfig?.api?.baseUrl ?? "" },
+              access: { type: "api-key", apiKey: input?.initialConfig?.access?.apiKey ?? "" },
+            },
+            personalConfig: {},
+          };
+          providerFixture.current = {
+            providers: [...providerFixture.current.providers, card],
+            revision: providerFixture.current.revision + 1,
+          };
+          return { providerId: card.providerId, view: providerFixture.current };
+        },
+      ),
+      savePersonalProviderOverlay: vi.fn(
+        async (providerId: string, overlay: Record<string, unknown>) => {
+          providerFixture.current = {
+            providers: providerFixture.current.providers.map((provider) =>
+              (provider as { providerId: string }).providerId === providerId
+                ? {
+                    ...provider,
+                    personalConfig: overlay,
+                    effectiveConfig: {
+                      ...(provider as { effectiveConfig?: Record<string, unknown> })
+                        .effectiveConfig,
+                      access: {
+                        type: "api-key",
+                        apiKey: (overlay as { access?: { apiKey?: string } }).access?.apiKey ?? "",
+                      },
+                    },
+                  }
+                : provider,
+            ),
+            revision: providerFixture.current.revision + 1,
+          };
+          return providerFixture.current;
+        },
+      ),
     },
     credentialService: {
       load: vi.fn(async (key: string) => (key.endsWith("typesafe:api-key") ? "stored-key" : null)),
@@ -57,8 +117,21 @@ const { capabilityState, updateMock, stableServices, controllerState } = vi.hois
       testJevConnection: vi.fn(async () => ({ ok: true, latencyMs: 12, error: null })),
     },
   };
-  return { capabilityState, updateMock, stableServices, controllerState };
+  return {
+    capabilityState,
+    updateMock,
+    stableServices,
+    controllerState,
+    providerFixture,
+    previewMock,
+  };
 });
+
+// §15 试听：mock 合成（不发真实厂商请求；playTtsBlob 换 stub 避免 jsdom Audio）。
+vi.mock("@/voice/cloudTtsAdapter.js", () => ({
+  synthesizeOnce: previewMock,
+  playTtsBlob: vi.fn(() => ({ completed: Promise.resolve("end"), stop: () => undefined })),
+}));
 
 vi.mock("@/hooks/useServices.js", () => ({
   useServices: () => stableServices,
@@ -116,6 +189,10 @@ function resetCapabilities(): void {
     tts: { engine: "system", providerRef: "", modelId: "", voice: "", baseUrlOverride: "" },
     "image-generation": { enabled: false, baseUrl: "", modelId: "" },
   };
+  providerFixture.current = { providers: [], revision: 1 };
+  stableServices.providerSettingsService.createPersonalProvider.mockClear();
+  stableServices.providerSettingsService.savePersonalProviderOverlay.mockClear();
+  previewMock.mockClear();
   updateMock.mockClear();
   controllerState.serviceAvailable = true;
 }
@@ -259,7 +336,7 @@ describe("语音识别/语音合成条目（asr/tts；引擎选择迁入档案�
     });
   });
 
-  it("engine=remote 时显供应商下拉 + 覆盖 + 模型 id；无独立 ApiKeyInput（§13 字段表）", () => {
+  it("engine=remote 时显语音供应商下拉 + 内联 ApiKeyInput（§15）+ 覆盖 + 模型 id", () => {
     capabilityState.current.asr = {
       engine: "remote",
       providerRef: "",
@@ -270,7 +347,7 @@ describe("语音识别/语音合成条目（asr/tts；引擎选择迁入档案�
     expect(screen.getByTestId("model-capability-provider-select-asr")).toBeTruthy();
     expect(screen.getByTestId("model-capability-model-input-asr")).toBeTruthy();
     expect(screen.getByTestId("model-capability-base-url-input-asr")).toBeTruthy();
-    expect(screen.queryByTestId("model-capability-api-key-input")).toBeNull();
+    expect(screen.getByTestId("model-capability-api-key-input")).toBeTruthy();
   });
 
   it("tts engine=cloud 时显 baseUrl + 模型 + 音色 + ApiKeyInput；音色写档案 tts.voice", async () => {
@@ -366,5 +443,238 @@ describe("baseUrl 连接区校验（自 VoiceSection S1 迁入的语义）", () 
     expect(screen.getByTestId("model-capability-base-url-warning").textContent).toContain(
       "unparseableWarning",
     );
+  });
+});
+
+describe("§15 语音供应商模板与试听（specs/model-capabilities.md §15）", () => {
+  function pushCard(provider: {
+    providerId: string;
+    providerName: string;
+    baseUrl: string;
+    apiKey?: string;
+  }): void {
+    providerFixture.current = {
+      providers: [
+        ...providerFixture.current.providers,
+        {
+          providerId: provider.providerId,
+          providerName: provider.providerName,
+          enabled: true,
+          effectiveConfig: {
+            api: { baseUrl: provider.baseUrl },
+            access: { type: "api-key", apiKey: provider.apiKey ?? "" },
+          },
+          personalConfig: {},
+        },
+      ],
+      revision: providerFixture.current.revision + 1,
+    };
+  }
+
+  async function openVendorSelect(purpose: "tts" | "asr"): Promise<void> {
+    const trigger = screen.getByTestId(`model-capability-provider-select-${purpose}`);
+    fireEvent.pointerDown(trigger, {
+      button: 0,
+      ctrlKey: false,
+      pointerId: 1,
+      pointerType: "mouse",
+    });
+  }
+
+  it("选内置模板「火山引擎」且无卡 → 程序化建卡（canonical baseUrl）+ 条目 providerRef 指向新卡", async () => {
+    capabilityState.current.tts = {
+      engine: "cloud",
+      providerRef: "",
+      modelId: "",
+      voice: "",
+      baseUrlOverride: "",
+    };
+    render(<ModelCapabilityDetail purpose="tts" />);
+    await openVendorSelect("tts");
+    // mock formatMessage 回显 id：两个模板项同文案，registry 顺序第一项 = 火山。
+    fireEvent.click(screen.getAllByText("settings.modelCapability.vendor.optionState")[0]!);
+    await waitFor(() => {
+      expect(stableServices.providerSettingsService.createPersonalProvider).toHaveBeenCalledWith(
+        expect.objectContaining({
+          providerName: "火山引擎（豆包语音）",
+          initialConfig: expect.objectContaining({
+            access: { type: "api-key" },
+            api: { type: "openai-chat-completions", baseUrl: "https://openspeech.bytedance.com" },
+          }),
+        }),
+      );
+    });
+    await waitFor(() => {
+      expect(updateMock).toHaveBeenCalledWith({
+        capabilities: { tts: { providerRef: "card-1" } },
+      });
+    });
+  });
+
+  it("已有 host 命中卡 → 复用不建卡，providerRef 直指该卡", async () => {
+    pushCard({
+      providerId: "card-sf",
+      providerName: "SiliconFlow",
+      baseUrl: "https://api.siliconflow.cn/v1",
+      apiKey: "sk-1",
+    });
+    capabilityState.current.tts = {
+      engine: "cloud",
+      providerRef: "",
+      modelId: "",
+      voice: "",
+      baseUrlOverride: "",
+    };
+    render(<ModelCapabilityDetail purpose="tts" />);
+    await openVendorSelect("tts");
+    // registry 顺序第二项 = SiliconFlow（已连接标注同文案）。
+    fireEvent.click(screen.getAllByText("settings.modelCapability.vendor.optionState")[1]!);
+    await waitFor(() => {
+      expect(updateMock).toHaveBeenCalledWith({
+        capabilities: { tts: { providerRef: "card-sf" } },
+      });
+    });
+    expect(stableServices.providerSettingsService.createPersonalProvider).not.toHaveBeenCalled();
+  });
+
+  it("火山档：音色变形为 Select（写 modelId）；独立模型/音色文本行隐藏", async () => {
+    pushCard({
+      providerId: "card-v",
+      providerName: "火山引擎语音",
+      baseUrl: "https://openspeech.bytedance.com",
+      apiKey: "1:2",
+    });
+    capabilityState.current.tts = {
+      engine: "cloud",
+      providerRef: "card-v",
+      modelId: "",
+      voice: "",
+      baseUrlOverride: "",
+    };
+    render(<ModelCapabilityDetail purpose="tts" />);
+    // hook 异步加载供应商视图后才解析出火山档（变形行替换文本行）。
+    await waitFor(() => {
+      expect(screen.queryByTestId("model-capability-model-input-tts")).toBeNull();
+    });
+    expect(screen.getByTestId("model-capability-voice-select-tts")).toBeTruthy();
+    expect(screen.queryByTestId("model-capability-model-input-tts-voice")).toBeNull();
+    const trigger = screen.getByTestId("model-capability-voice-select-tts");
+    fireEvent.pointerDown(trigger, {
+      button: 0,
+      ctrlKey: false,
+      pointerId: 1,
+      pointerType: "mouse",
+    });
+    fireEvent.click(screen.getByText("湾湾小何（台湾腔·女）"));
+    await waitFor(() => {
+      expect(updateMock).toHaveBeenCalledWith({
+        capabilities: { tts: { modelId: "zh_female_wanwanxiaohe_moon_bigtts" } },
+      });
+    });
+  });
+
+  it("非火山档：模型/音色文本行 + 厂商预设 datalist；内联 Key 保存走供应商卡 overlay", async () => {
+    pushCard({
+      providerId: "custom:sf",
+      providerName: "SiliconFlow",
+      baseUrl: "https://api.siliconflow.cn/v1",
+    });
+    capabilityState.current.tts = {
+      engine: "cloud",
+      providerRef: "custom:sf",
+      modelId: "",
+      voice: "",
+      baseUrlOverride: "",
+    };
+    render(<ModelCapabilityDetail purpose="tts" />);
+    // hook 异步加载视图后才收敛 SF 预设 datalist（8 音色）。
+    await waitFor(() => {
+      const list = document.querySelector(
+        "datalist#model-capability-tts-voice-presets",
+      ) as HTMLDataListElement | null;
+      expect(list?.options.length).toBe(8);
+    });
+    expect(screen.getByTestId("model-capability-model-input-tts")).toBeTruthy();
+    expect(screen.queryByTestId("model-capability-voice-select-tts")).toBeNull();
+    // 内联 Key：写入所选卡的 overlay（persistProviderApiKey → savePersonalProviderOverlay）。
+    fireEvent.change(screen.getByTestId("model-capability-api-key-input"), {
+      target: { value: "sk-new-key" },
+    });
+    fireEvent.click(screen.getByText("settings.modelCapability.apiKey.save"));
+    await waitFor(() => {
+      expect(
+        stableServices.providerSettingsService.savePersonalProviderOverlay,
+      ).toHaveBeenCalledWith(
+        "custom:sf",
+        expect.objectContaining({
+          access: expect.objectContaining({ type: "api-key", apiKey: "sk-new-key" }),
+        }),
+      );
+    });
+  });
+
+  it("试听：synthesizeOnce 收当前连接 + 播报模型；成功 toast + 播放", async () => {
+    pushCard({
+      providerId: "custom:sf",
+      providerName: "SiliconFlow",
+      baseUrl: "https://api.siliconflow.cn/v1",
+      apiKey: "sk-1",
+    });
+    capabilityState.current.tts = {
+      engine: "cloud",
+      providerRef: "custom:sf",
+      modelId: "FunAudioLLM/CosyVoice2-0.5B",
+      voice: "",
+      baseUrlOverride: "",
+    };
+    render(<ModelCapabilityDetail purpose="tts" />);
+    // hook 异步加载视图后连接齐备，试听按钮才解除禁用。
+    await waitFor(() => {
+      expect(
+        (screen.getByTestId("model-capability-preview-button-tts") as HTMLButtonElement).disabled,
+      ).toBe(false);
+    });
+    fireEvent.click(screen.getByTestId("model-capability-preview-button-tts"));
+    await waitFor(() => {
+      expect(previewMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          baseUrl: "https://api.siliconflow.cn/v1",
+          model: "FunAudioLLM/CosyVoice2-0.5B",
+          apiKey: "sk-1",
+        }),
+        "你好，这是 Drora 的语音播报试听。",
+        expect.objectContaining({ voice: undefined }),
+      );
+    });
+    await waitFor(() => {
+      expect(screen.getByText("settings.modelCapability.tts.preview.ok")).toBeTruthy();
+    });
+  });
+
+  it("试听失败：toast 携带适配器错误消息（fail-visible，§15.3）", async () => {
+    pushCard({
+      providerId: "custom:sf",
+      providerName: "SiliconFlow",
+      baseUrl: "https://api.siliconflow.cn/v1",
+      apiKey: "sk-1",
+    });
+    capabilityState.current.tts = {
+      engine: "cloud",
+      providerRef: "custom:sf",
+      modelId: "m",
+      voice: "",
+      baseUrlOverride: "",
+    };
+    previewMock.mockRejectedValueOnce(new Error("cloud tts request rejected: 401"));
+    render(<ModelCapabilityDetail purpose="tts" />);
+    await waitFor(() => {
+      expect(
+        (screen.getByTestId("model-capability-preview-button-tts") as HTMLButtonElement).disabled,
+      ).toBe(false);
+    });
+    fireEvent.click(screen.getByTestId("model-capability-preview-button-tts"));
+    await waitFor(() => {
+      expect(screen.getByText(/settings\.modelCapability\.tts\.preview\.failed/u)).toBeTruthy();
+    });
   });
 });

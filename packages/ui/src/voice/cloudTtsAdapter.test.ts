@@ -4,6 +4,7 @@ import {
   clampTtsSpeed,
   createCloudTtsAdapter,
   resolveTtsEngineChoice,
+  type CloudTtsFetch,
   type CloudTtsPlaybackHandle,
   type ResponseLike,
 } from "./cloudTtsAdapter.js";
@@ -386,15 +387,38 @@ describe("火山引擎 TTS 协议分支（specs/model-capabilities.md §14）", 
     expect(harness.failCount.value).toBe(1);
   });
 
-  it("凭据形态不合法（无冒号分隔）→ 单句 error 零出站", async () => {
-    const harness = createHarness();
-    harness.setConfig({ baseUrl: VOLCANO_BASE, model: "m", apiKey: "no-colon-token" });
-    harness.setRawResponse({ text: "" });
-    const handle = harness.adapter.speak({ text: "你好", lang: "zh-CN" });
+  it("凭据双形态：复合键 → 旧版双头；单值键 → 新版 X-Api-Key（§14.2/§15）", async () => {
+    // 新版单 Key：X-Api-Key 出站，无 App-Id/Access-Key 双头
+    const single = createHarness();
+    single.setConfig({
+      baseUrl: VOLCANO_BASE,
+      model: "zh_female_wanwanxiaohe_moon_bigtts",
+      apiKey: "tlk-new-console-key",
+    });
+    single.setRawResponse({
+      text: ndjson([
+        { code: 0, data: Buffer.from("hi").toString("base64") },
+        { code: 20000000, message: "success" },
+      ]),
+    });
+    const singleHandle = single.adapter.speak({ text: "你好", lang: "zh-CN" });
     await vi.advanceTimersByTimeAsync(0);
-    expect(harness.playback.length).toBe(0);
-    expect(harness.failCount.value).toBe(1);
-    void handle;
+    const singleRequest = single.requests[single.requests.length - 1]!;
+    expect(singleRequest.headers["X-Api-Key"]).toBe("tlk-new-console-key");
+    expect(singleRequest.headers["X-Api-App-Id"]).toBeUndefined();
+    expect(singleRequest.headers["X-Api-Access-Key"]).toBeUndefined();
+    expect(single.playback.length).toBe(1);
+    void singleHandle;
+
+    // 空白串 → fail-closed 零出站
+    const empty = createHarness();
+    empty.setConfig({ baseUrl: VOLCANO_BASE, model: "m", apiKey: "   " });
+    empty.setRawResponse({ text: "" });
+    const emptyHandle = empty.adapter.speak({ text: "你好", lang: "zh-CN" });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(empty.playback.length).toBe(0);
+    expect(empty.failCount.value).toBe(1);
+    void emptyHandle;
   });
 
   it("资源 ID 推断：uranus → 2.0；S_ → 复刻；moon_bigtts → 1.0", async () => {
@@ -426,5 +450,85 @@ describe("火山引擎 TTS 协议分支（specs/model-capabilities.md §14）", 
     expect(isVolcanoTtsEndpoint("https://openspeech.bytedance.com.evil.example")).toBe(false);
     expect(isVolcanoTtsEndpoint("https://api.siliconflow.cn/v1")).toBe(false);
     expect(isVolcanoTtsEndpoint("not a url")).toBe(false);
+  });
+});
+
+describe("synthesizeOnce（specs/model-capabilities.md §15 试听）", () => {
+  const VOLCANO_BASE = "https://openspeech.bytedance.com";
+
+  function ndjson(lines: Array<Record<string, unknown>>): string {
+    return lines.map((line) => JSON.stringify(line)).join("\n");
+  }
+
+  function fakeFetch(response: { ok?: boolean; status?: number; text?: string; blob?: Blob }): {
+    fetch: CloudTtsFetch;
+    requests: Array<{ url: string; headers: Record<string, string>; body: unknown }>;
+  } {
+    const requests: Array<{ url: string; headers: Record<string, string>; body: unknown }> = [];
+    const doFetch: CloudTtsFetch = async (input, init) => {
+      requests.push({
+        url: input,
+        headers: (init.headers ?? {}) as Record<string, string>,
+        body: JSON.parse(String(init.body ?? "{}")),
+      });
+      return {
+        ok: response.ok ?? true,
+        status: response.status ?? 200,
+        blob: async () => response.blob ?? new Blob(["audio"], { type: "audio/mpeg" }),
+        text: async () => response.text ?? "",
+      };
+    };
+    return { fetch: doFetch, requests };
+  }
+
+  it("火山卡：分派 v3 协议，新版单 Key 发 X-Api-Key", async () => {
+    const { synthesizeOnce } = await import("./cloudTtsAdapter.js");
+    const { fetch, requests } = fakeFetch({
+      text: ndjson([
+        { code: 0, data: Buffer.from("hi").toString("base64") },
+        { code: 20000000, message: "success" },
+      ]),
+    });
+    const blob = await synthesizeOnce(
+      { baseUrl: VOLCANO_BASE, model: "zh_female_wanwanxiaohe_moon_bigtts", apiKey: "tlk-single" },
+      "试听",
+      { fetch },
+    );
+    expect(requests[0]?.url).toBe(`${VOLCANO_BASE}/api/v3/tts/unidirectional`);
+    expect(requests[0]?.headers["X-Api-Key"]).toBe("tlk-single");
+    expect((await blob.text()).length).toBeGreaterThan(0);
+  });
+
+  it("OpenAI 兼容卡：/audio/speech + Bearer + voice 透传", async () => {
+    const { synthesizeOnce } = await import("./cloudTtsAdapter.js");
+    const { fetch, requests } = fakeFetch({});
+    const blob = await synthesizeOnce(
+      {
+        baseUrl: "https://api.siliconflow.cn/v1",
+        model: "FunAudioLLM/CosyVoice2-0.5B",
+        apiKey: "sk-x",
+      },
+      "试听",
+      { fetch, voice: "FunAudioLLM/CosyVoice2-0.5B:anna" },
+    );
+    expect(requests[0]?.url).toBe("https://api.siliconflow.cn/v1/audio/speech");
+    expect(requests[0]?.headers.Authorization).toBe("Bearer sk-x");
+    expect(requests[0]?.body).toMatchObject({
+      model: "FunAudioLLM/CosyVoice2-0.5B",
+      voice: "FunAudioLLM/CosyVoice2-0.5B:anna",
+    });
+    expect((await blob.text()).length).toBeGreaterThan(0);
+  });
+
+  it("非 2xx → throw（消息含 status，供表单 toast 直显）", async () => {
+    const { synthesizeOnce } = await import("./cloudTtsAdapter.js");
+    const { fetch } = fakeFetch({ ok: false, status: 401 });
+    await expect(
+      synthesizeOnce(
+        { baseUrl: "https://api.siliconflow.cn/v1", model: "m", apiKey: "sk-x" },
+        "试听",
+        { fetch },
+      ),
+    ).rejects.toThrow("401");
   });
 });

@@ -4824,13 +4824,24 @@ const zhCN: Record<string, string> = {
   "settings.modelCapability.nav.embedding": "语义嵌入",
   "settings.modelCapability.provider.createFirst": "新建 API Key 供应商卡",
   "settings.modelCapability.provider.unselected": "未选择供应商",
-  "settings.modelCapability.asr.provider.title": "供应商",
-  "settings.modelCapability.asr.provider.description":
-    "语音识别的连接信息（Base URL 与 API Key）来自所选供应商卡，在模型设置 → 供应商中统一管理。",
+  // §15 语音供应商模板行（asr/tts 共用；spec specs/model-capabilities.md §15.3）。
+  "settings.modelCapability.vendor.title": "语音供应商",
+  "settings.modelCapability.vendor.description":
+    "选择内置语音供应商或自定义端点卡；API Key 单点保存在所选供应商卡，其他能力可复用同一张卡。",
+  "settings.modelCapability.vendor.optionState": "{name}（{state}）",
+  "settings.modelCapability.vendor.connected": "已连接",
+  "settings.modelCapability.vendor.needsKey": "未配置 Key",
+  "settings.modelCapability.vendor.customGroup": "自定义端点",
+  "settings.modelCapability.vendor.apiKey.label": "API Key",
+  "settings.modelCapability.vendor.keepCurrent": "保留当前：{id}",
+  "settings.modelCapability.vendor.createFailed": "创建语音供应商卡失败，请稍后重试",
+  "settings.modelCapability.vendor.credentialHint.volcano":
+    "火山引擎：旧版控制台填「AppID:Access Token」（冒号分隔）；新版控制台填单个 API Key。",
+  "settings.modelCapability.vendor.credentialHint.siliconflow":
+    "SiliconFlow API Key（sk- 开头），与聊天模型共用同一把。",
+  "settings.modelCapability.vendor.credentialHint.custom":
+    "所选供应商卡的 API Key；留空保存即删除。",
   "settings.modelCapability.asr.baseUrlOverride.title": "Base URL 覆盖（可选）",
-  "settings.modelCapability.tts.provider.title": "供应商",
-  "settings.modelCapability.tts.provider.description":
-    "语音合成的连接信息（Base URL 与 API Key）来自所选供应商卡，在模型设置 → 供应商中统一管理。",
   "settings.modelCapability.tts.baseUrlOverride.title": "Base URL 覆盖（可选）",
   "settings.modelCapability.imageGeneration.provider.title": "供应商",
   "settings.modelCapability.imageGeneration.provider.description":
@@ -4913,6 +4924,15 @@ const zhCN: Record<string, string> = {
   "settings.modelCapability.tts.model.placeholder": "如 fnlp/MOSS-TTSD-v0.5",
   "settings.modelCapability.tts.voice.title": "云端引擎音色",
   "settings.modelCapability.tts.voice.placeholder": "厂商音色 id（留空 = 厂商默认）",
+  "settings.modelCapability.tts.voice.volcano.title": "音色",
+  "settings.modelCapability.tts.voice.volcano.description":
+    "火山以音色（voice_type）为播报单位，选择内置音色即可；此前手填的音色 id 将保留。",
+  "settings.modelCapability.tts.preview.action": "试听",
+  "settings.modelCapability.tts.preview.description":
+    "用当前配置合成一句固定文本并直接播放；失败会提示具体原因。",
+  "settings.modelCapability.tts.preview.loading": "合成中…",
+  "settings.modelCapability.tts.preview.ok": "试听已开始播放",
+  "settings.modelCapability.tts.preview.failed": "试听失败：{message}",
   "settings.modelCapability.tts.apiKey.title": "语音合成 API Key",
   "settings.modelCapability.tts.apiKey.description": "加密存储；下一次播报生效。留空保存即删除。",
   "settings.modelCapability.imageGeneration.enabled.label": "图像生成",

@@ -1,0 +1,70 @@
+import { describe, expect, it } from "vitest";
+import {
+  resolveVendorLocaleName,
+  resolveVoiceVendorForCard,
+  VOICE_VENDOR_REGISTRY,
+} from "./voiceVendorRegistry.js";
+
+/** 语音供应商模板注册表契约（specs/model-capabilities.md §15）。 */
+describe("语音供应商模板注册表（specs/model-capabilities.md §15）", () => {
+  it("host 反查：火山/SiliconFlow 命中，仿冒域/方舟域/非法串不命中", () => {
+    expect(resolveVoiceVendorForCard("https://openspeech.bytedance.com")?.vendorId).toBe("volcano");
+    expect(resolveVoiceVendorForCard("https://openspeech.bytedance.com/")?.vendorId).toBe(
+      "volcano",
+    );
+    expect(resolveVoiceVendorForCard("https://api.siliconflow.cn/v1")?.vendorId).toBe(
+      "siliconflow",
+    );
+    expect(resolveVoiceVendorForCard("https://openspeech.bytedance.com.evil.example")).toBeNull();
+    // 方舟（Ark）是聊天线，≠ 语音线（openspeech）——不得命中。
+    expect(
+      resolveVoiceVendorForCard("https://ark.cn-beijing.volces.com/api/compatible"),
+    ).toBeNull();
+    expect(resolveVoiceVendorForCard(null)).toBeNull();
+    expect(resolveVoiceVendorForCard("")).toBeNull();
+    expect(resolveVoiceVendorForCard("not a url")).toBeNull();
+  });
+
+  it("能力子集：火山仅 tts（ASR 是另一条产品线协议）；SiliconFlow tts+asr", () => {
+    const volcano = VOICE_VENDOR_REGISTRY.find((template) => template.vendorId === "volcano");
+    const siliconflow = VOICE_VENDOR_REGISTRY.find(
+      (template) => template.vendorId === "siliconflow",
+    );
+    expect(volcano?.apiKinds).toEqual(["tts"]);
+    expect(siliconflow?.apiKinds).toContain("tts");
+    expect(siliconflow?.apiKinds).toContain("asr");
+  });
+
+  it("火山音色预设只含 moon_bigtts/uranus 两族（与 inferVolcanoResourceId 推断规则对齐）且含湾湾小何", () => {
+    const volcano = VOICE_VENDOR_REGISTRY.find((template) => template.vendorId === "volcano");
+    const voices = volcano?.voices ?? [];
+    expect(voices.length).toBeGreaterThan(0);
+    for (const voice of voices) {
+      expect(voice.id.includes("moon_bigtts") || voice.id.includes("uranus")).toBe(true);
+    }
+    expect(voices.some((voice) => voice.id === "zh_female_wanwanxiaohe_moon_bigtts")).toBe(true);
+  });
+
+  it("音色/模型 id 各厂商内唯一（datalist/Select key 冲突防线）", () => {
+    for (const template of VOICE_VENDOR_REGISTRY) {
+      const voiceIds = template.voices.map((voice) => voice.id);
+      expect(new Set(voiceIds).size).toBe(voiceIds.length);
+      expect(new Set(template.models).size).toBe(template.models.length);
+    }
+  });
+
+  it("SiliconFlow 音色为官方「模型:音色」完整形态", () => {
+    const siliconflow = VOICE_VENDOR_REGISTRY.find(
+      (template) => template.vendorId === "siliconflow",
+    );
+    for (const voice of siliconflow?.voices ?? []) {
+      expect(voice.id.startsWith("FunAudioLLM/CosyVoice2-0.5B:")).toBe(true);
+    }
+  });
+
+  it("本地化名：zh-CN 命中，未知 locale 回落 en-US", () => {
+    const volcano = VOICE_VENDOR_REGISTRY.find((template) => template.vendorId === "volcano");
+    expect(resolveVendorLocaleName(volcano!, "zh-CN")).toContain("火山");
+    expect(resolveVendorLocaleName(volcano!, "fr-FR")).toBe(volcano!.nameMap["en-US"]);
+  });
+});

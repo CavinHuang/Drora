@@ -1,14 +1,13 @@
 /**
- * 「语音识别」（asr）条目表单（specs/model-capabilities.md §5.1 字段表）。
+ * 「语音识别」（asr）条目表单（specs/model-capabilities.md §5.1 / §15）。
  *
- * 引擎 Select（系统听写/厂商端点）；engine=remote 时显 baseUrl + 模型 id + ApiKeyInput。
- * 自 VoiceSection 厂商档迁入：数据源从 AppSettings voiceAsrEngine/voiceVendorBaseUrl/
- * voiceAsrVendorModel 旧键切到档案 asr 条目；凭据迁至 model-capabilities:asr:api-key
- * （留空保存即删除）。生效语义：即时（下一次听写；渲染进程经 hook 订阅）。
+ * 引擎 Select（系统听写/厂商端点）；engine=remote 时显 §15 语音供应商模板行 + 内联
+ * API Key 行（存储单点落所选供应商卡，§13）+ 模型 id（厂商预设 datalist）+ Base URL
+ * 覆盖。无试听（需麦克风录制，backlog）。生效语义：即时（下一次听写）。
  * 引擎档完整性谓词复用 isVoiceVendorConfigComplete（remote 档不完整时运行时回退
  * webSpeech，§9.6.6 回退树不变）；此处仅提示，不阻断选择。
  */
-import { useCallback, useState } from "react";
+import { useCallback } from "react";
 import { TID_MODEL_CAPABILITY_ENGINE_SELECT, testId } from "@drora/shared/test-ids";
 import {
   Select,
@@ -21,19 +20,15 @@ import { useModelCapabilities } from "@/hooks/useModelCapabilities.js";
 import { useDroraIntl } from "@/i18n/IntlProvider.js";
 import { startUserAction } from "@/lib/userActionTelemetry.js";
 import { SettingsGroupCard, SettingsRow } from "@/settings/SettingsPageParts.js";
-import {
-  CapabilityApiKeyRow,
-  CapabilityBaseUrlRow,
-  CapabilityTextValueRow,
-  CapabilityProviderRefRow,
-  useCapabilityProviderOptions,
-} from "./CapabilityFormParts.js";
+import { CapabilityBaseUrlRow, CapabilityTextValueRow } from "./CapabilityFormParts.js";
+import { useVoiceVendorState, VoiceVendorProviderRow } from "./VoiceVendorProviderRow.js";
+
+const ASR_MODEL_PRESETS = ["FunAudioLLM/SenseVoiceSmall", "TeleAI/TeleSpeechASR"];
 
 export function AsrCapabilityForm() {
   const { intl } = useDroraIntl();
   const { capabilities, update } = useModelCapabilities();
   const entry = capabilities?.asr ?? null;
-  const providerOptions = useCapabilityProviderOptions();
   const engine = entry?.engine ?? "webSpeech";
 
   const handleEngineChange = useCallback(
@@ -114,6 +109,12 @@ export function AsrCapabilityForm() {
     [update],
   );
 
+  const vendorState = useVoiceVendorState({
+    kind: "asr",
+    providerRef: entry?.providerRef ?? "",
+    onSaveProviderRef: handleProviderRefSave,
+  });
+
   return (
     <SettingsGroupCard>
       <SettingsRow
@@ -148,12 +149,9 @@ export function AsrCapabilityForm() {
       />
       {engine === "remote" ? (
         <>
-          <CapabilityProviderRefRow
-            labelId="settings.modelCapability.asr.provider.title"
-            descriptionId="settings.modelCapability.asr.provider.description"
-            value={entry?.providerRef ?? ""}
-            options={providerOptions}
-            onSave={handleProviderRefSave}
+          <VoiceVendorProviderRow
+            state={vendorState}
+            apiKeyActionName="save_asr_vendor_key"
             testIdValue="asr"
           />
           <CapabilityTextValueRow
@@ -162,10 +160,7 @@ export function AsrCapabilityForm() {
             value={entry?.modelId ?? ""}
             onSave={handleModelSave}
             testIdValue="asr"
-            datalist={{
-              id: "model-capability-asr-model-presets",
-              values: ["FunAudioLLM/SenseVoiceSmall", "TeleAI/TeleSpeechASR"],
-            }}
+            datalist={{ id: "model-capability-asr-model-presets", values: ASR_MODEL_PRESETS }}
           />
           <CapabilityBaseUrlRow
             labelId="settings.modelCapability.asr.baseUrlOverride.title"

@@ -1,14 +1,22 @@
 /**
- * 「语音合成」（tts）条目表单（specs/model-capabilities.md §5.1 字段表）。
+ * 「语音合成」（tts）条目表单（specs/model-capabilities.md §5.1 / §15）。
  *
- * 引擎 Select（系统语音/云端）；engine=cloud 时显 baseUrl + 模型 id + 音色 + ApiKeyInput。
- * 自 VoiceSection 厂商档迁入：数据源从 AppSettings voiceTtsEngine/voiceTtsVendorModel/
- * voiceTtsVendorVoice 旧键切到档案 tts 条目；凭据迁至 model-capabilities:tts:api-key
- * （留空保存即删除）。生效语义：即时（下一次播报；渲染进程经 hook 订阅）。
- * 音色为厂商音色 id 命名空间（与系统音色 voiceAnnouncementVoice 永不互读，§9.7.3）。
+ * 引擎 Select（系统语音/云端）；engine=cloud 时显：§15 语音供应商模板行 + 内联 API
+ * Key 行（存储单点落所选供应商卡，§13）+ 按厂商变形的音色/模型行 + Base URL 覆盖 +
+ * 试听按钮（synthesizeOnce 固定句合成直播，fail-visible toast）。
+ * 火山路径：音色即播报模型（speaker=modelId，单行 Select 写 modelId，voice 行隐藏）；
+ * SiliconFlow/OpenAI 兼容：播报模型 + 音色双行自由文本 + 厂商预设 datalist。
+ * 生效语义：即时（下一次播报；渲染进程经 hook 订阅）。
  */
 import { useCallback, useState } from "react";
-import { TID_MODEL_CAPABILITY_ENGINE_SELECT, testId } from "@drora/shared/test-ids";
+import { LoaderCircle } from "lucide-react";
+import {
+  TID_MODEL_CAPABILITY_PREVIEW_BUTTON,
+  TID_MODEL_CAPABILITY_VOICE_SELECT,
+  TID_MODEL_CAPABILITY_ENGINE_SELECT,
+  testId,
+} from "@drora/shared/test-ids";
+import { Button } from "@/components/ui/button.js";
 import {
   Select,
   SelectContent,
@@ -16,24 +24,34 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select.js";
+import { toast } from "@/components/ui/toast.js";
 import { useModelCapabilities } from "@/hooks/useModelCapabilities.js";
 import { useDroraIntl } from "@/i18n/IntlProvider.js";
 import { startUserAction } from "@/lib/userActionTelemetry.js";
+import { playTtsBlob, synthesizeOnce } from "@/voice/ttsPreview.js";
 import { SettingsGroupCard, SettingsRow } from "@/settings/SettingsPageParts.js";
-import {
-  CapabilityApiKeyRow,
-  CapabilityBaseUrlRow,
-  CapabilityTextValueRow,
-  CapabilityProviderRefRow,
-  useCapabilityProviderOptions,
-} from "./CapabilityFormParts.js";
+import { CapabilityBaseUrlRow, CapabilityTextValueRow } from "./CapabilityFormParts.js";
+import { useVoiceVendorState, VoiceVendorProviderRow } from "./VoiceVendorProviderRow.js";
+
+/** 试听固定句（§15.3：中文固定文案，面向中文音色预设；不随 UI locale 变化）。 */
+const PREVIEW_SENTENCE = "你好，这是 Drora 的语音播报试听。";
+
+/** 自定义端点（OpenAI 兼容）的模型/音色建议。 */
+const GENERIC_MODEL_PRESETS = [
+  "tts-1",
+  "tts-1-hd",
+  "gpt-4o-mini-tts",
+  "FunAudioLLM/CosyVoice2-0.5B",
+  "fnlp/MOSS-TTSD-v0.5",
+];
+const GENERIC_VOICE_PRESETS = ["alloy", "echo", "fable", "onyx", "nova", "shimmer"];
 
 export function TtsCapabilityForm() {
   const { intl } = useDroraIntl();
   const { capabilities, update } = useModelCapabilities();
   const entry = capabilities?.tts ?? null;
-  const providerOptions = useCapabilityProviderOptions();
   const engine = entry?.engine ?? "system";
+  const modelId = entry?.modelId?.trim() ?? "";
 
   const handleEngineChange = useCallback(
     async (next: "system" | "cloud") => {
@@ -95,13 +113,13 @@ export function TtsCapabilityForm() {
   );
 
   const handleModelSave = useCallback(
-    (modelId: string) => {
+    (nextModelId: string) => {
       const trace = startUserAction({
         featureId: "settings.model_capabilities",
         action: "save_tts_model",
         trigger: "button",
       });
-      void update({ capabilities: { tts: { modelId: modelId.trim() } } })
+      void update({ capabilities: { tts: { modelId: nextModelId.trim() } } })
         .then(() => {
           trace.complete({ resultSource: "setting_service" });
         })
@@ -131,6 +149,58 @@ export function TtsCapabilityForm() {
     },
     [update],
   );
+
+  const vendorState = useVoiceVendorState({
+    kind: "tts",
+    providerRef: entry?.providerRef ?? "",
+    onSaveProviderRef: handleProviderRefSave,
+  });
+
+  const isVolcano = vendorState.vendor?.vendorId === "volcano";
+  const isSiliconflow = vendorState.vendor?.vendorId === "siliconflow";
+  const modelPresets = isSiliconflow ? (vendorState.vendor?.models ?? []) : GENERIC_MODEL_PRESETS;
+  const voicePresets = isSiliconflow
+    ? (vendorState.vendor?.voices.map((preset) => preset.id) ?? [])
+    : GENERIC_VOICE_PRESETS;
+
+  // §15 试听：走当前表单态（providerRef 卡连接 + modelId + 音色）单次合成并直接播放。
+  const [previewing, setPreviewing] = useState(false);
+  const previewReady = Boolean(
+    engine === "cloud" && modelId && vendorState.card?.baseUrl && vendorState.card?.apiKey,
+  );
+  const handlePreview = useCallback(async () => {
+    const card = vendorState.card;
+    if (!card?.baseUrl || !card.apiKey || previewing) {
+      return;
+    }
+    const trace = startUserAction({
+      featureId: "settings.model_capabilities",
+      action: "preview_tts",
+      trigger: "button",
+    });
+    setPreviewing(true);
+    try {
+      const override = entry?.baseUrlOverride?.trim() ?? "";
+      const blob = await synthesizeOnce(
+        { baseUrl: override || card.baseUrl, model: modelId, apiKey: card.apiKey },
+        PREVIEW_SENTENCE,
+        // 火山路径音色即 speaker（modelId），voice 字段不透传；其余路径透传云音色。
+        { voice: isVolcano ? undefined : entry?.voice?.trim() || undefined },
+      );
+      trace.complete({ resultSource: "platform_result" });
+      toast(intl.formatMessage({ id: "settings.modelCapability.tts.preview.ok" }));
+      playTtsBlob(blob);
+    } catch (error) {
+      trace.fail({ failureStage: "outbound_request" });
+      const message = error instanceof Error ? error.message : String(error);
+      toast(
+        intl.formatMessage({ id: "settings.modelCapability.tts.preview.failed" }, { message }),
+        { variant: "warning" },
+      );
+    } finally {
+      setPreviewing(false);
+    }
+  }, [vendorState.card, entry, modelId, isVolcano, previewing, intl]);
 
   return (
     <SettingsGroupCard>
@@ -166,43 +236,105 @@ export function TtsCapabilityForm() {
       />
       {engine === "cloud" ? (
         <>
-          <CapabilityProviderRefRow
-            labelId="settings.modelCapability.tts.provider.title"
-            descriptionId="settings.modelCapability.tts.provider.description"
-            value={entry?.providerRef ?? ""}
-            options={providerOptions}
-            onSave={handleProviderRefSave}
+          <VoiceVendorProviderRow
+            state={vendorState}
+            apiKeyActionName="save_tts_vendor_key"
             testIdValue="tts"
           />
-          <CapabilityTextValueRow
-            labelId="settings.modelCapability.tts.model.title"
-            placeholderId="settings.modelCapability.tts.model.placeholder"
-            value={entry?.modelId ?? ""}
-            onSave={handleModelSave}
-            testIdValue="tts"
-            datalist={{
-              id: "model-capability-tts-model-presets",
-              values: [
-                "FunAudioLLM/CosyVoice2-0.5B",
-                "zh_female_wanwanxiaohe_moon_bigtts",
-                "zh_female_xiaohe_uranus_bigtts",
-                "zh_female_shuangkuaisisi_moon_bigtts",
-              ],
-            }}
-          />
-          <CapabilityTextValueRow
-            labelId="settings.modelCapability.tts.voice.title"
-            placeholderId="settings.modelCapability.tts.voice.placeholder"
-            value={entry?.voice ?? ""}
-            onSave={handleVoiceSave}
-            testIdValue="tts-voice"
-          />
+          {isVolcano ? (
+            <SettingsRow
+              label={intl.formatMessage({ id: "settings.modelCapability.tts.voice.volcano.title" })}
+              description={intl.formatMessage({
+                id: "settings.modelCapability.tts.voice.volcano.description",
+              })}
+              control={
+                <Select
+                  value={modelId || undefined}
+                  onValueChange={(next) => {
+                    handleModelSave(next);
+                  }}
+                >
+                  <SelectTrigger
+                    className="w-72"
+                    data-testid={testId(TID_MODEL_CAPABILITY_VOICE_SELECT, "tts")}
+                    aria-label={intl.formatMessage({
+                      id: "settings.modelCapability.tts.voice.volcano.title",
+                    })}
+                  >
+                    <SelectValue
+                      placeholder={intl.formatMessage({
+                        id: "settings.modelCapability.tts.voice.placeholder",
+                      })}
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(vendorState.vendor?.voices ?? []).map((preset) => (
+                      <SelectItem key={preset.id} value={preset.id}>
+                        {preset.label}
+                      </SelectItem>
+                    ))}
+                    {modelId &&
+                    !(vendorState.vendor?.voices ?? []).some((p) => p.id === modelId) ? (
+                      <SelectItem value={modelId}>
+                        {intl.formatMessage(
+                          { id: "settings.modelCapability.vendor.keepCurrent" },
+                          { id: modelId },
+                        )}
+                      </SelectItem>
+                    ) : null}
+                  </SelectContent>
+                </Select>
+              }
+            />
+          ) : (
+            <>
+              <CapabilityTextValueRow
+                labelId="settings.modelCapability.tts.model.title"
+                placeholderId="settings.modelCapability.tts.model.placeholder"
+                value={entry?.modelId ?? ""}
+                onSave={handleModelSave}
+                testIdValue="tts"
+                datalist={{ id: "model-capability-tts-model-presets", values: modelPresets }}
+              />
+              <CapabilityTextValueRow
+                labelId="settings.modelCapability.tts.voice.title"
+                placeholderId="settings.modelCapability.tts.voice.placeholder"
+                value={entry?.voice ?? ""}
+                onSave={handleVoiceSave}
+                testIdValue="tts-voice"
+                datalist={{ id: "model-capability-tts-voice-presets", values: voicePresets }}
+              />
+            </>
+          )}
           <CapabilityBaseUrlRow
             labelId="settings.modelCapability.tts.baseUrlOverride.title"
             placeholderId="settings.modelCapability.tts.baseUrl.placeholder"
             value={entry?.baseUrlOverride ?? ""}
             onSave={handleBaseUrlOverrideSave}
             testIdValue="tts"
+          />
+          <SettingsRow
+            label={intl.formatMessage({ id: "settings.modelCapability.tts.preview.action" })}
+            description={intl.formatMessage({
+              id: "settings.modelCapability.tts.preview.description",
+            })}
+            control={
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={!previewReady || previewing}
+                data-testid={testId(TID_MODEL_CAPABILITY_PREVIEW_BUTTON, "tts")}
+                onClick={() => void handlePreview()}
+              >
+                {previewing ? (
+                  <LoaderCircle className="size-4 animate-spin" aria-hidden="true" />
+                ) : null}
+                {previewing
+                  ? intl.formatMessage({ id: "settings.modelCapability.tts.preview.loading" })
+                  : intl.formatMessage({ id: "settings.modelCapability.tts.preview.action" })}
+              </Button>
+            }
           />
         </>
       ) : null}

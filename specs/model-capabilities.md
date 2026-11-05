@@ -184,8 +184,8 @@ modelCapabilitiesFileSchema = z.object({
 | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 知识评分 | Jev 开关；provider Select（typesafe/openrouter/ai-gateway）；按 kind 显隐 baseUrl（typesafe）/ baseUrl+modelId（远程两家）；ApiKeyInput（按 kind 分键）；测试连接（沿用 `testJevConnection` RPC 与结果分类文案） |
 | 语义嵌入 | 语义开关；本地模型说明行 + 四态状态面 + 下载/重试（自 `KnowledgeSettingsSection.tsx:264-320` 迁入，轮询节奏不变）                                                                                                |
-| 语音识别 | 引擎 Select（系统听写/厂商端点）；engine=remote 时显 baseUrl + 模型 id + ApiKeyInput                                                                                                                             |
-| 语音合成 | 引擎 Select（系统语音/云端）；engine=cloud 时显 baseUrl + 模型 id + 音色 + ApiKeyInput                                                                                                                           |
+| 语音识别 | 引擎 Select（系统听写/厂商端点）；engine=remote 时显语音供应商（内置模板下拉，§15）+ API Key（内联写卡，§15）+ 模型 id（厂商预设）                                                                               |
+| 语音合成 | 引擎 Select（系统语音/云端）；engine=cloud 时显语音供应商（内置模板下拉，§15）+ API Key（内联写卡）+ 音色（按厂商变形，§15）+ 试听按钮（§15）                                                                    |
 | 图像生成 | 开关；baseUrl（含常用预设 datalist：OpenAI / 智谱开放平台 / 自填）+ 模型 id + ApiKeyInput                                                                                                                        |
 
 复用现有组件族：连接区模式（baseUrl 输入 + 行内 https 校验警告）抽自 `ProviderCardSections.tsx`；`ApiKeyInput` 改造为可指定凭据键 + 保存回调（留空保存即删除，沿用 `ApiKeyRow` 语义）。
@@ -378,7 +378,7 @@ agent 会话
 ### 13.4 迁移与表单裁定（用户已确认）
 
 - **存量迁移**：按条目 baseUrl 在官方模型管理**自动建自定义供应商卡**（无感迁移；卡名取条目用途，key 从旧凭据键导入），条目转 providerRef 后删旧键。
-- **表单形态**：只给「选供应商」下拉 + 「去新建供应商」跳转，**不保留**手填 baseUrl/key 兜底形态（单形态，避免解析双分支）；仅留可选 baseUrl 覆盖（网关分域名边缘）。
+- **表单形态**：只给「选供应商」下拉 + 「去新建供应商」跳转，**不保留**手填 baseUrl/key 兜底形态（单形态，避免解析双分支）；仅留可选 baseUrl 覆盖（网关分域名边缘）。**§15 扩展**（2026-11-05 同日，用户裁定「照抄社区成熟做法」）：asr/tts 表单的供应商下拉升级为「内置语音供应商模板」视图（§15）——模板是卡的策展视图（host 反查 + 缺卡自动建），API Key 录入面内联回表单但**存储仍单点落所选供应商卡**（`persistProviderApiKey` → overlay），key 双录禁令不破。
 - baseUrl 覆盖与 providerRef 的键值并存规则：**手填覆盖优先，留空继承供应商卡**。
 
 ### 13.5 改动面清单（实施依据）
@@ -409,7 +409,7 @@ agent 会话
 ### 14.2 协议形状（社区已验证实现 + 火山文档）
 
 - `POST {baseUrl}/api/v3/tts/unidirectional`（NDJSON 流式）
-- Headers：`X-Api-App-Id`、`X-Api-Access-Key`、`X-Api-Resource-Id`、`X-Api-Request-Id`（uuid）
+- Headers：`X-Api-App-Id`、`X-Api-Access-Key`、`X-Api-Resource-Id`、`X-Api-Request-Id`（uuid）。**新版控制台单 Key 形态（§15 批次补，2026-11-05 官方文档核实）**：新版语音控制台（`console.volcengine.com/speech/new`）鉴权改为单 API Key——发 `X-Api-Key` 头，不再有 AppID/Access Token 双值；旧版双值仍受支持。适配器按卡 Key 形态自动分派：含冒号 = 旧版复合（双头）；无冒号 = 新版单 Key（`X-Api-Key`）。`X-Api-Resource-Id` 两形态均必带。
 - Body：`{user: {uid}, req_params: {text, speaker, audio_params: {format: "mp3", sample_rate: 24000, speech_rate, loudness_rate}}}`
 - 响应逐行 JSON：`{code, message, data?}`——code 0 且 data = base64 音频分片；code 20000000 = 合成结束；其他非零 = 错误
 - 资源 ID 推断：speaker 含 `uranus` → `seed-tts-2.0`；`S_` 前缀 → `seed-icl-1.0`；其余（含 `moon_bigtts`）→ `seed-tts-1.0`
@@ -420,10 +420,43 @@ agent 会话
 - 识别：baseUrl host = `openspeech.bytedance.com` → 火山分支（其余走既有 OpenAI 形状，零变化）
 - 请求：`{model}` 字段（能力条目「播报模型」）映射 speaker；`speed` 乘数 0.25–4 → 火山 `speech_rate` [-50,100]（`(rate-1)*100` 取整钳制）；`voice`（厂商音色）火山侧不用（音色即 speaker）
 - 响应：逐行 JSON 解析 → base64 分片拼接 → Blob(mp3) → playBlob（打断/连败回落语义零变化）
-- 错误：非 2xx HTTP / 链接期 code 非零 / 无音频分片 → 单句 error（回落计数照旧）；apiKey 缺冒号分隔 → 结构化报错「火山引擎卡 API Key 需为 AppID:Access Token 形态」
+- 错误：非 2xx HTTP / 链接期 code 非零 / 无音频分片 → 单句 error（回落计数照旧）；apiKey 为空串 → fail-closed（无出站）；形如 `AppID:Access Token` 复合 → 旧版双头，纯单值 → 新版 `X-Api-Key`
 - 隐私边界不变：日志零 apiKey/零合成文本
 
 ### 14.4 验收
 
 - 单测：请求形状（headers/body 断言）、NDJSON 解析（分片拼接/结束标记/错误码）、复合凭据解析、资源 ID 推断、既有 OpenAI 路径回归
 - 实机：火山引擎开通豆包语音合成大模型 → 供应商卡（baseUrl=openspeech.bytedance.com、API Key=AppID:Access Token）→ 语音合成选卡 + 播报模型 `zh_female_wanwanxiaohe_moon_bigtts` → 播报出声
+
+## 15. 语音供应商模板与试听（2026-11-05，用户裁定「照抄社区成熟做法」）
+
+### 15.1 背景与裁定
+
+§13 落地后实测用户仍不会配置语音供应商（要理解「卡」概念、建卡需跳转、音色手填裸 ID、失败静默回落无感知）。对照 Open WebUI / LobeChat / SillyTavern / Cherry Studio 四家社区客户端调研（供应商内置模板名单、音色从不手填裸 ID、试听近乎标配、单层内联配置），用户裁定：**语音配置阶段直接选供应商 + 内置对应厂商音色，照抄社区 UX**；但存储层维持 §13（key 单点落卡），只改录入面。
+
+### 15.2 语音供应商模板注册表（voiceVendorRegistry）
+
+UI 本地静态注册表（`packages/ui/src/settings/model-capabilities/voiceVendorRegistry.ts`），每模板：`vendorId` / 双语名 / `canonicalBaseUrl`（自动建卡用）/ `matchHost`（按卡 baseUrl host 反查）/ 凭据形态提示 / `apiTypes`（tts/asr 子集）/ `voices`（内置音色预设，value=厂商原始 id、label=友好名）/ `models`（模型预设）。
+
+- **火山引擎**：baseUrl `https://openspeech.bytedance.com`，仅 tts（ASR 是另一条产品线协议，不适用 OpenAI 兼容 `/audio/transcriptions`）。音色预设只取 moon_bigtts（1.0）与 uranus（2.0）两族——与 `inferVolcanoResourceId` 推断规则严格对齐；含湾湾小何（台湾腔女声）、小何 2.0、爽快思思、甜美小源、清澈梓梓、亲切女声 2.0、邻家女孩 2.0、小天 2.0（男）、云舟 2.0（男）等。**清单来源：火山官方音色列表文档（docs.volcengine.com/docs/doubao-voice/tone-list-3），2026-11-05 查证**。
+- **SiliconFlow**：baseUrl `https://api.siliconflow.cn/v1`（OpenAI 兼容 `/audio/speech`），tts + asr。音色预设 = CosyVoice2 官方八音色（`FunAudioLLM/CosyVoice2-0.5B:alex/benjamin/charles/david/anna/bella/claire/diana`，value 为完整 `模型:音色` 形态）；模型预设 = CosyVoice2-0.5B / MOSS-TTSD-v0.5。**来源：docs.siliconflow.cn text-to-speech，2026-11-05 查证**。
+- 下拉还含「自定义端点」区：未命中任何模板 host 的既有启用卡照旧直选（§13 行为保留）。
+
+### 15.3 表单形态（asr/tts 共用 VoiceVendorProviderRow）
+
+- **语音供应商行**：下拉 = 内置模板（标注「已连接/未配置 Key」，host 反查现有卡；优先复用当前 providerRef 卡）+ 分隔 + 自定义卡区。选中模板且无命中卡 → 程序化建卡 `createPersonalProvider({ providerName: 本地化名, initialConfig: { access: { type: "api-key" }, api: { type: "openai-chat-completions", baseUrl: canonical } } })`（LoginApiKeyForm 先例；api.type 与 §13 迁移建卡同款，出站链路不消费该字段），随后条目 providerRef 指向新卡。空态「去新建供应商」按钮路径随之消失。
+- **API Key 行**（内联）：复用 ApiKeyRow 语义（留空保存即删除）；onSave → `persistProviderApiKey`（`provider_config.json` 单点，§13 禁令不破）。火山卡凭据形态提示：`AppID:Access Token`（旧版）或新版单 API Key。
+- **音色/模型行按厂商变形**：火山 = 单行「音色」Select（写 `modelId`——火山协议 speaker 即音色；预设外已填 id（如复刻 S\_ 系）以「保留当前」项呈现不丢失）；SiliconFlow/OpenAI 兼容 = 「播报模型」+「音色」双行自由文本 + 厂商预设 datalist（SF 音色保留自由输入以兼容自定义音色 URI；自定义端点用标准 OpenAI 音色/模型预设）。厂商切换不改写另一形态的存量字段（未用字段无害）。
+- **试听按钮**（仅 tts）：固定句「你好，这是 Drora 的语音播报试听。」走当前表单态 `synthesizeOnce` 合成并直接播放；`modelId` 空则禁用；合成中禁用+spinner；失败 toast（试听失败：\<适配器错误消息\>，含厂商 status/凭据形态提示），成功 toast。**fail-visible：把 §9.6.5-3 静默回落从「播报期无感」变为「配置期可感知」，不改变播报回落逻辑本身**。ASR 无试听（需麦克风录制，backlog）。
+
+### 15.4 适配器新导出（cloudTtsAdapter）
+
+- `synthesizeOnce(config, text, opts?: { voice?, fetch? })`：按 `isVolcanoTtsEndpoint` 分派火山分支 / 抽出的 OpenAI 分支；失败 throw（消息含厂商返回 status/code，供 toast 直显；不含 apiKey/合成文本——隐私边界不变）。
+- `playTtsBlob`：原 `defaultPlayBlob` 闭包提升为模块导出（实现不变）；`deps.playBlob` 注入点兼容。
+- 火山单 Key：`parseVolcanoCredentials` 双形态（冒号分隔 = 旧版复合；单值 = 新版），空串仍 null（fail-closed）。
+
+### 15.5 验收
+
+- 单测：注册表 host 反查/预设 id 唯一性；适配器单 Key 形态（X-Api-Key 出站、无 App-Id 双头）+ synthesizeOnce OpenAI 分支；表单交互（选模板→createPersonalProvider→update providerRef；Key 保存→savePersonalProviderOverlay；试听→synthesizeOnce）。
+- 门禁：typecheck / lint / architecture:check / test:drora 全绿；en-US 键集一致性测试把关双语。
+- 实机：选「火山引擎」（卡自动建）→ 贴 Key → 选「湾湾小何」→ 试听出声；SiliconFlow 复用聊天卡 Key 直接出声。

@@ -142,6 +142,25 @@ describe("Source 强度真实规则（03 §1：mention && allowlist → explicit
     expect((await service.getSnapshot()).triggers[0]?.strength).toBe(ASSISTANT_STRENGTHS.inferred);
   });
 
+  it("gate 落 decision_card 同事务计数 decision（04 §4 修复批注记）；would_accept 不计数", async () => {
+    // 修复依据（spec §2.3）：决策卡推送是三类打扰事件之一，Source 路径与 recordTrigger
+    // 同源计数（落卡即推送事件，不区分 Source 种类）。
+    const { service } = await createService();
+    const named = await service.ingestSourceEvent(
+      feishuEvent({ text: "@大副 修复登录白屏", mention: true }),
+    );
+    expect(named.ok && named.value.outcome).toBe(ASSISTANT_OUTCOMES.decisionCard);
+    const quota = await service.getDisturbanceQuota();
+    expect(quota.ok && quota.value.used.decision).toBe(1);
+    const unnamed = await service.ingestSourceEvent(
+      feishuEvent({ text: "随便看看日志", mention: false }),
+    );
+    expect(unnamed.ok && unnamed.value.outcome).toBe(ASSISTANT_OUTCOMES.wouldAccept);
+    const after = await service.getDisturbanceQuota();
+    expect(after.ok && after.value.used.decision).toBe(1);
+    expect(after.ok && after.value.total).toBe(1);
+  });
+
   it("名单外 identity（即使自称 mention）→ rejected（消息不能改变权限）", async () => {
     const { service } = await createService();
     const result = await service.ingestSourceEvent(

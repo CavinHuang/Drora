@@ -405,6 +405,29 @@ describe("auto inferred：Router 建议臂自动执行（evidence 强约束）",
 });
 
 describe("配额中心（04 详设 §4）", () => {
+  it("gate 落卡即计数（04 §4 修复批注记）：recordTrigger 决策卡 → used.decision+1；would-accept 不计数", async () => {
+    // 修复依据（spec §2.3 修复批注记）：此前 decision 生产方为零，used.decision 恒 0，
+    // 「三端同源计数」中「决策类永不抑制、仍计数」未兑现。
+    const { service } = createService({ readDailyQuota: async () => 5 });
+    const recorded = await service.recordTrigger({
+      text: "点名任务（落卡计数）",
+      simulated: ASSISTANT_STRENGTHS.explicit,
+      targetWorkspaceIdentity: "ws-a",
+    });
+    expect(recorded.ok && recorded.value.outcome).toBe(ASSISTANT_OUTCOMES.decisionCard);
+    const afterCard = await service.getDisturbanceQuota();
+    expect(afterCard.ok && afterCard.value.used.decision).toBe(1);
+    // would-accept（inferred 未指名）不是推送事件，不计数。
+    const observed = await service.recordTrigger({
+      text: "未指名任务",
+      simulated: ASSISTANT_STRENGTHS.inferred,
+    });
+    expect(observed.ok && observed.value.outcome).toBe(ASSISTANT_OUTCOMES.wouldAccept);
+    const afterObserve = await service.getDisturbanceQuota();
+    expect(afterObserve.ok && afterObserve.value.used.decision).toBe(1);
+    expect(afterObserve.ok && afterObserve.value.total).toBe(1);
+  });
+
   it("三类事件同源计数；decision 永不抑制；超配额 report 聚合次日摘要", async () => {
     const { service } = createService({
       readDailyQuota: async () => 2,

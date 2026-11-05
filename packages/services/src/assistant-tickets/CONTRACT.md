@@ -94,6 +94,15 @@ ticket.channel_ref）；Thread 直通 Tier1。
   Tier2 附着预检在放行事务之前（失败零消费，人工可改选"开新会话"）。
 - observe=全量零执行：explicit 出决策卡、inferred 记 would-accept；
   auto 在信任门（P4）开启前恒拒（mate.auto.locked）。
+- **配额中心与 watchdog（P4，04 详设 §1/§4；spec §2.3/§10 修复批注记）**：kv
+  `quota:<yyyy-mm-dd>` 日记录三端同源计数（decision/report/bubble，统一接口
+  admitDisturbance 进出，不建第二计数器）。生产接线：decision=gate 落卡事务计数
+  （recordTrigger/sourceIngest 落 decision_card 同事务；永不抑制仅计数）、
+  report=watchdog 通知、bubble=桌宠气泡闸（ui 侧 MatePetSync）；工单终态汇报卡为
+  快照被动呈现、无主动推送动作，其 report 计数生产接线随主动推送通道批次补齐
+  （spec §14 遗留登记）。watchdog 通知按「停滞回合」计——同 (ticketId, kind) 已有
+  未解除通知不重报不重计，通知区 kv `watchdog_notices` ≤5 一工单一条；watchdog.ts
+  是 stale 列与通知 kv 的唯一写者（只标记不改状态机，spec §10 不变式）。
 - **Source 注册表（P3，03 详设 §1-§5）**：`sources/` 统一入口 `sourceIngest.ts` 是 P3 起
   真实 Source 的唯一入口（P1 `recordTrigger` 模拟语义原样保留，本地双按钮=测试工具）。
   事件顺序：channel_ref 命中活动工单（ticket.channel_ref 等值 + 非终态）→ 跳过 gate

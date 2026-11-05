@@ -18,6 +18,7 @@
  */
 
 import {
+  ASSISTANT_DISTURBANCE_KINDS,
   ASSISTANT_ERROR_CODES,
   ASSISTANT_OUTCOMES,
   ASSISTANT_SOURCE_KINDS,
@@ -33,6 +34,7 @@ import {
   type AssistantDatabase,
   type AssistantDatabaseRaw,
 } from "../assistantDatabase.js";
+import { admitAssistantDisturbanceTx, resolveAssistantDailyQuota } from "../quotaCenter.js";
 import { evaluateAdmission } from "../admissionGate.js";
 import type { AssistantConfigView, AssistantResult } from "../assistantTickets.js";
 import { getAssistantPorts, type AssistantDispatchResult } from "../assistantPorts.js";
@@ -79,6 +81,12 @@ export interface AssistantSourceIngestDeps {
   }) => Promise<AssistantDispatchResult>;
   /** 本机用户 identity（手机 Source 的 host 侧身份——renderer 不可自报）。 */
   readonly localIdentity: string;
+  /**
+   * P4 配额生产接线（04 详设 §4 修复批注记；spec §2.3）：gate 落 decision_card 同事务
+   * 计数用的配额值读点（快照投影同口径的闭包缓存值）。decision 判定臂永不抑制，该值
+   * 对计数行为无效果；缺席回落 contracts 缺省（诚实缺省，不猜测）。
+   */
+  readonly readDailyQuotaSnapshot?: () => number;
   /**
    * P4 auto 直派的后半程（04 详设 §2；事务外编排归服务闭包）：auto 直派建票后的
    * runPostApproval（W1 规划/软预算排队/Mode A 派发）。缺席=auto 建票只落库不派发
@@ -224,6 +232,17 @@ export function createAssistantSourceIngest(deps: AssistantSourceIngestDeps): {
           nowMs(),
         );
       const decisionId = Number(info.lastInsertRowid);
+      // P4 配额生产接线（04 详设 §4 修复批注记；spec §2.3）：决策卡落卡即推送事件——
+      // 同事务过统一计数接口（kind=decision 永不抑制仅计数；与 recordTrigger 同形，
+      // 决策卡推送不区分 Source 种类同源计数）。quota 值对 decision 判定臂无效果，
+      // 取注入的快照投影同口径缓存值，缺席回落 contracts 缺省。
+      if (finalOutcome === ASSISTANT_OUTCOMES.decisionCard) {
+        admitAssistantDisturbanceTx(raw, {
+          kind: ASSISTANT_DISTURBANCE_KINDS.decision,
+          atMs: input.atMs,
+          quota: deps.readDailyQuotaSnapshot?.() ?? resolveAssistantDailyQuota(undefined),
+        });
+      }
       // P4 auto 直派：同事务建票（mandate+ticket+dispatch_intent；与人工放行列集同形）。
       let autoTicket:
         | { ticketId: string; targetIdentity: string; tier: AssistantPermissionTier }

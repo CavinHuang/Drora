@@ -8,6 +8,7 @@
 
 import { createUuid } from "@drora/shared";
 import {
+  ASSISTANT_DISTURBANCE_KINDS,
   ASSISTANT_ERROR_CODES,
   ASSISTANT_MODES,
   ASSISTANT_OUTCOMES,
@@ -53,6 +54,7 @@ import {
   createAssistantAutoDispatch,
 } from "./autoDispatch.js";
 import { createAssistantQuotaService } from "./quotaCenterService.js";
+import { admitAssistantDisturbanceTx, resolveAssistantDailyQuota } from "./quotaCenter.js";
 import { createAssistantSourceIngest } from "./sources/sourceIngest.js";
 import type { AssistantSourceIngestValue } from "./sources/sourceIngest.js";
 import type { MateSourceEvent } from "./sources/contract.js";
@@ -216,6 +218,9 @@ export function createAssistantTicketsService(
     scheduleRouterEvaluation,
     followUp: engine.followUp,
     localIdentity,
+    // P4 配额生产接线（04 详设 §4 修复批注记）：gate 落 decision_card 同事务计数用，
+    // 快照投影同口径的闭包缓存值（判定实时读纪律只约束 report/bubble 抑制臂）。
+    readDailyQuotaSnapshot: () => resolveAssistantDailyQuota(quotaService.cachedQuota()),
     // P4 auto 直派后半程（04 详设 §2）：runPostApproval 编排拆在 autoDispatch.ts
     // （engine/dispatchIndex/软预算同 approveDecision 路径——排队不发明第二条释放路径）。
     dispatchCreatedTicket: (input) => autoDispatch.dispatchCreatedTicket(input),
@@ -286,6 +291,17 @@ export function createAssistantTicketsService(
               ts,
             );
           const decisionId = Number(info.lastInsertRowid);
+          // P4 配额生产接线（04 详设 §4 修复批注记；spec §2.3）：决策卡落卡即推送事件
+          // ——同事务过统一计数接口（kind=decision 永不抑制，本接线只兑现「仍计数」，
+          // used.decision 不再恒 0）。quota 值对 decision 判定臂无效果，取快照投影同
+          // 口径的闭包缓存值+缺省回落（判定实时读纪律只约束 report/bubble 抑制臂）。
+          if (finalOutcome === ASSISTANT_OUTCOMES.decisionCard) {
+            admitAssistantDisturbanceTx(raw, {
+              kind: ASSISTANT_DISTURBANCE_KINDS.decision,
+              atMs: ts,
+              quota: resolveAssistantDailyQuota(quotaService.cachedQuota()),
+            });
+          }
           // auto 直派（04 详设 §2：explicit→直接执行+告知卡）：同事务建票（mandate+
           // ticket+dispatch_intent），派发编排事务外走 runPostApproval（排队/释放复用）。
           let autoTicket:

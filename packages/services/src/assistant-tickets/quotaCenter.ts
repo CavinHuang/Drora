@@ -5,6 +5,11 @@
  *   { decision, report, bubble, digest: string[], digestDelivered: boolean }
  * 事件=决策卡推送/汇报推送/桌宠气泡三类，三端同源经 IAssistantTicketService 统一
  * 计数接口（admitDisturbance）进出，不建第二计数器（P3 桌宠注记兑现）。
+ * 生产接线（04 详设 §4 修复批注记；spec §2.3）：decision=gate 落卡事务（recordTrigger/
+ * sourceIngest 落 decision_card 同事务计数）；report=watchdog 通知（watchdog.ts）；
+ * bubble=MatePetSync 气泡闸。工单终态汇报卡为快照被动呈现、无主动推送动作，其
+ * report 计数生产接线随主动推送通道批次补齐（spec §14 遗留登记）——桌面现状
+ * 「汇报到达」的打扰语义由 bubble 闸承接。
  *
  * 判定：三类事件都计数；decision 类永不抑制（allowed 恒 true——安全优先于安静）；
  * report/bubble 类当日累计 > 配额 → allowed=false，summary 聚合进当日 digest

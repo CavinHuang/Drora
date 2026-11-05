@@ -660,6 +660,7 @@ import {
   setAssistantSessionsIndexPort,
   setAssistantWorkspaceProbePort,
   setAssistantGitWorktreePort,
+  setAssistantArtifactVerifyPort,
   setAssistantSettingsPort,
 } from "./assistant-tickets/assistantPorts.js";
 import type {
@@ -3916,6 +3917,35 @@ export function createLocalServices(options: {
       }
     },
   });
+  // 工件只读核验端口（P4 第二棒，04 详设 §3）：W1 工单 turn ended 后的 done 判据第二
+  // 半——分支相对主检出 HEAD 是否有新提交（rev-parse + merge-base，零写引用）。判定
+  // 矩阵在 reportCompletion.verifyTicketArtifacts（端口缺席=服务按 P1 形态直落 done）。
+  setAssistantArtifactVerifyPort({
+    async hasBranchCommits({ workspacePath, branch }) {
+      try {
+        const tip = await assistantGitCommands.run({
+          cwd: workspacePath,
+          args: ["rev-parse", "--verify", "--quiet", branch],
+        });
+        if (tip.exitCode !== 0) {
+          return { ok: false as const, reason: `分支不可解析：${branch}` };
+        }
+        const base = await assistantGitCommands.run({
+          cwd: workspacePath,
+          args: ["merge-base", branch, "HEAD"],
+        });
+        if (base.exitCode !== 0) {
+          return {
+            ok: false as const,
+            reason: base.stderr.trim() || `merge-base 失败（exitCode=${base.exitCode}）`,
+          };
+        }
+        return { ok: true as const, hasCommits: tip.stdout.trim() !== base.stdout.trim() };
+      } catch (error) {
+        return { ok: false as const, reason: error instanceof Error ? error.message : String(error) };
+      }
+    },
+  });
   sqliteReposToClose.push({ close: () => assistantDatabase.close() });
 
   // AppSettings 端口（P4 配额中心，04 详设 §4）：每日打扰配额 droraMateDailyQuota 实时读
@@ -3933,7 +3963,8 @@ export function createLocalServices(options: {
     },
   });
   // watchdog host face（P4，04 详设 §1）：desktop host cron 经 getAssistantTicketsHostFace
-  // 取轮入口；awaitingCandidates 接缝（§3 工件核验）本批缺省空——判据不激活。
+  // 取轮入口；awaiting 判据事实源（P4 第二棒工件核验）由服务内部按轮喂入，host face
+  // 不再透传接缝参数。
   assistantTicketsHostFaces.set(services, {
     runWatchdogRound: (input) => assistantTicketService.runWatchdogRound(input),
   });

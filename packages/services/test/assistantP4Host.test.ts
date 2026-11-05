@@ -696,17 +696,20 @@ describe("watchdog（04 详设 §1）", () => {
   });
 });
 
-describe("schema v5（stale 列只加不破）", () => {
-  it("新建库带 stale_ms/stale_kind 列且 schema_version=5", () => {
+describe("schema v5/v6（stale 与核验滞留列只加不破）", () => {
+  it("新建库带 stale_ms/stale_kind/awaiting_since_ms/increments_confirmed_ms 列且 schema_version=6", () => {
     const db = openAssistantDatabase(":memory:");
     const columns = (db.raw.prepare("PRAGMA table_info(ticket)").all() as Array<{ name: string }>).map(
       (column) => column.name,
     );
     expect(columns).toContain("stale_ms");
     expect(columns).toContain("stale_kind");
+    // P4 第二棒（04 详设 §3）：核验滞留与增量确认列（v6 只加不破）。
+    expect(columns).toContain("awaiting_since_ms");
+    expect(columns).toContain("increments_confirmed_ms");
     const version = db.raw.prepare("SELECT value FROM kv WHERE key = 'schema_version'").get() as {
       value: string;
     };
-    expect(Number(version.value)).toBe(5);
+    expect(Number(version.value)).toBe(6);
   });
 });

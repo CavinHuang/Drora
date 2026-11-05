@@ -19,6 +19,7 @@ import { ASSISTANT_SNAPSHOT_LIMITS, ASSISTANT_TICKET_STATUSES } from "@drora/sha
 
 import { createServiceLogger } from "../logger/serviceLogger.js";
 import type { AssistantDatabase } from "./assistantDatabase.js";
+import { parseWriteDomainColumn } from "./writeDomain.js";
 
 const logger = createServiceLogger("assistant-tickets");
 
@@ -62,6 +63,12 @@ export interface TicketLedgerDeps {
     readonly workspaceIdentity: string;
     readonly status: string;
   }) => void;
+  /**
+   * P4 第二棒（04 详设 §3 工件核验）：W1 worktree 工单 turn ended 进入 awaiting_output
+   * 后的核验钩子（事务提交后调用；只读核验编排=reportCompletion.verifyTicketArtifacts
+   * ——端口缺席/核验通过/失败/不可用的处置矩阵见该文件头）。钩子内部异常只记日志。
+   */
+  readonly onAwaitingVerification?: (input: { readonly ticketId: string }) => void;
 }
 
 export function createTicketLedger(deps: TicketLedgerDeps): {
@@ -166,6 +173,7 @@ export function createTicketLedger(deps: TicketLedgerDeps): {
   function applyTicketTurnEvent(input: AssistantTicketTurnEventInput): boolean {
     try {
       let becameTerminal = false;
+      let enteredAwaiting = false;
       const pendingTerminal: Array<{
         ticketId: string;
         workspaceIdentity: string;
@@ -174,7 +182,7 @@ export function createTicketLedger(deps: TicketLedgerDeps): {
       db.transaction((raw) => {
         const row = raw
           .prepare(
-            "SELECT status, usage_accum, updated_ms, target_workspace_identity FROM ticket WHERE id = ?",
+            "SELECT status, usage_accum, updated_ms, target_workspace_identity, write_domain, awaiting_since_ms FROM ticket WHERE id = ?",
           )
           .get(input.ticketId) as
           | {
@@ -182,6 +190,8 @@ export function createTicketLedger(deps: TicketLedgerDeps): {
               usage_accum: string;
               updated_ms: number;
               target_workspace_identity: string;
+              write_domain: string | null;
+              awaiting_since_ms: number | null;
             }
           | undefined;
         if (!row) return;
@@ -242,14 +252,40 @@ export function createTicketLedger(deps: TicketLedgerDeps): {
             : terminal
               ? row.status
               : resolveEventStatus(input.kind);
+        // P4 第二棒（04 详设 §3 工件核验）：turn completed 的 done 判据升级为
+        // 「turn ended + 派发桥只读核验」——W1 worktree 工单先进 awaiting_output 滞留
+        // （schema v6 awaiting_since_ms），提交后经 onAwaitingVerification 异步核验：
+        // 通过→done / 失败→滞留喂 watchdog / 不可用→滞留待人工（矩阵见 reportCompletion）。
+        // 非 W1 工单无工件契约，维持 turn ended→done 不变。
+        const isW1Worktree =
+          nextStatus === ASSISTANT_TICKET_STATUSES.done &&
+          parseWriteDomainColumn(row.write_domain)?.kind === "worktree";
+        const effectiveStatus = isW1Worktree
+          ? ASSISTANT_TICKET_STATUSES.awaitingOutput
+          : nextStatus;
         if (
           !terminal &&
-          nextStatus !== row.status &&
-          (nextStatus === ASSISTANT_TICKET_STATUSES.done ||
-            nextStatus === ASSISTANT_TICKET_STATUSES.failed)
+          effectiveStatus !== row.status &&
+          (effectiveStatus === ASSISTANT_TICKET_STATUSES.done ||
+            effectiveStatus === ASSISTANT_TICKET_STATUSES.failed)
         ) {
           becameTerminal = true;
         }
+        if (
+          !terminal &&
+          effectiveStatus !== row.status &&
+          effectiveStatus === ASSISTANT_TICKET_STATUSES.awaitingOutput
+        ) {
+          enteredAwaiting = true;
+        }
+        // awaiting_since_ms 列维护：进入 awaiting 记起始（单调基准与 updated_ms 同口径）；
+        // 离开 awaiting（新 turn/失败/取消）清除；其余（含 usage_snapshot 原态）保持。
+        const nextAwaitingSinceMs =
+          effectiveStatus === ASSISTANT_TICKET_STATUSES.awaitingOutput
+            ? Math.max(input.atMs, row.updated_ms)
+            : row.status === ASSISTANT_TICKET_STATUSES.awaitingOutput
+              ? null
+              : row.awaiting_since_ms;
         let outputSummary: string | null = null;
         let failReason: string | null = null;
         if (!terminal) {
@@ -262,13 +298,14 @@ export function createTicketLedger(deps: TicketLedgerDeps): {
         }
         raw
           .prepare(
-            "UPDATE ticket SET status = ?, output_summary = COALESCE(?, output_summary), fail_reason = COALESCE(?, fail_reason), usage_accum = ?, updated_ms = ? WHERE id = ?",
+            "UPDATE ticket SET status = ?, output_summary = COALESCE(?, output_summary), fail_reason = COALESCE(?, fail_reason), usage_accum = ?, awaiting_since_ms = ?, updated_ms = ? WHERE id = ?",
           )
           .run(
-            nextStatus,
+            effectiveStatus,
             outputSummary,
             failReason,
             JSON.stringify(accum),
+            nextAwaitingSinceMs,
             Math.max(input.atMs, row.updated_ms),
             input.ticketId,
           );
@@ -284,11 +321,19 @@ export function createTicketLedger(deps: TicketLedgerDeps): {
           pendingTerminal.push({
             ticketId: input.ticketId,
             workspaceIdentity: row.target_workspace_identity,
-            status: nextStatus,
+            status: effectiveStatus,
           });
         }
       });
       publish();
+      // W1 工单进入核验滞留：事务提交后异步核验（钩子异常只记日志——滞留事实已提交）。
+      if (enteredAwaiting && deps.onAwaitingVerification) {
+        try {
+          deps.onAwaitingVerification({ ticketId: input.ticketId });
+        } catch (error) {
+          logger.warn("assistant-tickets 工件核验钩子异常（滞留保持，待人工确认）", error);
+        }
+      }
       flushTerminalHooks(pendingTerminal);
       return becameTerminal;
     } catch (error) {

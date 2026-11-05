@@ -41,6 +41,12 @@ import { serializeDispatchIntent } from "./dispatchIntent.js";
 import { isAssistantTrustGateSatisfied } from "./trustGate.js";
 import { runAssistantWatchdogRound } from "./watchdog.js";
 import { runPostApproval, runApprovalPrecheck } from "./postApproval.js";
+import { createMandateActions } from "./mandateActions.js";
+import {
+  confirmTicketIncrements,
+  confirmTicketOutput,
+  collectAwaitingCandidates,
+} from "./reportCompletion.js";
 import {
   insertAssistantAutoTicket,
   resolveAssistantAutoGateOutcome,
@@ -135,6 +141,16 @@ export function createAssistantTicketsService(
     readAssistantConfig(raw, localIdentity);
   /** 派发引擎（唯一执行者：带序 commandId/锚/Mode A·B·C/换代/queued FIFO/W1/归账）。 */
   const engine = createDispatchEngine({ db, publish, readConfig });
+
+  // ------------------------------------------------------------------
+  // Mandate 变更途径之二/三（P4 第二棒拆分）：stop/revoke 实现拆 mandateActions.ts。
+  // ------------------------------------------------------------------
+  const mandateActions = createMandateActions({
+    db,
+    unwatchSession: (sessionId) => engine.unwatchSession(sessionId),
+    handleManualStop: (ticketId) => engine.handleManualStop(ticketId),
+    publish,
+  });
 
   // ------------------------------------------------------------------
   // P4 配额中心（04 详设 §4）：服务面拆在 quotaCenterService.ts（判定实时读 settings
@@ -590,61 +606,50 @@ export function createAssistantTicketsService(
     },
 
     async stopMandate(input) {
+      // P4 第二棒：实现拆在 mandateActions.ts（≤800 行纪律；三途径语义不变）。
+      return mandateActions.stopMandate(input);
+    },
+
+    async revokeMandate(input) {
+      // P4 第二棒：实现拆在 mandateActions.ts（≤800 行纪律；三途径语义不变）。
+      return mandateActions.revokeMandate(input);
+    },
+
+    // ----------------------------------------------------------------
+    // P4 第二棒（04 详设 §3）：汇报卡完整版的人工出口——工件核验确认与换代增量确认。
+    // 编排拆在 reportCompletion.ts（核验矩阵/唯一落库路径见其文件头）。
+    // ----------------------------------------------------------------
+
+    async confirmTicketOutput(input) {
       try {
-        // 订阅退订与台账更新解耦：先查 incarnation.sessionId 再在事务外退订。
-        const sessionRow = db.raw
-          .prepare("SELECT incarnation_current FROM ticket WHERE id = ?")
-          .get(input.ticketId) as { incarnation_current: string } | undefined;
-        db.transaction((raw) => {
-          const ticket = raw
-            .prepare("SELECT mandate_id, status FROM ticket WHERE id = ?")
-            .get(input.ticketId) as { mandate_id: string; status: string } | undefined;
-          if (!ticket) return;
-          if (
-            ticket.status !== ASSISTANT_TICKET_STATUSES.done &&
-            ticket.status !== ASSISTANT_TICKET_STATUSES.failed
-          ) {
-            raw
-              .prepare("UPDATE ticket SET status = ?, fail_reason = ?, updated_ms = ? WHERE id = ?")
-              .run(ASSISTANT_TICKET_STATUSES.failed, "stopped_by_user", nowMs(), input.ticketId);
-          }
-          raw
-            .prepare(
-              "UPDATE mandate SET state = ?, ended_ms = ?, end_reason = ? WHERE id = ? AND state = ?",
-            )
-            .run("stopped", nowMs(), "user_stop", ticket.mandate_id, "active");
-        });
-        if (sessionRow) {
-          const incarnation = JSON.parse(sessionRow.incarnation_current) as { sessionId?: string };
-          if (incarnation.sessionId) engine.unwatchSession(incarnation.sessionId);
-        }
-        // 用户 stop 的直改终态也走终态后续（worktree 清理 + queued FIFO 释放）。
-        engine.handleManualStop(input.ticketId);
-        publish();
-        return { ok: true, value: { ok: true } };
+        return confirmTicketOutput(
+          {
+            db,
+            publish,
+            // awaiting→done 的终态后续与 ledger/handleManualStop 同一引擎入口
+            // （worktree 清理+FIFO 释放+帧退订），不建第二条终态路径。
+            onTicketTerminal: (entry) => engine.handleManualStop(entry.ticketId),
+          },
+          input.ticketId,
+        );
       } catch (error) {
         if (error instanceof AssistantStoreBusyError) return fail(ASSISTANT_ERROR_CODES.storeBusy);
+        if (error instanceof AssistantStoreMigrationError)
+          return fail(ASSISTANT_ERROR_CODES.storeMigration, String(error.message));
         throw error;
       }
     },
 
-    async revokeMandate(input) {
+    async confirmTicketIncrements(input) {
       try {
-        db.transaction((raw) => {
-          const ticket = raw
-            .prepare("SELECT mandate_id FROM ticket WHERE id = ?")
-            .get(input.ticketId) as { mandate_id: string } | undefined;
-          if (!ticket) return;
-          raw
-            .prepare(
-              "UPDATE mandate SET state = ?, ended_ms = ?, end_reason = ? WHERE id = ? AND state = ?",
-            )
-            .run("revoked", nowMs(), input.reason, ticket.mandate_id, "active");
-        });
-        publish();
-        return { ok: true, value: { ok: true } };
+        return confirmTicketIncrements(
+          { db, publish, onTicketTerminal: () => {} },
+          input.ticketId,
+        );
       } catch (error) {
         if (error instanceof AssistantStoreBusyError) return fail(ASSISTANT_ERROR_CODES.storeBusy);
+        if (error instanceof AssistantStoreMigrationError)
+          return fail(ASSISTANT_ERROR_CODES.storeMigration, String(error.message));
         throw error;
       }
     },
@@ -772,21 +777,16 @@ export function createAssistantTicketsService(
     recycle: engine.recycle,
     ingestSourceEvent: sourceIngest.ingestSourceEvent,
     // P4（04 详设 §1/§2）：watchdog 轮（host cron 驱动）与 auto 建票编排（Router 钩子）。
+    // P4 第二棒：awaiting 判据激活——工件核验滞留（awaiting_output）工单按轮喂入
+    // awaitingCandidates（§1 判据表第 2 行；事实源=collectAwaitingCandidates）。
     runWatchdogRound: (input) =>
       runAssistantWatchdogRound(
+        { db, publish, readDailyQuota: quotaService.readDailyQuotaLive },
         {
-          db,
-          publish,
-          readDailyQuota: quotaService.readDailyQuotaLive,
+          ...(input ?? {}),
+          awaitingCandidates: input?.awaitingCandidates ?? collectAwaitingCandidates(db.raw, nowMs()),
         },
-        input,
       ),
     autoDispatchDecision: (input) => autoDispatch.autoDispatchDecision(input),
   };
-
-  // ------------------------------------------------------------------
-  // 放行后编排已抽至 postApproval.ts（单文件 ≤800 行纪律，逻辑不变）：
-  // 写域规划 → 软预算/写域冲突排队闸 → Mode A/B/C 派发；approveDecision 事务外调用。
-  // ------------------------------------------------------------------
-
 }

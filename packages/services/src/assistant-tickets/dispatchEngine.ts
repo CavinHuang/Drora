@@ -37,6 +37,8 @@ import {
 import { createGenerationRollover } from "./generationRollover.js";
 import { composeTeamLeadBrief } from "./routerShell.js";
 import { parseDispatchIntent } from "./dispatchIntent.js";
+import { verifyTicketArtifacts } from "./reportCompletion.js";
+import { createQueuedRelease } from "./queuedRelease.js";
 import {
   detectWriteDomainOverlap,
   parseWriteDomainColumn,
@@ -149,8 +151,24 @@ export function createDispatchEngine(deps: DispatchEngineDeps): {
     db,
     publish: deps.publish,
     onTicketTerminal: (entry) => {
-      cleanupWorktree(entry.ticketId);
-      releaseNextQueued(entry.workspaceIdentity);
+      handleTicketTerminal(entry.ticketId);
+    },
+    // P4 第二棒（04 详设 §3）：W1 工单 turn ended 进入 awaiting_output 后的只读核验
+    // ——编排拆在 reportCompletion（端口缺席/通过/失败/不可用矩阵见其文件头）；
+    // 核验落 done 走同一终态后续（handleTicketTerminal），不建第二条终态路径。
+    onAwaitingVerification: (input) => {
+      void verifyTicketArtifacts(
+        {
+          db,
+          publish: deps.publish,
+          onTicketTerminal: (entry) => {
+            handleTicketTerminal(entry.ticketId);
+          },
+        },
+        input.ticketId,
+      ).catch((error) => {
+        logger.warn("assistant-tickets 工件核验编排异常（滞留保持，待人工确认）", error);
+      });
     },
   });
 
@@ -551,11 +569,13 @@ export function createDispatchEngine(deps: DispatchEngineDeps): {
 
   function findActiveTicketIdBySessionId(sessionId: string): string | null {
     const rows = db.raw
-      .prepare("SELECT id, incarnation_current FROM ticket WHERE status IN (?, ?, ?)")
+      .prepare("SELECT id, incarnation_current FROM ticket WHERE status IN (?, ?, ?, ?)")
       .all(
         ASSISTANT_TICKET_STATUSES.dispatched,
         ASSISTANT_TICKET_STATUSES.running,
         ASSISTANT_TICKET_STATUSES.queued,
+        // P4 第二棒：核验滞留工单的会话仍可能收到 teamActivity/生命周期信号。
+        ASSISTANT_TICKET_STATUSES.awaitingOutput,
       ) as Array<{ id: string; incarnation_current: string }>;
     for (const row of rows) {
       try {
@@ -570,34 +590,17 @@ export function createDispatchEngine(deps: DispatchEngineDeps): {
 
   // ----------------------------------------------------------------
   // 软预算 queued FIFO（spec §9）与终态清理（02 §4）
+  // ——释放子侧拆在 queuedRelease.ts（≤800 行纪律；P4 第二棒 awaiting 活动集同迁）。
   // ----------------------------------------------------------------
 
-  function activeCountFor(identity: string, excludeTicketId?: string): number {
-    const rows = db.raw
-      .prepare(
-        "SELECT id FROM ticket WHERE target_workspace_identity = ? AND status IN (?, ?)",
-      )
-      .all(identity, ASSISTANT_TICKET_STATUSES.dispatched, ASSISTANT_TICKET_STATUSES.running) as Array<{ id: string }>;
-    return rows.filter((row) => row.id !== excludeTicketId).length;
-  }
-
-  /** 同 workspace 活动工单的写域清单（W2/W3 冲突比对原料；queued 不参与）。 */
-  function listActiveWriteDomains(identity: string): Array<{ ticketId: string; domain: AssistantWriteDomain }> {
-    const rows = db.raw
-      .prepare(
-        "SELECT id, write_domain FROM ticket WHERE target_workspace_identity = ? AND status IN (?, ?)",
-      )
-      .all(identity, ASSISTANT_TICKET_STATUSES.dispatched, ASSISTANT_TICKET_STATUSES.running) as Array<{
-      id: string;
-      write_domain: string | null;
-    }>;
-    const result: Array<{ ticketId: string; domain: AssistantWriteDomain }> = [];
-    for (const row of rows) {
-      const domain = parseWriteDomainColumn(row.write_domain) ?? { kind: "workspace" as const };
-      result.push({ ticketId: row.id, domain });
-    }
-    return result;
-  }
+  const queued = createQueuedRelease({
+    db,
+    readConfig: deps.readConfig,
+    publish: deps.publish,
+    dispatchNewTicket,
+    attachDispatch,
+  });
+  const { activeCountFor, listActiveWriteDomains, queueTicket, releaseNextQueued } = queued;
 
   function setWriteDomain(ticketId: string, domain: AssistantWriteDomain): void {
     try {
@@ -610,119 +613,6 @@ export function createDispatchEngine(deps: DispatchEngineDeps): {
     } catch (error) {
       logger.warn("assistant-tickets 写域落列失败", error);
     }
-  }
-
-  /** 软预算/写域冲突排队（spec §9：超出排队+告知卡；reason 进 queued_reason 供告知卡）。 */
-  function queueTicket(ticketId: string, reason: string): void {
-    try {
-      db.transaction((raw) => {
-        raw
-          .prepare("UPDATE ticket SET status = ?, queued_reason = ?, updated_ms = ? WHERE id = ?")
-          .run(ASSISTANT_TICKET_STATUSES.queued, reason, nowMs(), ticketId);
-      });
-      logger.info("assistant-tickets 工单进入 queued（软预算/写域冲突）", { ticketId });
-      deps.publish();
-    } catch (error) {
-      logger.error("assistant-tickets 排队落账异常", error);
-    }
-  }
-
-  /**
-   * queued FIFO 释放（spec §9；P2 审查修复后语义）：
-   * - 预算复检（原有）：活动工单仍满 → 不释放；
-   * - 写域冲突复检（修复审查发现：此前只在放行闸判定，无关工单终态即可让与仍在活动
-   *   的对手并存的队头直接派发，破坏「两两写域不相交」不变式）：队头与当前活动工单
-   *   仍重叠 → 该工单保持 queued 并终止本轮释放（FIFO 不越位跳过，后续终态再试）；
-   * - 按落库 dispatch_intent 重放派发形态（修复审查发现：此前按派发成功才写入的
-   *   dispatch_mode 判型——queued 行恒 NULL → Mode B 建队退化为 Mode A 直派、
-   *   Mode C 附着退化为开新会话、放行权限档降为 build）：
-   *   B → composeTeamLeadBrief 幂等重套 /team 指示后 Mode B 派发；
-   *   C → attachDispatch 附着原目标（attachDispatch 内先重过 Tier2 校验，失败诚实落 failed）；
-   *   A/缺列（v2 旧行）→ Mode A 直派原文。
-   */
-  function releaseNextQueued(identity: string): void {
-    void (async () => {
-      const config = deps.readConfig(db.raw);
-      if (activeCountFor(identity) >= config.budgetMaxActivePerWorkspace) return;
-      const released = db.transaction(
-        (raw):
-          | {
-              id: string;
-              brief: string;
-              write_domain: string | null;
-              intent: ReturnType<typeof parseDispatchIntent>;
-            }
-          | null => {
-          const next = raw
-            .prepare(
-              "SELECT id, brief, dispatch_intent, write_domain FROM ticket WHERE status = ? AND target_workspace_identity = ? ORDER BY created_ms ASC LIMIT 1",
-            )
-            .get(ASSISTANT_TICKET_STATUSES.queued, identity) as
-            | { id: string; brief: string; dispatch_intent: string | null; write_domain: string | null }
-            | undefined;
-          if (!next) return null;
-          // 写域冲突复检（同 evaluateQueueGate 的 overlap 分支口径）：队头写域沿用建票
-          // 时落列；queued 行不进活动集（listActiveWriteDomains 只查 dispatched/running），
-          // 须显式比对。冲突 → 不出队（保持 queued），终止本轮释放（FIFO 不越位）。
-          const ownDomain = parseWriteDomainColumn(next.write_domain) ?? { kind: "workspace" as const };
-          const rows = raw
-            .prepare(
-              "SELECT id, write_domain FROM ticket WHERE target_workspace_identity = ? AND status IN (?, ?)",
-            )
-            .all(identity, ASSISTANT_TICKET_STATUSES.dispatched, ASSISTANT_TICKET_STATUSES.running) as Array<{
-            id: string;
-            write_domain: string | null;
-          }>;
-          const conflict = rows.some((entry) => {
-            if (entry.id === next.id) return false;
-            const domain = parseWriteDomainColumn(entry.write_domain) ?? { kind: "workspace" as const };
-            return detectWriteDomainOverlap(domain, ownDomain);
-          });
-          if (conflict) {
-            logger.info("assistant-tickets queued 队头写域仍与活动工单重叠，保持排队", {
-              ticketId: next.id,
-            });
-            return null;
-          }
-          raw
-            .prepare("UPDATE ticket SET status = ?, queued_reason = NULL, updated_ms = ? WHERE id = ?")
-            .run(ASSISTANT_TICKET_STATUSES.dispatched, nowMs(), next.id);
-          return { ...next, intent: parseDispatchIntent(next.dispatch_intent) };
-        },
-      );
-      if (!released) return;
-      // 释放派发不重过预算闸（已复检）；写域沿用建票时规划（worktree 已检出则 git 端口幂等续用）。
-      const domain = parseWriteDomainColumn(released.write_domain);
-      const intent = released.intent;
-      const tier = intent?.tier ?? "build";
-      const result =
-        intent?.mode === "C" && intent.attachSessionId
-          ? await attachDispatch({
-              ticketId: released.id,
-              text: released.brief,
-              targetIdentity: identity,
-              sessionId: intent.attachSessionId,
-            })
-          : await dispatchNewTicket({
-              ticketId: released.id,
-              // Mode B：释放重套建队指示（brief 列恒存原文，指示不落库、幂等重套——02 §5）。
-              brief: intent?.mode === "B" ? composeTeamLeadBrief(released.brief) : released.brief,
-              targetIdentity: identity,
-              tier,
-              mode: intent?.mode === "B" ? "B" : "A",
-              ...(domain?.kind === "worktree" ? { hostPath: domain.path } : {}),
-              ...(domain && intent?.mode !== "C" ? { domain } : {}),
-            });
-      if (!result.ok) {
-        logger.warn("assistant-tickets queued 释放派发失败", { ticketId: released.id });
-      } else {
-        logger.info("assistant-tickets queued 工单按 FIFO 释放", {
-          ticketId: released.id,
-          mode: intent?.mode ?? "A",
-        });
-      }
-      deps.publish();
-    })().catch((error) => logger.warn("assistant-tickets queued 释放异常", error));
   }
 
   /** 终态清理：W1 worktree remove（分支保留）；失败动作追加 fail_reason 附属日志（02 §4）。 */
@@ -748,12 +638,28 @@ export function createDispatchEngine(deps: DispatchEngineDeps): {
     })().catch((error) => logger.warn("assistant-tickets worktree 清理异常", error));
   }
 
+  /**
+   * 终态后续统一入口（P4 第二棒收拢）：帧订阅退订（幂等）→ W1 worktree 清理（分支
+   * 保留，02 §4）→ queued FIFO 释放。ledger onTicketTerminal / 工件核验落终态 /
+   * handleManualStop 三方共用——不建第二条终态路径（AGENTS.md 单一写路径纪律）。
+   */
+  function handleTicketTerminal(ticketId: string): void {
+    const row = readEngineTicketRow(db.raw, ticketId);
+    if (row) {
+      try {
+        const incarnation = parseIncarnation(row.incarnation_current);
+        if (incarnation.sessionId) unwatchSession(incarnation.sessionId);
+      } catch {
+        // 坏 incarnation JSON 不阻断清理/释放（其他路径暴露）。
+      }
+    }
+    cleanupWorktree(ticketId);
+    if (row) releaseNextQueued(row.target_workspace_identity);
+  }
+
   /** 用户 stop 的终态后续（不经 ledger 的直改终态也要走清理+queued 释放）。 */
   function handleManualStop(ticketId: string): void {
-    const row = readEngineTicketRow(db.raw, ticketId);
-    if (!row) return;
-    cleanupWorktree(ticketId);
-    releaseNextQueued(row.target_workspace_identity);
+    handleTicketTerminal(ticketId);
   }
 
   return {

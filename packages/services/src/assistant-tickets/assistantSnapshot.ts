@@ -51,6 +51,8 @@ interface TicketRow {
   updated_ms: number;
   stale_ms: number | null;
   stale_kind: string | null;
+  awaiting_since_ms: number | null;
+  increments_confirmed_ms: number | null;
 }
 
 /** ticket.write_domain JSON → 视图（缺列/坏 JSON 一律回退 {kind:"workspace"} 诚实降级）。 */
@@ -76,24 +78,170 @@ export function serializeWriteDomain(domain: AssistantWriteDomainView): string {
   return JSON.stringify(domain);
 }
 
-function ticketRowToView(row: TicketRow): AssistantSnapshot["tickets"][number] {
+/** usage_log 行的投影原料（落窗归代输入）。 */
+interface UsageLogRow {
+  readonly inputTokens: number;
+  readonly outputTokens: number;
+  readonly atMs: number;
+}
+
+/** 分代成本行（assistantTickets.ts AssistantTicketView["usageByGeneration"] 元素同形）。 */
+export interface AssistantUsageGenerationRow {
+  readonly generation: number;
+  readonly inputTokens: number;
+  readonly outputTokens: number;
+  readonly durationMs: number;
+  readonly current?: boolean;
+}
+
+/**
+ * usage_log 落窗归代（04 详设 §3「usage_log JOIN incarnation_generations」；纯函数，
+ * 单测锁定）。窗口=[归档代 fromMs,toMs] + 当代 [boundAtMs,∞)；usage 行归「fromMs ≤
+ * at_ms 的最后一个窗口」，早于首窗的行归第 1 代——Σ分代=usage_accum 合计不丢账。
+ * durationMs=窗口跨度（当代=投影时刻迄今）。条数超界（contracts
+ * usageGenerationsMax）时最旧窗口合并进首个保留窗（Σ 不变；换代极罕，防御分支）。
+ */
+export function computeUsageByGeneration(input: {
+  readonly usageRows: readonly UsageLogRow[];
+  readonly generations: readonly { readonly fromMs: number; readonly toMs: number }[];
+  readonly currentFromMs: number;
+  readonly nowMs: number;
+}): AssistantUsageGenerationRow[] {
+  interface Window {
+    generation: number;
+    fromMs: number;
+    toMs: number;
+    current: boolean;
+  }
+  let windows: Window[] = input.generations.map((generation, index) => ({
+    generation: index + 1,
+    fromMs: generation.fromMs,
+    toMs: generation.toMs,
+    current: false,
+  }));
+  windows.push({
+    generation: input.generations.length + 1,
+    fromMs: input.currentFromMs,
+    toMs: Number.POSITIVE_INFINITY,
+    current: true,
+  });
+  const max = ASSISTANT_SNAPSHOT_LIMITS.usageGenerationsMax;
+  if (windows.length > max) {
+    const keepFrom = windows.length - max;
+    const absorbed = windows.slice(0, keepFrom + 1);
+    const firstAbsorbed = absorbed.at(0);
+    const lastAbsorbed = absorbed.at(-1);
+    if (firstAbsorbed && lastAbsorbed) {
+      const merged: Window = {
+        generation: firstAbsorbed.generation,
+        fromMs: firstAbsorbed.fromMs,
+        toMs: lastAbsorbed.toMs,
+        current: false,
+      };
+      windows = [
+        merged,
+        ...windows.slice(keepFrom + 1).map((window, index) => ({ ...window, generation: index + 2 })),
+      ];
+    }
+  }
+  const buckets = windows.map((window) => ({
+    window,
+    inputTokens: 0,
+    outputTokens: 0,
+  }));
+  for (const row of input.usageRows) {
+    let target = 0;
+    for (let index = 0; index < buckets.length; index += 1) {
+      const bucket = buckets[index];
+      if (bucket && bucket.window.fromMs <= row.atMs) target = index;
+    }
+    const targetBucket = buckets[target];
+    if (!targetBucket) continue; // 空窗集防御（windows 恒含当代，理论不可达）。
+    targetBucket.inputTokens += row.inputTokens;
+    targetBucket.outputTokens += row.outputTokens;
+  }
+  return buckets.map((bucket) => ({
+    generation: bucket.window.generation,
+    inputTokens: bucket.inputTokens,
+    outputTokens: bucket.outputTokens,
+    durationMs:
+      bucket.window.current
+        ? Math.max(0, input.nowMs - bucket.window.fromMs)
+        : Math.max(0, bucket.window.toMs - bucket.window.fromMs),
+    ...(bucket.window.current ? { current: true } : {}),
+  }));
+}
+
+/** 一次查询取本页工单的 usage_log 行（快照有界：只查 ticketsMax 页内 id）。 */
+function loadUsageLogRows(
+  raw: AssistantDatabaseRaw,
+  ticketIds: readonly string[],
+): Map<string, UsageLogRow[]> {
+  const byTicket = new Map<string, UsageLogRow[]>();
+  if (ticketIds.length === 0) return byTicket;
+  const placeholders = ticketIds.map(() => "?").join(", ");
+  const rows = raw
+    .prepare(
+      `SELECT ticket_id, input_tokens, output_tokens, at_ms FROM usage_log WHERE ticket_id IN (${placeholders}) ORDER BY at_ms ASC`,
+    )
+    .all(...ticketIds) as Array<{
+    ticket_id: string;
+    input_tokens: number;
+    output_tokens: number;
+    at_ms: number;
+  }>;
+  for (const row of rows) {
+    const bucket = byTicket.get(row.ticket_id) ?? [];
+    bucket.push({ inputTokens: row.input_tokens, outputTokens: row.output_tokens, atMs: row.at_ms });
+    byTicket.set(row.ticket_id, bucket);
+  }
+  return byTicket;
+}
+
+function ticketRowToView(
+  row: TicketRow,
+  usageRows: readonly UsageLogRow[],
+  nowMs: number,
+): AssistantSnapshot["tickets"][number] {
   const incarnation = JSON.parse(row.incarnation_current) as {
     sessionId?: string;
     anchorCommandId?: string | null;
+    boundAtMs?: number;
   };
   const usage = JSON.parse(row.usage_accum) as { inputTokens?: number; outputTokens?: number };
   let generations: unknown = undefined;
+  let generationWindows: { fromMs: number; toMs: number }[] = [];
   try {
     generations = JSON.parse(row.incarnation_generations);
+    if (Array.isArray(generations)) {
+      generationWindows = generations
+        .filter(
+          (entry): entry is { fromMs: number; toMs: number } =>
+            typeof entry === "object" &&
+            entry !== null &&
+            typeof (entry as { fromMs?: unknown }).fromMs === "number" &&
+            typeof (entry as { toMs?: unknown }).toMs === "number",
+        )
+        .map((entry) => ({ fromMs: entry.fromMs, toMs: entry.toMs }));
+    }
   } catch {
     generations = undefined;
   }
   return {
     id: row.id,
     brief: row.brief.slice(0, ASSISTANT_SNAPSHOT_LIMITS.briefPreviewMax),
+    // P4 第二棒（04 详设 §3 证据页签）：brief 全量 verbatim（界 ticketBriefFullMax）。
+    briefFull: row.brief.slice(0, ASSISTANT_SNAPSHOT_LIMITS.ticketBriefFullMax),
     status: row.status,
     permissionTier: ASSISTANT_PERMISSION_TIERS.build,
     usage: { inputTokens: usage.inputTokens ?? 0, outputTokens: usage.outputTokens ?? 0 },
+    // P4 第二棒（04 详设 §3 按代成本）：usage_log 落窗归代投影（Σ=合计不丢账）。
+    usageByGeneration: computeUsageByGeneration({
+      usageRows,
+      generations: generationWindows,
+      currentFromMs: incarnation.boundAtMs ?? 0,
+      nowMs,
+    }),
     outputSummary: row.output_summary,
     failReason: row.fail_reason,
     targetWorkspaceIdentity: row.target_workspace_identity,
@@ -109,6 +257,9 @@ function ticketRowToView(row: TicketRow): AssistantSnapshot["tickets"][number] {
     // P4 watchdog stale 标记投影（schema v5 列；NULL=未标记）。
     staleSinceMs: row.stale_ms,
     staleKind: row.stale_kind,
+    // P4 第二棒（schema v6 列）：核验滞留起始与增量确认时刻（NULL=不滞留/未确认）。
+    awaitingSinceMs: row.awaiting_since_ms,
+    incrementsConfirmedMs: row.increments_confirmed_ms,
   };
 }
 
@@ -231,16 +382,28 @@ export function buildAssistantSnapshot(
       ...(row.router_error ? { routerError: row.router_error } : {}),
     };
   });
-  const ticketRows = (
-    raw
-      .prepare(
-        `SELECT id, brief, status, write_domain, dispatch_mode, queued_reason, decision_id, channel_ref, target_workspace_identity,
-              incarnation_current, incarnation_generations, usage_accum, output_summary, fail_reason, updated_ms,
-              stale_ms, stale_kind
-         FROM ticket ORDER BY created_ms DESC LIMIT ?`,
-      )
-      .all(ASSISTANT_SNAPSHOT_LIMITS.ticketsMax) as unknown as TicketRow[]
-  ).map((row) => ticketRowToView(row));
+  // 投影基准时刻（trust/quota/分代时长共用一个时钟读数，避免同帧内时刻漂移）。
+  const nowMs = Date.now();
+  // P4 第二棒（04 详设 §3 按代成本）：本页工单的 usage_log 行一次查询（界 ticketsMax）。
+  const ticketRowsRaw = raw
+    .prepare(
+      `SELECT id, brief, status, write_domain, dispatch_mode, queued_reason, decision_id, channel_ref, target_workspace_identity,
+            incarnation_current, incarnation_generations, usage_accum, output_summary, fail_reason, updated_ms,
+            stale_ms, stale_kind, awaiting_since_ms, increments_confirmed_ms
+       FROM ticket ORDER BY created_ms DESC LIMIT ?`,
+    )
+    .all(ASSISTANT_SNAPSHOT_LIMITS.ticketsMax) as unknown as TicketRow[];
+  const usageRowsByTicket = loadUsageLogRows(
+    raw,
+    ticketRowsRaw.map((row) => row.id),
+  );
+  const ticketRows = ticketRowsRaw.map((row) =>
+    ticketRowToView(
+      row,
+      usageRowsByTicket.get(row.id) ?? [],
+      nowMs,
+    ),
+  );
   // 信任门统计（P4）：实时 counts（与 releaseCount/wouldAcceptCount 同一查询收口
   // trustGate.readTrustCounts）+ kv 可调阈值 → rate/samples/open 投影。
   const trustCounts = readTrustCounts(raw);
@@ -254,7 +417,6 @@ export function buildAssistantSnapshot(
     return row?.value;
   };
   const gateThresholds = readTrustGateThresholds(kvGet);
-  const nowMs = Date.now();
   // 配额中心投影（P4）：当日 kv 记录 + 近 ≤7 日未投递摘要；配额值=服务闭包缓存
   // （extras），判定以 admitDisturbance 实时读为准（quotaCenter 注释即对账点）。
   const quotaDay = readAssistantQuotaDay(raw, formatAssistantQuotaDayKey(nowMs));

@@ -123,8 +123,38 @@ export interface AssistantTicketView {
    * watchdog 是唯一写者；判据解除后同轮清除。
    */
   readonly staleSinceMs?: number | null;
-  /** P4：停滞判据类别（running_stall / awaiting_unverified；与 staleSinceMs 同写同清）。 */
+  /** P4：停滞判据类别（running_stall / awaiting_unverified / queued_starve；与 staleSinceMs 同写同清）。 */
   readonly staleKind?: string | null;
+  /**
+   * P4 第二棒（04 详设 §3 工件核验）：awaiting_output 滞留起始时刻（ticket
+   * .awaiting_since_ms 列；null/缺席=不滞留）。非终态、占软预算活动位；出口=核验
+   * 通过 / confirmTicketOutput / stopMandate。
+   */
+  readonly awaitingSinceMs?: number | null;
+  /**
+   * P4 第二棒（04 详设 §3 未确认增量行）：换代增量人工确认时刻（ticket
+   * .increments_confirmed_ms 列；null/缺席=未确认——UI 据此常驻显示增量横幅）。
+   */
+  readonly incrementsConfirmedMs?: number | null;
+  /**
+   * P4 第二棒（04 详设 §3 按代成本）：usage_log 按 at_ms 落窗归代的分代投影
+   * （generation 1 起；current=true=当代，durationMs 为投影时刻迄今）。Σ分代=
+   * usage.usage 合计不丢账；条数界 ASSISTANT_SNAPSHOT_LIMITS.usageGenerationsMax。
+   * 字段缺席（旧 Host）→ UI 诚实降级为合计说明。
+   */
+  readonly usageByGeneration?: readonly {
+    readonly generation: number;
+    readonly inputTokens: number;
+    readonly outputTokens: number;
+    readonly durationMs: number;
+    readonly current?: boolean;
+  }[];
+  /**
+   * P4 第二棒（04 详设 §3 证据页签）：brief 全量 verbatim（界
+   * ASSISTANT_SNAPSHOT_LIMITS.ticketBriefFullMax；快照既有 brief 字段仍是 120 字
+   * 预览口径不动——行/卡片预览消费它，全量只读展示消费本字段）。
+   */
+  readonly briefFull?: string;
 }
 
 export interface AssistantConfigView {
@@ -277,6 +307,20 @@ export interface IAssistantTicketService {
 
   /** Mandate 变更途径之二：用户 stop（工单未终态时终止；spec §5 三途径）。 */
   stopMandate(input: { ticketId: string }): Promise<AssistantResult<{ ok: true }>>;
+
+  /**
+   * P4 第二棒（04 详设 §3 工件核验）：人工核验通过——awaiting_output → done（终态
+   * 钩子 worktree 清理+queued FIFO 释放照旧）。非 awaiting 工单拒绝（ticketNotFound，
+   * 不改写其他状态）。
+   */
+  confirmTicketOutput(input: { ticketId: string }): Promise<AssistantResult<{ ok: true }>>;
+
+  /**
+   * P4 第二棒（04 详设 §3 未确认增量行）：人工确认换代增量——置
+   * ticket.increments_confirmed_ms（唯一写路径），UI 增量横幅随之出清。终态/活动态
+   * 皆可确认；重复确认幂等。
+   */
+  confirmTicketIncrements(input: { ticketId: string }): Promise<AssistantResult<{ ok: true }>>;
 
   /** 忽略观察记录（would-accept 行 N）：decision 补 ignored。 */
   dismissObservation(input: { triggerId: string }): Promise<AssistantResult<{ ok: true }>>;

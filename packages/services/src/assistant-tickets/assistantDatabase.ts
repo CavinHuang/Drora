@@ -265,6 +265,20 @@ function runAssistantMigrations(raw: AssistantDatabaseRaw): void {
       "INSERT INTO kv(key, value, updated_ms) VALUES ('schema_version', '5', strftime('%s','now') * 1000) ON CONFLICT(key) DO UPDATE SET value = '5', updated_ms = excluded.updated_ms",
     );
   }
+
+  if (currentVersion < 6) {
+    // v6（2026-11-05，P4 第二棒汇报卡完整版）——只加不破（04 详设 §3）：
+    // - ticket.awaiting_since_ms：工件核验滞留起始时刻（W1 工单 turn ended 后只读
+    //   核验未通过进入 awaiting_output；出口=核验通过/confirmTicketOutput/stopMandate；
+    //   旧行 NULL=不滞留）。watchdog awaiting 判据（§1 判据表第 2 行）的事实源。
+    // - ticket.increments_confirmed_ms：换代增量人工确认时刻（唯一写者=
+    //   confirmTicketIncrements；旧行 NULL=未确认）。UI「未确认增量」横幅据此常驻/出清。
+    addColumnIfMissing(raw, "ticket", "awaiting_since_ms", "INTEGER");
+    addColumnIfMissing(raw, "ticket", "increments_confirmed_ms", "INTEGER");
+    raw.exec(
+      "INSERT INTO kv(key, value, updated_ms) VALUES ('schema_version', '6', strftime('%s','now') * 1000) ON CONFLICT(key) DO UPDATE SET value = '6', updated_ms = excluded.updated_ms",
+    );
+  }
 }
 
 /** ALTER TABLE ADD COLUMN 的幂等封装（PRAGMA table_info 查列存在性；迁移重入安全）。 */

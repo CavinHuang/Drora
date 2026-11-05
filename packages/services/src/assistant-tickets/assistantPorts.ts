@@ -163,6 +163,21 @@ export interface AssistantGitWorktreePort {
   removeWorktree(params: { path: string }): Promise<{ ok: true } | { ok: false; reason: string }>;
 }
 
+/**
+ * 工件只读核验端口（04 详设 §3，P4 第二棒）：W1 工单 turn ended 后的 done 判据
+ * 第二半——分支相对工作区 HEAD 是否有新提交（`mate/<id>` 分支交付语义，spec §9 W1）。
+ * **零写引用**：只允许 rev-parse/merge-base 等只读命令；实现归装配层（node.ts 经
+ * gitCommandProvider），端口缺席=无核验面 → 服务按 P1 形态直落 done（诚实降级）。
+ */
+export interface AssistantArtifactVerifyPort {
+  hasBranchCommits(params: {
+    /** 工单目标 workspace 的真实路径（merge-base 在此运行；非 worktree 路径）。 */
+    workspacePath: string;
+    /** 工单 W1 分支（`mate/<id>`）。 */
+    branch: string;
+  }): Promise<{ ok: true; hasCommits: boolean } | { ok: false; reason: string }>;
+}
+
 // ---------------------------------------------------------------------------
 // AppSettings 端口（P4 配额中心，04 详设 §4：droraMateDailyQuota 实时读）。
 // 服务不直接依赖 SettingService——装配层注入读取闭包；缺席=contracts 缺省配额。
@@ -185,6 +200,7 @@ let routerPort: AssistantRouterPort | null = null;
 let sessionsIndexPort: AssistantSessionsIndexPort | null = null;
 let workspaceProbePort: AssistantWorkspaceProbePort | null = null;
 let gitWorktreePort: AssistantGitWorktreePort | null = null;
+let artifactVerifyPort: AssistantArtifactVerifyPort | null = null;
 let settingsPort: AssistantSettingsPort | null = null;
 
 export function setAssistantDispatchPort(port: AssistantDispatchPort | null): void {
@@ -215,6 +231,10 @@ export function setAssistantGitWorktreePort(port: AssistantGitWorktreePort | nul
   gitWorktreePort = port;
 }
 
+export function setAssistantArtifactVerifyPort(port: AssistantArtifactVerifyPort | null): void {
+  artifactVerifyPort = port;
+}
+
 export function setAssistantSettingsPort(port: AssistantSettingsPort | null): void {
   settingsPort = port;
 }
@@ -228,6 +248,7 @@ export function getAssistantPorts(): {
   readonly sessionsIndex: AssistantSessionsIndexPort | null;
   readonly workspaceProbe: AssistantWorkspaceProbePort | null;
   readonly gitWorktree: AssistantGitWorktreePort | null;
+  readonly artifactVerify: AssistantArtifactVerifyPort | null;
   readonly settings: AssistantSettingsPort | null;
 } {
   return {
@@ -238,6 +259,7 @@ export function getAssistantPorts(): {
     sessionsIndex: sessionsIndexPort,
     workspaceProbe: workspaceProbePort,
     gitWorktree: gitWorktreePort,
+    artifactVerify: artifactVerifyPort,
     settings: settingsPort,
   };
 }

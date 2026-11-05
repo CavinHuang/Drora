@@ -102,6 +102,11 @@ interface FixtureTicket {
   generationCount?: number;
   queuedReason?: string | null;
   channelRef?: string | null;
+  // P4 第二棒（04 详设 §3）：核验滞留/增量确认/按代成本投影（快照同形可选字段）。
+  awaitingSinceMs?: number | null;
+  incrementsConfirmedMs?: number | null;
+  usageByGeneration?: AssistantTicketView["usageByGeneration"];
+  briefFull?: string;
 }
 
 /** approveDecision 入参捕获（Surface A 预填传参断言读点）。 */
@@ -158,6 +163,14 @@ function createMateFixtureService(
       ...(ticket.generationCount !== undefined ? { generationCount: ticket.generationCount } : {}),
       ...(ticket.queuedReason !== undefined ? { queuedReason: ticket.queuedReason } : {}),
       ...(ticket.channelRef !== undefined ? { channelRef: ticket.channelRef } : {}),
+      ...(ticket.awaitingSinceMs !== undefined ? { awaitingSinceMs: ticket.awaitingSinceMs } : {}),
+      ...(ticket.incrementsConfirmedMs !== undefined
+        ? { incrementsConfirmedMs: ticket.incrementsConfirmedMs }
+        : {}),
+      ...(ticket.usageByGeneration !== undefined
+        ? { usageByGeneration: ticket.usageByGeneration }
+        : {}),
+      ...(ticket.briefFull !== undefined ? { briefFull: ticket.briefFull } : {}),
     }));
     const decisionViews: AssistantDecisionView[] = decisions.map((decision) => ({
       id: decision.id,
@@ -461,6 +474,30 @@ function createMateFixtureService(
     },
 
     async stopMandate() {
+      return { ok: true, value: { ok: true } };
+    },
+
+    // P4 第二棒（04 详设 §3）人工出口（fixture 内存版同构语义）：核验确认=非 awaiting
+    // 拒绝（ticketNotFound）、awaiting→done+增量横幅仍在；增量确认=置确认时刻（幂等）。
+    async confirmTicketOutput(input) {
+      const ticket = tickets.find((item) => item.id === input.ticketId);
+      if (
+        !ticket ||
+        ticket.status !== (ASSISTANT_TICKET_STATUSES.awaitingOutput as string)
+      ) {
+        return { ok: false, error: { code: "mate.ticket.not_found" } };
+      }
+      ticket.status = ASSISTANT_TICKET_STATUSES.done;
+      ticket.awaitingSinceMs = null;
+      publish();
+      return { ok: true, value: { ok: true } };
+    },
+
+    async confirmTicketIncrements(input) {
+      const ticket = tickets.find((item) => item.id === input.ticketId);
+      if (!ticket) return { ok: false, error: { code: "mate.ticket.not_found" } };
+      ticket.incrementsConfirmedMs = Date.now();
+      publish();
       return { ok: true, value: { ok: true } };
     },
 

@@ -18,6 +18,7 @@ import {
   deriveMateViewModel,
   findMateDecisionForTicket,
   isMateActiveTicket,
+  isMateAutoSwitchAvailable,
   isMateObserveDecision,
   isMatePendingDecision,
   isMateQueuedTicket,
@@ -26,6 +27,7 @@ import {
   mateTicketGenerationNumber,
   resolveMateBudgetActive,
   resolveMateErrorMessageId,
+  resolveMateTrustGateProgress,
 } from "./view-model.js";
 
 /** 统一钟：让 updatedAtMs 排序断言可读。 */
@@ -368,5 +370,51 @@ describe("P2 建议展示键映射（封闭映射）", () => {
     expect(matePermissionTierMessageId("build")).toBe("mate.card.tier.build");
     expect(matePermissionTierMessageId("guarded")).toBe("mate.card.tier.guarded");
     expect(matePermissionTierMessageId("yolo")).toBe("mate.card.tier.yolo");
+  });
+});
+
+describe("P4 isMateAutoSwitchAvailable 信任门入口", () => {
+  it("gateOpen 且非 auto → 可切换；auto 下不渲染（唯一入口）", () => {
+    const openTrust = {
+      wouldAcceptCount: 12,
+      releaseCount: 12,
+      releaseRate: 0.5,
+      sampleCount: 24,
+      gateOpen: true,
+      gateThresholds: { minRate: 0.8, minSamples: 15 },
+    };
+    expect(isMateAutoSwitchAvailable(openTrust, ASSISTANT_MODES.observe)).toBe(true);
+    expect(isMateAutoSwitchAvailable(openTrust, ASSISTANT_MODES.off)).toBe(true);
+    expect(isMateAutoSwitchAvailable(openTrust, ASSISTANT_MODES.auto)).toBe(false);
+  });
+
+  it("未达标（gateOpen=false）或旧 Host 快照（字段缺席）恒不可切换——诚实缺省不在 UI 二次判定", () => {
+    const lockedTrust = {
+      wouldAcceptCount: 1,
+      releaseCount: 1,
+      releaseRate: 0.5,
+      sampleCount: 2,
+      gateOpen: false,
+      gateThresholds: { minRate: 0.8, minSamples: 15 },
+    };
+    const legacyTrust = { wouldAcceptCount: 3, releaseCount: 3 };
+    expect(isMateAutoSwitchAvailable(lockedTrust, ASSISTANT_MODES.observe)).toBe(false);
+    expect(isMateAutoSwitchAvailable(legacyTrust, ASSISTANT_MODES.observe)).toBe(false);
+  });
+});
+
+describe("P4 resolveMateTrustGateProgress 进度参数", () => {
+  it("门槛字段齐全 → 返回百分比参数；缺字段（旧 Host）→ null 不渲染进度行", () => {
+    expect(
+      resolveMateTrustGateProgress({
+        wouldAcceptCount: 3,
+        releaseCount: 9,
+        releaseRate: 0.75,
+        sampleCount: 12,
+        gateOpen: false,
+        gateThresholds: { minRate: 0.8, minSamples: 15 },
+      }),
+    ).toEqual({ rate: 75, samples: 12, minRate: 80, minSamples: 15 });
+    expect(resolveMateTrustGateProgress({ wouldAcceptCount: 1, releaseCount: 1 })).toBeNull();
   });
 });

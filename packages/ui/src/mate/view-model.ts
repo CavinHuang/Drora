@@ -16,6 +16,7 @@
  */
 import {
   ASSISTANT_ERROR_CODES,
+  ASSISTANT_MODES,
   ASSISTANT_OUTCOMES,
   ASSISTANT_PERMISSION_TIERS,
   ASSISTANT_SOURCE_KINDS,
@@ -120,6 +121,47 @@ export function deriveMateStatusLine(snap: AssistantSnapshot): MateStatusLine {
     max: snap.budget.maxActivePerWorkspace,
     queued: snap.tickets.filter((ticket) => isMateQueuedTicket(ticket.status)).length,
     pending: snap.decisions.filter(isMatePendingDecision).length,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// P4 auto 信任门入口投影（04 详设 §2：Surface B 信任条达标后出现「切换 auto」）
+// ---------------------------------------------------------------------------
+
+/**
+ * 「切换 auto」入口可用性（唯一入口纪律）：信任门开放（trust.gateOpen，服务侧实时
+ * 判定的投影）且尚未处于 auto 模式。快照字段缺席（旧 Host）恒 false——诚实缺省，
+ * 不在 UI 侧二次判定放行率（服务是唯一判定者）。
+ */
+export function isMateAutoSwitchAvailable(
+  trust: AssistantTrustView,
+  mode: AssistantSnapshot["mode"],
+): boolean {
+  return trust.gateOpen === true && mode !== ASSISTANT_MODES.auto;
+}
+
+/**
+ * 信任门进度文案参数（mate.trust.gate.progress）：缺门槛字段（旧 Host 快照）→ null
+ * 不渲染进度行，只显示既有计数（诚实降级）。
+ */
+export function resolveMateTrustGateProgress(trust: AssistantTrustView): {
+  rate: number;
+  samples: number;
+  minRate: number;
+  minSamples: number;
+} | null {
+  if (
+    trust.releaseRate === undefined ||
+    trust.sampleCount === undefined ||
+    trust.gateThresholds === undefined
+  ) {
+    return null;
+  }
+  return {
+    rate: Math.round(trust.releaseRate * 100),
+    samples: trust.sampleCount,
+    minRate: Math.round(trust.gateThresholds.minRate * 100),
+    minSamples: trust.gateThresholds.minSamples,
   };
 }
 

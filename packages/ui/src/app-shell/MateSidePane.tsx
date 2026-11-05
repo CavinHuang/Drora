@@ -191,7 +191,14 @@ export const MateSidePane = memo(function MateSidePane({
         budgetMax={snapshot.budget.maxActivePerWorkspace}
         onFilterChange={(next) => setFilter(workspaceKey, next)}
       />
-      <MateTrustBar trust={viewModel.trust} />
+      <MateTrustBar
+        trust={viewModel.trust}
+        mode={snapshot.mode}
+        service={service}
+        workspaceKey={workspaceKey}
+        allowlist={snapshot.allowlist}
+        budgetMax={snapshot.budget.maxActivePerWorkspace}
+      />
       <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
         {isEmpty ? (
           <div

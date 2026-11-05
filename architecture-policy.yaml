@@ -1860,3 +1860,14 @@ exceptions:
       - packages/ui/src/root/MatePetSync.tsx
       - packages/ui/src/hooks/useMatePetEvents.ts
     reason: P3 mate pet seam files admitted path-exact per 03-p3-detailed-design.md §6 (publisher root component mirrors DesktopPetTaskSync, renderer navigation-port handler mirrors the useDesktopPet hook precedent); projection/bubble pure functions and the source badge live in the managed ui-mate module consumed only via its public entrypoints, and the desktop-side bridge is a desktop main module file.
+  # P3 接缝批跨进程契约与桌面桥（03 详设 §6）：shared 根 wire schema 照 src/desktopPet.ts
+  # 同位先例（contracts/assistant.ts 已在 managed shared-contracts 只放通道字面量常量）；
+  # desktop 桥与 tray DOM 照 src/main/desktopPetSource.ts / src/preload/desktopPetTray.ts
+  # 同位先例（desktop 模块 unmanaged，桌面宠物族文件均按目录内同位新增）。
+  - id: mate-pet-seam-contract-and-desktop-new-files
+    rule: unmanaged-new-file
+    paths:
+      - packages/shared/src/assistantPet.ts
+      - packages/desktop/src/main/matePetBridge.ts
+      - packages/desktop/src/preload/desktopPetMateTrayDom.ts
+    reason: P3 mate pet seam files admitted path-exact per 03-p3-detailed-design.md §6 — the shared wire schema sits at the shared src root beside desktopPet.ts (channel literals stay in the managed shared-contracts/assistant.ts single source), and the desktop bridge / tray DOM builder sit beside their desktopPetSource.ts / desktopPetTray.ts precedents in the unmanaged desktop module; routing cores are pure and unit-tested, electron wrappers only wire ipcMain.

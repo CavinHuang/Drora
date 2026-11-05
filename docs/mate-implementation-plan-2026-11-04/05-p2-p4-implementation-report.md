@@ -142,11 +142,11 @@ fmt:check 未跑（P1 实录：全树 CRLF 环境性基线即红；以 lint warn
 15. **i18n 键守护清单未随 P2–P4 扩键**（终审发现）：`packages/ui/src/mate/i18n.test.ts:17-95` 的显式消费键清单停驻 P1（76 键），组件实际消费 89 键——41 个 P2/P3/P4 新键（mate.router.*、mate.detail.*、mate.trust.autoSwitch.*、mate.sessionLine.* 等）未被逐键存在断言覆盖（双语对齐断言仍全量有效、词典实际齐全，无裸键风险；守卫测试自述「组件 formatMessage 的每个键」与实际覆盖面不符）。**已关闭（终审后）**：实测差分为 55 键（formatMessage 调用点外的 mate.* 字面量消费也计入），清单补齐+分组注释，commit `bd23fd421`，drora 项目 3/3 绿。
 
 **全链审查批新增遗留（2026-11-05，§9 修复批裁定不入码）**：
-16. dispose 链三缺口：node.ts sessions-index 底层订阅 dispose 包装是死代码（watcher 清零后底层订阅与 subs 条目常驻）；engine sessionWatches 无服务级 dispose（依赖 droraAgentService 同批 dispose 级联）；watchdog cron face（mateWatchdogFaceServices）无失效复位（集合 dispose 后每 60s tick 对已关句柄 warn 刷屏）。均有界/无害化兜底，随 host 生命周期收口批次处理。
+16. ~~dispose 链三缺口~~ **已关闭（同日收尾批）**：sessions-index 底层订阅改引用计数（watcher 清零即拆底层+删缓存条目，连接在途先置 disposed 中止）；engine 新增 `disposeWatchers` + 服务 `dispose()`（host 内部方法面）经 `assistantTicketDisposers` WeakMap 挂进 disposeServiceResources（先退订后停源，同步/等待两路径都收口）；watchdog cron face 按集合解绑（`unwireMateWatchdogCron`，仅当 face 仍指向被停集合才置空——换代路径不误伤新 face）。回归=帧接线件 dispose 用例（三域三订阅一次拆清）。
 17. 飞书/手机 Source 无重投递幂等键（GitHub 有 ETag+游标双防线）——依赖上游至多一次投递假设，真机联调批验证（若上游有重试语义需补幂等）。
-18. 两个测试文件超 800 行（assistantP2Flows 1030/assistantTicketsService 817；*.test.ts 存量 max-lines:off 豁免内）——后续按场景族拆分或接受豁免。
+18. ~~两个测试文件超 800 行~~ **已关闭（同日收尾批）**：assistantP2Flows 按「软预算 queued FIFO」describe 拆出 assistantQueuedRelease.test.ts（693+429）；assistantTicketsService 按「帧接线」describe 拆出 assistantFrameLedger.test.ts（582+391）；两新件登记 drora-isolated-test-files.json，全量 19 文件 224 项绿。
 19. architecture-policy.yaml 存量条目曾被 adopt 工具整文件格式重排（~300 行无关噪音）——无需回改，上游同步该文件时注意区分。
-20. assistant-tickets 的 contract.example.ts 为 TODO 桩（弱于 ui-mate 先例）——补 recordTrigger→approveDecision→快照消费完整示例随下次文档批。
+20. ~~assistant-tickets 的 contract.example.ts 为 TODO 桩~~ **已关闭（同日收尾批）**：补齐 recordTrigger→approveDecision→快照消费完整调用链示例（对照 ui-mate 先例；含 AssistantResult 纪律/「消息不能改变权限」/两事务幂等三点约定注记）。
 
 ## 7. 终审状态修正（docs/spec，零实现改动）
 

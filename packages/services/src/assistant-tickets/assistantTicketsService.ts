@@ -92,6 +92,9 @@ export function createAssistantTicketsService(
   }): boolean;
   /** host 内部：sessions-index session.removed → 换代重派（spec §8 触发源②）。 */
   notifySessionRemoved(sessionId: string): void;
+  /** host 内部：服务级订阅收口（全链审查遗留 16）——disposeWatchers 拆全部帧/
+   * sessions-index 订阅；disposeServiceResources 统一调用（node.ts WeakMap 挂链）。 */
+  dispose(): void;
   /** host 内部：follow-up Tier1 直投（P3 Source 接线；测试直驱）。 */
   followUp(input: {
     ticketId: string;
@@ -655,6 +658,8 @@ export function createAssistantTicketsService(
     applyTicketTeamEvent: engine.applyTicketTeamEvent,
     applyTeamActivityForSession: engine.applyTeamActivityForSession,
     notifySessionRemoved: engine.notifySessionRemoved,
+    // 服务级订阅收口（全链审查遗留 16）：disposeServiceResources 统一调用。
+    dispose: () => engine.disposeWatchers(),
     followUp: engine.followUp,
     recycle: engine.recycle,
     ingestSourceEvent: sourceIngest.ingestSourceEvent,

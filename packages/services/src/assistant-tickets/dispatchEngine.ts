@@ -130,6 +130,13 @@ export function createDispatchEngine(deps: DispatchEngineDeps): {
   }): Promise<AssistantDispatchResult>;
   notifySessionRemoved(sessionId: string): void;
   unwatchSession(sessionId: string): void;
+  /**
+   * 服务级订阅收口（2026-11-05 全链审查遗留 16 修复）：拆全部帧订阅与
+   * sessions-index 订阅并清 Map——服务集合停机（disposeServiceResources）时统一
+   * 释放；此前 sessionWatches 无服务级出口，全量释放依赖 droraAgentService 同批
+   * dispose 的级联假设。
+   */
+  disposeWatchers(): void;
   activeCountFor(identity: string, excludeTicketId?: string): number;
   listActiveWriteDomains(identity: string): Array<{ ticketId: string; domain: AssistantWriteDomain }>;
   setWriteDomain(ticketId: string, domain: AssistantWriteDomain): void;
@@ -220,6 +227,16 @@ export function createDispatchEngine(deps: DispatchEngineDeps): {
     handle.dispose();
     sessionsIndexWatches.get(sessionId)?.dispose();
     sessionsIndexWatches.delete(sessionId);
+  }
+
+  function disposeWatchers(): void {
+    // 先收集再迭代：unwatchSession/delete 会修改 Map，直接迭代其键视图不安全。
+    for (const sessionId of Array.from(sessionWatches.keys())) unwatchSession(sessionId);
+    // 兜底：仅剩 sessions-index 条目的孤儿键（帧订阅先拆的路径）也一并释放。
+    for (const sessionId of Array.from(sessionsIndexWatches.keys())) {
+      sessionsIndexWatches.get(sessionId)?.dispose();
+      sessionsIndexWatches.delete(sessionId);
+    }
   }
 
   // ----------------------------------------------------------------
@@ -702,6 +719,7 @@ export function createDispatchEngine(deps: DispatchEngineDeps): {
     recycle: rollover.recycle,
     notifySessionRemoved,
     unwatchSession,
+    disposeWatchers,
     activeCountFor,
     listActiveWriteDomains,
     setWriteDomain,

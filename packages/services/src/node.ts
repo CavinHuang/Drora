@@ -886,6 +886,9 @@ const taskAutoArchiveDisposers = new WeakMap<ServiceCollection, () => void>();
 // Drora Mate Source 注册表 dispose（P3）：停全部 Source + 退订台账快照（attach 助手
 // 语义：先退订后停源）；同步/等待两条 dispose 路径都调用。
 const assistantSourceDisposers = new WeakMap<ServiceCollection, () => void>();
+// Drora Mate 工单服务订阅收口（全链审查遗留 16 修复）：disposeWatchers 拆全部帧/
+// sessions-index 订阅——先于 Source 停源调用（同为「先退订后停源」语义）。
+const assistantTicketDisposers = new WeakMap<ServiceCollection, () => void>();
 // Drora Mate watchdog host face（P4，04 详设 §1）：desktop host 定时器
 // （host/cronMateWatchdog.ts）经此调用服务内部 watchdog 轮——到轮判定在服务内按 kv
 // 裁决，定时器只负责 tick。WeakMap 照 assistantSourceDisposers 先例（服务集合换代
@@ -3675,6 +3678,8 @@ export function createLocalServices(options: {
     watchers: Set<(delta: AssistantSessionsIndexWatchDelta) => void>;
     subscriptionId: string | null;
     disposed: boolean;
+    /** 底层帧订阅拆除器（连接在途时为 null；全链审查遗留 16 修复引入）。 */
+    frameDispose: (() => void) | null;
   }
   const assistantSessionsIndexSubs = new Map<string, AssistantSessionsIndexSubState>();
   function assistantSessionSummaryToLite(summary: SessionSummary): AssistantSessionSummaryLite {
@@ -3715,6 +3720,7 @@ export function createLocalServices(options: {
       watchers: new Set(),
       subscriptionId: null,
       disposed: false,
+      frameDispose: null,
     };
     state.ready = new Promise<void>((resolve) => {
       state.resolveReady = resolve;
@@ -3779,7 +3785,9 @@ export function createLocalServices(options: {
           }
         });
         const originalDispose = disposable.dispose.bind(disposable);
-        disposable.dispose = () => {
+        // 全链审查遗留 16 修复：底层拆除器挂到 state（此前包装后无人持有——
+        // watcher 清零也拆不了底层订阅，条目常驻至进程结束）。
+        state.frameDispose = () => {
           state.disposed = true;
           originalDispose();
         };
@@ -3835,6 +3843,15 @@ export function createLocalServices(options: {
       return {
         dispose: () => {
           state.watchers.delete(onDelta);
+          // 全链审查遗留 16 修复：watcher 清零即拆底层订阅并移除缓存条目（引用计数
+          // 语义）。旧实现只删 watcher——底层订阅与 subs 条目常驻（按 workspace 键
+          // 有界，但窗口关停后仍泄漏至进程结束）。disposed 先置真：连接在途
+          // （frameDispose 尚 null）时异步分支据此中止，不再挂新订阅。
+          if (state.watchers.size === 0) {
+            state.disposed = true;
+            assistantSessionsIndexSubs.delete(assistantSessionsIndexKey(identity, hostPath));
+            state.frameDispose?.();
+          }
         },
       };
     },
@@ -4014,6 +4031,9 @@ export function createLocalServices(options: {
   // 飞书桥晚绑定：bots 回调 → 飞书 Source（自身运行态门）→ 注册表 ingest → 服务统一入口。
   assistantMateFeishuForward = (evt) => assistantSourceFeishu.handleChannelMessage(evt);
   assistantSourceDisposers.set(services, () => assistantSourceRegistry.dispose());
+  // 订阅收口（全链审查遗留 16）：此前 engine sessionWatches 无服务级出口，全量释放
+  // 依赖 droraAgentService 同批 dispose 的级联假设——现在显式挂链。
+  assistantTicketDisposers.set(services, () => assistantTicketService.dispose());
 
   // 即使初始配置关闭也必须登记 lifecycle disposer：terminal fence 需要早于任意延迟 setting/acquire
   // 恢复，不能把"当前还没有 Helper"误当成"不需要生命周期所有者"。dispose 时串行 stop host。
@@ -4204,6 +4224,9 @@ export function disposeServiceResources(services: ServiceCollection): void {
   providerProvisioningSources.delete(services);
   taskAutoArchiveDisposers.get(services)?.();
   taskAutoArchiveDisposers.delete(services);
+  // Mate 订阅收口先于 Source 停源（先退订后停源）。
+  assistantTicketDisposers.get(services)?.();
+  assistantTicketDisposers.delete(services);
   assistantSourceDisposers.get(services)?.();
   assistantSourceDisposers.delete(services);
   managedHostApiNetworkTransports.get(services)?.dispose();
@@ -4250,6 +4273,9 @@ export async function disposeServiceResourcesAndWait(services: ServiceCollection
   providerProvisioningSources.delete(services);
   taskAutoArchiveDisposers.get(services)?.();
   taskAutoArchiveDisposers.delete(services);
+  // Mate 订阅收口先于 Source 停源（先退订后停源）。
+  assistantTicketDisposers.get(services)?.();
+  assistantTicketDisposers.delete(services);
   assistantSourceDisposers.get(services)?.();
   assistantSourceDisposers.delete(services);
   await managedHostApiNetworkTransports

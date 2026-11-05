@@ -2489,6 +2489,15 @@ function wireMateWatchdogCron(services: ServiceCollection): void {
     logWarn: (message, error) => logger.warn(message, error),
   });
 }
+/**
+ * 集合停运解绑（2026-11-05 全链审查遗留 16 修复）：face 此前永不置空——集合 dispose
+ * 后进程仍活时每 60s tick 对已关 sqlite 句柄报错刷屏。仅当 face 仍指向被停集合才解绑
+ * （换代路径新集合已 re-wire，旧集合停运不误伤新 face）；定时器本身保留（进程级单例，
+ * face 为 null 时 tick 直接跳过）。
+ */
+function unwireMateWatchdogCron(disposed: ServiceCollection): void {
+  if (mateWatchdogFaceServices === disposed) mateWatchdogFaceServices = null;
+}
 
 const windowHostControllerRuntime = createWindowHostControllerRuntime({
   onRunStarted: (run) =>
@@ -3065,7 +3074,10 @@ async function disposeHostResources(reason: string): Promise<HostShutdownResult>
           ? [
               {
                 name: "service-dispose",
-                run: () => disposeServiceResourcesAndWait(servicesToDispose),
+                run: () => {
+                  unwireMateWatchdogCron(servicesToDispose);
+                  return disposeServiceResourcesAndWait(servicesToDispose);
+                },
                 timeoutMs: 3_500,
               },
             ]
@@ -3124,6 +3136,7 @@ function disposeHostResourcesBestEffort(reason: string): void {
     } catch (error) {
       logger.error("failed to dispose local services:", error);
     } finally {
+      unwireMateWatchdogCron(activeServices);
       activeServices = null;
       activeHostApiNetworkTransport = null;
     }

@@ -8,6 +8,7 @@ export {
   deriveMateViewModel,
   findMateDecisionForTicket,
   isMateActiveTicket,
+  isMateAutoSwitchAvailable,
   isMateObserveDecision,
   isMatePendingDecision,
   isMateQueuedTicket,
@@ -17,6 +18,7 @@ export {
   mateTicketGenerationNumber,
   resolveMateBudgetActive,
   resolveMateErrorMessageId,
+  resolveMateTrustGateProgress,
 } from "./view-model.js";
 export type {
   MateErrorMessageId,

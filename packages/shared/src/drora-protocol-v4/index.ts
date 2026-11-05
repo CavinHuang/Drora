@@ -59,7 +59,13 @@ export * from "./team.js";
 export * from "./team-history.js";
 export * from "./sessions-index-team-activity.js";
 // Drora Mate：assistantActivity 任务行 wire 摘要（spec §11.4；host 合成，CLI 零改动）。
-export * from "./sessions-index-mate-activity.js";
+// schema 本体在 ../contracts/assistant.ts（shared-contracts 受管根）；此处 re-export
+// 保持 wire 消费方 "@drora/shared/drora-protocol-v4" 的既有导入面。
+export {
+  SESSION_MATE_ACTIVITY_KEY,
+  sessionMateActivitySchema,
+  type SessionMateActivity,
+} from "../contracts/assistant.js";
 
 export {
   executionOutputPreviewSchema,

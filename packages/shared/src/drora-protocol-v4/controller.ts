@@ -6,8 +6,12 @@ import {
   SESSION_TEAM_ACTIVITY_KEY,
   sessionTeamActivitySchema,
 } from "./sessions-index-team-activity.js";
-import { sessionMateActivitySchema } from "./sessions-index-mate-activity.js";
-import { SESSION_MATE_ACTIVITY_KEY } from "../contracts/assistant.js";
+// Drora Mate：键常量与 mate wire schema 同在 contracts/assistant.ts（shared-contracts
+// 受管根；schema 落位说明见该文件 §assistantActivity 注释）。
+import {
+  SESSION_MATE_ACTIVITY_KEY,
+  sessionMateActivitySchema,
+} from "../contracts/assistant.js";
 import { sessionPhaseSchema } from "./snapshot.js";
 import { subscribeAckSchema } from "./transport.js";
 

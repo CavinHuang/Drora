@@ -109,7 +109,7 @@ function createMateFixtureService(onBrief?: (brief: string) => void) {
       triggerText: decision.triggerText,
     }));
     return {
-      version: 1,
+      version: 2,
       mode,
       allowlist: [...allowlist],
       budget: { maxActivePerWorkspace: 1 },
@@ -254,7 +254,7 @@ function createMateFixtureService(onBrief?: (brief: string) => void) {
     async getConfig() {
       return {
         ok: true as const,
-        value: { mode, allowlist: [...allowlist], budgetMaxActivePerWorkspace: 1 },
+        value: { mode, allowlist: [...allowlist], budgetMaxActivePerWorkspace: 1, worktreeDisabled: false },
       };
     },
 

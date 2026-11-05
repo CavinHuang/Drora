@@ -36,8 +36,8 @@ import type { AssistantTicketTurnEventInput } from "./ticketLedger.js";
 import { buildAssistantSnapshot } from "./assistantSnapshot.js";
 import { createDispatchEngine } from "./dispatchEngine.js";
 import { getAssistantPorts } from "./assistantPorts.js";
-import { composeCandidateCard, composeTeamLeadBrief } from "./routerShell.js";
-import { parseRouterDecisionText } from "./routerDecision.js";
+import { composeTeamLeadBrief } from "./routerShell.js";
+import { createRouterEvaluation } from "./routerEvaluation.js";
 import { resolveAnchorVerdict } from "./incarnation.js";
 import {
   detectWriteDomainOverlap,
@@ -158,81 +158,12 @@ export function createAssistantTicketsService(
   }
 
   // ------------------------------------------------------------------
-  // Router 候选卡循环（02 §1.3）：决策卡产出后异步送 Router 评估，建议预填进
-  // router_evaluation；校验失败/通道失败 → state=failed（Tier3 问人，不重试模型）。
+  // Router 候选卡循环（02 §1.3）：评估循环在 routerEvaluation.ts（≤800 行拆分）——
+  // 决策卡产出后异步送 Router 评估，建议预填进 router_evaluation；校验失败/通道失败
+  // → state=failed（Tier3 问人，不重试模型）。
   // ------------------------------------------------------------------
 
-  function scheduleRouterEvaluation(decisionId: number, trigger: {
-    id: string;
-    text: string;
-    strength: string;
-    identity: string;
-    atMs: number;
-    workspaceIdentity: string | null;
-  }): void {
-    const { router } = getAssistantPorts();
-    if (!router) return; // 通道未装配：决策卡无建议（Tier3 语义），P1 行为原样
-    try {
-      db.transaction((raw) => {
-        raw
-          .prepare(
-            "INSERT INTO router_evaluation(decision_id, state, decided_ms) VALUES (?, 'pending', ?) ON CONFLICT(decision_id) DO NOTHING",
-          )
-          .run(decisionId, nowMs());
-      });
-    } catch (error) {
-      logger.warn("assistant-tickets router 评估登记失败", error);
-      return;
-    }
-    const card = composeCandidateCard({
-      triggerId: trigger.id,
-      text: trigger.text,
-      strength: trigger.strength,
-      identity: trigger.identity,
-      atMs: trigger.atMs,
-      targetWorkspaceIdentity: trigger.workspaceIdentity,
-    });
-    void (async () => {
-      const result = await router({ card: card.input });
-      let finalize: { state: "suggested" | "failed"; verdict?: string; error?: string };
-      if (!result.ok) {
-        finalize = { state: "failed", error: result.reason };
-      } else {
-        const parsed = parseRouterDecisionText(result.output);
-        finalize = parsed.ok
-          ? { state: "suggested", verdict: JSON.stringify(parsed.decision) }
-          : { state: "failed", error: parsed.reason };
-      }
-      db.transaction((raw) => {
-        raw
-          .prepare(
-            "UPDATE router_evaluation SET state = ?, verdict = ?, error = ?, decided_ms = ? WHERE decision_id = ? AND state = 'pending'",
-          )
-          .run(
-            finalize.state,
-            finalize.verdict ?? null,
-            finalize.error ?? null,
-            nowMs(),
-            decisionId,
-          );
-      });
-      publish();
-    })().catch((error) => {
-      logger.warn("assistant-tickets router 评估异常（决策卡降级 Tier3）", error);
-      try {
-        db.transaction((raw) => {
-          raw
-            .prepare(
-              "UPDATE router_evaluation SET state = 'failed', error = ?, decided_ms = ? WHERE decision_id = ? AND state = 'pending'",
-            )
-            .run(String(error), nowMs(), decisionId);
-        });
-        publish();
-      } catch (recordError) {
-        logger.warn("assistant-tickets router 评估异常落账失败", recordError);
-      }
-    });
-  }
+  const { scheduleRouterEvaluation } = createRouterEvaluation({ db, publish });
 
   // ------------------------------------------------------------------
   // 准入与决策
@@ -300,13 +231,16 @@ export function createAssistantTicketsService(
               }
             | undefined;
           if (triggerRow) {
-            scheduleRouterEvaluation(outcome.decisionId, {
-              id: triggerRow.id,
-              text: triggerRow.text,
-              strength: triggerRow.simulated_strength,
-              identity: triggerRow.identity,
-              atMs: triggerRow.at_ms,
-              workspaceIdentity: triggerRow.workspace_identity,
+            scheduleRouterEvaluation({
+              decisionId: outcome.decisionId,
+              trigger: {
+                id: triggerRow.id,
+                text: triggerRow.text,
+                strength: triggerRow.simulated_strength,
+                identity: triggerRow.identity,
+                atMs: triggerRow.at_ms,
+                workspaceIdentity: triggerRow.workspace_identity,
+              },
             });
           }
         }

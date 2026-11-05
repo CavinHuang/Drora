@@ -199,3 +199,32 @@ export const ASSISTANT_MATE_ACTIVITY_LIMITS = {
   activeCountMax: 99,
   pendingDecisionsMax: 99,
 } as const;
+
+// ---------------------------------------------------------------------------
+// assistantActivity wire schema（本文件处于 shared-contracts 受管根——schema 与键常量
+// 同处，避免在未受管的 drora-protocol-v4 目录新增文件；drora-protocol-v4/index.ts
+// re-export 供 controller.ts 与 wire 消费方使用，语义与 teamActivity schema 同位）
+// ---------------------------------------------------------------------------
+
+import { z } from "zod";
+
+/** host 侧 TicketService 快照合成的任务行 mate 摘要（strict、有界、旧帧缺席合法）。 */
+export const sessionMateActivitySchema = z
+  .object({
+    /** 目标 workspace 的活动工单数（dispatched/running）。 */
+    activeCount: z
+      .number()
+      .int()
+      .nonnegative()
+      .max(ASSISTANT_MATE_ACTIVITY_LIMITS.activeCountMax),
+    /** 目标 workspace 的待决策卡数（decision_card 未决）。 */
+    pendingDecisions: z
+      .number()
+      .int()
+      .nonnegative()
+      .max(ASSISTANT_MATE_ACTIVITY_LIMITS.pendingDecisionsMax),
+    /** 摘要合成时刻（host 时钟；仅展示新鲜度，不参与排序语义）。 */
+    updatedAtMs: z.number().finite().nonnegative(),
+  })
+  .strict();
+export type SessionMateActivity = z.infer<typeof sessionMateActivitySchema>;

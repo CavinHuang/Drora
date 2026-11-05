@@ -141,3 +141,11 @@
 - **能力**：`specs/drora-personal-assistant.md`——常驻 Router（assistant preset，无 bash/写盘工具）、准入域模型（off/observe/auto × explicit/inferred）、AssistantTicketService 工单台账（单一写者）、派发桥三模式（createSession/附着/建队）、Source 注册表（复用 bots channelRuntime 与 automations）、watchdog 编排、ui-mate 四面 UI。全部为**新文件新模块**：`packages/services/src/assistant-tickets/`、`packages/shared/src/contracts/assistant.ts`（`drora.mate.*` 键单出处）、`packages/ui/src/mate/`（module id=ui-mate）；还原目录零改动。
 - **登记原因**：上游无对应能力（TRAE宝/DeepSeek dsh-superagent 为外部产品，非 ZCode 上游面），本层为有意扩展而非缺口。**既有面零触及**：Mode B 采用 prompt 驱动建队（走既有 stage→人批流程），原设计的 TeamHub `assistant_dispatch` cause 枚举已取消；TeamHub/CLI core 全程零改动。
 - **下次同步注意**：①上游 subagent/agent 工具面（v3.17.2 已整并，b3e44cb2a）后续若演进至覆盖常驻编排/准入/工单能力，按 AGENTS.md 覆盖判断五要素（持久化/权限/取消恢复/身份隔离/平台能力）评估迁官方并移除自研重复；②`contracts/assistant.ts` 与 services 域 schema 为自研新增，上游同步不自动携带，改名/移动须全链 grep 生产消费；③assistantActivity 快照字段经 host 侧 overlay 合成（`windowHostControllerService` teamActivity 同位）——该挂载点为上游同步人工重放点。
+- **P2 更新（2026-11-05，feat/mate-p2）**：host 内核落地——Router 候选卡循环（S2-T0 (a)
+  结构化文本路线，v4 自定义命令族确认不设立）、dispatchEngine（带序 commandId+锚、
+  Mode B·C、换代、软预算 queued FIFO、W1 worktree）、mate wire schema
+  （`SESSION_MATE_ACTIVITY_KEY`/`sessionMateActivitySchema` 落 `contracts/assistant.ts`
+  受管根，controller.ts 可选字段）。新增上游同步人工重放点：controller.ts 的 mate
+  可选字段与 `windowHostControllerService.ts` 的 `getMateActivity`/`setMateActivity`
+  接缝（重放=确认 teamActivity overlay 形状未变）；`paths.ts getAssistantWorkspaceDir`
+  与 assistant-tickets 七端口装配桥（services/node.ts）同属自研新增，上游同步零携带。

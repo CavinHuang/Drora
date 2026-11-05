@@ -57,7 +57,8 @@ function ticket(overrides: Partial<AssistantTicketView> & { id: string }): Assis
 
 function snapshot(overrides: Partial<Omit<AssistantSnapshot, "version">> = {}): AssistantSnapshot {
   return {
-    version: 1,
+    // P2 快照版本=2（决策卡 Router 预填 + 工单写域/代际字段）；UI type-only 消费。
+    version: 2,
     mode: ASSISTANT_MODES.observe,
     allowlist: ["user-a"],
     budget: { maxActivePerWorkspace: 1 },

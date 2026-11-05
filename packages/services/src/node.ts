@@ -673,6 +673,21 @@ import { isAbsolute } from "node:path";
 import { stat } from "node:fs/promises";
 import { createAssistantTicketsService } from "./assistant-tickets/assistantTicketsService.js";
 import { IAssistantTicketService } from "./assistant-tickets/assistantTickets.js";
+// Drora Mate Source 注册表（03 详设 §1-§5，P3）：注册表/三 Source/配置映射——
+// 事件源（bots 回调出口/手机桥/GitHub HTTP/凭证）全部由装配层注入。
+import { attachMateSourceRegistry } from "./assistant-tickets/sources/sourceRegistry.js";
+import { createFeishuSource } from "./assistant-tickets/sources/feishuSource.js";
+import { createPhoneSource } from "./assistant-tickets/sources/phoneSource.js";
+import {
+  createGitHubSource,
+  createGitHubReplySender,
+} from "./assistant-tickets/sources/githubSource.js";
+import {
+  readIdentityMap,
+  readSourcesConfig,
+  resolveMappedIdentity,
+} from "./assistant-tickets/sources/sourceConfig.js";
+import type { MateChannelMessageEvent } from "./assistant-tickets/sources/contract.js";
 import { createHostCommandEnvelope, assertV4CommandAckOk } from "./drora-agent/droraV4HostCommand.js";
 
 import { createSettingsSyncService } from "./settings-sync/settingsSyncService.js";
@@ -865,6 +880,9 @@ const providerProvisioningTriggerDisposers = new WeakMap<
 >();
 // 自动归档定时扫描器不是 IPC 服务，随 services 释放时停掉定时器与设置监听。
 const taskAutoArchiveDisposers = new WeakMap<ServiceCollection, () => void>();
+// Drora Mate Source 注册表 dispose（P3）：停全部 Source + 退订台账快照（attach 助手
+// 语义：先退订后停源）；同步/等待两条 dispose 路径都调用。
+const assistantSourceDisposers = new WeakMap<ServiceCollection, () => void>();
 // TaskIndexRepo / OffPeakTaskRepo 等各自持有 tasks-index.sqlite 的连接句柄；
 // dispose 链必须统一关闭：Windows 上句柄悬着会让宿主回收后临时目录 rm 撞 EBUSY
 // （stdioDesktopPresentationSurface 单测稳定复现），Linux 的 unlink-while-open 语义掩盖了泄漏。
@@ -3032,6 +3050,10 @@ export function createLocalServices(options: {
       : {}),
   });
   sqliteReposToClose.push({ close: () => knowledgeServices.dispose() });
+  // Drora Mate 飞书 Source 出口桥（03 详设 §2，P3）：bots 装配段早于 assistant-tickets
+  // 注册段——回调经此可变桥晚绑定；assistant-tickets 段装配后指向飞书 Source（运行期才
+  // 会触发，装配顺序无碍；null=bots 回调零额外行为）。
+  let assistantMateFeishuForward: ((evt: MateChannelMessageEvent) => void) | null = null;
   const services = new ServiceCollection()
     .register(
       IMarketingTouchService,
@@ -3088,6 +3110,13 @@ export function createLocalServices(options: {
         // 远端与本地 Bot 都读取所属 Environment 的 Model Selection View。
         // 远端启动期不再轮询旧 Preset，避免重新制造一套模型候选事实。
         runStartupBackgroundTasks: !isDesktopAttachedRemote,
+        // Drora Mate 飞书 Source 出口（03 详设 §2，P3）：bots 装配早于 assistant-tickets
+        // 注册段，经可变桥晚绑定（运行期才回调，装配顺序无碍；桥为空=Source 未启用零行为）。
+        assistantForwarder: {
+          onChannelMessage: (evt) => {
+            assistantMateFeishuForward?.(evt);
+          },
+        },
       }),
     )
     .register(IFileWatcherService, createFileWatcherService())
@@ -3872,6 +3901,47 @@ export function createLocalServices(options: {
   });
   sqliteReposToClose.push({ close: () => assistantDatabase.close() });
 
+  // Source 注册表（03 详设 §1-§5，P3 host 侧批次）：飞书=bots assistantForwarder 出口
+  // （桥已在前置声明）；手机=submitSourceEntry 通道事件面（本 Source 的运行态门 + 桥
+  // 备真机 UI 接线，03 §3 探查回填）；GitHub=comments 轮询（ETag+游标 kv 簿记）。
+  // 启停=快照推送 reconcile（kv 配置变更即生效）；kv 读/写与 Router 轮转簿记同口径。
+  // 凭证经 credentialService（contracts ASSISTANT_CREDENTIAL_KEYS 单出处；不落 kv 不进日志）。
+  const assistantSourcesKvGet = assistantKvGet;
+  const assistantSourcesKvSet = assistantKvSet;
+  const assistantSourceFeishu = createFeishuSource({
+    resolveIdentity: (openId) =>
+      resolveMappedIdentity(readIdentityMap(assistantSourcesKvGet), "feishu", openId),
+  });
+  const assistantSourcePhone = createPhoneSource();
+  const assistantSourceGithub = createGitHubSource({
+    kvGet: assistantSourcesKvGet,
+    kvSet: assistantSourcesKvSet,
+    resolveIdentity: (login) =>
+      resolveMappedIdentity(readIdentityMap(assistantSourcesKvGet), "github", login),
+    // credentialService.load 缺凭返回 null；Source 契约用 undefined（null→undefined 归一）。
+    loadCredential: async (key) => (await credentialService.load(key)) ?? undefined,
+    fetchImpl: (input, init) => fetch(input, init),
+  });
+  const assistantSourceRegistry = attachMateSourceRegistry({
+    kvGet: assistantSourcesKvGet,
+    ingestSourceEvent: (event) => assistantTicketService.ingestSourceEvent(event),
+    subscribeSnapshot: (listener) => assistantTicketService.onDidChange(listener),
+    // 终态回复端口（03 §2/§4）：GitHub=POST issue 评论适配层；飞书端口待真机验收批接线
+    // （bots replyToChannel 需 bots 任务绑定，Mate 工单无归属——03 §2 落地注记，注册表
+    // 对未覆盖的通道诚实降级）。
+    replyPort: createGitHubReplySender({
+      loadCredential: async (key) => (await credentialService.load(key)) ?? undefined,
+      fetchImpl: (input, init) => fetch(input, init),
+      readConfig: () => readSourcesConfig(assistantSourcesKvGet).github ?? null,
+    }),
+  });
+  assistantSourceRegistry.register(assistantSourceFeishu);
+  assistantSourceRegistry.register(assistantSourcePhone);
+  assistantSourceRegistry.register(assistantSourceGithub);
+  // 飞书桥晚绑定：bots 回调 → 飞书 Source（自身运行态门）→ 注册表 ingest → 服务统一入口。
+  assistantMateFeishuForward = (evt) => assistantSourceFeishu.handleChannelMessage(evt);
+  assistantSourceDisposers.set(services, () => assistantSourceRegistry.dispose());
+
   // 即使初始配置关闭也必须登记 lifecycle disposer：terminal fence 需要早于任意延迟 setting/acquire
   // 恢复，不能把"当前还没有 Helper"误当成"不需要生命周期所有者"。dispose 时串行 stop host。
   registerManagedCuaHelperHostForDispose(services, {
@@ -4061,6 +4131,8 @@ export function disposeServiceResources(services: ServiceCollection): void {
   providerProvisioningSources.delete(services);
   taskAutoArchiveDisposers.get(services)?.();
   taskAutoArchiveDisposers.delete(services);
+  assistantSourceDisposers.get(services)?.();
+  assistantSourceDisposers.delete(services);
   managedHostApiNetworkTransports.get(services)?.dispose();
 }
 
@@ -4105,6 +4177,8 @@ export async function disposeServiceResourcesAndWait(services: ServiceCollection
   providerProvisioningSources.delete(services);
   taskAutoArchiveDisposers.get(services)?.();
   taskAutoArchiveDisposers.delete(services);
+  assistantSourceDisposers.get(services)?.();
+  assistantSourceDisposers.delete(services);
   await managedHostApiNetworkTransports
     .get(services)
     ?.disposeAndWait()

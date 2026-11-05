@@ -37,10 +37,7 @@ export interface MatePhoneChannelRef {
   readonly remoteSessionId: string;
 }
 
-export type MateSourceChannelRef =
-  | MateChannelRef
-  | MateGithubChannelRef
-  | MatePhoneChannelRef;
+export type MateSourceChannelRef = MateChannelRef | MateGithubChannelRef | MatePhoneChannelRef;
 
 /** Source 产出的事件（03 详设 §1 形状；emit 后统一进 admissionGate）。 */
 export interface MateSourceEvent {
@@ -60,11 +57,14 @@ export interface MateSourceEvent {
   readonly channelRef?: MateSourceChannelRef;
 }
 
-/** MateSource 最小接口（03 详设 §1）：注册表按 config.enabled 惰性启停。 */
+/** MateSource 最小接口（03 详设 §1 原形：start(emit, config)）：注册表按 config.enabled 惰性启停。 */
 export interface MateSource {
   readonly kind: AssistantSourceKind;
-  /** start 后 Source 才可 emit（emit 句柄由注册表接线 → 服务 ingestSourceEvent）。 */
-  start(emit: (event: MateSourceEvent) => void): void;
+  /**
+   * start 后 Source 才可 emit（emit 句柄由注册表接线 → 服务 ingestSourceEvent）；
+   * config=当前 kv 配置全量（各 Source 取自己的切片，坏/缺值按各自诚实缺省）。
+   */
+  start(emit: (event: MateSourceEvent) => void, config: MateSourcesConfig): void;
   stop(): void;
   readonly isRunning: () => boolean;
 }

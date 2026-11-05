@@ -9,11 +9,7 @@
  * 纯模块：无 IO。
  */
 
-import type {
-  MateGithubChannelRef,
-  MatePhoneChannelRef,
-  MateSourceChannelRef,
-} from "./contract.js";
+import type { MateSourceChannelRef } from "./contract.js";
 
 /** 解析失败（未知 kind/格式/数量）→ null，调用方按无绑定处置（不猜测）。 */
 export function serializeChannelRef(ref: MateSourceChannelRef): string | null {
@@ -43,7 +39,11 @@ export function parseChannelRef(value: string): MateSourceChannelRef | null {
     const chatId = split[0];
     const threadId = split[1];
     try {
-      return { kind: "feishu", chatId: decodeURIComponent(chatId), threadId: decodeURIComponent(threadId) };
+      return {
+        kind: "feishu",
+        chatId: decodeURIComponent(chatId),
+        threadId: decodeURIComponent(threadId),
+      };
     } catch {
       return null;
     }
@@ -84,14 +84,15 @@ export function parseChannelRef(value: string): MateSourceChannelRef | null {
 }
 
 /**
- * 整词 @点名匹配（03 详设 §4）：`@name` 前后不得紧邻词字符（\w）或另一个 @——
- * 防止 `@大副助手` 误命中 `@大副`、邮箱 `a@name` 误判点名。lookbehind/lookahead
- * 均为 Node 原生正则能力；name 经正则转义。
+ * 整词 @点名匹配（03 详设 §4）：`@name` 前后不得紧邻字母/数字或另一个 @——
+ * 防止 `@大副助手` 误命中 `@大副`、`@leonardo` 误命中 `@leo`、邮箱 `a@name` 误判点名。
+ * 词字符用 Unicode 字母/数字属性类（\w 不含 CJK，`@大副助手` 会被误判整词命中——
+ * 测试先行发现）；lookbehind/lookahead 均为 Node 原生正则能力；name 经正则转义。
  */
 export function matchesWholeWordMention(text: string, name: string): boolean {
   const trimmed = name.trim();
   if (!trimmed) return false;
   const escaped = trimmed.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
-  const pattern = new RegExp(`(?<![\\w@])@${escaped}(?![\\w])`, "u");
+  const pattern = new RegExp(`(?<![\\p{L}\\p{N}@])@${escaped}(?![\\p{L}\\p{N}])`, "u");
   return pattern.test(text);
 }

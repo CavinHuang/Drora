@@ -74,6 +74,11 @@ const forkIsolated = norm([
   "packages/shared/test/sessionMateActivity.test.ts",
   "packages/desktop/test/windowHostControllerMateOverlay.test.ts",
   "packages/ui/src/mate/view-model.test.ts",
+  // Drora Mate P3（2026-11-05）：Source 注册表/统一入口/直通回归随批入串行隔离组
+  // （node:sqlite 台账 + 模块级端口 set*，与既有 mate 回归同组语义，门禁以
+  // --project drora-fork-isolated 定向执行）。
+  "packages/services/test/assistantSourceIngest.test.ts",
+  "packages/services/test/assistantSourceRegistry.test.ts",
   "packages/drora-server-cli/test/runtimeUpdateIntegration.test.ts",
   "packages/ui/test/pdfJsCMapSupport.test.ts",
 ]).filter((f) => existsSync(resolve(root, f)));

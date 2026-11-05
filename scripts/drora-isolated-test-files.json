@@ -6,6 +6,8 @@
   "packages/desktop/test/windowsInstallerCompile.test.ts",
   "packages/services/test/assistantP2Flows.test.ts",
   "packages/services/test/assistantRouterDecision.test.ts",
+  "packages/services/test/assistantSourceIngest.test.ts",
+  "packages/services/test/assistantSourceRegistry.test.ts",
   "packages/services/test/assistantTicketsService.test.ts",
   "packages/services/test/assistantWriteDomain.test.ts",
   "packages/shared/test/sessionMateActivity.test.ts",

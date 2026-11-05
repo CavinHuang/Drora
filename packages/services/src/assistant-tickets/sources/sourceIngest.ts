@@ -70,7 +70,10 @@ export interface AssistantSourceIngestDeps {
   /** 决策卡候选卡循环（与 recordTrigger 同一闭包）。 */
   readonly scheduleRouterEvaluation: (input: RouterEvaluationTrigger) => void;
   /** Tier1 直投执行（engine.followUp：锚对账+attachDispatch，busy 排队合法）。 */
-  readonly followUp: (input: { ticketId: string; text: string }) => Promise<AssistantDispatchResult>;
+  readonly followUp: (input: {
+    ticketId: string;
+    text: string;
+  }) => Promise<AssistantDispatchResult>;
   /** 本机用户 identity（手机 Source 的 host 侧身份——renderer 不可自报）。 */
   readonly localIdentity: string;
 }

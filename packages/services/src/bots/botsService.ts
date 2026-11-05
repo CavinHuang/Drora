@@ -323,6 +323,30 @@ interface BotsServiceDeps {
   // 修复原因：desktop-attached 远端启动阶段不应抢跑 bot 轮询、runtime lock 和模型候选缓存；
   // 这些后台任务属于本地桌面 host，不属于 SSH/Docker 远端首屏连接路径。
   runStartupBackgroundTasks?: boolean;
+  /**
+   * Drora Mate Source 出口（specs/drora-personal-assistant.md §5；03 详设 §2，P3）：
+   * 入站通道消息在去重成功后的唯一回调出口——可选注入，缺席零行为变化（bots 内部
+   * 逻辑零改动）。evt 形状在此内联声明（结构化兼容），bots 不 import assistant-tickets。
+   */
+  assistantForwarder?: {
+    onChannelMessage(evt: {
+      provider: BotProvider;
+      botId: string;
+      text: string;
+      mentionedBot?: boolean;
+      commandText?: string;
+      groupCardAction?: boolean;
+      elicitationResponse?: unknown;
+      actor: {
+        providerUserId: string;
+        chatType: "private" | "group";
+        chatId?: string;
+        threadId?: string;
+        providerMessageId?: string;
+      };
+      receivedAt?: number;
+    }): void;
+  };
 }
 
 type BotRemoteWorkspaceReconnectResult = Awaited<
@@ -3894,6 +3918,33 @@ export function createBotsService(
         ...inboundMessage,
         actor: { ...inboundMessage.actor, mentionedBot: inboundMessage.mentionedBot === true },
       };
+      // Drora Mate Source 出口（03 详设 §2，P3）：去重成功后的唯一回调点，fire-and-forget，
+      // 不改变 bots 处理路径/返回值；转发失败/无订阅者均不阻断（Mate 侧过滤与 gate 自理）。
+      deps.assistantForwarder?.onChannelMessage({
+        provider,
+        botId: inboundMessage.botId,
+        text: inboundMessage.text,
+        mentionedBot: inboundMessage.mentionedBot === true ? true : undefined,
+        ...(inboundMessage.commandText != null ? { commandText: inboundMessage.commandText } : {}),
+        ...(inboundMessage.groupCardAction != null
+          ? { groupCardAction: inboundMessage.groupCardAction }
+          : {}),
+        ...(inboundMessage.elicitationResponse != null
+          ? { elicitationResponse: inboundMessage.elicitationResponse }
+          : {}),
+        actor: {
+          providerUserId: inboundMessage.actor.providerUserId,
+          chatType: inboundMessage.actor.chatType,
+          ...(inboundMessage.actor.chatId != null ? { chatId: inboundMessage.actor.chatId } : {}),
+          ...(inboundMessage.actor.threadId != null
+            ? { threadId: inboundMessage.actor.threadId }
+            : {}),
+          ...(inboundMessage.actor.providerMessageId != null
+            ? { providerMessageId: inboundMessage.actor.providerMessageId }
+            : {}),
+        },
+        ...(inboundMessage.receivedAt != null ? { receivedAt: inboundMessage.receivedAt } : {}),
+      });
       let outbound: BotOutboundMessage[];
       let reconnectStartingReply: BotOutboundMessage | null = null;
       let inboundBusinessFailure = false;

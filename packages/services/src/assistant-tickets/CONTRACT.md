@@ -4,6 +4,9 @@ Drora Mate 个人助理工单台账（specs/drora-personal-assistant.md；台账
 上游无对应能力）。P1：准入（off/observe × explicit/inferred）+ 决策卡人工放行 + Mode A
 直派 + sqlite 台账。**P2 host 内核（feat/mate-p2）**：Router 候选卡循环、Mode B·C、
 代际锚校验、写域 W1/W2、软预算 queued、assistantActivity 聚合。
+**P3 Source 注册表（feat/mate-p3 host 侧批次）**：`sources/` 子目录（注册表/飞书/手机/
+GitHub/统一入口）；schema v4（trigger.channel_ref、trigger.remote_session_id、
+ticket.channel_ref）；Thread 直通 Tier1。
 
 不变量：
 
@@ -82,6 +85,39 @@ Drora Mate 个人助理工单台账（specs/drora-personal-assistant.md；台账
   Tier2 附着预检在放行事务之前（失败零消费，人工可改选"开新会话"）。
 - observe=全量零执行：explicit 出决策卡、inferred 记 would-accept；
   auto 在信任门（P4）开启前恒拒（mate.auto.locked）。
+- **Source 注册表（P3，03 详设 §1-§5）**：`sources/` 统一入口 `sourceIngest.ts` 是 P3 起
+  真实 Source 的唯一入口（P1 `recordTrigger` 模拟语义原样保留，本地双按钮=测试工具）。
+  事件顺序：channel_ref 命中活动工单（ticket.channel_ref 等值 + 非终态）→ 跳过 gate
+  直投 incarnation_current（engine.followUp，v4 sendText 同通道，原文即输入不追加）；
+  直通投递失败**如实报错不落 gate**（同通道重复建票=重复执行风险，spec §8 人工承接）。
+  否则进 gate：强度=真实规则 `mention && allowlist 包含 identity → explicit 否则
+  inferred`（名单外由 gate 拒绝；消息不能改变权限不变式不变），trigger（source_kind/
+  identity/channel_ref/remote_session_id）+decision 同事务单一写者，决策卡照常进 Router
+  候选卡循环；放行建票事务回填 ticket.channel_ref。
+  注册表（sourceRegistry.ts）按 kv 配置 enabled 惰性启停（reconcile 于快照推送执行，
+  改配停启一次即生效）；同 kind 重复登记拒绝。channelRef 串接格式 channelRef.ts 单出处
+  （encodeURIComponent 组件防碰撞；仅 mate.sqlite 自产自读，不跨进程）。
+- **Source 事件面（P3 定型，真实连通遗留项见 03 详设 §2/§3/§4 落地注记）**：
+  ① 飞书=bots `assistantForwarder` 回调出口（botsService 去重成功后唯一回调点，可选注入
+  缺席零行为；bots 内部逻辑零改动；命令/卡片交互/补答由 feishu Source 侧过滤，不进 gate
+  ——防 observe 信任数据污染）；mention=Provider 核验的 actor.mentionedBot；群聊绑定
+  线程粒度、私聊会话粒度。② 手机=IAssistantTicketService 新增 channel 可见
+  `submitSourceEntry`（仅开放 sourceKind=phone；identity 由 host 侧本机用户决定，
+  renderer 不可自报 feishu/github 外部身份——防伪造；remoteSessionId 贯穿
+  trigger.remote_session_id）。手机无独立入站消息总线（03 §3 探查回填：
+  webRemoteControlSharedHostAttachments → host service connection 直调服务 channel），
+  UI 接线随 P3 下一棒。③ GitHub=comments 轮询（每 60s 一轮；ETag If-None-Match 304
+  省额 + comments id 单调游标 kv 双防重；点名=整词 @mentionName 且评论者 login 经 kv
+  映射进 gate）；`/issues` 增量窗与 CI 结论裁剪（触发规则未定义/消费方 P4）。
+  外部 id ↔ identity 映射存 kv source_identity_map（sourceConfig.ts 单出处；未映射原样
+  透传由 gate 拒绝并记录）。Source kv 簿记（开关配置/游标/ETag）经装配层 kvGet/kvSet
+  （Router 轮转簿记同口径，非事务簿记；UI 配置面随 P3 下一棒，本阶段无写入口是诚实边界）。
+- **Source 终态回复（P3）**：注册表订阅台账快照差分，工单首次进入 done/failed 且有
+  channel_ref → `AssistantSourceReplyPort`（一句话+工单 id；fire-and-forget，失败/端口
+  缺席诚实降级 warn，不重试不用超时兜底）。GitHub 端口=POST issue 评论
+  （Co-authored-by 大副署名；绑定仓库与配置不一致不跨仓发送）；飞书端口未接线——
+  实证 bots `replyToChannel` 要求 bots 任务绑定（channelReply.ts readBinding），Mate
+  工单无归属不可复用（03 §2 落地注记），真实接线随凭据/真机验收批。
 
 与其它模块的交集：派发经 droraAgentService（装配层 setAssistant* 注入，本模块不 import
 drora-agent）；UI 只经 channel 代理消费快照与动作（type-only 类型从 services index

@@ -80,7 +80,10 @@ export async function runPostApproval(
   });
   if (!plan.ok) {
     engine.markTicketFailed(created.ticketId, plan.reason);
-    return { ok: false, error: { code: ASSISTANT_ERROR_CODES.dispatchRejected, reason: plan.reason } };
+    return {
+      ok: false,
+      error: { code: ASSISTANT_ERROR_CODES.dispatchRejected, reason: plan.reason },
+    };
   }
   const ownDomain = plan.domain ?? { kind: "workspace" as const };
   const queuedReason = evaluateQueueGate(

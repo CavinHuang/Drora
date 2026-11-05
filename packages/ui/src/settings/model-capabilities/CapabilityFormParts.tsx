@@ -437,7 +437,10 @@ export function CapabilityProviderRefRow({
               <SelectItem key={option.providerId} value={option.providerId}>
                 {option.connectionComplete
                   ? option.label
-                  : `${option.label}（缺 API Key / Base URL，选中后无法出站）`}
+                  : intl.formatMessage(
+                      { id: "settings.modelCapability.provider.incomplete" },
+                      { name: option.label },
+                    )}
               </SelectItem>
             ))}
           </SelectContent>

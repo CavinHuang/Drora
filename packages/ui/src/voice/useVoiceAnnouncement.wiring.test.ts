@@ -68,6 +68,8 @@ const {
   stableServices,
   providerConnectionControls,
 } = vi.hoisted(() => {
+  // §15 审查修复批：onDidChange 监听集合（TTS 播报腿凭据缓存重解析用例的推送通道）。
+  const providerListeners = new Set<(view: unknown) => void>();
   const settingsState = {
     current: {
       voiceAnnouncementEnabled: true,
@@ -185,8 +187,16 @@ const {
           ],
         };
       },
-      // §15：asr 听写入口订阅卡变更重解析（useVoiceComposerEntry 连接对齐 TTS）。
-      onDidChange: () => ({ dispose: () => undefined }),
+      // §15：asr 听写入口订阅卡变更重解析（useVoiceComposerEntry 连接对齐 TTS）；
+      // §15 审查修复批：TTS 播报腿凭据缓存同法订阅（listener 集合可编程）。
+      onDidChange: (listener: (view: unknown) => void) => {
+        providerListeners.add(listener);
+        return {
+          dispose: () => {
+            providerListeners.delete(listener);
+          },
+        };
+      },
     },
     credentialService: {
       // §9.9.3-M10：凭据读取可编程（默认即时返回；未加载用例替换为挂起/空串）。
@@ -240,6 +250,40 @@ const {
           release = resolve;
         });
         return release;
+      },
+      /** 推送卡变更事件（§15 审查修复批：TTS 凭据缓存重解析用例）。 */
+      fireChange: (): void => {
+        const snapshot: {
+          providers: Array<{
+            providerId: string;
+            providerName: string;
+            enabled: boolean;
+            effectiveConfig: {
+              api: { type: string; baseUrl: string };
+              access: { type: string; apiKey: string };
+            };
+          }>;
+        } = {
+          providers: [
+            {
+              providerId: "custom:tts-vendor",
+              providerName: "SiliconFlow",
+              enabled: true,
+              effectiveConfig: {
+                api: {
+                  type: "openai-chat-completions",
+                  baseUrl: providerConnection?.baseUrl ?? "",
+                },
+                access: providerConnection
+                  ? { type: "api-key", apiKey: providerConnection.apiKey }
+                  : { type: "api-key", apiKey: "" },
+              },
+            },
+          ],
+        };
+        for (const listener of Array.from(providerListeners)) {
+          listener(snapshot);
+        }
       },
     },
   };
@@ -693,6 +737,33 @@ describe("useVoiceAnnouncement wiring", () => {
     } finally {
       infoSpy.mockRestore();
     }
+  });
+
+  it("§15 审查修复：卡 Key 经 onDidChange 落盘（条目零变化）→ 播报路由即时走 cloud（回退即红）", async () => {
+    ttsCapabilityState.setTtsCapability({
+      engine: "cloud",
+      providerRef: "custom:tts-vendor",
+      modelId: "CosyVoice2-0.5B",
+    });
+    // §15 表单强制流程的时序：选厂商（providerRef 落档 → 凭据 effect 重跑，此刻卡上
+    // 无 Key）→ 内联贴 Key（persistProviderApiKey 只写卡 overlay，条目不变）→ 选音色。
+    // 挂载时卡无 Key → 首句 system；之后仅经 onDidChange 推送「Key 已落盘」的卡视图。
+    providerConnectionControls.set({ baseUrl: "https://api.siliconflow.cn/v1", apiKey: "" });
+    const harness = await mountAnnouncement({ units: [makeUnit("t1", ["首句。"])] });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fakeTts.spoken).toEqual(["首句。"]);
+    expect(cloudTtsState.spoken).toEqual([]);
+    // §15 内联 Key 保存：卡变更事件推送（无 providerRef/baseUrlOverride/modelId 变化）。
+    providerConnectionControls.set({ baseUrl: "https://api.siliconflow.cn/v1", apiKey: "sk-new" });
+    providerConnectionControls.fireChange();
+    await vi.advanceTimersByTimeAsync(0);
+    // 回退即红：恢复「凭据缓存只随条目依赖重解析」则 ref 恒 null，次句仍走 system
+    //（cloudTtsState.spoken 保持为空）。
+    harness.result.current.planner.consumeTurnTail({ turnId: "t2", text: "次句。" });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(cloudTtsState.spoken).toEqual(["次句。"]);
+    expect(fakeTts.spoken).toEqual(["首句。"]);
+    void harness;
   });
 
   it("credential 空串：持续 system、零 cloud 管线调用（§9.9.3-M10 零回落计数）", async () => {

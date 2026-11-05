@@ -413,7 +413,7 @@ agent 会话
 - Body：`{user: {uid}, req_params: {text, speaker, audio_params: {format: "mp3", sample_rate: 24000, speech_rate, loudness_rate}}}`
 - 响应逐行 JSON：`{code, message, data?}`——code 0 且 data = base64 音频分片；code 20000000 = 合成结束；其他非零 = 错误
 - 资源 ID 推断：speaker 含 `uranus` → `seed-tts-2.0`；`S_` 前缀 → `seed-icl-1.0`；其余（含 `moon_bigtts`）→ `seed-tts-1.0`
-- 凭据复合形态：供应商卡 API Key = `AppID:Access Token`（冒号分隔；火山需要双值，单一 key 字段承载）
+- 凭据双形态（§15 审查勘误，单 Key 支持落地后本行由「需要双值」勘误）：供应商卡 API Key = 旧版 `AppID:Access Token`（冒号分隔）或新版控制台单 API Key
 
 ### 14.3 适配实现（renderer cloudTtsAdapter）
 
@@ -454,11 +454,23 @@ UI 本地静态注册表（`packages/ui/src/settings/model-capabilities/voiceVen
 - **API Key 行**（内联）：复用 ApiKeyRow 语义（留空保存即删除）；onSave → `persistProviderApiKey`（`provider_config.json` 单点，§13 禁令不破）。火山卡凭据形态提示：`AppID:Access Token`（旧版）或新版单 API Key。
 - **音色/模型行按厂商变形**（LobeChat 同构）：火山 = 单行「音色」Select（写 `modelId`——火山协议 speaker 即音色；预设外已填 id（如复刻 S\_ 系）以「保留当前」项呈现不丢失）；其余内置厂商 = 「播报模型」Select（`models` 预设）+「音色」Select（`voices` 预设），均带「保留当前」兜底（预设外存量值不丢失）；无音色预设的厂商（ElevenLabs）音色行退自由文本；自定义端点卡 = 双行自由文本 + 通用 OpenAI 兼容预设 datalist。厂商切换不改写另一形态的存量字段（未用字段无害）。
 - **试听按钮**（仅 tts）：固定句「你好，这是 Drora 的语音播报试听。」走当前表单态 `synthesizeOnce` 合成并直接播放；`modelId` 空则禁用；合成中禁用+spinner；失败 toast（试听失败：\<适配器错误消息\>，含厂商 status/凭据形态提示），成功 toast。**fail-visible：把 §9.6.5-3 静默回落从「播报期无感」变为「配置期可感知」，不改变播报回落逻辑本身**。ASR 无试听（需麦克风录制，backlog）。
-- **ASR 连接重解析与模型预设按厂商**（同批次补）：①听写入口连接解析订阅 `providerSettingsService.onDidChange`——卡上 Key 变化（内联粘贴/清空/他窗修改）即时重解析，值等价保持旧引用防无谓重渲染；对齐 TTS 的懒解析语义（原实现只挂条目依赖，Key 变化后入口以旧态出站或误回落 webSpeech）；②注册表增 `asrModels` 字段（SiliconFlow=SenseVoiceSmall/TeleSpeechASR，火山恒空），ASR 模型行预设按命中厂商给值，自定义端点出通用 OpenAI 兼容预设（whisper-1/gpt-4o-transcribe）。
+- **ASR 连接重解析与模型预设按厂商**（同批次补）：①听写入口连接解析订阅 `providerSettingsService.onDidChange`——卡上 Key 变化（内联粘贴/清空/他窗修改）即时重解析，值等价保持旧引用防无谓重渲染；对齐 TTS 的懒解析语义（原实现只挂条目依赖，Key 变化后入口以旧态出站或误回落 webSpeech）；②注册表增 `asrModels` 字段（SiliconFlow=SenseVoiceSmall/TeleSpeechASR，火山恒空），ASR 模型行预设按命中厂商给值，自定义端点出通用 OpenAI 兼容预设（whisper-1/gpt-4o-transcribe/SenseVoiceSmall）。
+
+### 15.6 审查修复批（2026-11-05 三路深审后收口，同日）
+
+1. **TTS 播报路由凭据缓存**（high，与 ASR 对称）：`useVoiceAnnouncement` 的 `cloudApiKeyRef` 只随条目 providerRef/override 重解析——§15 内联贴 Key 不触发，播报路由恒 system（试听可用但播报静默降级）；反向 Key 撤除后回落不恢复（违 §9.9.4-L13）。修复=订阅 `onDidChange`（值等价不 bump），与合成段懒解析对齐；wiring 用例回退即红。
+2. **火山语速映射**（§14.3 勘误落地）：`synthesizeVolcano` 此前 `speech_rate` 恒 0（丢弃 `u.rate`），补 rate 透传（播报腿与试听腿均接）。
+3. **建卡防重**：`selectVendor` 增 in-flight 表（vendorId → Promise），快速连选不再各建一张同 host 卡。
+4. **火山卡 ASR 死端**：命中模板但不含本能力的卡归自定义区可寻址；Select 值回退卡 id。
+5. **布局回归预防**：语音供应商行改 `controlLayout="wide"`（选中项「厂商名（已连接）」超 default 192px 列，109719552/2b8fcb924 两次实机同根）。
+6. **保存失败 fail-visible**：条目字段（engine/providerRef/model/voice/override）写失败补 toast；Key 行随卡切换 remount 清草稿（防跨卡错写）。
+7. **试听 30s 超时**（AbortSignal.timeout）；ElevenLabs（无音色预设厂商）不再回落 OpenAI 通用音色 datalist；火山占位文案改「必选」语义；适配器凭据形态错误消息英文化（toast 直显双语一致）。
+8. **遥测目录收口**：+8 动作（save_tts_provider/save_asr_provider/save_image_generation_provider/preview_tts/select_tts_vendor/select_asr_vendor/save_tts_vendor_key/save_asr_vendor_key）-3 死条目（save_tts_api_key/save_asr_api_key/save_image_generation_api_key）。
+9. **未处置登记**：双卡同 host 标注取第一张（防重后边缘）；enabled 语义表单/运行时两口径（§13 有意）；试听失败仅 status 码（厂商 body 不解析，隐私权衡）；E2E 维持人工验收轨道（§8 先例）。①听写入口连接解析订阅 `providerSettingsService.onDidChange`——卡上 Key 变化（内联粘贴/清空/他窗修改）即时重解析，值等价保持旧引用防无谓重渲染；对齐 TTS 的懒解析语义（原实现只挂条目依赖，Key 变化后入口以旧态出站或误回落 webSpeech）；②注册表增 `asrModels` 字段（SiliconFlow=SenseVoiceSmall/TeleSpeechASR，火山恒空），ASR 模型行预设按命中厂商给值，自定义端点出通用 OpenAI 兼容预设（whisper-1/gpt-4o-transcribe/SenseVoiceSmall）。
 
 ### 15.4 适配器新导出（cloudTtsAdapter）
 
-- `synthesizeOnce(config, text, opts?: { voice?, fetch? })`：按 `isVolcanoTtsEndpoint` 分派火山分支 / 抽出的 OpenAI 分支；失败 throw（消息含厂商返回 status/code，供 toast 直显；不含 apiKey/合成文本——隐私边界不变）。
+- `synthesizeOnce(config, text, opts?: { voice?, rate?, fetch?, signal? })`（§15 审查勘误：补 rate/signal 两参）：按 `isVolcanoTtsEndpoint` 分派火山分支 / 抽出的 OpenAI 分支；失败 throw（消息含厂商返回 status/code，供 toast 直显；不含 apiKey/合成文本——隐私边界不变）。
 - `playTtsBlob`：原 `defaultPlayBlob` 闭包提升为模块导出（实现不变）；`deps.playBlob` 注入点兼容。
 - 火山单 Key：`parseVolcanoCredentials` 双形态（冒号分隔 = 旧版复合；单值 = 新版），空串仍 null（fail-closed）。
 

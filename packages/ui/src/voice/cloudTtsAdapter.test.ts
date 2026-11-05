@@ -349,7 +349,8 @@ describe("火山引擎 TTS 协议分支（specs/model-capabilities.md §14）", 
       req_params: {
         text: "你好",
         speaker: "zh_female_wanwanxiaohe_moon_bigtts",
-        audio_params: { format: "mp3", speech_rate: 0 },
+        // §15 审查修复：乘数语速映射透传（1.2 → +20）——此前恒 0 丢弃偏好。
+        audio_params: { format: "mp3", speech_rate: 20 },
       },
     });
     void handle;
@@ -481,7 +482,7 @@ describe("synthesizeOnce（specs/model-capabilities.md §15 试听）", () => {
     return { fetch: doFetch, requests };
   }
 
-  it("火山卡：分派 v3 协议，新版单 Key 发 X-Api-Key", async () => {
+  it("火山卡：分派 v3 协议，新版单 Key 发 X-Api-Key；语速映射透传（§14.3/§15 审查修复）", async () => {
     const { synthesizeOnce } = await import("./cloudTtsAdapter.js");
     const { fetch, requests } = fakeFetch({
       text: ndjson([
@@ -492,10 +493,14 @@ describe("synthesizeOnce（specs/model-capabilities.md §15 试听）", () => {
     const blob = await synthesizeOnce(
       { baseUrl: VOLCANO_BASE, model: "zh_female_wanwanxiaohe_moon_bigtts", apiKey: "tlk-single" },
       "试听",
-      { fetch },
+      { fetch, rate: 1.5 },
     );
     expect(requests[0]?.url).toBe(`${VOLCANO_BASE}/api/v3/tts/unidirectional`);
     expect(requests[0]?.headers["X-Api-Key"]).toBe("tlk-single");
+    // §15 审查修复（回退即红）：rate 透传 speech_rate（1.5 → +50）——此前恒 0 丢弃偏好。
+    expect(requests[0]?.body).toMatchObject({
+      req_params: { audio_params: { speech_rate: 50 } },
+    });
     expect((await blob.text()).length).toBeGreaterThan(0);
   });
 

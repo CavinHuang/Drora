@@ -7,7 +7,7 @@
  * 落所选供应商卡（§13 key 双录禁令不破）。本组件不含音色/模型行——厂商变形行由
  * 条目表单按 vendorState.vendor 自组（火山 Select / 其余 datalist）。
  */
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { TID_MODEL_CAPABILITY_PROVIDER_SELECT, testId } from "@drora/shared/test-ids";
 import {
   Select,
@@ -104,6 +104,8 @@ export function useVoiceVendorState(params: {
   const { providerSettingsService } = useServices();
   const read = useProviderSettingsServiceView(providerSettingsService);
   const [savingKey, setSavingKey] = useState(false);
+  // 建卡在途表（vendorId → Promise）：本 hook 实例内防重（ref 不触发渲染）。
+  const createInFlight = useRef(new Map<string, Promise<void>>()).current;
 
   const view = read.state.status === "ready" ? read.state.view : null;
   const providers = useMemo(
@@ -144,16 +146,19 @@ export function useVoiceVendorState(params: {
   const customOptions = useMemo<VoiceVendorOption[]>(
     () =>
       providers
-        .filter(
-          (provider) => resolveVoiceVendorForCard(provider.effectiveConfig?.api?.baseUrl) == null,
-        )
+        .filter((provider) => {
+          const template = resolveVoiceVendorForCard(provider.effectiveConfig?.api?.baseUrl);
+          // §15 审查修复：命中模板但该模板不含本能力（如火山卡被 ASR 条目引用）的卡
+          // 归入自定义区保持可寻址——此前被 host 过滤剔除成「Select 空白死端」。
+          return template == null || !template.apiKinds.includes(kind);
+        })
         .map((provider) => ({
           key: provider.providerId,
           label: provider.providerName ?? provider.providerId,
           cardExists: true,
           keyPresent: apiKeyOf(provider).length > 0,
         })),
-    [providers],
+    [providers, kind],
   );
 
   const card = useMemo<VoiceVendorCardSnapshot | null>(() => {
@@ -170,45 +175,58 @@ export function useVoiceVendorState(params: {
     async (vendorId: string) => {
       const template = templates.find((candidate) => candidate.vendorId === vendorId);
       if (!template) return;
+      // §15 审查修复：建卡在途防重——快速重复选同一厂商不再各建一张同 host 卡
+      //（首建在途时二次点按等待同一 Promise，收敛到同一张卡）。
+      const inFlight = createInFlight.get(vendorId);
+      if (inFlight) {
+        await inFlight;
+        return;
+      }
       const trace = startUserAction({
         featureId: "settings.model_capabilities",
         action: `select_${kind}_vendor`,
         trigger: "select",
       });
-      try {
-        // 优先当前 providerRef 卡（host 命中即复用），否则任一命中卡；都无 → 程序化建卡。
-        const matched =
-          providers.find(
-            (provider) =>
-              provider.providerId === providerRef && hostOf(provider) === template.matchHost,
-          ) ?? providers.find((provider) => hostOf(provider) === template.matchHost);
-        let targetId = matched?.providerId;
-        if (!targetId) {
-          const created = await providerSettingsService.createPersonalProvider({
-            providerName: resolveVendorLocaleName(template, locale),
-            initialConfig: {
-              access: { type: "api-key" },
-              api: { type: "openai-chat-completions", baseUrl: template.canonicalBaseUrl },
-            },
-          });
-          targetId = created.providerId;
-          // mutation 返回权威 View 直接提交，不依赖异步 onDidChange 才收敛下拉。
-          if (created.view) {
-            read.commit(created.view);
+      const creation = (async () => {
+        try {
+          // 优先当前 providerRef 卡（host 命中即复用），否则任一命中卡；都无 → 程序化建卡。
+          const matched =
+            providers.find(
+              (provider) =>
+                provider.providerId === providerRef && hostOf(provider) === template.matchHost,
+            ) ?? providers.find((provider) => hostOf(provider) === template.matchHost);
+          let targetId = matched?.providerId;
+          if (!targetId) {
+            const created = await providerSettingsService.createPersonalProvider({
+              providerName: resolveVendorLocaleName(template, locale),
+              initialConfig: {
+                access: { type: "api-key" },
+                api: { type: "openai-chat-completions", baseUrl: template.canonicalBaseUrl },
+              },
+            });
+            targetId = created.providerId;
+            // mutation 返回权威 View 直接提交，不依赖异步 onDidChange 才收敛下拉。
+            if (created.view) {
+              read.commit(created.view);
+            }
           }
+          if (targetId) {
+            onSaveProviderRef(targetId);
+          }
+          trace.complete({ resultSource: "setting_service" });
+        } catch (error) {
+          trace.fail({ failureStage: "setting_update" });
+          logger.warn("[model-capabilities] 语音供应商模板建卡失败", {
+            vendorId,
+            error: error instanceof Error ? error.message : String(error),
+          });
+          toast(intl.formatMessage({ id: "settings.modelCapability.vendor.createFailed" }));
+        } finally {
+          createInFlight.delete(vendorId);
         }
-        if (targetId) {
-          onSaveProviderRef(targetId);
-        }
-        trace.complete({ resultSource: "setting_service" });
-      } catch (error) {
-        trace.fail({ failureStage: "setting_update" });
-        logger.warn("[model-capabilities] 语音供应商模板建卡失败", {
-          vendorId,
-          error: error instanceof Error ? error.message : String(error),
-        });
-        toast(intl.formatMessage({ id: "settings.modelCapability.vendor.createFailed" }));
-      }
+      })();
+      createInFlight.set(vendorId, creation);
+      await creation;
     },
     [
       templates,
@@ -219,6 +237,7 @@ export function useVoiceVendorState(params: {
       locale,
       onSaveProviderRef,
       read,
+      createInFlight,
     ],
   );
 
@@ -254,7 +273,12 @@ export function useVoiceVendorState(params: {
     ready: read.state.status === "ready",
     vendorOptions,
     customOptions,
-    selectValue: vendor ? `${VENDOR_KEY_PREFIX}${vendor.vendorId}` : currentCard?.providerId,
+    // §15 审查修复：卡命中厂商但该厂商不在本能力模板清单（火山卡被 ASR 引用）时
+    // 回退卡 id（customOptions 已含该卡），避免 Select 值指向不存在的模板项。
+    selectValue:
+      vendor && templates.some((template) => template.vendorId === vendor.vendorId)
+        ? `${VENDOR_KEY_PREFIX}${vendor.vendorId}`
+        : (currentCard?.providerId ?? undefined),
     vendor,
     card,
     apiKeyPresent: read.state.status === "ready" ? (card ? card.apiKey.length > 0 : false) : null,
@@ -295,6 +319,10 @@ export function VoiceVendorProviderRow(params: {
   return (
     <>
       <SettingsRow
+        // wide 布局：选中项文案「厂商名（已连接/未配置 Key）」超 default 192px 列，
+        // whitespace-nowrap 的 min-content 溢出会盖住左侧描述（109719552/2b8fcb924
+        // 两次实机同根 bug 的口径）。
+        controlLayout="wide"
         label={intl.formatMessage({ id: "settings.modelCapability.vendor.title" })}
         description={intl.formatMessage({ id: "settings.modelCapability.vendor.description" })}
         control={
@@ -345,6 +373,9 @@ export function VoiceVendorProviderRow(params: {
         }
       />
       <CapabilityApiKeyRow
+        // key=卡 id：切换卡时 remount 清空草稿——防 A 卡草稿点保存写进 B 卡
+        //（ApiKeyRow 因「明文不回显」无草稿同步信号，§15 审查修复）。
+        key={state.card?.providerId ?? "no-card"}
         credentialLabel={intl.formatMessage({ id: "settings.modelCapability.vendor.apiKey.label" })}
         descriptionId={
           state.vendor?.credentialHintKey ?? "settings.modelCapability.vendor.credentialHint.custom"

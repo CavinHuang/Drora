@@ -4846,6 +4846,8 @@ const zhCN: Record<string, string> = {
     "ElevenLabs API Key；音色填 Voice ID（控制台 Voice Library 获取，官方默认音色 ID 正在退役）。",
   "settings.modelCapability.vendor.credentialHint.custom":
     "所选供应商卡的 API Key；留空保存即删除。",
+  "settings.modelCapability.provider.incomplete": "{name}（缺 API Key / Base URL，选中后无法出站）",
+  "settings.modelCapability.saveFailed": "保存失败，请重试",
   "settings.modelCapability.asr.baseUrlOverride.title": "Base URL 覆盖（可选）",
   "settings.modelCapability.tts.baseUrlOverride.title": "Base URL 覆盖（可选）",
   "settings.modelCapability.imageGeneration.provider.title": "供应商",
@@ -4932,6 +4934,7 @@ const zhCN: Record<string, string> = {
   "settings.modelCapability.tts.voice.volcano.title": "音色",
   "settings.modelCapability.tts.voice.volcano.description":
     "火山以音色（voice_type）为播报单位，选择内置音色即可；此前手填的音色 id 将保留。",
+  "settings.modelCapability.tts.voice.volcano.placeholder": "选择播报音色（必选）",
   "settings.modelCapability.tts.preview.action": "试听",
   "settings.modelCapability.tts.preview.description":
     "用当前配置合成一句固定文本并直接播放；失败会提示具体原因。",

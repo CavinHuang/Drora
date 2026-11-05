@@ -8,6 +8,7 @@
  * webSpeech，§9.6.6 回退树不变）；此处仅提示，不阻断选择。
  */
 import { useCallback } from "react";
+import { toast } from "@/components/ui/toast.js";
 import { TID_MODEL_CAPABILITY_ENGINE_SELECT, testId } from "@drora/shared/test-ids";
 import {
   Select,
@@ -44,10 +45,12 @@ export function AsrCapabilityForm() {
         trace.complete({ resultSource: "setting_service" });
       } catch (error) {
         trace.fail({ failureStage: "setting_update" });
-        throw error;
+        // §15 审查修复：写失败静默回弹改 fail-visible。
+        toast(intl.formatMessage({ id: "settings.modelCapability.saveFailed" }));
+        void error;
       }
     },
-    [update],
+    [update, intl],
   );
 
   const handleProviderRefSave = useCallback(
@@ -63,10 +66,11 @@ export function AsrCapabilityForm() {
         })
         .catch((error: unknown) => {
           trace.fail({ failureStage: "setting_update" });
+          toast(intl.formatMessage({ id: "settings.modelCapability.saveFailed" }));
           void error;
         });
     },
-    [update],
+    [update, intl],
   );
 
   const handleBaseUrlOverrideSave = useCallback(
@@ -85,10 +89,11 @@ export function AsrCapabilityForm() {
         })
         .catch((error: unknown) => {
           trace.fail({ failureStage: "setting_update" });
+          toast(intl.formatMessage({ id: "settings.modelCapability.saveFailed" }));
           void error;
         });
     },
-    [update],
+    [update, intl],
   );
 
   const handleModelSave = useCallback(
@@ -104,10 +109,11 @@ export function AsrCapabilityForm() {
         })
         .catch((error: unknown) => {
           trace.fail({ failureStage: "setting_update" });
+          toast(intl.formatMessage({ id: "settings.modelCapability.saveFailed" }));
           void error;
         });
     },
-    [update],
+    [update, intl],
   );
 
   const vendorState = useVoiceVendorState({

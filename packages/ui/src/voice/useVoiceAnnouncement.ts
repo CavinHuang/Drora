@@ -19,7 +19,7 @@
  * 播报腿状态。
  */
 import { useCallback, useEffect, useMemo, useReducer, useRef } from "react";
-import type { IServiceAccessor } from "@drora/services";
+import type { IServiceAccessor, ProviderSettingsView } from "@drora/services";
 import { useServices } from "@/hooks/useServices.js";
 import { useSettings } from "@/hooks/useSettingService.js";
 import { useDroraIntl } from "@/i18n/IntlProvider.js";
@@ -169,23 +169,34 @@ export function useVoiceAnnouncement({
   const synthTts = useMemo(() => createSpeechSynthesisTtsAdapter(), []);
   // §13：连接信息（baseUrl+apiKey）单点在官方供应商卡，按 providerRef 经
   // providerSettingsService 实时解析；卡删/key 变即时生效。
-  const resolveVendorConnection = useCallback(
-    async (capability: { providerRef: string; baseUrlOverride: string } | null) => {
+  // §15 审查修复：解析核抽纯函数（view+capability → connection），供 getView 路径与
+  // onDidChange 事件路径共用。
+  const resolveConnectionFromView = useCallback(
+    (
+      view: ProviderSettingsView | null | undefined,
+      capability: { providerRef: string; baseUrlOverride: string } | null,
+    ): { baseUrl: string; apiKey: string } | null => {
       const providerRef = capability?.providerRef.trim() ?? "";
       if (!providerRef) return null;
+      const provider = view?.providers.find((candidate) => candidate.providerId === providerRef);
+      const access = provider?.effectiveConfig?.access;
+      const baseUrl = provider?.effectiveConfig?.api?.baseUrl?.trim() ?? "";
+      const apiKey = access?.type === "api-key" ? (access.apiKey?.trim() ?? "") : "";
+      const override = capability?.baseUrlOverride.trim() ?? "";
+      return baseUrl && apiKey ? { baseUrl: override || baseUrl, apiKey } : null;
+    },
+    [],
+  );
+  const resolveVendorConnection = useCallback(
+    async (capability: { providerRef: string; baseUrlOverride: string } | null) => {
       try {
         const view = await services.providerSettingsService?.getView();
-        const provider = view?.providers.find((candidate) => candidate.providerId === providerRef);
-        const access = provider?.effectiveConfig?.access;
-        const baseUrl = provider?.effectiveConfig?.api?.baseUrl?.trim() ?? "";
-        const apiKey = access?.type === "api-key" ? (access.apiKey?.trim() ?? "") : "";
-        const override = capability?.baseUrlOverride.trim() ?? "";
-        return baseUrl && apiKey ? { baseUrl: override || baseUrl, apiKey } : null;
+        return resolveConnectionFromView(view, capability);
       } catch {
         return null;
       }
     },
-    [services.providerSettingsService],
+    [resolveConnectionFromView, services.providerSettingsService],
   );
   // 档案 tts 快照 ref（cloudTts.getVendorConfig 闭包取最新值而不重建适配器实例；
   // 与 settingsRef 同型，见下）。
@@ -294,20 +305,40 @@ export function useVoiceAnnouncement({
   // 以最新解析结果执行，非新增时序面）。
   const cloudApiKeyRef = useRef<string | null>(null);
   const [, bumpCredentialVersion] = useReducer((count: number) => count + 1, 0);
+  // §15 审查修复（与 cde2f2f96 的 useVoiceComposerEntry 同法对齐）：路由层凭据缓存
+  // （cloudApiKeyRef）此前只随条目 providerRef/override 变化重解析——§15 内联 Key 行
+  // 落卡（persistProviderApiKey）不改档案条目，effect 不重跑 → ref 恒 null → 播报
+  // 路由恒 system（试听可用但播报静默降级）；反向，Key 撤除后 ref 持旧值 → 连败回落
+  // 后用户补凭据不清回落标记（违反 §9.9.4-L13）。订阅 onDidChange 即时重解析，与
+  // 合成段懒解析（getVendorConfig）对齐。
   useEffect(() => {
-    let cancelled = false;
-    void resolveVendorConnection(ttsCapabilityRef.current)
-      .then((connection) => {
-        if (!cancelled) {
-          cloudApiKeyRef.current = connection?.apiKey ?? null;
-          bumpCredentialVersion();
-        }
-      })
-      .catch(() => undefined);
-    return () => {
-      cancelled = true;
+    let active = true;
+    const applyConnection = (connection: { baseUrl: string; apiKey: string } | null): void => {
+      if (!active) return;
+      // 值等价不 bump（onDidChange 在任意供应商卡变更都会 fire，防无谓重渲染）。
+      const nextKey = connection?.apiKey ?? null;
+      if (cloudApiKeyRef.current !== nextKey) {
+        cloudApiKeyRef.current = nextKey;
+        bumpCredentialVersion();
+      }
     };
-  }, [resolveVendorConnection, ttsCapability?.providerRef, ttsCapability?.baseUrlOverride]);
+    void resolveVendorConnection(ttsCapabilityRef.current)
+      .then(applyConnection)
+      .catch(() => undefined);
+    const subscription = services.providerSettingsService?.onDidChange((view) => {
+      applyConnection(resolveConnectionFromView(view, ttsCapabilityRef.current));
+    });
+    return () => {
+      active = false;
+      subscription?.dispose();
+    };
+  }, [
+    resolveVendorConnection,
+    resolveConnectionFromView,
+    services.providerSettingsService,
+    ttsCapability?.providerRef,
+    ttsCapability?.baseUrlOverride,
+  ]);
   const localeRef = useRef(locale);
   localeRef.current = locale;
   const requestTaskStopRef = useRef(requestTaskStop);

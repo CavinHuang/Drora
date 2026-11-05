@@ -142,11 +142,14 @@ async function synthesizeVolcano(
   text: string,
   doFetch: (input: string, init: RequestInit) => Promise<ResponseLike>,
   signal: AbortSignal,
+  /** 乘数语速（0.25–4）→ speech_rate [-50,100]（§14.3 映射；§15 审查修复此前恒 0 丢弃偏好）。 */
+  rate?: number,
 ): Promise<Blob> {
   const credentials = parseVolcanoCredentials(config.apiKey);
   if (!credentials) {
+    // 稳定英文标识（表单层 toast 直显；en-US 用户也会看到）——语义=key 形态不合法。
     throw new Error(
-      "火山引擎卡 API Key 需为「AppID:Access Token」（旧版控制台，冒号分隔）或新版控制台单 API Key",
+      "volcano tts api key must be 'AppID:Access Token' (colon-separated) or a new-console API key",
     );
   }
   const requestId = crypto.randomUUID();
@@ -175,7 +178,7 @@ async function synthesizeVolcano(
           audio_params: {
             format: "mp3",
             sample_rate: 24000,
-            speech_rate: toVolcanoSpeechRate(undefined),
+            speech_rate: toVolcanoSpeechRate(rate),
           },
         },
       }),
@@ -275,7 +278,7 @@ export async function synthesizeOnce(
   const doFetch = opts?.fetch ?? ((input: string, init: RequestInit) => fetch(input, init));
   const signal = opts?.signal ?? new AbortController().signal;
   if (isVolcanoTtsEndpoint(config.baseUrl)) {
-    return synthesizeVolcano(config, text, doFetch, signal);
+    return synthesizeVolcano(config, text, doFetch, signal, opts?.rate);
   }
   return synthesizeOpenAiCompatible(config, text, doFetch, signal, opts);
 }
@@ -384,7 +387,7 @@ export function createCloudTtsAdapter(deps: CloudTtsAdapterDeps): CloudTtsPort {
           // §14：火山引擎卡（openspeech.bytedance.com）走自有 v3 协议分支；
           // 其余 baseUrl 维持 OpenAI 兼容 /audio/speech 形状。
           if (isVolcanoTtsEndpoint(config.baseUrl)) {
-            blob = await synthesizeVolcano(config, u.text, doFetch, abortController.signal);
+            blob = await synthesizeVolcano(config, u.text, doFetch, abortController.signal, u.rate);
           } else {
             // §9.7.3：云音色独立命名空间（u.vendorVoice）；u.voice（system 音色名）零消费。
             blob = await synthesizeOpenAiCompatible(

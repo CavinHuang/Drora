@@ -5472,6 +5472,9 @@ const enUS: Record<string, string> = {
     "ElevenLabs API key; enter a Voice ID from the console Voice Library (official default voice IDs are being retired).",
   "settings.modelCapability.vendor.credentialHint.custom":
     "The API key of the selected provider card; saving empty deletes it.",
+  "settings.modelCapability.provider.incomplete":
+    "{name} (missing API key / Base URL; selected card cannot send requests)",
+  "settings.modelCapability.saveFailed": "Save failed. Please try again.",
   "settings.modelCapability.asr.baseUrlOverride.title": "Base URL override (optional)",
   "settings.modelCapability.tts.baseUrlOverride.title": "Base URL override (optional)",
   "settings.modelCapability.imageGeneration.provider.title": "Provider",
@@ -5561,6 +5564,7 @@ const enUS: Record<string, string> = {
   "settings.modelCapability.tts.voice.volcano.title": "Voice",
   "settings.modelCapability.tts.voice.volcano.description":
     "Volcano synthesizes per voice (voice_type): pick a built-in voice; a manually entered voice id is preserved.",
+  "settings.modelCapability.tts.voice.volcano.placeholder": "Pick a voice (required)",
   "settings.modelCapability.tts.preview.action": "Preview",
   "settings.modelCapability.tts.preview.description":
     "Synthesizes a fixed sentence with the current configuration and plays it; failures show the specific reason.",

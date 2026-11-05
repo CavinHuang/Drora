@@ -66,12 +66,15 @@ export function TtsCapabilityForm() {
         trace.complete({ resultSource: "setting_service" });
       } catch (error) {
         trace.fail({ failureStage: "setting_update" });
-        throw error;
+        // §15 审查修复：写失败静默回弹（Select 弹回旧值）改 fail-visible。
+        toast(intl.formatMessage({ id: "settings.modelCapability.saveFailed" }));
+        void error;
       }
     },
-    [update],
+    [update, intl],
   );
 
+  // §15 审查修复：档案写失败不再静默（UI 回弹零反馈）——统一 toast + trace.fail。
   const handleProviderRefSave = useCallback(
     (providerRef: string) => {
       const trace = startUserAction({
@@ -85,10 +88,11 @@ export function TtsCapabilityForm() {
         })
         .catch((error: unknown) => {
           trace.fail({ failureStage: "setting_update" });
+          toast(intl.formatMessage({ id: "settings.modelCapability.saveFailed" }));
           void error;
         });
     },
-    [update],
+    [update, intl],
   );
 
   const handleBaseUrlOverrideSave = useCallback(
@@ -107,10 +111,11 @@ export function TtsCapabilityForm() {
         })
         .catch((error: unknown) => {
           trace.fail({ failureStage: "setting_update" });
+          toast(intl.formatMessage({ id: "settings.modelCapability.saveFailed" }));
           void error;
         });
     },
-    [update],
+    [update, intl],
   );
 
   const handleModelSave = useCallback(
@@ -126,10 +131,11 @@ export function TtsCapabilityForm() {
         })
         .catch((error: unknown) => {
           trace.fail({ failureStage: "setting_update" });
+          toast(intl.formatMessage({ id: "settings.modelCapability.saveFailed" }));
           void error;
         });
     },
-    [update],
+    [update, intl],
   );
 
   const handleVoiceSave = useCallback(
@@ -145,10 +151,11 @@ export function TtsCapabilityForm() {
         })
         .catch((error: unknown) => {
           trace.fail({ failureStage: "setting_update" });
+          toast(intl.formatMessage({ id: "settings.modelCapability.saveFailed" }));
           void error;
         });
     },
-    [update],
+    [update, intl],
   );
 
   const vendorState = useVoiceVendorState({
@@ -159,12 +166,12 @@ export function TtsCapabilityForm() {
 
   const isVolcano = vendorState.vendor?.vendorId === "volcano";
   // §15.3（LobeChat 同构扩展）：内置厂商的模型/音色走 Select（含「保留当前」项）；
-  // 自定义端点卡与无预设厂商（ElevenLabs 音色）退自由文本 + datalist。
+  // 自定义端点卡退自由文本 + 通用 datalist；命中厂商但无音色预设（ElevenLabs）退
+  // 自由文本且不给 datalist（OpenAI 音色名对其全是无效建议，§15 审查修复）。
   const builtinModels = isVolcano ? [] : (vendorState.vendor?.models ?? []);
   const builtinVoices = isVolcano ? [] : (vendorState.vendor?.voices ?? []);
   const modelPresets = builtinModels.length > 0 ? builtinModels : GENERIC_MODEL_PRESETS;
-  const voicePresets =
-    builtinVoices.length > 0 ? builtinVoices.map((preset) => preset.id) : GENERIC_VOICE_PRESETS;
+  const voiceDatalistValues = builtinVoices.map((preset) => preset.id);
   const voice = entry?.voice?.trim() ?? "";
 
   // §15 试听：走当前表单态（providerRef 卡连接 + modelId + 音色）单次合成并直接播放。
@@ -189,7 +196,11 @@ export function TtsCapabilityForm() {
         { baseUrl: override || card.baseUrl, model: modelId, apiKey: card.apiKey },
         PREVIEW_SENTENCE,
         // 火山路径音色即 speaker（modelId），voice 字段不透传；其余路径透传云音色。
-        { voice: isVolcano ? undefined : entry?.voice?.trim() || undefined },
+        {
+          voice: isVolcano ? undefined : entry?.voice?.trim() || undefined,
+          // §15 审查修复：试听无超时则网络黑洞时「合成中…」永久卡死——30s 上限。
+          signal: AbortSignal.timeout(30_000),
+        },
       );
       trace.complete({ resultSource: "platform_result" });
       toast(intl.formatMessage({ id: "settings.modelCapability.tts.preview.ok" }));
@@ -267,7 +278,9 @@ export function TtsCapabilityForm() {
                   >
                     <SelectValue
                       placeholder={intl.formatMessage({
-                        id: "settings.modelCapability.tts.voice.placeholder",
+                        // §15 审查修复：火山 speaker 必填（留空=功能不生效），不复用
+                        // 「留空 = 厂商默认」占位（那是 OpenAI 兼容分支的语义）。
+                        id: "settings.modelCapability.tts.voice.volcano.placeholder",
                       })}
                     />
                   </SelectTrigger>
@@ -391,7 +404,13 @@ export function TtsCapabilityForm() {
                   value={entry?.voice ?? ""}
                   onSave={handleVoiceSave}
                   testIdValue="tts-voice"
-                  datalist={{ id: "model-capability-tts-voice-presets", values: voicePresets }}
+                  // §15 审查修复：命中厂商但无音色预设（ElevenLabs）不给 datalist——
+                  // OpenAI 音色名对其全是无效建议；仅自定义端点给通用预设。
+                  datalist={
+                    vendorState.vendor && builtinVoices.length === 0
+                      ? undefined
+                      : { id: "model-capability-tts-voice-presets", values: GENERIC_VOICE_PRESETS }
+                  }
                 />
               )}
             </>

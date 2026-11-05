@@ -135,11 +135,12 @@ const explicit = norm([
   // drora-test-files.json、不在 glob/explicit 覆盖内，重跑生成器会静默丢失执行通道。
   // glob 只收 packages/*/test/** 与 */src/**/contract.test.ts，src 深层与 .tsx 组件测试
   // 需显式登记（同上方 ui/test .tsx 防孤儿化先例）。
-  // 注：packages/client/test/remoteServiceAccess.test.ts 同为历史手登，但不在此登记——
-  // ledger（2026-10-31 v3.17.1）将其标为 D+delete-review（retiring 过滤优先），而 P1
+  // 注：packages/client/test/remoteServiceAccess.test.ts 同为历史手登，但无需在此登记——
+  // glob 即覆盖；此前 retiring 过滤会移除它（ledger UP01330 标 D+delete-review），而 P1
   // （feat/mate-p1 b454c29d3）在分支上补了 assistantTicketService 能力位断言，静态
-  // current_main_dryrun 列不感知分支修改。该条的退役/保留属上游同步战役裁决，不在本批
-  // 擅改；JSON 保持手登现状（重跑生成器会移除，需先收敛 ledger）。
+  // current_main_dryrun 列不感知分支修改。2026-11-06 审查修复批已收敛 ledger（UP01330
+  // →delete-local-change-review/kept-ours，evidence 列记裁定），retiring 不再吞该条，
+  // 重跑生成器 diff 恒空——勿再回改手登。
   "packages/ui/src/drora-persona/personaPreferencesExportI18n.test.tsx",
   "packages/ui/src/drora-persona/personaSettingsEntryGate.test.tsx",
   "packages/ui/src/drora-persona/usePersonaPresets.test.tsx",

@@ -16,9 +16,9 @@ import zhCN from "../i18n/locales/zh-CN.js";
  *  MateTicketRow/MateReportCard/MateObserveRow/MateAutoNoticeRow/MateConfigSection/
  *  MateSidePane）。 */
 const MATE_CONSUMED_KEYS: readonly string[] = [
-  // 面板标题（核真 2026-11-06：词典保留键，当前无组件消费——P2 Surface A/C 标题位从未
-  // 启用，tab 条经 sidePane.mate 消费；键保留作模块名锚点，勿再声称「预留待启用」）。
-  "mate.title",
+  // 独立 mate.title 键经两轮核真（2026-11-05/06）确认零组件消费（面板标题由
+  // sidePane.mate/sidePane.launcher.mate 承载，见 MATE_TAB_KEYS）——键清理专项
+  // 已自 zh/en 词典与本清单同步移除，勿再回填「预留位」。
   "mate.filter.decision",
   "mate.filter.running",
   "mate.filter.observe",

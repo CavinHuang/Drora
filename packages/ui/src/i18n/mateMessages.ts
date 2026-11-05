@@ -6,7 +6,6 @@
  */
 
 export const mateMessagesEn = {
-  "mate.title": "Mate",
   "mate.filter.decision": "Decisions",
   "mate.filter.running": "In progress",
   "mate.filter.observe": "Observations",
@@ -189,7 +188,6 @@ export const mateMessagesEn = {
 };
 
 export const mateMessagesZh = {
-  "mate.title": "大副",
   "mate.filter.decision": "待决策",
   "mate.filter.running": "进行中",
   "mate.filter.observe": "观察中",

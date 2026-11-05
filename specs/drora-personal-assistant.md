@@ -50,7 +50,13 @@ preset 无 bash、无写盘工具，只做路由、派发、盯单、汇报。
      （摘要投递回执）。配额值来自 AppSettings `droraMateDailyQuota`（contracts
      ASSISTANT_SETTINGS_KEYS 单出处；protocol.ts + validationAppSettings 两处挂载 +
      normalizeSettingsPatch 语义，缺省 5=ASSISTANT_DISTURBANCE_DEFAULTS）。UI 呈现
-     （状态条配额行/摘要卡）与验收资产随 P4 UI 批次接力。
+     （状态条配额行/摘要卡/调整入口）**已随 P4 第二棒交付**（feat/mate-p4）：
+     MateStatusStrip 配额行消费 snapshot.quota（缺席不渲染）；MateDigestCard 同卡
+     分节呈现近 ≤7 日未投递摘要与 watchdog 通知区（同一快照源，无第二计数器），
+     「标记已投递」=markDailyDigestDelivered 回执；MateConfigSection 每日配额行
+     （草稿-dirty 纪律同名单编辑）经 useSettings 写 AppSettings；桌宠气泡闸接线
+     MatePetSync——弹泡差分命中先过 admitDisturbance(kind=bubble)，未放行/判定失败
+     皆不发布气泡帧（fail-closed，汇报仍在 tray 速览与面板可见）。
    - 先航海日志后放行：observe 信任梯度（§6），放行率达标才出现切 auto 入口。
    - 成本永远同行：任何工单展示必带实耗（token/费用），换代不换账。
 4. **诚实规则**：用户原文 verbatim 进 brief，不静默改写；换代增量如实标注（"第 N 代重启，
@@ -261,8 +267,10 @@ kv 裁决（`watchdog_interval_ms` 可调，缺省 15 分钟；`watchdog_last_ro
 kv 改值无需重启定时器。判据（04 详设 §1 判据表）：running 停滞=running 且
 updated_ms 距今 >30min → ticket 置 stale 标记（列 `stale_ms`/`stale_kind`，schema v5
 只加不破）+通知；排队饥饿=queued 且 updated_ms 距今 >24h → 仅告知卡通知（不置
-stale）；awaiting 滞留（工件核验失败 >60min）的核验事实源随 §3 汇报卡完整版交付，
-本轮判据函数已留 `awaitingCandidates` 入参接缝（缺席=判据不激活）。通知走 §2 交互
+stale）；awaiting 滞留判据**已随 P4 第二棒激活**：工件核验失败进入 awaiting_output
+（schema v6 列 `awaiting_since_ms`，§3 落地注记）的工单由服务按轮喂入
+`awaitingCandidates`（>60min → stale+建议人工核验通知；人工出口=confirmTicketOutput
+接口——汇报卡/详情「人工确认交付」按钮）。通知走 §2 交互
 契约的每日打扰配额：经 TicketService 统一计数接口（`admitDisturbance`，kind=report）
 判定，配额内写入快照有界通知区（`watchdogNotices ≤5`），超额自动聚合次日摘要；
 判据解除（状态流转/有新事件）后同轮清除 stale 标记与过期通知。快照、SQL、kv 三处
@@ -291,6 +299,19 @@ useModelCapabilities 同构形态，00 §8 二审 B2）。
    语义等价）；跨卡全局键盘流涉及 side pane 焦点管理与多卡竞争裁决，随 P3 Source 批次
    （桌宠 tray 直达需要同一焦点通道）一并交付。"已等待 X"=工单行相对时间既有口径
    （formatTaskRelativeTime），只显示不超时。
+   **P4 UI 落地注记（2026-11-05，feat/mate-p4 第二棒）**：状态条补配额行（snapshot.quota
+   单行：当日累计/生效配额/余量；缺席=旧 Host 不渲染）；面板滚动区顶部增 MateDigestCard
+   摘要卡（watchdog 通知区 ≤5 与近 ≤7 日未投递摘要分节，「标记已投递」按钮=
+   markDailyDigestDelivered；无内容不渲染整卡）；汇报卡完整版——容器按状态路由
+   done/failed/**awaiting_output** → MateReportCard（awaiting 卡=⏳ 滞留提示+滞留时长+
+   「人工确认交付」按钮；done/failed 卡补「未确认增量」常驻横幅与「确认增量」按钮——
+   generationCount>0 且 incrementsConfirmedMs 缺席时显示，spec §2.4 措辞同源）；
+   Surface C 详情：时间线补「工件核验」站（awaitingSinceMs 有值时）、成本页签按代分解
+   （usageByGeneration 投影：每代 input/output/时长，Σ=合计；缺席沿用 P2 说明）、
+   证据页签补 briefFull verbatim 与工件链接区（writeDomain 只读；paths/workspace=「无
+   git 工件」诚实降级）；状态灯补 awaiting 档（warning 空心，与 queued 同色系不发明
+   新色）。工单行/汇报卡补 stale 停滞徽标（staleSinceMs 有值）。awaiting_output 计入
+   活动工单数（软预算口径与服务 activeCountFor 同步收入该状态）。
 2. **Surface B Side Pane「大副」tab**：按 workspace 分组的工单列表；过滤（待决策/进行中/
    观察中/全部）；软预算指示；观察记录累计区=信任条（would-accept 数/放行率，达标才出现
    切 auto 入口）。

@@ -55,6 +55,35 @@
 - 未确认增量行：换代工单常驻显示（直至人工确认按钮清除）；
 - 证据页签：brief verbatim+Router evidence+工件链接全量（只读）。
 
+  **落地注记（2026-11-05，feat/mate-p4 第二棒批次）**：
+- **按代成本**：快照 ticket 增可选 `usageByGeneration`（assistantSnapshot 投影：
+  usage_log 行按 `at_ms` 落窗归代——归档代窗口 `[fromMs,toMs]`、当代=
+  `[incarnation_current.boundAtMs, ∞)`；早于首窗的行归第 1 代；Σ分代=usage_accum
+  合计不丢账；每代 input/output/durationMs（当代=投影时刻迄今）。条数界 contracts
+  `ASSISTANT_SNAPSHOT_LIMITS.usageGenerationsMax`）。UI 展示在 Surface C 成本页签；
+  字段缺席（旧 Host）沿用 P2 合计+说明诚实降级。
+- **工件核验**：ledger turn_completed 仅对 W1 worktree 写域工单进入新状态
+  `awaiting_output`（schema v6 列 `awaiting_since_ms`；非 W1 工单无工件契约，维持
+  turn ended→done 不变），事务提交后异步跑只读核验（assistantPorts 新增
+  `artifactVerify` 端口；node.ts 经 gitCommandProvider `rev-parse`/`merge-base`
+  实现，零写引用）：分支相对工作区 HEAD 有新提交→done（终态钩子 worktree 清理+
+  queued FIFO 释放照旧）；无新提交=核验失败→滞留 awaiting_output 喂 watchdog
+  `awaitingCandidates`（>60min→stale+通知，§1 判据表第 2 行激活）；端口缺席=无
+  核验面，照 P1 形态直落 done（诚实降级，同 workspace 探测端口缺席先例）；git
+  命令失败=「不可校验」≠核验失败，滞留等待人工（锚对账 unavailable≠失配同款
+  语义）。人工核验出口=新接口 `confirmTicketOutput`（awaiting→done+终态钩子），
+  汇报卡/详情汇报页签出「人工确认交付」按钮。awaiting_output 占软预算活动位
+  （worktree 未清理，dispatchEngine activeCountFor/listActiveWriteDomains 收入该
+  状态——「两两写域不相交」不变式对滞留工单仍成立）。
+- **未确认增量行**：schema v6 列 `increments_confirmed_ms`（人工确认时刻，唯一写者
+  =confirmTicketIncrements）。快照投影 `incrementsConfirmedMs`；UI 派生「第 N 代
+  重启，第 N-1 代末尾改动未确认」横幅（generationCount>0 且未确认时常驻，spec §2.4
+  措辞同源），确认按钮置列后横幅出清；不回写 brief（原文不改写）。
+- **证据页签**：快照 ticket 增可选 `briefFull`（界 `ticketBriefFullMax`=1500，与
+  候选卡 verbatim 上界同值口径）；工件链接=writeDomain 既有投影只读展示
+  （worktree=path+branch；paths/workspace=「无 git 工件」诚实降级）；Router 证据
+  沿用 decisionId 关联（P2 形态不动）。
+
 ## 4. 配额中心（每日打扰）
 
 - 计数：kv `quota:<yyyy-mm-dd>`，事件=决策卡推送/汇报推送/桌宠气泡（三端同源，经 TicketService 统一计数接口）；默认 5/日。
@@ -71,8 +100,24 @@
   配额值=装配层注入的 settings 端口实时读 AppSettings（判定不经缓存；快照投影用
   服务闭包缓存值，判定与投影分离）。**AppSettings 属性名为 `droraMateDailyQuota`**
   （contracts `ASSISTANT_SETTINGS_KEYS.dailyQuota` 单出处；照 personaEnabled 先例
-  AppSettings 属性用 camelCase，`drora.mate.*` 命名空间归属记 spec §1）。UI 呈现
-  （状态条配额行/摘要卡/气泡闸接线）随 P4 UI 批次接力。
+AppSettings 属性用 camelCase，`drora.mate.*` 命名空间归属记 spec §1）。UI 呈现
+（状态条配额行/摘要卡/气泡闸接线）随 P4 UI 批次接力。
+  **落地注记（2026-11-05，feat/mate-p4 第二棒批次）**：
+- 状态条配额行：MateStatusStrip 消费 `snapshot.quota`（当日三类累计/生效配额/余量
+  单行；字段缺席=旧 Host 不渲染，诚实降级）。
+- 摘要卡：Mate 面板新增 MateDigestCard——近 ≤7 日未投递摘要（getDisturbanceQuota
+  同口径快照投影 pendingDigest）+ watchdog 通知区（watchdogNotices ≤5）同卡分节，
+  「标记已投递」按钮=`markDailyDigestDelivered` 回执（只结清今日之前的积压）。全部
+  消费同一快照源，无第二计数器（P3 注记兑现）。
+- 调整入口：MateConfigSection 增「每日打扰配额」行——草稿-dirty 纪律同名单编辑
+  （快照推送不覆盖编辑中值），保存经 useSettings 写 AppSettings
+  `droraMateDailyQuota`（键字面量 contracts 单出处；settings 服务缺席=输入禁用）。
+  显示值=快照 quota.quota（服务闭包生效值）；保存 0-200 整数（validationAppSettings
+  同界）。
+- 气泡闸接线：MatePetSync 弹泡差分（deriveMatePetBubble）命中时先过
+  `admitDisturbance(kind=bubble, summary=汇报首行)`——allowed=false 或判定通道失败
+  皆不发布气泡帧（fail-closed；summary 已入 digest，汇报仍在 tray 速览与面板可见）；
+  洗清「P3 不建第二计数器」注记。
 
 ## 5. P4 验收
 

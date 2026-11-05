@@ -18,21 +18,30 @@ interface MateSource {
 ## 2. 飞书 Source
 
 - 接线：`createBotsService` 增可选注入 `assistantForwarder?: {onChannelMessage(evt)}`（`node.ts:3040` 装配处传入闭包→`assistantTicketsService.ingestSourceEvent`）；channelRuntime 既有事件流+`channelMentionResolver` 判 mention——**bots 服务零内部逻辑改动，仅加回调出口**。
+  **落地注记（2026-11-05）**：装配处实际为 node.ts `createBotsService` 注册链（行号自 3040 漂移至 ~3075）；回调出口落在 `handleProviderCallback` 入站去重成功点（botsService.ts markInboundDelivery 后），evt 携带 Provider 核验的 `actor.mentionedBot`（mention 事实来自 Provider 而非正文解析）；命令/卡片交互/补答类入站由 feishu Source 侧过滤（commandText/groupCardAction/elicitationResponse），bots 零逻辑改动兑现。
 - 回复路径（P3 最小）：工单终态经 bots 的 `channelReply` 回原会话一句话+工单卡片链接；群聊只回被 @ 的线程（沿用 bots 既有线程归属）。
+  **落地注记（2026-11-05，偏差）**：实证 `replyToChannel`→`replyToBotChannel`（bots/channelReply.ts:27-106）要求「恰好一个 bots 任务绑定 + 原生输入锚点」——Mate 工单无 bots 任务归属，直接复用恒抛 binding 错误。等价意图=Source 回复端口 `AssistantSourceReplyPort` 定型（注册表终态通知器：快照差分检测 done/failed 首次进入→端口一句话+工单 id），飞书端口真实接线随凭据/真机验收批（无凭据不伪造连通）。
 - 名单：飞书 user id ↔ workspaceIdentity 映射进 allowlist 条目（kv JSON）。
 - 验收前置：用户侧配好飞书智能体应用凭证（forum 流程已有文档）。
 
 ## 3. 手机 Source
 
 - **前置探查（开工首任务）**：window host attachment 事件面——手机消息进入 Host 的确切事件/通道（`windowHostControllerService`/attachment 订阅面），产出一份锚点清单回填本节。
+  **探查回填（2026-11-05，feat/mate-p3 开工实读）**：
+  - 手机（web-remote-replayable）经 Main `packages/desktop/src/main/webRemoteControlSharedHostAttachments.ts:42-206` 附着窗口 Host——`HostMessageTypes.AttachServicePort` 携带 `clientMode: "web-remote-replayable"`（:98/:140）。
+  - Host 侧 `packages/desktop/src/host/index.ts:2740-2915` 按 attachment 的 clientMode 建 service connection（`connectionContext = { connectionId: "host-rpc-*", clientMode }`，:2774/:2834/:2915）。
+  - 手机用户输入不经过任何可订阅的「入站消息总线」——它经 attachment 端口**直接调用窗口 Host 的服务 channel**（如 `IDroraAgentService.sendConversationCommandV4`，可信连接上下文经 `withTrustedConnection` carrier 注入且覆盖 UI 可伪造字段，`packages/services/src/drora-agent/droraAgentConnectionScope.ts:95-114/:744-760`）。
+  - **结论（与详设原文「attachment 消息中 @大副→SourceEvent」的偏差与等价意图）**：详设假想的「attachment 消息事件面」在现实代码中不存在可拦截的 host 侧总线；等价意图=手机大副入口经既有 `IAssistantTicketService` channel（replayable attachment 同样透传窗口 Host 服务集合）进入，新增 channel 可见方法 `submitSourceEntry`（仅开放 sourceKind="phone"，identity=host 侧本机用户，renderer 不可自报外部身份），remoteSessionId 贯穿落 trigger.remote_session_id。手机端不建 runtime 红线满足：触发/决策/汇报全部经既有快照推送通道（onDidChange + assistantActivity 透传）。
 - 形态：attachment 消息中 @大副/私聊助理入口→SourceEvent（identity=手机账号绑定 identity；remoteSessionId 贯穿）；手机端不建 runtime（replayable 红线）——推送=决策卡精简版（controller 通知面既有推送通道复用）+footerSlot 摘要（assistantActivity 透传，02 号 §6）。
 - 手机 UI 形态：单列+drawer；`回放 · 未建 runtime` 徽标常驻任务中心头部。
 
 ## 4. GitHub Source（`sources/github.ts`）
 
 - 轮询：单仓库起步——`GET /repos/{o}/{r}/issues/comments` + `GET /issues`（state=all 增量窗）+ 开放工单绑定 PR 的 CI 结论；ETag 304 省额（每 60s 一轮，kv 记游标）。
+  **落地注记（2026-11-05，裁剪）**：P3 host 批实现 comments 轮询（触发面：ETag If-None-Match 304 省额 + comments id 单调游标双防重；点名=整词 @mentionName 且评论者经 login↔identity 映射进 gate）。`/issues` 增量窗与 CI 结论暂缓：详设未定义其触发规则（点名单指评论正文），CI 结论的消费方是 P4 watchdog——不预设产品规则、不实现无消费方的轮询面；真机验收批按需回补。
 - 凭证：PAT 经 credential service（不落 kv、不进日志）；点名=评论正文整词 @大副 且评论者 ∈ allowlist（GitHub login ↔ identity 映射）。
-- 回复：工单终态→PR/issue 评论（Co-authored-by 大副署名，复用 git 服务凭证链或独立 PAT scope）。
+  **落地注记（2026-11-05）**：PAT credential 键 `ASSISTANT_CREDENTIAL_KEYS.githubPat` 在 contracts/assistant.ts 单出处；PAT 缺失→该轮跳过并 warn（诚实不连通，不伪造）。
+- 回复：工单终态→PR/issue 评论（Co-authored-by 大副署名，复用 git 服务凭证链或独立 PAT scope）。**P3 host 批按端口实现（POST issues/{n}/comments 适配层，fetch 注入可测）**；真实 PAT 连通遗留。
 
 ## 5. Thread 直通
 

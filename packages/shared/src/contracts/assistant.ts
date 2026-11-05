@@ -22,8 +22,11 @@
  * v2（2026-11-05，P2）：新增 router_evaluation 表与 ticket.write_domain 列。
  * v3（2026-11-05，P2 审查修复）：新增 ticket.dispatch_intent 列——建票事务落库放行时的
  * 派发意图（mode/attachSessionId/tier），queued FIFO 释放按落库形态重放派发，
- * 不再依赖派发成功后才写入的 dispatch_mode（修复「排队后 Mode B/C 退化为 Mode A」）。 */
-export const ASSISTANT_STORE_SCHEMA_VERSION = 3;
+ * 不再依赖派发成功后才写入的 dispatch_mode（修复「排队后 Mode B/C 退化为 Mode A」）。
+ * v4（2026-11-05，P3）：新增 trigger.channel_ref / trigger.remote_session_id /
+ * ticket.channel_ref 列——Source 注册表事件绑定（03 详设 §5：ticket 增 channel_ref
+ * 索引，feishu thread / GitHub issue / 手机会话；同绑定 follow-up 直通 Tier1）。 */
+export const ASSISTANT_STORE_SCHEMA_VERSION = 4;
 
 // ---------------------------------------------------------------------------
 // 身份与派发模式（spec §1 命名契约 / §7 三模式；P2 定案见 02 详设 §1.1/§5）
@@ -57,6 +60,27 @@ export const ASSISTANT_GENERATION_CAUSES = {
 
 export type AssistantGenerationCause =
   (typeof ASSISTANT_GENERATION_CAUSES)[keyof typeof ASSISTANT_GENERATION_CAUSES];
+
+/**
+ * Source 注册表 source_kind 封闭枚举（03 详设 §1；spec §5 Trigger 来源）。值落
+ * mate.sqlite trigger.source_kind 列与快照投影——字面量单出处，消费方（服务/快照/UI）
+ * 只引用本常量，禁止两处独立写。
+ */
+export const ASSISTANT_SOURCE_KINDS = {
+  local: "local",
+  feishu: "feishu",
+  phone: "phone",
+  github: "github",
+} as const;
+
+export type AssistantSourceKind =
+  (typeof ASSISTANT_SOURCE_KINDS)[keyof typeof ASSISTANT_SOURCE_KINDS];
+
+/** Source 侧凭证键（credential service 键名空间；不落 kv、不进日志——03 详设 §4）。 */
+export const ASSISTANT_CREDENTIAL_KEYS = {
+  /** GitHub Source 轮询与回复用 PAT（独立 scope，复用/替换由装配层决定）。 */
+  githubPat: "mate:github:pat",
+} as const;
 
 /** 生产默认值（spec §9 软预算 P2 恢复 3；config kv 缺席时回落到这里）。 */
 export const ASSISTANT_DEFAULTS = {

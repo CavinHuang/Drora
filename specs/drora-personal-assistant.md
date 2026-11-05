@@ -1,11 +1,10 @@
 # Drora Mate（个人助理「大副」）设计 spec
 
 - 日期：2026-11-04
-- 状态：P2 已实施（feat/mate-p2）——P1 已交付（feat/mate-p1：PR-1A 服务核心 + PR-1B UI 面
-  + ticketLedger 帧接线）。P2 含 host 内核（Router 决策 schema 与候选卡循环 / Mode B·C /
-  代际锚校验 / W1·W2 写域 / assistantActivity host 挂载）与 Surface 批次（Surface A 状态条
-  +Router 预填决策卡、Surface C 四页签详情、mate session-line 任务行徽标、/mate 文档片段
-  与 mate scope token）。实现与本文的偏差按 00-master-plan §8/§9 与 assistant-tickets
+- 状态：P3 host 侧已实施（feat/mate-p3：Source 注册表 + 飞书/手机/GitHub Source 事件面 +
+  Thread 直通；桌宠接缝（§6）、UI 入口、master plan 状态更新与验收资产随 P3 下一棒）。
+  前序：P2 已实施（feat/mate-p2，host 内核 + Surface 批次）；P1 已交付（feat/mate-p1）。
+  实现与本文的偏差按 00-master-plan §8/§9、03 详设回填注记与 assistant-tickets
   CONTRACT.md 登记。
 - 基线：main @ 42bacc627（upstream **v3.17.2 已整并**：b3e44cb2a 六段合并 + a9fe401ee 源同步）。
   本 spec §3/§7 引用的四个接缝路径（`apps/drora-cli/packages/core/src/team/hub.ts`、
@@ -79,6 +78,13 @@ preset 无 bash、无写盘工具，只做路由、派发、盯单、汇报。
 
 - **Trigger**：不可变事件（来源=Source 注册表：im / phone / github / local），携带
   workspaceIdentity 与 remoteSessionId 贯穿。
+  **P3 落地注记（2026-11-05，feat/mate-p3 host 侧批次）**：source_kind 封闭枚举
+  `ASSISTANT_SOURCE_KINDS`（local/feishu/phone/github）在 contracts/assistant.ts 单出处；
+  trigger 表新增 `channel_ref`、`remote_session_id` 列，ticket 表新增 `channel_ref` 列
+  （schema v4，只加不破；channelRef 串接格式在 services assistant-tickets/sources/
+  channelRef.ts 单出处——仅 host 侧 mate.sqlite 自产自读，不跨进程）。工单经决策卡放行
+  建票时从 trigger 回填 ticket.channel_ref 绑定（feishu 线程 / GitHub issue / 手机会话），
+  同绑定 SourceEvent 命中活动工单即直通（§8 Tier1）。
 - **AdmissionDecision**：strength=`explicit|inferred`；详见 §6。
 - **Mandate**：授权凭证。只有三种变更途径：accept 创建、用户 stop、校验失败撤销。
   **消息、评论、引用文档只是输入，不能改变权限。**
@@ -110,6 +116,12 @@ P2 起派发幂等键升级：commandId=`<ticketId>-<投递序号>`（kv 计数�
 - inferred 接受永远需要一次评估且评估引用原文（intent evidence 约束）；直接接受非
   explicit 触发在代码层拒绝。
 - 切 auto 仅在信任条达标后开放（§11），需确认 dialog（不可逆操作）。
+- **P3 落地注记（2026-11-05）**：真实 Source 强度判定落地于服务 `ingestSourceEvent`——
+  `mention && allowlist 包含 identity → explicit，否则 inferred`（03 详设 §1）；名单外
+  identity 由 gate 拒绝（消息不能改变权限不变式不变）。P1 `recordTrigger` 的模拟语义原样
+  保留（本地双按钮降级为测试工具，master plan §4.1）；手机端新增 channel 可见入口
+  `submitSourceEntry`（仅开放 sourceKind="phone"，identity 由 host 侧取本机用户——
+  renderer 不可自报 feishu/github identity，防身份伪造；remoteSessionId 贯穿）。
 
 ## 7. 派发桥与三种打通模式
 
@@ -287,7 +299,7 @@ desktop-continuous：Router 会话实时流。web-remote-replayable：手机只�
 | W0   | 本 spec + 差异台账                                                      | 评审通过                                                                                                                                                    |
 | P1   | 准入域模型（含 Mandate）+ observe + 手动放行直派（Mode A）+ 观察记录 UI | 本地双触发（点名=explicit→决策卡放行 / 未指名=inferred→would-accept）→会话执行→完成记录含实耗；im/手机 Source 后移 P3；typecheck/lint/architecture:check 绿 |
 | P2   | assistant preset + Mode B/C + 代际 + Surface A/C                        | E2E：候选卡→建议→人放行；follow-up 直投；换代重派标注增量；手机快照透传；双链路各验一遍。**已实施（feat/mate-p2，两批）**：host 内核批=Router 决策 schema+候选卡循环、Mode B/C 派发、代际锚校验、W1/W2、assistantActivity host 挂载及单测；Surface 批=MateStatusStrip 状态条+Router 预填决策卡（dispatch/attach/hold/reject 四臂呈现与预填放行、failed 降级、queued 告知）、MateTicketDetail 四页签（时间线=代际站 mate-trace token/汇报/证据/成本）、工单行 queued/模式/代际徽标、MateSessionLine 任务行 mate 徽标（controller tasks-index 透传）、/mate 文档片段；服务快照 v2 补 `decisionId` 可选投影（证据页签关联）。单测与浏览器验收资产（fixture+`mate-surface-ac.test.mjs`）随批交付；真实 Host 端到端（候选卡→建议→人放行、换代重派、双链路）随总闸联调验收 |
-| P3   | Source 插件化（github）+ Tier1 直通                                     | GitHub 点名建单；同 ticket follow-up 直投不过 Router                                                                                                        |
+| P3   | Source 插件化（github）+ Tier1 直通                                     | GitHub 点名建单；同 ticket follow-up 直投不过 Router。**host 侧已实施（feat/mate-p3）**：Source 注册表（assistant-tickets/sources/，按 kv 配置惰性启停）、飞书 Source（bots `assistantForwarder` 回调出口，bots 内部逻辑零改动）、手机 Source（事件面定型，接缝见 03 详设 §3 探查回填）、GitHub Source（comments 轮询 ETag+游标，点名=整词 @+名单映射）、Thread 直通（channel_ref 命中→followUp 直投，不过 gate 不过 Router）、工单终态 Source 回复端口。无真实凭据：飞书/GitHub 真机连通与回复通道真实接线列为遗留；桌宠接缝/UI 入口/验收资产随下一棒 |
 | P4   | watchdog + auto 门                                                      | 停滞被标记并通知；auto 需信任条达标+确认 dialog                                                                                                             |
 
 ## 15. 明确不做（反模式）

@@ -141,6 +141,13 @@ fmt:check 未跑（P1 实录：全树 CRLF 环境性基线即红；以 lint warn
 14. W2 声明域「决策卡可编辑」入口（P2 裁剪；空集=整域自动互斥已生效）。
 15. **i18n 键守护清单未随 P2–P4 扩键**（终审发现）：`packages/ui/src/mate/i18n.test.ts:17-95` 的显式消费键清单停驻 P1（76 键），组件实际消费 89 键——41 个 P2/P3/P4 新键（mate.router.*、mate.detail.*、mate.trust.autoSwitch.*、mate.sessionLine.* 等）未被逐键存在断言覆盖（双语对齐断言仍全量有效、词典实际齐全，无裸键风险；守卫测试自述「组件 formatMessage 的每个键」与实际覆盖面不符）。**已关闭（终审后）**：实测差分为 55 键（formatMessage 调用点外的 mate.* 字面量消费也计入），清单补齐+分组注释，commit `bd23fd421`，drora 项目 3/3 绿。
 
+**全链审查批新增遗留（2026-11-05，§9 修复批裁定不入码）**：
+16. dispose 链三缺口：node.ts sessions-index 底层订阅 dispose 包装是死代码（watcher 清零后底层订阅与 subs 条目常驻）；engine sessionWatches 无服务级 dispose（依赖 droraAgentService 同批 dispose 级联）；watchdog cron face（mateWatchdogFaceServices）无失效复位（集合 dispose 后每 60s tick 对已关句柄 warn 刷屏）。均有界/无害化兜底，随 host 生命周期收口批次处理。
+17. 飞书/手机 Source 无重投递幂等键（GitHub 有 ETag+游标双防线）——依赖上游至多一次投递假设，真机联调批验证（若上游有重试语义需补幂等）。
+18. 两个测试文件超 800 行（assistantP2Flows 1030/assistantTicketsService 817；*.test.ts 存量 max-lines:off 豁免内）——后续按场景族拆分或接受豁免。
+19. architecture-policy.yaml 存量条目曾被 adopt 工具整文件格式重排（~300 行无关噪音）——无需回改，上游同步该文件时注意区分。
+20. assistant-tickets 的 contract.example.ts 为 TODO 桩（弱于 ui-mate 先例）——补 recordTrigger→approveDecision→快照消费完整示例随下次文档批。
+
 ## 7. 终审状态修正（docs/spec，零实现改动）
 
 1. **master plan §0 P4 条目**补记修复轮（watchdog 停滞回合单通知 + 配额 decision 生产接线 + MTA01–03 验收资产与遗留收窄）——此前 §0 与 spec §14 P4 行不同步。
@@ -150,3 +157,20 @@ fmt:check 未跑（P1 实录：全树 CRLF 环境性基线即红；以 lint warn
 ## 8. 终审结论
 
 三阶段（P2/P3/P4）按 00 总计划与各详设交付完整，验收行与状态文档如实标注；跨阶段接缝（契约字段、事件流、i18n、模块边界、TicketService 唯一写入者）经读码实证一致；门禁四项在终审时点全绿，mate 回归 16 文件 212 项全绿。实现层遗留 15 项全部有登记去向，无阻塞合入项。**判定：GO**（浏览器五资产与 fork-isolated 清单仍为 pending 候选未 promotion、fmt:check 与 verify:pre-push 留总闸，属既定分工而非缺口）。
+
+## 9. 全链审查修复批（2026-11-05，三路独立 subagent 审查后）
+
+三路只读审查（设计符合性/项目要求符合性/跨阶段接缝）判决 GO-WITH-FIXES / GO / GO-WITH-FIXES，共 2 P1 + 4 P2 + ~15 P3；本批全量修复 P1/P2 并顺手修 P3 注释/登记类，其余入 §6 遗留。
+
+| # | 级别 | 问题 | 修复 |
+| --- | --- | --- | --- |
+| 1 | P1 | Source 入口 auto 预检对账参误比 `autoPlan.finalOutcome`（recordTrigger 同位比 `preVerdict.outcome`）——无目标事件静默丢单+虚假 auto_notice | sourceIngest 对账基准改预检 verdict（同 recordTrigger 语义）+ 双路径孤儿 auto_notice 守卫（降级 decision_card 问人）；回归 2 例（无目标/探测失败 Source 路径，此前零覆盖） |
+| 2 | P1 | 换代（recycle）在换代事务后读行退订——sessionId 已置 null 恒 no-op，旧会话帧订阅泄漏（旧代事件归账新代+二次换代放大） | 事务前捕获旧 incarnation 退订；换代重派档位自 dispatch_intent 恢复（顺修硬编码 build 降档）；回归=换代用例订阅/退订跟踪断言 |
+| 3 | P2 | usage 归账 cacheWriteTokens 读平铺层（wire 嵌套形态恒记 0）且 usage_accum 漏累 cache 两字段 | readUsage 读 source（cumulative）层；ledger 四字段同行累进（Σ分代=合计不丢账口径补全）；回归=嵌套 cumulative 帧直查台账断言 |
+| 4 | P2 | 「evidence 引用原文」仅约言（schema 只校验形状），Router 幻觉引文可在 auto 下自动建票 | auto 执行门补结构性包含校验（每条 evidence 须为触发原文子串，失配留卡问人；人工放行不受影响）；spec §6/04 §2 措辞对齐；回归 1 例 |
+| 5 | P2 | commitDispatchSuccess 无终态守卫——stop 后在途 ACK 把 failed 复活 running 并重挂订阅（stop 释放的 queued 名额形成超放） | 事务内终态检查，终态放弃回写返回 false、调用方不挂订阅（ledger 同款守卫先例）；回归=stop 竞态用例 |
+| 6 | P2 | auto 门 observe→auto 翻转竞态产孤儿 auto_notice（explicit 触发从所有可操作面消失，窗口=单微任务） | 与 #1 同款守卫（triggerRecord+sourceIngest 双路径）；竞态窗口无可注入接缝，由代码审读背书+守卫分支登记 |
+| 7 | P3 | 快照 permissionTier 恒投影 build（死值）；任务行 activeCount 不含 awaiting（口径分叉）；直通 SQL 裸字面量；isBudgetActiveStatus 与 queuedRelease 活动集分叉 | permissionTier 自 dispatch_intent 真值投影；activeCount 对齐软预算口径（writeDomain 单一出处 ASSISTANT_BUDGET_ACTIVE_STATUSES，queuedRelease 改引同源）；字面量收编常量；回归 2 例（guarded 真值/口径） |
+| 8 | P3 | 注释/登记类：quotaCenter 头注释失真（GitHub 主动 POST 已存在）、incarnation kv 双记账陈旧注释、view-model 头注口径、node.ts 与 generationRollover 两处「随 P3 接线」承诺未兑现、recordTrigger 丢弃 auto 直派失败返回值 | 全部修正（承诺未兑现项改遗留指向+§6 补登记；返回值对齐 sourceIngest 同口径如实上抛） |
+
+**门禁（修复批时点）**：全仓 typecheck exit 0；lint 0 错（warning 432=基线）；architecture:check --changed 0 违例；fork-isolated 完整清单 17 文件 223 项全绿（+10 新回归用例）。fmt:check 不入门禁（全仓 CRLF 环境性基线红，P1 实录在案）；本批触碰文件未做整文件 oxfmt 归一（避免无关格式化漂移，P1/P2 批纪律）。

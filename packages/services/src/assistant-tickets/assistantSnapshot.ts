@@ -28,6 +28,7 @@ interface TicketRow {
   dispatch_mode: string | null;
   queued_reason: string | null;
   decision_id: number | null;
+  channel_ref: string | null;
   target_workspace_identity: string;
   incarnation_current: string;
   incarnation_generations: string;
@@ -89,6 +90,7 @@ function ticketRowToView(row: TicketRow): AssistantSnapshot["tickets"][number] {
     anchorCommandId: incarnation.anchorCommandId ?? null,
     queuedReason: row.queued_reason,
     decisionId: row.decision_id,
+    channelRef: row.channel_ref,
   };
 }
 
@@ -141,7 +143,7 @@ export function buildAssistantSnapshot(
   const triggers = (
     raw
       .prepare(
-        "SELECT id, source_kind, simulated_strength, identity, workspace_identity, text, at_ms FROM trigger ORDER BY at_ms DESC LIMIT ?",
+        "SELECT id, source_kind, simulated_strength, identity, workspace_identity, text, at_ms, channel_ref, remote_session_id FROM trigger ORDER BY at_ms DESC LIMIT ?",
       )
       .all(ASSISTANT_SNAPSHOT_LIMITS.triggersMax) as Array<{
       id: string;
@@ -151,6 +153,8 @@ export function buildAssistantSnapshot(
       workspace_identity: string | null;
       text: string;
       at_ms: number;
+      channel_ref: string | null;
+      remote_session_id: string | null;
     }>
   ).map((row) => ({
     id: row.id,
@@ -160,6 +164,8 @@ export function buildAssistantSnapshot(
     text: row.text,
     atMs: row.at_ms,
     targetWorkspaceIdentity: row.workspace_identity,
+    channelRef: row.channel_ref,
+    remoteSessionId: row.remote_session_id,
   }));
   const decisions = (
     raw
@@ -205,7 +211,7 @@ export function buildAssistantSnapshot(
   const ticketRows = (
     raw
       .prepare(
-        `SELECT id, brief, status, write_domain, dispatch_mode, queued_reason, decision_id, target_workspace_identity,
+        `SELECT id, brief, status, write_domain, dispatch_mode, queued_reason, decision_id, channel_ref, target_workspace_identity,
               incarnation_current, incarnation_generations, usage_accum, output_summary, fail_reason, updated_ms
          FROM ticket ORDER BY created_ms DESC LIMIT ?`,
       )

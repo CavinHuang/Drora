@@ -233,6 +233,26 @@ function runAssistantMigrations(raw: AssistantDatabaseRaw): void {
       "INSERT INTO kv(key, value, updated_ms) VALUES ('schema_version', '3', strftime('%s','now') * 1000) ON CONFLICT(key) DO UPDATE SET value = '3', updated_ms = excluded.updated_ms",
     );
   }
+
+  if (currentVersion < 4) {
+    // v4（2026-11-05，P3 Source 注册表）——只加不破（03 详设 §5）：
+    // - trigger.channel_ref：Source 事件的通道绑定（feishu thread / GitHub issue /
+    //   手机会话；串接格式 sources/channelRef.ts 单出处）——放行建票时回填 ticket，
+    //   同绑定 follow-up 直通 Tier1 的索引源。
+    // - trigger.remote_session_id：手机 Source 的 remoteSessionId 贯穿落库（AGENTS.md
+    //   远程链路贯穿要求；仅追溯与推送路由用，不参与身份判定）。
+    // - ticket.channel_ref + 索引：直通匹配列（活动工单按 channel_ref 等值查）。
+    //   旧行 NULL → 不参与直通匹配（P1/P2 工单诚实降级为无通道绑定）。
+    addColumnIfMissing(raw, "trigger", "channel_ref", "TEXT");
+    addColumnIfMissing(raw, "trigger", "remote_session_id", "TEXT");
+    addColumnIfMissing(raw, "ticket", "channel_ref", "TEXT");
+    raw.exec(
+      "CREATE INDEX IF NOT EXISTS idx_ticket_channel_ref ON ticket(channel_ref)",
+    );
+    raw.exec(
+      "INSERT INTO kv(key, value, updated_ms) VALUES ('schema_version', '4', strftime('%s','now') * 1000) ON CONFLICT(key) DO UPDATE SET value = '4', updated_ms = excluded.updated_ms",
+    );
+  }
 }
 
 /** ALTER TABLE ADD COLUMN 的幂等封装（PRAGMA table_info 查列存在性；迁移重入安全）。 */

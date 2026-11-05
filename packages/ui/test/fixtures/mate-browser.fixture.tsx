@@ -328,6 +328,43 @@ function createMateFixtureService(
       return { ok: true, value: { ok: true } };
     },
 
+    // P3 Source 注册表手机入口（03 详设 §3 事件面定型）：fixture 按 recordTrigger 同构
+    // 模拟（identity=fixture 本机用户、sourceKind=phone），供手机入口浏览器验收复用。
+    async submitSourceEntry(input) {
+      seq += 1;
+      const triggerId = `TR-${seq}`;
+      triggers.push({
+        id: triggerId,
+        sourceKind: "phone",
+        strength: input.mention ? ASSISTANT_STRENGTHS.explicit : ASSISTANT_STRENGTHS.inferred,
+        identity: "fixture/user-a",
+        text: input.text,
+        atMs: input.atMs ?? Date.now(),
+        ...(input.remoteSessionId ? { remoteSessionId: input.remoteSessionId } : {}),
+        ...(input.channelRef ? { channelRef: input.channelRef } : {}),
+        ...(input.targetWorkspaceIdentity
+          ? { targetWorkspaceIdentity: input.targetWorkspaceIdentity }
+          : {}),
+      });
+      const outcome =
+        input.mention && allowlist.includes("fixture/user-a")
+          ? ASSISTANT_OUTCOMES.decisionCard
+          : ASSISTANT_OUTCOMES.wouldAccept;
+      decisions.push({
+        id: seq,
+        triggerId,
+        outcome,
+        decidedBy: "gate",
+        triggerText: input.text,
+        decidedMs: Date.now(),
+      });
+      publish();
+      return {
+        ok: true,
+        value: { triggerId, outcome, directThrough: false },
+      };
+    },
+
     async dismissObservation(input) {
       for (const decision of decisions) {
         if (

@@ -35,15 +35,13 @@ import type { AssistantTicketTurnEventInput } from "./ticketLedger.js";
 import { buildAssistantSnapshot } from "./assistantSnapshot.js";
 import { createDispatchEngine } from "./dispatchEngine.js";
 import { getAssistantPorts } from "./assistantPorts.js";
-import { composeTeamLeadBrief } from "./routerShell.js";
 import { createRouterEvaluation } from "./routerEvaluation.js";
 import { resolveAnchorVerdict } from "./incarnation.js";
 import { serializeDispatchIntent } from "./dispatchIntent.js";
-import {
-  detectWriteDomainOverlap,
-  planBudgetAdmission,
-  type AssistantWriteDomain,
-} from "./writeDomain.js";
+import { runPostApproval } from "./postApproval.js";
+import { createAssistantSourceIngest } from "./sources/sourceIngest.js";
+import type { AssistantSourceIngestValue } from "./sources/sourceIngest.js";
+import type { MateSourceEvent } from "./sources/contract.js";
 
 const logger = createServiceLogger("assistant-tickets");
 
@@ -93,6 +91,13 @@ export function createAssistantTicketsService(
     cause: string;
     note?: string;
   }): Promise<AssistantResult<{ ticketId: string; sessionId: string }>>;
+  /**
+   * host 内部：Source 注册表统一入口（03 详设 §1——飞书/GitHub 事件经装配层注入；
+   * channelRef 命中活动工单→直通 Tier1，否则真实强度规则进 gate）。renderer 不可达：
+   * channel 代理面只含接口方法（submitSourceEntry 才是 channel 可见入口，identity 由
+   * host 决定，防伪造）。
+   */
+  ingestSourceEvent(event: MateSourceEvent): Promise<AssistantResult<AssistantSourceIngestValue>>;
 } {
   const db = options.database ?? openAssistantDatabase(options.databasePath);
   const localIdentity = options.localIdentity;
@@ -131,6 +136,19 @@ export function createAssistantTicketsService(
   // ------------------------------------------------------------------
 
   const { scheduleRouterEvaluation } = createRouterEvaluation({ db, publish });
+
+  // ------------------------------------------------------------------
+  // Source 统一入口（03 §1/§5；P3）：channelRef 直通 + 真实强度规则 gate。
+  // ------------------------------------------------------------------
+
+  const sourceIngest = createAssistantSourceIngest({
+    db,
+    readConfig,
+    publish,
+    scheduleRouterEvaluation,
+    followUp: engine.followUp,
+    localIdentity,
+  });
 
   // ------------------------------------------------------------------
   // 准入与决策
@@ -321,7 +339,7 @@ export function createAssistantTicketsService(
               } => {
             const decision = raw
               .prepare(
-                "SELECT d.id, d.trigger_id, d.outcome, t.text, t.workspace_identity FROM admission_decision d JOIN trigger t ON t.id = d.trigger_id WHERE d.id = ?",
+                "SELECT d.id, d.trigger_id, d.outcome, t.text, t.workspace_identity, t.channel_ref FROM admission_decision d JOIN trigger t ON t.id = d.trigger_id WHERE d.id = ?",
               )
               .get(input.decisionId) as
               | {
@@ -330,6 +348,7 @@ export function createAssistantTicketsService(
                   outcome: string;
                   text: string;
                   workspace_identity: string | null;
+                  channel_ref: string | null;
                 }
               | undefined;
             if (!decision) {
@@ -393,8 +412,8 @@ export function createAssistantTicketsService(
             raw
               .prepare(
                 `INSERT INTO ticket(id, mandate_id, decision_id, brief, target_workspace_identity, status,
-              incarnation_current, incarnation_generations, usage_accum, dispatch_intent, created_ms, updated_ms)
-             VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
+              incarnation_current, incarnation_generations, usage_accum, dispatch_intent, channel_ref, created_ms, updated_ms)
+             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
               )
               .run(
                 ticketId,
@@ -414,6 +433,9 @@ export function createAssistantTicketsService(
                 "[]",
                 "{}",
                 dispatchIntent,
+                // P3（03 详设 §5）：放行建票即回填通道绑定——同绑定 SourceEvent 后续
+                // 命中本工单走直通 Tier1（本地双按钮触发 channel_ref=NULL 不绑定）。
+                decision.channel_ref,
                 ts,
                 ts,
               );
@@ -440,12 +462,16 @@ export function createAssistantTicketsService(
           };
         }
         if (!created.ok) return created;
-        return await runPostApproval(created.value, {
-          decisionId: created.value.decisionId,
-          attachSessionId,
-          dispatchMode: input.dispatchMode ?? "A",
-          budgetMaxActivePerWorkspace: config.budgetMaxActivePerWorkspace,
-        });
+        return await runPostApproval(
+          { engine, publish, dispatchIndex },
+          created.value,
+          {
+            decisionId: created.value.decisionId,
+            attachSessionId,
+            dispatchMode: input.dispatchMode ?? "A",
+            budgetMaxActivePerWorkspace: config.budgetMaxActivePerWorkspace,
+          },
+        );
       } catch (error) {
         if (error instanceof AssistantStoreBusyError) return fail(ASSISTANT_ERROR_CODES.storeBusy);
         if (error instanceof AssistantStoreMigrationError)
@@ -646,6 +672,10 @@ export function createAssistantTicketsService(
       };
     },
 
+    // P3 Source 注册表 channel 可见入口（IAssistantTicketService.submitSourceEntry）：
+    // identity 由 host 侧本机用户决定，renderer 不可自报外部身份（sourceIngest 内注释）。
+    submitSourceEntry: sourceIngest.submitSourceEntry,
+
     // host 内部入口（renderer 经 channel 代理只见接口方法面，本组方法仅装配层/测试可触达）。
     applyTicketTurnEvent: engine.applyTicketTurnEvent,
     applyTicketTeamEvent: engine.applyTicketTeamEvent,
@@ -653,125 +683,12 @@ export function createAssistantTicketsService(
     notifySessionRemoved: engine.notifySessionRemoved,
     followUp: engine.followUp,
     recycle: engine.recycle,
+    ingestSourceEvent: sourceIngest.ingestSourceEvent,
   };
 
   // ------------------------------------------------------------------
-  // 放行后编排（事务外）：写域规划 → 软预算/写域冲突排队闸 → Mode A/B/C 派发。
-  // 事件顺序：建票事务（status=dispatched）→ planDispatchTarget（W1 git add，幂等）
-  // → budget/conflict 检查（排除自身行）→ queue 或 dispatch；失败→failed+reason。
+  // 放行后编排已抽至 postApproval.ts（单文件 ≤800 行纪律，逻辑不变）：
+  // 写域规划 → 软预算/写域冲突排队闸 → Mode A/B/C 派发；approveDecision 事务外调用。
   // ------------------------------------------------------------------
 
-  async function runPostApproval(
-    created: {
-      ticketId: string;
-      brief: string;
-      targetIdentity: string;
-      tier: AssistantPermissionTier;
-    },
-    options: {
-      decisionId: number;
-      attachSessionId?: string;
-      dispatchMode: "A" | "B";
-      budgetMaxActivePerWorkspace: number;
-    },
-  ): Promise<AssistantResult<{ ticketId: string; sessionId: string; queued?: boolean }>> {
-    // Mode C：派发桥校验（存在/归属）+ W3 冲突检查在 attachDispatch/排队闸内。
-    if (options.attachSessionId) {
-      const targetIdentity = created.targetIdentity;
-      const queuedReason = evaluateQueueGate(
-        created.ticketId,
-        targetIdentity,
-        { kind: "workspace" },
-        options.budgetMaxActivePerWorkspace,
-      );
-      if (queuedReason) {
-        engine.setWriteDomain(created.ticketId, { kind: "workspace" });
-        engine.queueTicket(created.ticketId, queuedReason);
-        return { ok: true, value: { ticketId: created.ticketId, sessionId: "", queued: true } };
-      }
-      const result = await engine.attachDispatch({
-        ticketId: created.ticketId,
-        text: created.brief,
-        targetIdentity,
-        sessionId: options.attachSessionId,
-      });
-      if (!result.ok) return result;
-      dispatchIndex.set(options.decisionId, {
-        ticketId: created.ticketId,
-        sessionId: result.value.sessionId,
-      });
-      publish();
-      return { ok: true, value: { ticketId: created.ticketId, sessionId: result.value.sessionId } };
-    }
-    const plan = await engine.planDispatchTarget({
-      ticketId: created.ticketId,
-      targetIdentity: created.targetIdentity,
-      // Mode B（02 §5）：lead 团队会话跑主工作区，不做 W1 worktree。
-      allowWorktree: options.dispatchMode === "A",
-    });
-    if (!plan.ok) {
-      engine.markTicketFailed(created.ticketId, plan.reason);
-      return fail(ASSISTANT_ERROR_CODES.dispatchRejected, plan.reason);
-    }
-    const ownDomain = plan.domain ?? { kind: "workspace" as const };
-    const queuedReason = evaluateQueueGate(
-      created.ticketId,
-      created.targetIdentity,
-      ownDomain,
-      options.budgetMaxActivePerWorkspace,
-    );
-    if (queuedReason) {
-      engine.setWriteDomain(created.ticketId, ownDomain);
-      engine.queueTicket(created.ticketId, queuedReason);
-      return { ok: true, value: { ticketId: created.ticketId, sessionId: "", queued: true } };
-    }
-    // Mode B（02 §5）：lead 会话 + /team 流程指示（prompt 驱动，审批门原样）。
-    const brief = options.dispatchMode === "B" ? composeTeamLeadBrief(created.brief) : created.brief;
-    const result = await engine.dispatchNewTicket({
-      ticketId: created.ticketId,
-      brief,
-      targetIdentity: created.targetIdentity,
-      tier: created.tier === ASSISTANT_PERMISSION_TIERS.yolo ? ASSISTANT_PERMISSION_TIERS.build : created.tier,
-      mode: options.dispatchMode,
-      ...(plan.hostPath ? { hostPath: plan.hostPath } : {}),
-      ...(plan.domain ? { domain: plan.domain } : {}),
-    });
-    if (!result.ok) return result;
-    dispatchIndex.set(options.decisionId, {
-      ticketId: created.ticketId,
-      sessionId: result.value.sessionId,
-    });
-    publish();
-    return {
-      ok: true,
-      value: { ticketId: created.ticketId, sessionId: result.value.sessionId },
-    };
-  }
-
-  /**
-   * 排队闸（spec §9）：软预算（活动工单计数，排除自身行）或同 workspace 活动工单写域
-   * 重叠（W2 声明域 / W3 附着整域 vs 其他域；worktree 恒不冲突）。命中→queued 原因文案，
-   * 否则 undefined。预算为软约束：并发放行的窗口内竞态按设计容忍（无硬上限、无全局锁）。
-   */
-  function evaluateQueueGate(
-    ticketId: string,
-    identity: string,
-    ownDomain: AssistantWriteDomain,
-    budget: number,
-  ): string | undefined {
-    const budgetVerdict = planBudgetAdmission({
-      activeCount: engine.activeCountFor(identity, ticketId),
-      budgetMaxActivePerWorkspace: budget,
-    });
-    if (budgetVerdict.action === "queue") {
-      return budgetVerdict.reason;
-    }
-    const conflict = engine
-      .listActiveWriteDomains(identity)
-      .some((entry) => entry.ticketId !== ticketId && detectWriteDomainOverlap(entry.domain, ownDomain));
-    if (conflict) {
-      return "同 workspace 存在写域重叠的活动工单（W2/W3 派发桥比对），进入队列等待释放";
-    }
-    return undefined;
-  }
 }

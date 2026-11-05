@@ -30,6 +30,13 @@ export interface AssistantTriggerView {
   readonly atMs: number;
   /** P2：触发目标 workspace（mateActivity 聚合与决策卡预填的归属键；缺席=未指定）。 */
   readonly targetWorkspaceIdentity?: string | null;
+  /**
+   * P3：Source 通道绑定（03 详设 §5；串接格式 sources/channelRef.ts 单出处）。
+   * local 触发恒 null；放行建票时回填 ticket.channel_ref。
+   */
+  readonly channelRef?: string | null;
+  /** P3：手机远控会话贯穿（AGENTS.md 远程链路贯穿；仅追溯/推送路由用）。 */
+  readonly remoteSessionId?: string | null;
 }
 
 /**
@@ -98,6 +105,12 @@ export interface AssistantTicketView {
    * 手动建票（无 decision_id，NULL）时缺席。类型与 assistantSnapshot.ts 投影同步。
    */
   readonly decisionId?: number | null;
+  /**
+   * P3（Source 注册表，03 详设 §5）：工单的通道绑定（feishu thread / GitHub issue /
+   * 手机会话；串接格式 sources/channelRef.ts 单出处）。同绑定 SourceEvent 命中活动工单
+   * 即直通 Tier1（不过 gate/Router）。本地双按钮建票无绑定（NULL）。
+   */
+  readonly channelRef?: string | null;
 }
 
 export interface AssistantConfigView {
@@ -176,6 +189,32 @@ export interface IAssistantTicketService {
 
   /** 忽略决策卡（N）：decision 记 rejected，trigger 保留。 */
   ignoreDecision(input: { decisionId: number }): Promise<AssistantResult<{ ok: true }>>;
+
+  /**
+   * P3 Source 注册表的 channel 可见入口（03 详设 §3 手机 Source 事件面定型；renderer/
+   * 手机 replayable attachment 可达的唯一 Source 入口）。仅开放 sourceKind="phone"：
+   * identity 由 host 侧取本机用户（renderer 不可自报 feishu/github 外部身份——防身份
+   * 伪造，飞书/GitHub identity 只能来自 host 侧映射，走 host 内部 ingestSourceEvent）。
+   * channelRef 命中活动工单 → 直通 Tier1（不过 gate）；否则按真实强度规则进 gate
+   * （mention && allowlist → explicit）。remoteSessionId 贯穿落 trigger.remote_session_id。
+   */
+  submitSourceEntry(input: {
+    text: string;
+    mention: boolean;
+    remoteSessionId?: string;
+    /** 已串接的通道绑定（sources/channelRef.ts 格式；非法格式拒绝）。 */
+    channelRef?: string;
+    targetWorkspaceIdentity?: string;
+    atMs?: number;
+  }): Promise<
+    AssistantResult<{
+      triggerId: string | null;
+      outcome: string | null;
+      directThrough: boolean;
+      ticketId?: string;
+      sessionId?: string;
+    }>
+  >;
 
   /** Mandate 变更途径之二：用户 stop（工单未终态时终止；spec §5 三途径）。 */
   stopMandate(input: { ticketId: string }): Promise<AssistantResult<{ ok: true }>>;

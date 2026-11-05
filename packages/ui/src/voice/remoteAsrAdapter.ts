@@ -3,9 +3,10 @@
  * renderer 直连 / §9.6.1 OpenAI 兼容音频端点族第一适配面）。
  *
  * 形态（§9.6.4 冻结）：录音期间 MediaRecorder 本机收集；stop() 时整段 multipart 上传
- * `POST {baseUrl}/audio/transcriptions`（file + model，Bearer 来自凭据服务），
- * 响应 `{text}` 经既有 onFinal 通道交付一次；onPartial 永不发射（v1 无 partial，
- * §9.6.4-2 如实记录）；abort() 丢弃式停止——不上传、不产生 final。
+ * `POST {baseUrl}/audio/transcriptions`（file + model + response_format=json 显式钉死
+ * ——LobeChat whisper 腿同参数，防兼容网关默认 text/verbose_json 破坏 {text} 解析；
+ * Bearer 来自凭据服务），响应 `{text}` 经既有 onFinal 通道交付一次；onPartial 永不
+ * 发射（v1 无 partial，§9.6.4-2 如实记录）；abort() 丢弃式停止——不上传、不产生 final。
  *
  * 交付契约：批量 final **只走 onFinal 一次**；`stop()` 恒 resolve `{final: ""}`（契约
  * 形状保留、防消费方双交付——消费方 useVoiceDictation 的注入与停止路径以 onFinal 与
@@ -244,6 +245,9 @@ export function createRemoteAsrAdapter(deps: RemoteAsrAdapterDeps): VoiceAsrPort
       const form = new FormData();
       form.append("file", blob, "dictation.webm");
       form.append("model", config.model);
+      // LobeChat 同款显式 response_format（whisper 腿同参数）：部分 OpenAI 兼容网关
+      // 默认返回 text/verbose_json，会破坏下方 {text} JSON 解析——显式钉死 json。
+      form.append("response_format", "json");
       const language = mapLanguage(this.lang);
       if (language) {
         form.append("language", language);

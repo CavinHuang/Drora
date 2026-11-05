@@ -833,7 +833,7 @@ flowchart TD
 **验收（断言级，逐条对应交付物）**
 
 - S1：given 新 schema，parity 单测字段集合 === VOICE_SETTINGS_KEYS 值集合通过；patch schema 缺省时 persisted default 生效（voiceTtsEngine="system"）。
-- S2：given engine=remote 且厂商档完整，when 说话后停止，则**恰好一次** `POST {baseUrl}/audio/transcriptions`（multipart file+model，Bearer 来自 ICredentialService），响应 `{text}` 经 onFinal 交付一次并注入 composer（mode=append，注入链与 webSpeech 逐字段一致）；全程零 partial；零 v4/relay 载荷含音频字节（mock transport 断言）。
+- S2：given engine=remote 且厂商档完整，when 说话后停止，则**恰好一次** `POST {baseUrl}/audio/transcriptions`（multipart file+model+response_format=json+可选 language/prompt，Bearer 来自凭据面），响应 `{text}` 经 onFinal 交付一次并注入 composer（mode=append，注入链与 webSpeech 逐字段一致）；全程零 partial；零 v4/relay 载荷含音频字节（mock transport 断言）。**§15 追记（2026-11-05，LobeChat STT 设计对齐）**：response_format 显式钉死 json（LobeChat whisper 腿同参数）——部分 OpenAI 兼容网关默认返回 text/verbose_json 会破坏 `{text}` 解析；凭据面经 §13/§15 改供应商卡（原 ICredentialService 键已迁移）。
 - S2：given Recording 中厂商请求失败（网络错误/非 2xx），则 onError("network") → 保留已注入文本 + 提示、不自动重启、不换引擎续录；下次点按重新选型。
 - S2：given 打断词命中整段 final，则消费为打断命令且不注入 composer（§5.1 判定点回归）。
 - S3：given engine=webSpeech，则适配器选择返回既有 webSpeech 实例，Phase 1a 验收（§9.2）全量回归通过；given engine=remote 且厂商档任一字段为空，则解析为 webSpeech + voice.asr info；given engine=remote 档完整但 start 失败，则本次以 webSpeech 起录 + warn。

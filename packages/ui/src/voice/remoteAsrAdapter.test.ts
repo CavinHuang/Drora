@@ -107,7 +107,8 @@ describe("createRemoteAsrAdapter（mock HTTP 契约）", () => {
     // 交付契约：批量 final 只走 onFinal 一次（stop 恒空串防双交付，见适配器头注）。
     expect(finals).toEqual(["识别文本"]);
 
-    // §9.6.8-S2：恰好一次 POST，multipart（file+model+language），Bearer 来自注入凭据。
+    // §9.6.8-S2：恰好一次 POST，multipart（file+model+language+response_format），
+    // Bearer 来自注入凭据。
     expect(harness.requests).toHaveLength(1);
     const request = harness.requests[0];
     expect(request?.url).toBe("https://api.siliconflow.cn/v1/audio/transcriptions");
@@ -117,6 +118,8 @@ describe("createRemoteAsrAdapter（mock HTTP 契约）", () => {
     expect(request?.body.get("model")).toBe("FunAudioLLM/SenseVoiceSmall");
     expect(request?.body.get("language")).toBe("zh");
     expect(request?.body.get("file")).toBeInstanceOf(Blob);
+    // LobeChat 同款显式 response_format：防兼容网关默认 text/verbose_json 破坏 {text} 解析。
+    expect(request?.body.get("response_format")).toBe("json");
     // Content-Type 由 fetch/FormData 注入 multipart boundary；适配器不得手写覆盖。
     expect(request?.contentTypeContains).not.toContain("application/json");
   });

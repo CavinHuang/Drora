@@ -44,7 +44,8 @@ export function readAssistantConfig(
   localIdentity: string,
 ): AssistantConfigView {
   const fallback = defaultAssistantConfig(localIdentity);
-  const mode = (readAssistantKv(raw, ASSISTANT_KV_KEYS.mode) as AssistantMode | undefined) ?? fallback.mode;
+  const mode =
+    (readAssistantKv(raw, ASSISTANT_KV_KEYS.mode) as AssistantMode | undefined) ?? fallback.mode;
   const allowlistRaw = readAssistantKv(raw, ASSISTANT_KV_KEYS.allowlist);
   let allowlist = fallback.allowlist;
   if (allowlistRaw) {
@@ -58,8 +59,9 @@ export function readAssistantConfig(
     }
   }
   const budgetRaw = readAssistantKv(raw, ASSISTANT_KV_KEYS.budgetMaxActivePerWorkspace);
-  const budgetMaxActivePerWorkspace = budgetRaw ? Number(budgetRaw) : fallback.budgetMaxActivePerWorkspace;
-  const worktreeDisabled =
-    readAssistantKv(raw, ASSISTANT_KV_KEYS.worktreeDisabled) === "true";
+  const budgetMaxActivePerWorkspace = budgetRaw
+    ? Number(budgetRaw)
+    : fallback.budgetMaxActivePerWorkspace;
+  const worktreeDisabled = readAssistantKv(raw, ASSISTANT_KV_KEYS.worktreeDisabled) === "true";
   return { mode, allowlist, budgetMaxActivePerWorkspace, worktreeDisabled };
 }

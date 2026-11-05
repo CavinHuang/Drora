@@ -43,8 +43,7 @@ export function parseDispatchIntent(raw: string | null): AssistantDispatchIntent
   try {
     const parsed = JSON.parse(raw) as Partial<AssistantDispatchIntent>;
     if (parsed.mode !== "A" && parsed.mode !== "B" && parsed.mode !== "C") return undefined;
-    const tier =
-      parsed.tier === "build" || parsed.tier === "guarded" ? parsed.tier : undefined;
+    const tier = parsed.tier === "build" || parsed.tier === "guarded" ? parsed.tier : undefined;
     if (!tier) return undefined;
     if (parsed.mode === "C" && typeof parsed.attachSessionId !== "string") return undefined;
     return {

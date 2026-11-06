@@ -378,6 +378,7 @@ export const MateSidePane = memo(function MateSidePane({
         modelPreference={snapshot.modelPreference ?? null}
         trustGateThresholds={snapshot.trustGateThresholds}
         watchdogIntervalMinutes={snapshot.watchdogIntervalMinutes}
+        rhythm={snapshot.rhythm}
         sourcesConfig={snapshot.sourcesConfig}
         identityMap={snapshot.identityMap}
       />

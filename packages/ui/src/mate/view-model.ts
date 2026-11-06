@@ -324,6 +324,10 @@ export function mateSourceKindMessageId(sourceKind: string): string | null {
       return "mate.source.phone";
     case ASSISTANT_SOURCE_KINDS.github:
       return "mate.source.github";
+    // P9（09 号详设 §2.2.1）：自主节奏 suggest 卡来源徽标——封闭映射跟随
+    // ASSISTANT_SOURCE_KINDS 枚举扩充，未知值仍返回 null 不渲染。
+    case ASSISTANT_SOURCE_KINDS.autonomy:
+      return "mate.source.autonomy";
     default:
       return null;
   }
@@ -435,7 +439,10 @@ export type MateErrorMessageId =
   | "mate.config.advanced.budgetInvalid"
   | "mate.config.advanced.rateInvalid"
   | "mate.config.advanced.samplesInvalid"
-  | "mate.config.advanced.intervalInvalid";
+  | "mate.config.advanced.intervalInvalid"
+  // P9 节奏区心跳间隔本地校验失败（09 号详设 §2；界=ASSISTANT_CONFIG_LIMITS
+  // .autonomyIntervalMinutes 单出处 30-1440）。
+  | "mate.config.rhythm.intervalInvalid";
 
 /** 服务失败臂 → 文案键；未知码一律落 generic，不把原始错误文本直接展示给用户。 */
 export function resolveMateErrorMessageId(

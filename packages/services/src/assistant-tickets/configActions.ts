@@ -26,6 +26,7 @@ import {
   type AssistantDatabase,
 } from "./assistantDatabase.js";
 import { ASSISTANT_KV_KEYS } from "./assistantConfig.js";
+import { ASSISTANT_AUTONOMY_KV_KEYS } from "./autonomyProjection.js";
 import { ASSISTANT_SOURCE_KV_KEYS } from "./sources/sourceConfig.js";
 import type { MateSourceIdentityMap, MateSourcesConfig } from "./sources/contract.js";
 import type { AssistantResult } from "./assistantTickets.js";
@@ -58,6 +59,8 @@ export function createAssistantConfigActions(deps: AssistantConfigActionsDeps): 
     minSamples?: number;
   }): Promise<AssistantResult<{ ok: true }>>;
   setWatchdogIntervalMinutes(input: { minutes: number }): Promise<AssistantResult<{ ok: true }>>;
+  setAutonomyEnabled(input: { enabled: boolean }): Promise<AssistantResult<{ ok: true }>>;
+  setAutonomyIntervalMinutes(input: { minutes: number }): Promise<AssistantResult<{ ok: true }>>;
   setSourcesConfig(input: MateSourcesConfig): Promise<AssistantResult<{ ok: true }>>;
   setSourceIdentityMap(input: MateSourceIdentityMap): Promise<AssistantResult<{ ok: true }>>;
   setModelPreference(
@@ -163,6 +166,34 @@ export function createAssistantConfigActions(deps: AssistantConfigActionsDeps): 
       // 服务内换算 ms 落 kv（watchdog 读侧 intervalMs 语义不变，06 详设 §1）。
       return writeKv([
         { key: ASSISTANT_KV_KEYS.watchdogIntervalMs, value: String(minutes * 60 * 1000) },
+      ]);
+    },
+
+    // P9（09 号详设 §2.3 闸 5 / §2.1）：自主观察总闸与心跳间隔（节奏区两写入入口；
+    // 读点在 autonomy.ts——总闸缺省 true，间隔缺省 30min，kv 改值下轮即生效）。
+    // 键字面量单出处 ASSISTANT_AUTONOMY_KV_KEYS（autonomyProjection.ts，读侧即对账点）。
+    async setAutonomyEnabled(input) {
+      return writeKv([
+        { key: ASSISTANT_AUTONOMY_KV_KEYS.enabled, value: input.enabled ? "true" : "false" },
+      ]);
+    },
+
+    async setAutonomyIntervalMinutes(input) {
+      const minutes = input.minutes;
+      const autonomyLimits = ASSISTANT_CONFIG_LIMITS.autonomyIntervalMinutes;
+      if (
+        !Number.isInteger(minutes) ||
+        minutes < autonomyLimits.min ||
+        minutes > autonomyLimits.max
+      ) {
+        return fail(
+          ASSISTANT_ERROR_CODES.validationFailed,
+          `自主心跳间隔须为 ${autonomyLimits.min}-${autonomyLimits.max} 分钟`,
+        );
+      }
+      // 服务内换算 ms 落 kv（autonomy 读侧 intervalMs 语义不变，09 详设 §2.1）。
+      return writeKv([
+        { key: ASSISTANT_AUTONOMY_KV_KEYS.intervalMs, value: String(minutes * 60 * 1000) },
       ]);
     },
 

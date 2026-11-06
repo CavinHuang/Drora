@@ -30,8 +30,9 @@ function nowMs(): number {
  * P8b（09 详设 §1.6）：读装配层台账 provider（同端口纪律：未注入/抛错 → null=缺席，
  * 消费侧回落语义同 publish）。评估链内读一次、候选卡速览与 query 应答共用同一视图
  * ——同轮评估内的账本口径一致（30s 节流的新鲜度由刷新环路保证）。
+ * P9：autonomy.ts 同读点复用本函数（同端口同缺席语义，不建第二条读路径）。
  */
-function readInventoryView(): import("@drora/shared").MateWorkInventoryView | null {
+export function readAssistantInventoryView(): import("@drora/shared").MateWorkInventoryView | null {
   const provider = getAssistantPorts().inventory;
   if (!provider) return null;
   try {
@@ -120,7 +121,7 @@ export function createRouterEvaluation(deps: RouterEvaluationDeps): {
       // P7 批 2（08 号详设 §4 方案乙）：候选卡附带有界台账速览——Router 无工具即可
       // 感知账本（查询意图判定/attach 佐证）；空台账缺席（不出现速览段）。
       // P8b（09 §1.6）：传入全域台账视图——速览段追加速览段全域会话/teams/闲时事实。
-      const inventory = readInventoryView();
+      const inventory = readAssistantInventoryView();
       const ledgerDigest = composeLedgerDigest(db.raw, deps.localIdentity, nowMs, input.decisionId, inventory);
       const card = composeCandidateCard({
         triggerId: input.trigger.id,

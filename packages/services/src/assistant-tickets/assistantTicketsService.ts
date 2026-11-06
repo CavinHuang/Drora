@@ -43,6 +43,7 @@ import { createRouterEvaluation } from "./routerEvaluation.js";
 import { serializeDispatchIntent } from "./dispatchIntent.js";
 import { isAssistantTrustGateSatisfied } from "./trustGate.js";
 import { runAssistantWatchdogRound } from "./watchdog.js";
+import { createAssistantAutonomyRunner, ignoreAssistantDecisionTx } from "./autonomy.js";
 import { runPostApproval, runApprovalPrecheck } from "./postApproval.js";
 import { createMandateActions } from "./mandateActions.js";
 import {
@@ -132,6 +133,16 @@ export function createAssistantTicketsService(
     awaitingCandidates?: readonly { ticketId: string; sinceMs: number }[];
   }): Promise<import("./watchdog.js").AssistantWatchdogRoundResult>;
   /**
+   * host 内部：P9 自主评估轮（09 详设 §2 v2 定案；host face
+   * AssistantTicketsHostFace.runAutonomyRound 同名透传）。**fire-and-forget**——
+   * 调用方（cron tick）不 await 本轮进 watchdog 链；到轮判定/总闸/off 停跳在本入口
+   * 裁决。三臂出口：quiet 零动作 / report 过闸落自主通知区 / suggest 独立建卡事务
+   * （不进候选卡评估循环——scheduleRouterEvaluation 零调用，auto 无自动建票路径）。
+   */
+  runAutonomyRound(input?: {
+    nowMs?: number;
+  }): Promise<import("./autonomy.js").AssistantAutonomyRoundResult>;
+  /**
    * host 内部：P8 台账刷新环路入口（09 详设 §1.2 v2 定案；host face
    * AssistantTicketsHostFace.refreshInventory 同名透传）。节流在本入口按 kv 裁决
    * （缺省 30s，尾沿补一拍）。边界注记（照 runWatchdogRound 同款）：本方法在
@@ -179,7 +190,21 @@ export function createAssistantTicketsService(
   const quotaService = createAssistantQuotaService({ db, publish });
 
   // P5 设置中心（06 号详设）：六 setter 纯模块件（写 kv+publish；见 configActions.ts）。
+  // P9：扩自主节奏两 setter（总闸/心跳间隔——同 writeKv 纪律）。
   const configActions = createAssistantConfigActions({ db, publish });
+
+  // P9 自主节奏（09 详设 §2 v2；实现件/runner 工厂在 autonomy.ts）：host cron 同源
+  // fire-and-forget 触发（不进 watchdog await 链）；节流/总闸/off 停跳/在途互斥在
+  // runner 裁决。suggest 臂独立建卡事务不调 scheduleRouterEvaluation（auto 无自动
+  // 建票路径）。边界注记照 runWatchdogRound：channel 面实际可调，非结构隔离。
+  const runAutonomyRound = createAssistantAutonomyRunner({
+    db,
+    localIdentity,
+    readMode: () => readConfig(db.raw).mode,
+    publish,
+    readDailyQuotaSnapshot: () => resolveAssistantDailyQuota(quotaService.cachedQuota()),
+    readDailyQuota: quotaService.readDailyQuotaLive,
+  });
 
   // ------------------------------------------------------------------
   // P8 全域工作台账投影与刷新环路（09 详设 §1.2 v2 定案）：
@@ -535,17 +560,10 @@ export function createAssistantTicketsService(
 
     async ignoreDecision(input) {
       try {
+        // P9 闸 4 否定记忆随事务（拆件 ignoreAssistantDecisionTx——autonomy 来源卡被
+        // 忽略 → 同对象 48h 不再 suggest；非 autonomy 卡零副作用，单更新路径不变）。
         db.transaction((raw) => {
-          raw
-            .prepare(
-              "UPDATE admission_decision SET outcome = ?, decided_by = ? WHERE id = ? AND outcome = ?",
-            )
-            .run(
-              ASSISTANT_OUTCOMES.rejected,
-              "user",
-              input.decisionId,
-              ASSISTANT_OUTCOMES.decisionCard,
-            );
+          ignoreAssistantDecisionTx(raw, input.decisionId, nowMs());
         });
         publish();
         return { ok: true, value: { ok: true } };
@@ -768,6 +786,8 @@ export function createAssistantTicketsService(
       ),
     // P8 台账刷新环路入口（09 详设 §1.2；节流在 refreshInventory 闭包内）。
     refreshInventory,
+    // P9 自主评估轮（09 详设 §2；host cron 同源 fire-and-forget——不进 watchdog await 链）。
+    runAutonomyRound,
     autoDispatchDecision: (input) => autoDispatch.autoDispatchDecision(input),
   };
 }

@@ -38,6 +38,7 @@ import {
   resolveAssistantDailyQuota,
 } from "./quotaCenter.js";
 import { readAssistantWatchdogNotices } from "./watchdog.js";
+import { readAssistantAutonomyNotices, readAssistantRhythmView } from "./autonomyProjection.js";
 import { parseDispatchIntent } from "./dispatchIntent.js";
 
 interface TicketRow {
@@ -509,15 +510,23 @@ export function buildAssistantSnapshot(
       remaining: Math.max(0, dailyQuota - quotaTotal),
       pendingDigest: collectPendingAssistantDigest(raw, nowMs),
     },
-    watchdogNotices: readAssistantWatchdogNotices(raw).slice(
-      0,
-      ASSISTANT_SNAPSHOT_LIMITS.watchdogNoticesMax,
-    ),
+    // P4：watchdog 通知区 + P9 自主通知区合并投影（kv 单写者分键——watchdog_notices/
+    // autonomy_notices 各自单写者，投影侧合并成既有 watchdogNotices 面，MateDigestCard
+    // 零改动呈现；合并按时刻新→旧排序，容量界同 watchdogNoticesMax 截断）。
+    watchdogNotices: [
+      ...readAssistantWatchdogNotices(raw),
+      ...readAssistantAutonomyNotices(raw),
+    ]
+      .sort((a, b) => b.atMs - a.atMs)
+      .slice(0, ASSISTANT_SNAPSHOT_LIMITS.watchdogNoticesMax),
     // P8（09 详设 §1.2）：台账投影整体缺席语义——provider 给 null（或未注入）时
     // 快照不携带 inventory 字段；给视图时原样挂载（形状由 mateWorkInventorySchema 权威）。
     ...(extras.inventory ? { inventory: extras.inventory } : {}),
     // P8b：台账能力就绪信号（服务 publish 读端口后传入；旧装配不携带 → UI 卡不渲染）。
     ...(extras.inventoryReady ? { inventoryReady: true } : {}),
+    // P9（09 详设 §2）：自主节奏投影（设置区节奏区数据源；可选追加不破 v2 兼容——
+    // 旧 Host 缺席=节奏区不渲染，诚实降级不猜测）。
+    rhythm: readAssistantRhythmView(kvGet),
     updatedAtMs: nowMs,
   };
 }

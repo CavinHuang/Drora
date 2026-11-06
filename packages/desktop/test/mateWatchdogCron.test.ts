@@ -93,4 +93,87 @@ describe("startMateWatchdogCron", () => {
     await vi.waitFor(() => expect(calls).toBeGreaterThanOrEqual(2), { timeout: 2_000 });
     expect(warnings.length).toBeGreaterThanOrEqual(1);
   });
+
+  // ---- P9（09 详设 §2.1 v2）：自主评估轮 tick 同源触发，fire-and-forget 不进 watchdog
+  // await 链；入口可缺席（旧 face）；异常只 warn。 ----
+  it("P9：每 tick 同源触发 runAutonomyRound（与 watchdog 轮各自独立计数）", async () => {
+    const runWatchdogRound = vi.fn(async () => ({
+      ran: false,
+      atMs: 0,
+      markedStaleTicketIds: [],
+      clearedStaleCount: 0,
+      notifiedCount: 0,
+      aggregatedCount: 0,
+    }));
+    const runAutonomyRound = vi.fn(async () => ({ ran: false, atMs: 0, skipReason: "throttled" as const }));
+    const handle = startMateWatchdogCron({
+      resolveFace: () => ({ runWatchdogRound, runAutonomyRound }),
+      logWarn: () => undefined,
+      tickMs: 15,
+    });
+    handles.push(handle);
+    await vi.waitFor(() => expect(runAutonomyRound.mock.calls.length).toBeGreaterThanOrEqual(2), {
+      timeout: 2_000,
+    });
+    expect(runWatchdogRound.mock.calls.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("P9：自主轮慢/挂起不阻塞 watchdog 轮（fire-and-forget 不进 await 链）", async () => {
+    let watchdogCalls = 0;
+    const handle = startMateWatchdogCron({
+      resolveFace: () => ({
+        runWatchdogRound: async () => {
+          watchdogCalls += 1;
+          return { ran: false, atMs: 0, markedStaleTicketIds: [], clearedStaleCount: 0, notifiedCount: 0, aggregatedCount: 0 };
+        },
+        // 自主轮永不 settle（慢评估在途）——watchdog 轮照常推进。
+        runAutonomyRound: () => new Promise(() => undefined),
+      }),
+      logWarn: () => undefined,
+      tickMs: 15,
+    });
+    handles.push(handle);
+    await vi.waitFor(() => expect(watchdogCalls).toBeGreaterThanOrEqual(3), { timeout: 2_000 });
+  });
+
+  it("P9：旧 face（runAutonomyRound 缺席）tick 跳过不报错；自主轮异常只 warn", async () => {
+    const warnings: unknown[] = [];
+    let watchdogCalls = 0;
+    let withAutonomy = true;
+    const handle = startMateWatchdogCron({
+      resolveFace: () =>
+        withAutonomy
+          ? {
+              runWatchdogRound: async () => {
+                watchdogCalls += 1;
+                return { ran: false, atMs: 0, markedStaleTicketIds: [], clearedStaleCount: 0, notifiedCount: 0, aggregatedCount: 0 };
+              },
+              runAutonomyRound: async () => {
+                throw new Error("autonomy boom");
+              },
+            }
+          : {
+              runWatchdogRound: async () => {
+                watchdogCalls += 1;
+                return { ran: false, atMs: 0, markedStaleTicketIds: [], clearedStaleCount: 0, notifiedCount: 0, aggregatedCount: 0 };
+              },
+            },
+      logWarn: (message, error) => warnings.push(`${message}:${String(error)}`),
+      tickMs: 15,
+    });
+    handles.push(handle);
+    await vi.waitFor(() => expect(watchdogCalls).toBeGreaterThanOrEqual(2), { timeout: 2_000 });
+    // 自主轮异常只 warn（不中断 tick——watchdog 照常推进即证）。
+    expect(warnings.some((entry) => String(entry).includes("autonomy boom"))).toBe(true);
+    const autonomyWarningsBefore = warnings.filter((entry) =>
+      String(entry).includes("autonomy boom"),
+    ).length;
+    // 换代到旧 face：无 runAutonomyRound 入口——optional-call 跳过，watchdog 照常；
+    // 自主 warn 不再新增（异常面随 face 消失）。
+    withAutonomy = false;
+    await vi.waitFor(() => expect(watchdogCalls).toBeGreaterThanOrEqual(6), { timeout: 2_000 });
+    expect(
+      warnings.filter((entry) => String(entry).includes("autonomy boom")).length,
+    ).toBe(autonomyWarningsBefore);
+  });
 });

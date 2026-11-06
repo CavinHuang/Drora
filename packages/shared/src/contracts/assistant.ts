@@ -71,12 +71,17 @@ export type AssistantGenerationCause =
  * Source 注册表 source_kind 封闭枚举（03 详设 §1；spec §5 Trigger 来源）。值落
  * mate.sqlite trigger.source_kind 列与快照投影——字面量单出处，消费方（服务/快照/UI）
  * 只引用本常量，禁止两处独立写。
+ * P9（09 号详设 §2.2.1 v2）：扩 autonomy——自主节奏层 suggest 臂的独立建卡事务写入
+ * 该来源（trigger.source_kind 列值枚举非 schema 约束，无迁移）。autonomy 卡**不进
+ * 候选卡评估循环**（永不调 scheduleRouterEvaluation，auto 模式无任何自动建票路径），
+ * 卡上 routerState 天然缺席=无建议区，人工终审照常。
  */
 export const ASSISTANT_SOURCE_KINDS = {
   local: "local",
   feishu: "feishu",
   phone: "phone",
   github: "github",
+  autonomy: "autonomy",
 } as const;
 
 export type AssistantSourceKind =
@@ -120,7 +125,41 @@ export const ASSISTANT_CONFIG_LIMITS = {
   watchdogIntervalMinutes: { min: 5, max: 1440 },
   /** Source 身份映射条目上限（快照投影与写入口同界）。 */
   identityMapMaxEntries: 50,
+  /**
+   * P9 自主节奏心跳间隔（分钟；09 号详设 §2.1 v2——服务内换算 ms 落 kv
+   * `autonomy_interval_ms`；设置区节奏区同界双闸）。下界 30min 对齐缺省：
+   * 自主评估是 LLM 调用，更高频只放大成本不改善判断。
+   */
+  autonomyIntervalMinutes: { min: 30, max: 1440 },
 } as const;
+
+/**
+ * P9 自主节奏层缺省参数（09 号详设 §2 v2 定案）：心跳间隔 kv 可调（键
+ * `autonomy_interval_ms`，services ASSISTANT_AUTONOMY_KV_KEYS 单出处），冷却/去重
+ * 窗口为常量（闸语义钉死不 kv 化，照 watchdog 判据纪律）。
+ */
+export const ASSISTANT_AUTONOMY_DEFAULTS = {
+  /** 心跳节流间隔（ms；30 分钟/轮）。 */
+  intervalMs: 30 * 60 * 1000,
+  /** suggest 建卡即写对象冷却（ms；24h——闸 3，不依赖用户先忽略）。 */
+  mutedCooldownMs: 24 * 60 * 60 * 1000,
+  /** 速览指纹去重窗口（ms；24h——闸 2，同指纹窗口内零 LLM 调用直接 quiet）。 */
+  fingerprintDedupMs: 24 * 60 * 60 * 1000,
+  /** 否定记忆冷却（ms；48h——闸 4，用户忽略 autonomy 卡后同对象不再 suggest）。 */
+  negationCooldownMs: 48 * 60 * 60 * 1000,
+  /** report 臂汇报文本界（code point；09 §2.2 report{text≤800}）。 */
+  reportTextMax: 800,
+  /** suggest 臂 brief 界（code point；与候选卡 verbatim 同值口径）。 */
+  suggestBriefMax: 1500,
+} as const;
+
+/**
+ * P9 自主节奏 trigger 强度字面量（09 号详设 §2.2.1：strength 字面量如实标注，
+ * 不伪称 explicit/inferred——autonomy 触发无「点名/未指名」语义，落
+ * trigger.simulated_strength 与 admission_decision.strength 列）。仅作列值常量，
+ * **不进 ASSISTANT_STRENGTHS 准入枚举**（准入矩阵的 strength 判定不接受 autonomous）。
+ */
+export const ASSISTANT_AUTONOMY_STRENGTH = "autonomous" as const;
 
 /**
  * P4 watchdog 缺省参数（04 详设 §1 判据表；轮询间隔 kv `watchdog_interval_ms` 可调，

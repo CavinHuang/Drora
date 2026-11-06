@@ -132,6 +132,13 @@ window.addEventListener("DOMContentLoaded", () => {
   const mateBadgeTitle = zhLocale ? "大副待决策" : "Mate decisions";
   if (bubble && bubbleText) {
     bubble.addEventListener("click", () => {
+      // P9：自主 report 气泡在展时点击=直达大副面板（无工单号，不做 open-ticket 猜测
+      // ——MatePetAutonomyBubble 无 ticketId 字段）；其余按工单汇报点卡直达。
+      if (activeAutonomyBubble) {
+        ipcRenderer.send(MATE_PET_COMMANDS.channels.command, { action: "open-mate" });
+        hideBubble();
+        return;
+      }
       const report = activeBubble ?? mate.latestReport;
       if (report)
         ipcRenderer.send(MATE_PET_COMMANDS.channels.command, {
@@ -142,13 +149,32 @@ window.addEventListener("DOMContentLoaded", () => {
       hideBubble();
     });
   }
+  // P9 自主 report 气泡在展标记（同元素复用展示——head 文案/data-status 随本帧来源
+  // 显式重设，不在分支间残留上一帧文案）。
+  let activeAutonomyBubble: MatePetProjection["autonomyBubble"] = null;
+  const bubbleHeadReport = zhLocale ? "大副汇报" : "Mate report";
+  const bubbleHeadAutonomy = zhLocale ? "自主观察" : "Autonomy";
   const applyMate = () => {
     const pendingCount = mate.pendingDecisions.length;
     if (bubble && bubbleText) {
+      const head = bubble.querySelector(".bubble-head");
       if (mate.bubble) {
         activeBubble = mate.bubble;
+        activeAutonomyBubble = null;
+        if (head) head.textContent = bubbleHeadReport;
         bubbleText.textContent = mate.bubble.summary;
         bubble.dataset.status = mate.bubble.status;
+        bubble.hidden = false;
+        if (bubbleTimer) clearTimeout(bubbleTimer);
+        bubbleTimer = setTimeout(hideBubble, 8000);
+      } else if (mate.autonomyBubble) {
+        // P9（09 详设 §2.2）：自主 report 气泡帧——同元素展示（head=自主观察，
+        // 中性边框；文本已经服务侧 report 配额闸，发布方差分判定见 petProjection）。
+        activeBubble = null;
+        activeAutonomyBubble = mate.autonomyBubble;
+        if (head) head.textContent = bubbleHeadAutonomy;
+        bubbleText.textContent = mate.autonomyBubble.summary;
+        bubble.dataset.status = "done";
         bubble.hidden = false;
         if (bubbleTimer) clearTimeout(bubbleTimer);
         bubbleTimer = setTimeout(hideBubble, 8000);

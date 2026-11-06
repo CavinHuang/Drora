@@ -11,7 +11,9 @@ import {
 import type { AssistantDecisionView, AssistantSnapshot, AssistantTicketView } from "@drora/services";
 
 import {
+  deriveMateAutonomyBubble,
   deriveMatePetBubble,
+  matePetAutonomyBubbleKey,
   matePetBubbleKey,
   matePetReportSummary,
   projectMatePet,
@@ -285,6 +287,60 @@ describe("projectMatePet（快照 → 桌宠有界投影）", () => {
     expect(projection.recentTickets).toEqual([]);
     expect(projection.latestReport).toBeNull();
     expect(projection.bubble).toBeNull();
+    // P9：自主 report 帧缺席=通知区无自主条目（可选字段缺省 null）。
+    expect(projection.autonomyBubble).toBeNull();
+  });
+
+  it("P9 autonomyBubble=通知区最新一条 autonomy_report（截断 textMax；旧帧缺席合法过 schema）", () => {
+    const withNotice = snapshot({
+      watchdogNotices: [
+        { ticketId: "T-1", kind: "running_stall", summary: "watchdog 停滞", atMs: 100 },
+        { ticketId: "autonomy", kind: "autonomy_report", summary: "自主汇报 旧", atMs: 200 },
+        { ticketId: "autonomy", kind: "autonomy_report", summary: `自主汇报 新${"长".repeat(200)}`, atMs: 300 },
+      ],
+    });
+    const projection = projectMatePet(withNotice);
+    // 截断=code point slice 到 textMax（「自主汇报 新」6 字符 + 114 长字=120，无省略号）。
+    expect(projection.autonomyBubble).toEqual({
+      summary: `自主汇报 新${"长".repeat(MATE_PET_PROJECTION_LIMITS.textMax - 6)}`,
+      atMs: 300,
+    });
+    // 只取 autonomy_report kind（watchdog 判据条目不入气泡差分源）。
+    expect(projection.autonomyBubble?.atMs).toBe(300);
+    // 带 autonomyBubble 的帧过 Main safeParse（只加不破——旧帧无该字段同样过）。
+    expect(matePetProjectionSchema.safeParse({ ...projection, bubble: null }).success).toBe(true);
+    expect(
+      matePetProjectionSchema.safeParse({
+        pendingDecisions: [],
+        activeTickets: [],
+        latestReport: null,
+        bubble: null,
+      }).success,
+    ).toBe(true);
+  });
+});
+
+describe("deriveMateAutonomyBubble（P9 发布方自主 report 气泡差分）", () => {
+  const report = { summary: "工单 A 停滞", atMs: 1_000 };
+
+  it("挂载首帧（含冷启动旧自主汇报）只登记不弹", () => {
+    const first = deriveMateAutonomyBubble(null, report);
+    expect(first).toEqual({ show: false, next: { key: matePetAutonomyBubbleKey(report) } });
+    const firstEmpty = deriveMateAutonomyBubble(null, null);
+    expect(firstEmpty).toEqual({ show: false, next: { key: null } });
+  });
+
+  it("会话期内新自主汇报弹泡；同键重复帧不弹", () => {
+    const seen = deriveMateAutonomyBubble(null, null).next;
+    const arrived = deriveMateAutonomyBubble(seen, report);
+    expect(arrived.show).toBe(true);
+    expect(deriveMateAutonomyBubble(arrived.next, report).show).toBe(false);
+  });
+
+  it("新时刻自主汇报（键变化）再弹；通知区裁剪（null）不弹且保留登记键", () => {
+    const seen = deriveMateAutonomyBubble(null, report).next;
+    expect(deriveMateAutonomyBubble(seen, { ...report, atMs: 2_000 }).show).toBe(true);
+    expect(deriveMateAutonomyBubble(seen, null)).toEqual({ show: false, next: { key: seen.key } });
   });
 });
 

@@ -148,6 +148,8 @@ export const mateMessagesEn = {
   "mate.source.feishu": "Feishu",
   "mate.source.phone": "Phone",
   "mate.source.github": "GitHub",
+  // P9 自主节奏来源徽标（09 详设 §2.2.1；ASSISTANT_SOURCE_KINDS.autonomy）。
+  "mate.source.autonomy": "Autonomous",
 
   // ---- P3 Thread 直通（工单详情时间线通道绑定站；spec §5） ----
   "mate.detail.timeline.channel": "Channel binding (direct-through)",
@@ -165,6 +167,9 @@ export const mateMessagesEn = {
   "mate.watchdog.kind.running_stall": "Running stalled",
   "mate.watchdog.kind.awaiting_unverified": "Output unverified",
   "mate.watchdog.kind.queued_starve": "Queued too long",
+  // P9 自主通知区 kind（09 详设 §2.2/§2.3：report 臂 + 首启一次性告知）。
+  "mate.watchdog.kind.autonomy_report": "Autonomy report",
+  "mate.watchdog.kind.autonomy_first_notice": "Autonomy on",
   "mate.digest.title": "Quiet-hours digest",
   "mate.digest.quotaUsed": "{used}/{quota} disturbances today",
   "mate.digest.markDelivered": "Mark delivered",
@@ -172,6 +177,15 @@ export const mateMessagesEn = {
   "mate.config.quota.hint":
     "Pushes per day across surfaces (decision cards are never suppressed). 0 aggregates all non-decision pushes into the next-day digest.",
   "mate.config.quota.invalid": "The quota must be an integer between 0 and 200.",
+  // ---- P9 节奏区（09 详设 §2；收敛两项：自主观察开关+心跳间隔 30-1440min） ----
+  "mate.config.rhythm.title": "Rhythm (autonomy loop)",
+  "mate.config.rhythm.toggle": "Autonomous observation",
+  "mate.config.rhythm.on": "On — Mate reviews work on its own heartbeat",
+  "mate.config.rhythm.off": "Off — the autonomy loop is paused",
+  "mate.config.rhythm.hint":
+    "The Mate reviews all work on a heartbeat and stays quiet unless something would be lost without a word. Suggestions always land as decision cards awaiting your call (never auto-executed).",
+  "mate.config.rhythm.interval": "Heartbeat (minutes)",
+  "mate.config.rhythm.intervalInvalid": "The heartbeat interval must be an integer between 30 and 1440.",
   "mate.query.reply.title": "Mate reply",
   "mate.query.reply.dismiss": "Dismiss",
   "mate.query.reply.hint": "Answered from the Mate ledger — no ticket was created.",
@@ -369,6 +383,8 @@ export const mateMessagesZh = {
   "mate.source.feishu": "飞书",
   "mate.source.phone": "手机",
   "mate.source.github": "GitHub",
+  // P9 自主节奏来源徽标（09 详设 §2.2.1；ASSISTANT_SOURCE_KINDS.autonomy）。
+  "mate.source.autonomy": "自主",
 
   // ---- P3 Thread 直通（工单详情时间线通道绑定站；spec §5） ----
   "mate.detail.timeline.channel": "通道绑定（直通）",
@@ -386,6 +402,9 @@ export const mateMessagesZh = {
   "mate.watchdog.kind.running_stall": "运行停滞",
   "mate.watchdog.kind.awaiting_unverified": "产出待核验",
   "mate.watchdog.kind.queued_starve": "排队过久",
+  // P9 自主通知区 kind（09 详设 §2.2/§2.3：report 臂 + 首启一次性告知）。
+  "mate.watchdog.kind.autonomy_report": "自主汇报",
+  "mate.watchdog.kind.autonomy_first_notice": "自主观察开启",
   "mate.digest.title": "安静期摘要",
   "mate.digest.quotaUsed": "今日打扰 {used}/{quota}",
   "mate.digest.markDelivered": "标记已投递",
@@ -393,6 +412,15 @@ export const mateMessagesZh = {
   "mate.config.quota.hint":
     "各端每日推送上限（条/日；决策卡永不抑制）。0=非决策类推送全部聚合进次日摘要。",
   "mate.config.quota.invalid": "配额必须是 0-200 的整数。",
+  // ---- P9 节奏区（09 详设 §2；收敛两项：自主观察开关+心跳间隔 30-1440min） ----
+  "mate.config.rhythm.title": "节奏（自主循环）",
+  "mate.config.rhythm.toggle": "自主观察",
+  "mate.config.rhythm.on": "开——大副按心跳自主评估工作",
+  "mate.config.rhythm.off": "关——自主循环停跳",
+  "mate.config.rhythm.hint":
+    "大副按心跳自主观察全部工作台账，默认安静，只有不回应就会损失什么时才开口；建议一律落为决策卡由你终审，永不自动执行。",
+  "mate.config.rhythm.interval": "心跳间隔（分钟）",
+  "mate.config.rhythm.intervalInvalid": "心跳间隔必须是 30-1440 的整数。",
   "mate.query.reply.title": "大副答复",
   "mate.query.reply.dismiss": "知道了",
   "mate.query.reply.hint": "答复由大副账本生成——未创建工单。",

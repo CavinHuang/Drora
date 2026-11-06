@@ -10,7 +10,7 @@
  *   带 teams 会话行、闲时任务行（导航不可达=禁用+提示语义）；
  * - 跨项目组 fixture/workspace-b：一条会话行（跨组导航传组键作路径的既有通道断言）。
  */
-import type { MateWorkInventoryView } from "@drora/shared";
+import { ASSISTANT_TICKET_STATUSES, type MateWorkInventoryView } from "@drora/shared";
 
 /** 台账工单行的快照实体 id（injectInventory 幂等登记 + MSA15 行点击断言锚）。 */
 export const INVENTORY_FIXTURE_TICKET_ID = "T-inv-1";
@@ -78,5 +78,84 @@ export function buildMateInventoryFixtureView(ownKey: string): MateWorkInventory
         ],
       },
     ],
+  };
+}
+
+// ---------------------------------------------------------------------------
+// P8b 注入状态件（mate-browser.fixture-service 拆出——单文件 ≤800 行纪律）：
+// 三态切换（有视图/就绪中/无工作）的内存态与注入动作，publish 闭包由服务工厂传入。
+// ---------------------------------------------------------------------------
+
+/** 注入工单行的最小容器接缝（fixture-service 闭包数组；工单实体须落 snapshot.tickets）。 */
+export interface InventoryInjectDeps {
+  hasTicket(ticketId: string): boolean;
+  pushTicket(ticket: {
+    id: string;
+    brief: string;
+    briefFull: string;
+    status: string;
+    targetWorkspaceIdentity: string;
+    sessionId: string;
+    outputSummary: null;
+    failReason: null;
+    usage: { inputTokens: number; outputTokens: number };
+    updatedAtMs: number;
+    queuedReason: string;
+    generationCount: number;
+  }): void;
+  publish(): void;
+  workspaceKey: string;
+}
+
+export function createInventoryInjectFixture(deps: InventoryInjectDeps): {
+  view: MateWorkInventoryView | null;
+  ready: boolean;
+  inject(): void;
+  clear(): void;
+  empty(): void;
+} {
+  let view: MateWorkInventoryView | null = null;
+  let ready = false;
+  return {
+    get view() {
+      return view;
+    },
+    get ready() {
+      return ready;
+    },
+    /** 注入视图+工单实体（同点重复注入幂等——实体已在即只刷视图引用）。 */
+    inject() {
+      if (!deps.hasTicket(INVENTORY_FIXTURE_TICKET_ID)) {
+        deps.pushTicket({
+          id: INVENTORY_FIXTURE_TICKET_ID,
+          brief: INVENTORY_FIXTURE_TICKET_BRIEF,
+          briefFull: INVENTORY_FIXTURE_TICKET_BRIEF,
+          status: ASSISTANT_TICKET_STATUSES.queued,
+          targetWorkspaceIdentity: deps.workspaceKey,
+          sessionId: "sess-inv-managed",
+          outputSummary: null,
+          failReason: null,
+          usage: { inputTokens: 0, outputTokens: 0 },
+          updatedAtMs: Date.now() - 60_000,
+          queuedReason: "MSA15 台账验收排队",
+          generationCount: 0,
+        });
+      }
+      view = buildMateInventoryFixtureView(deps.workspaceKey);
+      ready = true;
+      deps.publish();
+    },
+    /** 清空视图（ready 保持 true）→「投影就绪中」态。 */
+    clear() {
+      view = null;
+      ready = true;
+      deps.publish();
+    },
+    /** 空台账视图（workspaces 空）→「无工作」空态。 */
+    empty() {
+      view = { workspaces: [] };
+      ready = true;
+      deps.publish();
+    },
   };
 }

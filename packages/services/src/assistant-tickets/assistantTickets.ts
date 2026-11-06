@@ -266,6 +266,16 @@ export interface AssistantSnapshot {
    * ——UI 总览卡据此「卡不渲染」，不猜不超时兜底（AGENTS：不用超时掩盖同步问题）。
    */
   readonly inventoryReady?: boolean;
+  /**
+   * P9（09 详设 §2）：自主节奏投影（设置区节奏区数据源；可选追加，version 不变）。
+   * enabled=总闸 autonomy_enabled 当前值；intervalMinutes=心跳间隔（分钟）；
+   * lastRoundMs=上轮执行时刻（null=尚未跳过）。
+   */
+  readonly rhythm?: {
+    readonly enabled: boolean;
+    readonly intervalMinutes: number;
+    readonly lastRoundMs: number | null;
+  };
   readonly updatedAtMs: number;
 }
 
@@ -423,6 +433,13 @@ export interface IAssistantTicketService {
   }): Promise<AssistantResult<{ ok: true }>>;
   /** P5：watchdog 轮询间隔（分钟；服务内换算 ms 落 kv，读侧语义不变）。 */
   setWatchdogIntervalMinutes(input: { minutes: number }): Promise<AssistantResult<{ ok: true }>>;
+  /**
+   * P9（09 详设 §2.3 闸 5）：自主观察总闸（autonomy_enabled kv；缺省 true）。
+   * observe/auto 模式下控制自主循环启停；off 模式整体停跳不受本开关影响。
+   */
+  setAutonomyEnabled(input: { enabled: boolean }): Promise<AssistantResult<{ ok: true }>>;
+  /** P9：自主心跳间隔（分钟；bounds=ASSISTANT_CONFIG_LIMITS.autonomyIntervalMinutes）。 */
+  setAutonomyIntervalMinutes(input: { minutes: number }): Promise<AssistantResult<{ ok: true }>>;
   /** P5：Source 开关配置整体替换（github 启用须合法 repo+点名词；publish 即 reconcile）。 */
   setSourcesConfig(
     input: import("./sources/contract.js").MateSourcesConfig,

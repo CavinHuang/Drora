@@ -96,6 +96,13 @@ export interface AssistantFrameSourcePort {
 export type AssistantRouterPort = (input: {
   /** composeCandidateCard 的完整首条输入（约言+卡文+Tier2 候选集）。 */
   readonly card: string;
+  /**
+   * P9（09 号详设 §2.1 v2）：本输入是否计入 Router 轮转计数（ticketsSinceRotation
+   * 只数候选卡轮——自主轮是观察不是工作）。缺省 true=候选卡轮照旧；autonomy.ts 传
+   * false=评估走当前活跃 Router 会话追加轮，但不推进轮转计数（装配层 node.ts 是
+   * 计数唯一写者，本字段只是「不计数」的显式声明）。
+   */
+  readonly countTowardsRotation?: boolean;
 }) => Promise<{ ok: true; output: string } | { ok: false; reason: string }>;
 
 // ---------------------------------------------------------------------------

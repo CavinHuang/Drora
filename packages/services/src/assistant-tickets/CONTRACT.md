@@ -127,6 +127,30 @@ ticket.channel_ref）；Thread 直通 Tier1。
   不用超时兜底）。UI 落点=MateWorkOverview（ui/mate，面板顶部状态条下；行点击=
   selectTicket / onOpenMateSession 既有导航 / 闲时禁用提示），验收=MSA15+服务单测
   （assistantQueryReply work scope 矩阵、assistantWorkInventory inventoryReady 投影）。
+- **P9 自主节奏层（09 号详设 §2 v2 定案；feat/drora-mate）**：自主评估循环
+  autonomy.ts——心跳=watchdog cron tick 同源（host face `runAutonomyRound` **fire-and-forget
+  不进 watchdog await 链**；kv `autonomy_interval_ms` 缺省 30min 节流+`autonomy_enabled`
+  总闸缺省 true；off=整体停跳含评估读）。自主评估=composeLedgerDigest 速览直调 router port
+  （输入含「本输入为自主评估」互扰标记；`countTowardsRotation=false` 不计入
+  ticketsSinceRotation）→ 独立 zod `autonomyVerdictSchema` 三臂恰现其一（quiet/report{text≤800}
+  /suggest{brief,dispatch|attach+参数}——非 routerDecisionSchema 第六臂；解析失败=quiet+warn
+  不落 router_evaluation 不进 Tier3 不计轮转）。三臂出口：quiet 零动作；report→
+  admitDisturbanceTx(kind=report) 过闸→自主通知区 kv `autonomy_notices`（与 watchdog_notices
+  **分键单写者**——watchdog 轮判据出清按 ticket 事实维护，混写会被吞并；快照
+  watchdogNotices 合并投影=MateDigestCard 既有面零改动）+桌宠气泡（ui petProjection
+  autonomyBubble+deriveMateAutonomyBubble，发布方不二次计数）；suggest→独立建卡事务
+  `insertAutonomySuggestCardTx`（trigger source_kind=autonomy+strength=`autonomous`
+  字面量如实标注（contracts ASSISTANT_AUTONOMY_STRENGTH）+decision outcome=decision_card
+  decided_by=gate+同事务 decision 配额计数+**建卡即写 `autonomy_muted:<对象hash>` 24h**
+  （对象 hash=suggest 的 workspace/sessionId/brief 排序序列——autonomy.ts 注释即规则出处）
+  ；**不调 scheduleRouterEvaluation——auto 模式无任何自动建票路径**，卡上 routerState
+  缺席=无建议区人工终审）。防打扰五闸：配额闸/速览指纹去重 24h（kv `autonomy_fingerprint`
+  ；hash 输入域=对象集合+状态摘要，排除一切时刻类字段）/建卡即冷却/否定记忆 48h
+  （服务 ignoreDecision 事务内 `writeAutonomyNegationTx`——对象 hash 经
+  `autonomy_object:<triggerId>` 登记回取，消费即清）/总闸+首启一次性告知通知。快照
+  `rhythm?` 投影（设置区节奏区数据源；setter=setAutonomyEnabled/setAutonomyIntervalMinutes
+  在 configActions）。验收=assistantAutonomy.test.ts（24 项）+cron fire-and-forget 3 项
+  +petProjection 自主气泡差分 3 项+MSA16。
 - 端口纪律：本模块不 import drora-agent/git——v4 命令、会话索引、workspace 探测、
   git worktree、工件只读核验（P4 第二棒）、AppSettings 配额读（P4）八端口全在装配层
   （services/node.ts set*，assistantPorts.ts 唯一形状）；

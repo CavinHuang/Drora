@@ -227,6 +227,19 @@ const MATE_CONSUMED_KEYS: readonly string[] = [
   "mate.work.managed.hint",
   "mate.work.session.managed",
   "mate.work.offpeak.disabled",
+  // P9 自主节奏（09 详设 §2）：来源徽标（mateSourceKindMessageId 第五枚举）、自主
+  // 通知区 kind（MateDigestCard kind 徽标映射）、节奏区（MateConfigSection 节奏两键
+  // +状态/提示/间隔校验——快照 rhythm? 缺席=区不渲染，键仍在词典守护）。
+  "mate.source.autonomy",
+  "mate.watchdog.kind.autonomy_report",
+  "mate.watchdog.kind.autonomy_first_notice",
+  "mate.config.rhythm.title",
+  "mate.config.rhythm.toggle",
+  "mate.config.rhythm.on",
+  "mate.config.rhythm.off",
+  "mate.config.rhythm.hint",
+  "mate.config.rhythm.interval",
+  "mate.config.rhythm.intervalInvalid",
 ];
 
 /** tab 条与 launcher 消费（sidePaneTabPresentation / AnimatedSidePanePanel launcher）。 */

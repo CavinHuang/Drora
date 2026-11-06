@@ -678,6 +678,7 @@ import {
 } from "./assistant-tickets/workInventoryBootstrap.js";
 import { ROUTER_KV_KEYS, shouldRotateRouterSession } from "./assistant-tickets/routerShell.js";
 import type { AssistantWatchdogRoundResult } from "./assistant-tickets/watchdog.js";
+import type { AssistantAutonomyRoundResult } from "./assistant-tickets/autonomy.js";
 import { ASSISTANT_ERROR_CODES, ASSISTANT_IDENTITY, ASSISTANT_SETTINGS_KEYS } from "@drora/shared";
 import type { SessionSummary } from "@drora/shared/drora-protocol-v4";
 import { createGitCommandProvider } from "./git/providers/gitCommandProvider.js";
@@ -911,6 +912,14 @@ const assistantTicketDisposers = new WeakMap<ServiceCollection, () => void>();
 // 的窄入口，不是 renderer 隔离；误调兜底=kv 到轮节流+纯标记/通知语义。
 export interface AssistantTicketsHostFace {
   runWatchdogRound(input?: { nowMs?: number }): Promise<AssistantWatchdogRoundResult>;
+  /**
+   * P9 自主评估轮入口（09 详设 §2.1 v2 定案；服务 runAutonomyRound 同名透传）。
+   * **可缺席 + fire-and-forget**：cron tick 侧 `void face.runAutonomyRound?.()`——
+   * **不进 watchdog await 链**（自主轮 fire-and-forget，慢评估不阻塞 watchdog 轮的
+   * 串行位）；缺席（旧 host face）=无自主循环，合法。到轮判定/总闸/off 停跳在服务
+   * 侧按 kv+config 裁决（缺省 30min 节流）。
+   */
+  runAutonomyRound?(input?: { nowMs?: number }): Promise<AssistantAutonomyRoundResult>;
   /**
    * P8 台账刷新环路入口（09 详设 §1.2 v2 定案；服务 refreshInventory 同名透传）。
    * **可缺席**：旧 host face 消费方 optional-call（`face.refreshInventory?.()`），
@@ -3619,7 +3628,7 @@ export function createLocalServices(options: {
     createServiceLogger("assistant-tickets").info("Router 会话轮转", { seq: nextSeq });
     return sessionId;
   }
-  setAssistantRouterPort(async ({ card }) => {
+  setAssistantRouterPort(async ({ card, countTowardsRotation }) => {
     // mate-home 目录唯一创建方（2026-11-06 审查 F5 修复）：Router/assistant 会话的
     // workspacePath=getAssistantWorkspaceDir()，此前全仓无 mkdir——CLI 会话目录不存在时
     // spawn 走 droraAgentSpawnCwd fallback cwd（resolveDroraAgentSpawnCwd），真实落位
@@ -3700,8 +3709,14 @@ export function createLocalServices(options: {
                 clientId: "drora-mate",
               }),
             });
-            const tickets = Number(assistantKvGet(ROUTER_KV_KEYS.ticketsSinceRotation) ?? "0") + 1;
-            assistantKvSet(ROUTER_KV_KEYS.ticketsSinceRotation, String(tickets));
+            // P9（09 详设 §2.1 v2）：ticketsSinceRotation 只数候选卡轮——自主轮是观察
+            // 不是工作，countTowardsRotation=false（autonomy.ts 传入）不推进计数；
+            // 缺省（候选卡评估链）照旧 +1。
+            if (countTowardsRotation !== false) {
+              const tickets =
+                Number(assistantKvGet(ROUTER_KV_KEYS.ticketsSinceRotation) ?? "0") + 1;
+              assistantKvSet(ROUTER_KV_KEYS.ticketsSinceRotation, String(tickets));
+            }
             // 双臂等待：complete→输出；failed/interrupted→{ok:false}（评估落 failed 降级 Tier3）。
             return await outputPromise;
           } finally {
@@ -4116,6 +4131,9 @@ export function createLocalServices(options: {
   // 不再透传接缝参数。
   assistantTicketsHostFaces.set(services, {
     runWatchdogRound: (input) => assistantTicketService.runWatchdogRound(input),
+    // P9 自主评估轮入口（09 §2.1）：cron tick fire-and-forget 调用（不进 watchdog
+    // await 链）；到轮/总闸/off 停跳在服务侧裁决。
+    runAutonomyRound: (input) => assistantTicketService.runAutonomyRound(input),
     // P8 台账刷新环路入口（09 §1.2）：装配层回调经 face 触发，服务侧节流重 publish。
     refreshInventory: () => assistantTicketService.refreshInventory(),
   });

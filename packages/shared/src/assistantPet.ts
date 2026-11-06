@@ -38,6 +38,9 @@ export const matePetPendingDecisionSchema = z
       ASSISTANT_SOURCE_KINDS.feishu,
       ASSISTANT_SOURCE_KINDS.phone,
       ASSISTANT_SOURCE_KINDS.github,
+      // P9（09 号详设 §2.2.1）：自主节奏 suggest 卡——速览行同形呈现（无建议档，
+      // autonomy 卡不进候选卡评估循环，routerState 天然缺席）。
+      ASSISTANT_SOURCE_KINDS.autonomy,
     ]),
     identity: z.string().min(1).max(160),
     /** Router 建议档（可选；速览行展示+decide 预填放行档——与面板放行同参）。 */
@@ -114,9 +117,25 @@ export const matePetProjectionSchema = z
      * 与自动隐藏（呈现节流，不承担同步语义）。
      */
     bubble: matePetLatestReportSchema.nullable(),
+    /**
+     * P9（09 号详设 §2.2）：自主节奏 report 帧气泡（差分源扩 report 帧；可选追加
+     * 不破旧帧）。发布方按 autonomousKey 差分判定（deriveMateAutonomyBubble 单测
+     * 锁定）；文本已经服务侧 admitDisturbance(kind=report) 过闸——发布方不再二次
+     * 计数（decision 类语义对齐：一次 report 一次闸）。宠物窗同元素展示、点击直达
+     * 大副面板（open-mate 命令；工单号缺席不做 open-ticket）。null=本帧不弹。
+     */
+    autonomyBubble: z
+      .object({
+        summary: boundedText,
+        atMs: z.number().finite().nonnegative(),
+      })
+      .strict()
+      .nullable()
+      .optional(),
   })
   .strict();
 export type MatePetProjection = z.infer<typeof matePetProjectionSchema>;
+export type MatePetAutonomyBubble = NonNullable<NonNullable<MatePetProjection["autonomyBubble"]>>;
 
 /** 空「全收起」投影（模块级常量：发布方空闲态回退需稳定引用）。 */
 export const EMPTY_MATE_PET_PROJECTION: MatePetProjection = {
@@ -127,7 +146,7 @@ export const EMPTY_MATE_PET_PROJECTION: MatePetProjection = {
   bubble: null,
 };
 
-/** Pet/Tray → Main 命令（速览点卡/放行忽略；dismiss-bubble 是宠物窗局部态不过 IPC）。 */
+/** Pet/Tray → Main 命令（速览点卡/放行忽略/自主气泡直达面板；dismiss-bubble 是宠物窗局部态不过 IPC）。 */
 export const matePetCommandSchema = z.discriminatedUnion("action", [
   z.object({
     action: z.literal("open-ticket"),
@@ -139,6 +158,11 @@ export const matePetCommandSchema = z.discriminatedUnion("action", [
     decisionId: z.number().int().positive(),
     choice: z.enum(["approve", "ignore"]),
   }),
+  /**
+   * P9（09 号详设 §2.2）：自主 report 气泡点击=直达大副面板（无工单号，不做
+   * open-ticket 猜测）；Main 转发既有 open-mate rendererEvent。
+   */
+  z.object({ action: z.literal("open-mate") }),
 ]);
 export type MatePetCommand = z.infer<typeof matePetCommandSchema>;
 

@@ -16,12 +16,13 @@ import {
   ASSISTANT_STRENGTHS,
   ASSISTANT_TICKET_STATUSES,
 } from "@drora/shared";
-import type { AssistantMode, MateWorkInventoryView } from "@drora/shared";
+import type { AssistantMode } from "@drora/shared";
+import { createInventoryInjectFixture } from "./mate-browser.fixture-inventory.js";
 import {
-  buildMateInventoryFixtureView,
-  INVENTORY_FIXTURE_TICKET_BRIEF,
-  INVENTORY_FIXTURE_TICKET_ID,
-} from "./mate-browser.fixture-inventory.js";
+  AUTONOMY_FIXTURE_BRIEF,
+  createAutonomyRhythmFixture,
+  injectAutonomyCardFixture,
+} from "./mate-browser.fixture-autonomy.js";
 import type {
   AssistantDecisionView,
   AssistantRouterSuggestionView,
@@ -52,6 +53,8 @@ interface FixtureDecision {
   triggerText: string;
   decidedMs: number;
   sourceKind: string;
+  /** P9：autonomy 卡强度字面量（contracts ASSISTANT_AUTONOMY_STRENGTH=autonomous；缺席=explicit）。 */
+  strength?: string;
   /** P7（08 号详设 §3.4）：query_status 臂的确定性答复文本。 */
   answer?: string;
   routerState?: "pending" | "suggested" | "failed";
@@ -123,11 +126,9 @@ export function createMateFixtureService(
   let autoLockedNext = false;
   // P3 接缝批：手机入口 ingest 结果读点（direct:<ticketId>:<text> / gate:<triggerId>:<outcome>）。
   let lastIngest = "";
-  // P8b 台账注入（MSA15 消费；真实三源组装在 host 侧 workInventoryBootstrap，夹具只造
-  // 快照事实）：inventoryView=null + ready=false =旧 Host 缺席（卡不渲染）；ready=true
-  // + view=null =「投影就绪中」；view.workspaces 空 =「无工作」。
-  let inventoryView: MateWorkInventoryView | null = null;
-  let inventoryReady = false;
+  // P8b 台账注入状态件拆 mate-browser.fixture-inventory.ts（≤800 行纪律）；P9 自主
+  // 节奏状态件拆 mate-browser.fixture-autonomy.ts。缺席/就绪语义见各拆件文件头。
+  const autonomyRhythm = createAutonomyRhythmFixture(publish);
   // P4 配额中心内存版（IAssistantTicketService 形状补齐；判定语义与服务 admitDisturbance
   // 同构简化：decision 永不抑制仍计数、report/bubble 超配额聚合当日 digest）。
   const quotaDay = { date: "", decision: 0, report: 0, bubble: 0, digest: [] as string[], digestDelivered: false };
@@ -177,7 +178,7 @@ export function createMateFixtureService(
     const decisionViews: AssistantDecisionView[] = decisions.map((decision) => ({
       id: decision.id,
       triggerId: decision.triggerId,
-      strength: ASSISTANT_STRENGTHS.explicit,
+      strength: (decision.strength ?? ASSISTANT_STRENGTHS.explicit) as AssistantDecisionView["strength"],
       mode: ASSISTANT_MODES.observe,
       outcome: decision.outcome,
       decidedBy: decision.decidedBy,
@@ -240,8 +241,9 @@ export function createMateFixtureService(
         };
       })(),
       watchdogNotices: watchdogNotices.slice(-5).map((notice) => ({ ...notice })),
-      ...(inventoryReady ? { inventoryReady: true as const } : {}),
-      ...(inventoryView ? { inventory: inventoryView } : {}),
+      ...(inventoryInject.ready ? { inventoryReady: true as const } : {}),
+      ...(inventoryInject.view ? { inventory: inventoryInject.view } : {}),
+      ...(autonomyRhythm.rhythm ? { rhythm: autonomyRhythm.rhythm } : {}),
       updatedAtMs,
     };
   }
@@ -320,6 +322,20 @@ export function createMateFixtureService(
     return seq;
   }
 
+  /** P9 自主节奏 suggest 卡注入（注入件拆 mate-browser.fixture-autonomy.ts；MSA16）。 */
+  function injectAutonomyCard(text: string = AUTONOMY_FIXTURE_BRIEF): number {
+    return injectAutonomyCardFixture({
+      allocateId: () => {
+        seq += 1;
+        return seq;
+      },
+      pushTrigger: (trigger) => triggers.push(trigger),
+      pushDecision: (decision) => decisions.push(decision),
+      publish,
+      workspaceIdentity: tab.workspaceIdentity ?? undefined,
+    }, text);
+  }
+
   /**
    * 注入 auto_notice×gate 告知卡（F4 验收，mate-surface-ac MSA12 消费；真实 auto 直派
    * 判定在 host 侧，renderer 夹具按诚实边界只造快照事实）。带同 decisionId 的 done 工单
@@ -395,46 +411,25 @@ export function createMateFixtureService(
   }
 
   /**
-   * P8b 台账注入（MSA15 验收消费；真实三源组装在 host 侧，夹具只造快照事实——
-   * 视图形状在 mate-browser.fixture-inventory.ts 拆件）。
-   * 同点重复注入幂等（T-inv-1 已在即只刷视图引用）：工单行必须在 snapshot.tickets
-   * 有实体（总览卡工单行点击=selectTicket，详情视图按快照工单集渲染——诚实降级）。
+   * P8b 台账注入（MSA15 验收消费；状态件拆 mate-browser.fixture-inventory.ts——
+   * 工单实体须落 snapshot.tickets：总览卡工单行点击=selectTicket，详情视图按快照
+   * 工单集渲染——诚实降级）。同点重复注入幂等。
    */
-  function injectInventory(): void {
-    if (!tickets.some((ticket) => ticket.id === INVENTORY_FIXTURE_TICKET_ID)) {
-      tickets.push({
-        id: INVENTORY_FIXTURE_TICKET_ID,
-        brief: INVENTORY_FIXTURE_TICKET_BRIEF,
-        briefFull: INVENTORY_FIXTURE_TICKET_BRIEF,
-        status: ASSISTANT_TICKET_STATUSES.queued,
-        targetWorkspaceIdentity: tab.workspaceIdentity ?? tab.workspaceKey,
-        sessionId: "sess-inv-managed",
-        outputSummary: null,
-        failReason: null,
-        usage: { inputTokens: 0, outputTokens: 0 },
-        updatedAtMs: Date.now() - 60_000,
-        queuedReason: "MSA15 台账验收排队",
-        generationCount: 0,
-      });
-    }
-    inventoryView = buildMateInventoryFixtureView(tab.workspaceIdentity ?? tab.workspaceKey);
-    inventoryReady = true;
-    publish();
-  }
+  const inventoryInject = createInventoryInjectFixture({
+    hasTicket: (ticketId) => tickets.some((ticket) => ticket.id === ticketId),
+    pushTicket: (ticket) => tickets.push(ticket),
+    publish,
+    workspaceKey: tab.workspaceIdentity ?? tab.workspaceKey,
+  });
+  const injectInventory = (): void => inventoryInject.inject();
+  const clearInventory = (): void => inventoryInject.clear();
+  const emptyInventory = (): void => inventoryInject.empty();
 
-  /** P8b：清空台账视图（ready 保持 true）——总览卡「投影就绪中」态验收。 */
-  function clearInventory(): void {
-    inventoryView = null;
-    inventoryReady = true;
-    publish();
-  }
-
-  /** P8b：空台账视图（ready=true + workspaces 空）——总览卡「无工作」空态验收。 */
-  function emptyInventory(): void {
-    inventoryView = { workspaces: [] };
-    inventoryReady = true;
-    publish();
-  }
+  /**
+   * P9 节奏投影注入（MSA16 消费；状态件在 mate-browser.fixture-autonomy.ts——夹具从
+   * 「旧 Host 缺席」态注入一份缺省投影以验收节奏区渲染与写入回显）。
+   */
+  const injectRhythm = (): void => autonomyRhythm.injectRhythm();
 
   const service: IAssistantTicketService = {
     async recordTrigger(input) {
@@ -733,6 +728,9 @@ export function createMateFixtureService(
       publish();
       return { ok: true, value: { ok: true } };
     },
+    // P9 节奏区两 setter（内存实现件拆 mate-browser.fixture-autonomy.ts；快照回显）。
+    setAutonomyEnabled: (input) => autonomyRhythm.setAutonomyEnabled(input),
+    setAutonomyIntervalMinutes: (input) => autonomyRhythm.setAutonomyIntervalMinutes(input),
     async setTrustGateThresholds(input) {
       trustThresholds = {
         minRate: input.minRate ?? trustThresholds.minRate,
@@ -843,6 +841,10 @@ export function createMateFixtureService(
     injectRouterDecision,
     injectAutoNotice,
     injectQueryReply,
+    // P9 自主节奏验收控件（mate-surface-ac MSA16 消费；既有场景不点不触发）。
+    injectAutonomyCard,
+    /** 注入节奏投影（enabled=true/30min 缺省——「有节奏投影的 Host」态）。 */
+    injectRhythm,
     submitSource: service.submitSourceEntry,
     /** F1 守卫读点（mate-surface-ac MSA11 消费）：绕过 UI 直调 approveDecision 且
      * **不带 targetWorkspaceIdentity**——命中 trigger 落库回读臂（真实链 decision.

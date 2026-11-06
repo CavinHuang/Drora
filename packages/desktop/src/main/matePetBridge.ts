@@ -66,6 +66,8 @@ export function createMatePetBridgeCore() {
       const parsed = matePetCommandSchema.safeParse(raw);
       if (!parsed.success) return null;
       const value = parsed.data;
+      // P9（09 详设 §2.2）：自主 report 气泡点击=直达大副面板（无工单号）。
+      if (value.action === "open-mate") return { kind: "open-mate" };
       if (value.action === "open-ticket")
         return {
           kind: "open-ticket",

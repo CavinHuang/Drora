@@ -109,6 +109,8 @@ function Fixture() {
     injectInventory,
     clearInventory,
     emptyInventory,
+    injectAutonomyCard,
+    injectRhythm,
   } = useMemo(
     () =>
       createMateFixtureService(
@@ -253,6 +255,14 @@ function Fixture() {
               </button>
               <button data-testid="fixture-inventory-empty" onClick={() => emptyInventory()}>
                 台账无工作
+              </button>
+              {/* P9 自主节奏验收（MSA16 消费；真实建卡事务在 host 侧 autonomy.ts 独立
+                  事务——不进候选卡评估循环，夹具只造快照事实）。 */}
+              <button data-testid="fixture-inject-autonomy" onClick={() => injectAutonomyCard()}>
+                注入自主建议卡
+              </button>
+              <button data-testid="fixture-inject-rhythm" onClick={() => injectRhythm()}>
+                注入节奏投影
               </button>
               <button data-testid="fixture-queue-next" onClick={queueNext}>
                 Queue next approve

@@ -38,7 +38,8 @@ export type {
 // projectMatePet/deriveMatePetBubble；matePetBubbleKey/matePetReportSummary 是
 // petProjection 内部辅助（模块外零引用，G3 审查 2026-11-06 收敛）——经 petProjection
 // 自测直连 "./petProjection.js" 消费，不经 barrel 外泄。
-export { deriveMatePetBubble, projectMatePet } from "./petProjection.js";
+// P9：deriveMateAutonomyBubble 同为发布方消费面（自主 report 帧差分，09 详设 §2.2）。
+export { deriveMateAutonomyBubble, deriveMatePetBubble, projectMatePet } from "./petProjection.js";
 export type { MateLocalUiState } from "./contract.js";
 export { mateTicketLampTone, MATE_LAMP_TONE_CLASS } from "./statusTone.js";
 export type { MateLampTone } from "./statusTone.js";

@@ -48,6 +48,7 @@ export const MateConfigSection = memo(function MateConfigSection({
   modelPreference,
   trustGateThresholds,
   watchdogIntervalMinutes,
+  rhythm,
   sourcesConfig,
   identityMap,
 }: {
@@ -68,6 +69,11 @@ export const MateConfigSection = memo(function MateConfigSection({
   trustGateThresholds?: { minRate: number; minSamples: number };
   /** P5：watchdog 轮询间隔（分钟；快照投影）。 */
   watchdogIntervalMinutes?: number;
+  /**
+   * P9（09 详设 §2）：自主节奏投影（快照 rhythm?；undefined=旧 Host 不渲染节奏区，
+   * 诚实降级不猜测）。enabled=总闸当前值；intervalMinutes=心跳间隔（分钟）。
+   */
+  rhythm?: { enabled: boolean; intervalMinutes: number; lastRoundMs: number | null };
   /** P5：Source 开关配置（快照投影；undefined=旧 Host 空配置）。 */
   sourcesConfig?: {
     feishu?: { enabled?: boolean };
@@ -87,6 +93,9 @@ export const MateConfigSection = memo(function MateConfigSection({
   const setBudget = useMateStore((state) => state.setBudget);
   const setTrustGateThresholds = useMateStore((state) => state.setTrustGateThresholds);
   const setWatchdogIntervalMinutes = useMateStore((state) => state.setWatchdogIntervalMinutes);
+  // P9 节奏区动作（09 详设 §2；开关只发服务动作，不落本地副本——快照回填唯一事实）。
+  const setAutonomyEnabled = useMateStore((state) => state.setAutonomyEnabled);
+  const setAutonomyIntervalMinutes = useMateStore((state) => state.setAutonomyIntervalMinutes);
   const recordTrigger = useMateStore((state) => state.recordTrigger);
   // P4 第二棒：每日配额调整走 AppSettings（useSettings 写 droraMateDailyQuota，键字面量
   // contracts ASSISTANT_SETTINGS_KEYS 单出处）。settings 服务缺席（本仓夹具/远端降级形态）
@@ -128,6 +137,16 @@ export const MateConfigSection = memo(function MateConfigSection({
     setIntervalDraft(`${watchdogIntervalMinutes}`);
   }, [advancedDirty, watchdogIntervalMinutes]);
   const [quotaDirty, setQuotaDirty] = useState(false);
+  // P9 节奏区草稿（09 详设 §2）：心跳间隔输入（开关无草稿——只发动作）；dirty 纪律
+  // 照 quotaDraft（未 dirty 跟随快照事实源，保存成功清 dirty 后快照回填）。
+  const [autonomyIntervalDraft, setAutonomyIntervalDraft] = useState(() =>
+    rhythm ? `${rhythm.intervalMinutes}` : "",
+  );
+  const [autonomyDirty, setAutonomyDirty] = useState(false);
+  useEffect(() => {
+    if (autonomyDirty || rhythm === undefined) return;
+    setAutonomyIntervalDraft(`${rhythm.intervalMinutes}`);
+  }, [autonomyDirty, rhythm]);
   useEffect(() => {
     if (quotaDirty || dailyQuota === undefined) return;
     setQuotaDraft(`${dailyQuota}`);
@@ -210,6 +229,27 @@ export const MateConfigSection = memo(function MateConfigSection({
   const handleWorktreeToggle = (checked: boolean): void => {
     // 快照推送是唯一事实：开关只发服务动作，不落本地副本（服务确认值随下次快照回填）。
     run(setWorktreeDisabled(service, workspaceKey, !checked));
+  };
+
+  // P9 节奏区（09 详设 §2）：自主观察开关（同 worktree 开关纪律——只发动作）；间隔
+  // 保存走本地 bounds 预检（ASSISTANT_CONFIG_LIMITS 单出处同界）+服务 fail-closed 双闸。
+  const handleAutonomyToggle = (checked: boolean): void => {
+    run(setAutonomyEnabled(service, workspaceKey, checked));
+  };
+
+  const handleSaveAutonomyInterval = (): void => {
+    const minutes = Number(autonomyIntervalDraft);
+    const limits = ASSISTANT_CONFIG_LIMITS.autonomyIntervalMinutes;
+    if (
+      autonomyIntervalDraft.trim() === "" ||
+      !Number.isInteger(minutes) ||
+      minutes < limits.min ||
+      minutes > limits.max
+    ) {
+      setFailure("mate.config.rhythm.intervalInvalid");
+      return;
+    }
+    run(setAutonomyIntervalMinutes(service, workspaceKey, minutes), () => setAutonomyDirty(false));
   };
 
   // P4 第二棒（04 详设 §4）：每日配额保存——0-整数上界（缺省/上界=contracts
@@ -514,6 +554,75 @@ export const MateConfigSection = memo(function MateConfigSection({
         sourcesConfig={sourcesConfig}
         identityMap={identityMap}
       />
+
+      {/* P9 节奏区（09 详设 §2 收敛两项：自主观察开关+心跳间隔 30-1440min）；置于
+          Source 设置区之后——mate-config 内 role=switch 序（MSA13 按 nth 定位 github）
+          保持 worktree/feishu/phone/github 前置不变。旧 Host 快照 rhythm? 缺席时
+          不渲染（诚实降级不猜测）。 */}
+      {rhythm !== undefined ? (
+        <div className="flex flex-col gap-1.5" data-testid="mate-config-rhythm">
+          <span className="text-ui-xs text-foreground-subtlest">
+            {intl.formatMessage({ id: "mate.config.rhythm.title" })}
+          </span>
+          <div className="flex items-center gap-2">
+            <label htmlFor="mate-autonomy-switch" className="text-ui-sm font-medium text-foreground">
+              {intl.formatMessage({ id: "mate.config.rhythm.toggle" })}
+            </label>
+            <Switch
+              id="mate-autonomy-switch"
+              size="sm"
+              checked={rhythm.enabled}
+              onCheckedChange={handleAutonomyToggle}
+              data-testid="mate-autonomy-switch"
+              aria-label={intl.formatMessage({ id: "mate.config.rhythm.toggle" })}
+            />
+            <span className="text-ui-xs text-foreground-subtlest" data-testid="mate-autonomy-state">
+              {intl.formatMessage({
+                id: rhythm.enabled ? "mate.config.rhythm.on" : "mate.config.rhythm.off",
+              })}
+            </span>
+            <ControlHintTooltip title={intl.formatMessage({ id: "mate.config.rhythm.hint" })}>
+              <span
+                className="inline-flex cursor-help text-ui-xs text-foreground-subtlest"
+                data-testid="mate-autonomy-hint"
+              >
+                ?
+              </span>
+            </ControlHintTooltip>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <label
+              htmlFor="mate-autonomy-interval-input"
+              className="text-ui-xs text-foreground-subtlest"
+            >
+              {intl.formatMessage({ id: "mate.config.rhythm.interval" })}
+            </label>
+            <input
+              id="mate-autonomy-interval-input"
+              type="number"
+              min={ASSISTANT_CONFIG_LIMITS.autonomyIntervalMinutes.min}
+              max={ASSISTANT_CONFIG_LIMITS.autonomyIntervalMinutes.max}
+              step={1}
+              value={autonomyIntervalDraft}
+              onChange={(event) => {
+                setAutonomyIntervalDraft(event.target.value);
+                setAutonomyDirty(true);
+              }}
+              className="w-20 rounded-lg border border-input-border bg-input px-2 py-1.5 font-mono text-ui-sm text-foreground focus:border-input-border-focused focus:outline-none"
+              data-testid="mate-autonomy-interval-input"
+            />
+            <Button
+              size="xs"
+              variant="outline"
+              disabled={!autonomyDirty}
+              onClick={handleSaveAutonomyInterval}
+              data-testid="mate-autonomy-interval-save"
+            >
+              {intl.formatMessage({ id: "common.save" })}
+            </Button>
+          </div>
+        </div>
+      ) : null}
 
       {/* P4 第二棒（04 详设 §4 调整入口）：每日打扰配额（条/日；0=非决策类全静音聚合，
           决策类不受限）。settings 服务缺席时输入禁用（诚实降级，不建第二条写路径）。 */}

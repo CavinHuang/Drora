@@ -22,7 +22,7 @@ const { default: tailwindcss } = await import(
 );
 
 test(
-  "MSA01–15: Surface A status strip, Router suggestion prefill (dispatch/attach/failed/hold), team action, queued notice, Surface C tabs, generation badge, session-line, W1 worktree toggle, F1 bare-approve chain guard + F2 trigger feedback, F4 auto-notice card, P7 query reply, P8 work overview card",
+  "MSA01–16: Surface A status strip, Router suggestion prefill (dispatch/attach/failed/hold), team action, queued notice, Surface C tabs, generation badge, session-line, W1 worktree toggle, F1 bare-approve chain guard + F2 trigger feedback, F4 auto-notice card, P7 query reply, P8 work overview card, P9 autonomy card badge + rhythm section echo",
   { timeout: 240000 },
   async () => {
     const output = await mkdtemp(join(tmpdir(), "mate-surface-ac-"));
@@ -449,6 +449,66 @@ test(
       assert.equal(await page.getByTestId("mate-work-overview-pending").count(), 0);
       await page.getByTestId("fixture-inject-inventory").click();
       await overview.waitFor();
+
+      // MSA16（P9 自主节奏，09 号详设 §2；真实心跳/评估/建卡事务在 host 侧 autonomy.ts
+      // ——renderer 夹具按诚实边界只造快照投影事实）：节奏区三步——旧 Host（快照
+      // rhythm? 缺席）=区不渲染 → 注入投影后区出现+开关/间隔写入→快照回显 → 越界本地
+      // 预检出界值文案；autonomy 决策卡=来源徽标「自主」+无建议区（不进候选卡评估
+      // 循环——routerState 天然缺席）+brief verbatim 呈现。
+      assert.equal(await page.getByTestId("mate-config-rhythm").count(), 0);
+      await page.getByTestId("fixture-inject-rhythm").click();
+      const rhythmSection = page.getByTestId("mate-config-rhythm");
+      await rhythmSection.waitFor();
+      // 开关写入回显：关 → 开（快照推送是唯一事实——开关只发动作，无本地副本）。
+      assert.match(await page.getByTestId("mate-autonomy-state").textContent(), /开/);
+      await page.getByTestId("mate-autonomy-switch").click();
+      await page.waitForFunction(
+        () =>
+          /关/.test(
+            document.querySelector('[data-testid="mate-autonomy-state"]')?.textContent ?? "",
+          ),
+      );
+      await page.getByTestId("mate-autonomy-switch").click();
+      await page.waitForFunction(
+        () =>
+          /开/.test(
+            document.querySelector('[data-testid="mate-autonomy-state"]')?.textContent ?? "",
+          ),
+      );
+      // 间隔写入回显：合法值 60 保存→保存完成（dirty 清除=保存按钮回到禁用）且草稿
+      // 保持服务确认值；越界 99 本地预检拦截→role=alert 界值文案（与 MSA13 同构双闸）。
+      await page.getByTestId("mate-autonomy-interval-input").fill("60");
+      await page.getByTestId("mate-autonomy-interval-save").click();
+      await page.waitForFunction(
+        () =>
+          document.querySelector('[data-testid="mate-autonomy-interval-save"]')?.disabled === true,
+      );
+      assert.equal(await page.getByTestId("mate-autonomy-interval-input").inputValue(), "60");
+      // 越界值 2000（界=30-1440，contracts ASSISTANT_CONFIG_LIMITS 单出处）→ 本地预检
+      // 拦截出界值文案（与 MSA13 同构的双闸断言）。
+      await page.getByTestId("mate-autonomy-interval-input").fill("2000");
+      await page.getByTestId("mate-autonomy-interval-save").click();
+      const rhythmAlert = page
+        .locator('[data-testid="mate-config"] p[role="alert"]')
+        .filter({ hasText: "30-1440" });
+      await rhythmAlert.waitFor();
+      // autonomy 决策卡：来源徽标=自主（data-source-kind=autonomy）；无建议区（不进
+      // 候选卡评估循环——09 §2.2.1：scheduleRouterEvaluation 零调用，routerState 缺席
+      // =无建议区）；brief verbatim 首行呈现；放行/忽略动作照常（人工终审）。
+      await page.getByTestId("fixture-inject-autonomy").click();
+      const autonomyCard = page.getByTestId("mate-decision-card");
+      await autonomyCard.waitFor();
+      const autonomyBadge = autonomyCard.getByTestId("mate-source-badge");
+      await autonomyBadge.waitFor();
+      assert.equal(await autonomyBadge.getAttribute("data-source-kind"), "autonomy");
+      assert.match(await autonomyBadge.textContent(), /自主/);
+      assert.equal(await autonomyCard.getByTestId("mate-decision-router-suggestion").count(), 0);
+      assert.match(
+        await autonomyCard.textContent(),
+        /自主建议：为 fixture\/workspace 整理待办清单并汇报差异/,
+      );
+      assert.equal(await autonomyCard.getByTestId("mate-decision-approve").count(), 1);
+      assert.equal(await autonomyCard.getByTestId("mate-decision-ignore").count(), 1);
 
       assert.deepEqual(errors, []);
       console.log(`Mate Surface evidence: ${output}`);

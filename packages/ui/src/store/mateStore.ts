@@ -117,6 +117,18 @@ interface MateState {
     workspaceKey: string,
     minutes: number,
   ): Promise<AssistantResult<{ ok: true }>>;
+  /** P9（09 详设 §2.3 闸 5）：自主观察总闸（autonomy_enabled kv；缺省 true）。 */
+  setAutonomyEnabled(
+    service: IAssistantTicketService,
+    workspaceKey: string,
+    enabled: boolean,
+  ): Promise<AssistantResult<{ ok: true }>>;
+  /** P9：自主心跳间隔（分钟；bounds=ASSISTANT_CONFIG_LIMITS.autonomyIntervalMinutes）。 */
+  setAutonomyIntervalMinutes(
+    service: IAssistantTicketService,
+    workspaceKey: string,
+    minutes: number,
+  ): Promise<AssistantResult<{ ok: true }>>;
   /** P5：Source 开关配置整体替换（publish 即 reconcile 即时生效）。 */
   setSourcesConfig(
     service: IAssistantTicketService,
@@ -339,6 +351,17 @@ export const useMateStore = create<MateState>((set, get) => {
     setWatchdogIntervalMinutes(service, workspaceKey, minutes) {
       const key = `ws:${workspaceKey}:watchdogInterval:${minutes}`;
       return runSingleFlight(key, () => service.setWatchdogIntervalMinutes({ minutes }));
+    },
+
+    // P9 节奏区两动作（09 详设 §2；single-flight 同款纪律，key 含参数摘要）。
+    setAutonomyEnabled(service, workspaceKey, enabled) {
+      const key = `ws:${workspaceKey}:autonomyEnabled:${enabled ? "1" : "0"}`;
+      return runSingleFlight(key, () => service.setAutonomyEnabled({ enabled }));
+    },
+
+    setAutonomyIntervalMinutes(service, workspaceKey, minutes) {
+      const key = `ws:${workspaceKey}:autonomyInterval:${minutes}`;
+      return runSingleFlight(key, () => service.setAutonomyIntervalMinutes({ minutes }));
     },
 
     setSourcesConfig(service, workspaceKey, config) {

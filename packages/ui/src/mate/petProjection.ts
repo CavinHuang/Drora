@@ -18,6 +18,7 @@ import {
   ASSISTANT_TICKET_STATUSES,
   MATE_PET_PROJECTION_LIMITS,
   type MatePetActiveTicket,
+  type MatePetAutonomyBubble,
   type MatePetLatestReport,
   type MatePetPendingDecision,
   type MatePetProjection,
@@ -26,6 +27,9 @@ import {
 import type { AssistantSnapshot } from "@drora/services";
 
 import { isMateActiveTicket, isMatePendingDecision, isMateQueuedTicket } from "./view-model.js";
+
+/** P9 自主 report 通知 kind（services autonomy.ts ASSISTANT_AUTONOMY_NOTICE_KINDS.report 同值；wire 字面量跨包，此为消费方副本——单一出处 contracts 缺位，两端注释即对账点）。 */
+const AUTONOMY_REPORT_NOTICE_KIND = "autonomy_report";
 
 /** 首行截断（速览单行展示；与 MateTicketRow firstPreviewLine 同语义，本地实现避免循环依赖）。 */
 function firstLine(text: string, max: number): string {
@@ -123,7 +127,14 @@ export function projectMatePet(snapshot: AssistantSnapshot): MatePetProjection {
       };
     });
   // bubble 由发布方以 deriveMatePetBubble 差分后并集（本函数保持纯投影，不持时序状态）。
-  return { pendingDecisions, activeTickets, recentTickets, latestReport, bubble: null };
+  // P9：autonomyReport=通知区最新一条自主 report（差分源扩 report 帧的原材料）。
+  const autonomyNotice = [...(snapshot.watchdogNotices ?? [])]
+    .filter((notice) => notice.kind === AUTONOMY_REPORT_NOTICE_KIND)
+    .sort((a, b) => b.atMs - a.atMs)[0];
+  const autonomyBubble: MatePetAutonomyBubble | null = autonomyNotice
+    ? { summary: autonomyNotice.summary.slice(0, MATE_PET_PROJECTION_LIMITS.textMax), atMs: autonomyNotice.atMs }
+    : null;
+  return { pendingDecisions, activeTickets, recentTickets, latestReport, bubble: null, autonomyBubble };
 }
 
 /** 决策卡触发起始身份（速览元数据展示用；trigger 被快照容量裁剪时回空串）。 */
@@ -154,5 +165,30 @@ export function deriveMatePetBubble(
   }
   if (!report) return { show: false, next: { key: previous.key } };
   const key = matePetBubbleKey(report);
+  return { show: key !== previous.key, next: { key } };
+}
+
+/** 自主 report 气泡展示键（atMs；同帧重复推送不重弹）。 */
+export function matePetAutonomyBubbleKey(report: MatePetAutonomyBubble): string {
+  return `autonomy:${report.atMs}`;
+}
+
+/**
+ * P9 自主气泡状态机（deriveMatePetBubble 同构纯函数，差分源扩 report 帧）：给上一帧
+ * 的自主汇报登记态与本帧自主汇报，返回是否弹泡与下一登记态。语义与工单汇报差分
+ * 一致——挂载首帧只登记不弹；键变化（新 report 时刻）弹泡；同键重复帧不弹；本帧无
+ * 自主汇报（通知区被裁剪）不弹且保留登记键。
+ * 配额闸说明：report 文本在服务侧已经 admitDisturbance(kind=report) 过闸（超额聚合
+ * 次日摘要、通知区不落账）——发布方不二次计数（一次 report 一次闸）。
+ */
+export function deriveMateAutonomyBubble(
+  previous: { readonly key: string | null } | null,
+  report: MatePetAutonomyBubble | null,
+): { show: boolean; next: { readonly key: string | null } } {
+  if (previous === null) {
+    return { show: false, next: { key: report ? matePetAutonomyBubbleKey(report) : null } };
+  }
+  if (!report) return { show: false, next: { key: previous.key } };
+  const key = matePetAutonomyBubbleKey(report);
   return { show: key !== previous.key, next: { key } };
 }

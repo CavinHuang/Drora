@@ -98,6 +98,33 @@ describe("routerDecision schema（02 §1.2）", () => {
     expect(parseRouterDecisionText('{"hold":{"reason":"r"},"evidence":[]}').ok).toBe(true);
     expect(parseRouterDecisionText('{"hold":{"reason":"r"}}').ok).toBe(false);
   });
+
+  // P7（08 号详设 §3.1）：query_status 第五臂——查询直答意图（host 确定性应答器消费）。
+  it("query_status 臂解析：scope 四 kind + reason；与既有臂互斥", () => {
+    const parsed = parseRouterDecisionText(
+      JSON.stringify({
+        query_status: { scope: { kind: "status", workspaceIdentity: "ws-a" }, reason: "进度查询" },
+        evidence: [{ quote: "原文片段" }],
+      }),
+    );
+    expect(parsed.ok).toBe(true);
+    if (parsed.ok && parsed.decision.kind === "query_status") {
+      expect(parsed.decision.arm.scope.kind).toBe("status");
+      expect(parsed.decision.arm.scope.workspaceIdentity).toBe("ws-a");
+    } else {
+      throw new Error("expected query_status arm");
+    }
+    // 两臂并存 → schema 拒绝（恰现其一）。
+    const both = parseRouterDecisionText(
+      JSON.stringify({
+        hold: { reason: "x" },
+        query_status: { scope: { kind: "usage", ticketId: "T-1" }, reason: "花费查询" },
+        evidence: [],
+      }),
+    );
+    expect(both.ok).toBe(false);
+  });
+
 });
 
 describe("routerShell 无状态壳（02 §1.1/§1.3）", () => {
@@ -139,9 +166,9 @@ describe("routerShell 无状态壳（02 §1.1/§1.3）", () => {
     });
     expect(truncatedCard.truncated).toBe(true);
     expect(truncatedCard.input).toContain(`原文超 ${ASSISTANT_SNAPSHOT_LIMITS.candidateBriefMax} 字已截断`);
-    // 截断体（1500）+ 约言/元数据（<900）恒小于原文全长注入。
+    // 截断体（1500）+ 约言/元数据（<1200，P7 约言加查询臂指引后 ~2650 总长）恒小于原文全长注入。
     expect(truncatedCard.input.length).toBeLessThan(
-      ASSISTANT_SNAPSHOT_LIMITS.candidateBriefMax + 900,
+      ASSISTANT_SNAPSHOT_LIMITS.candidateBriefMax + 1200,
     );
   });
 

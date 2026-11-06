@@ -123,6 +123,13 @@ expandedDecisionId` 三件 UI 局部态，按 workspace 分域（`byWorkspace`�
   可选字段，旧帧缺席合法。
 - 速览渲染（desktop 层）三区结构详见 07 号详设；发布链/防注入纪律不变。
 
+## P7 增量（2026-11-06，对话式查询直答，08 号详设）
+
+- **MateQueryReply**（新组件）：状态答复卡（问题首行+answer+dismiss）——只读无工单
+  动作；status_replied 决策随决策档（decision/all）展示，dismiss 后 ignored 出清。
+- 快照消费：decisions[].answer（可选，仅 status_replied 行）；routerSuggestion
+  kind 联合扩 query_status（建议段不渲染，答复由 answer 承载）。
+
 ## 审查修复批（2026-11-06，运行链可用性/交付完整性审查）
 
 - **放行/触发目标契约（F1）**：触发与放行的 `targetWorkspaceIdentity` **恒等于

@@ -32,7 +32,7 @@
  * ticket.increments_confirmed_ms 列——工件核验滞留（04 详设 §3：W1 工单 turn ended
  * 后只读核验，核验失败滞留 awaiting_output 喂 watchdog；唯一写者=服务核验路径与
  * confirmTicketOutput/confirmTicketIncrements；旧行 NULL=不滞留/未确认增量不存在）。 */
-export const ASSISTANT_STORE_SCHEMA_VERSION = 6;
+export const ASSISTANT_STORE_SCHEMA_VERSION = 7;
 
 // ---------------------------------------------------------------------------
 // 身份与派发模式（spec §1 命名契约 / §7 三模式；P2 定案见 02 详设 §1.1/§5）
@@ -219,8 +219,17 @@ export const ASSISTANT_OUTCOMES = {
   decisionCard: "decision_card",
   wouldAccept: "would_accept",
   autoNotice: "auto_notice",
+  /** P7（08 号详设 §3.1）：Router query_status 臂的查询直答终态——非决策卡、无人工
+   * 动作、不进放行率；decision 配额计数在触发时已落（翻转 outcome 不回冲，decision
+   * 类永不抑制，统计偏差 ≤1 有界——contracts 注释即对账点）。 */
+  statusReplied: "status_replied",
   rejected: "rejected",
   ignored: "ignored",
+} as const;
+
+/** P7 查询直答（08 号详设 §3.2）：应答文本界（host 生成零 LLM 加工，与账本恒一致）。 */
+export const ASSISTANT_REPLY_LIMITS = {
+  replyTextMax: 800,
 } as const;
 
 export type AssistantOutcome = (typeof ASSISTANT_OUTCOMES)[keyof typeof ASSISTANT_OUTCOMES];

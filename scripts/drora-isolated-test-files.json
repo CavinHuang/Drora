@@ -8,6 +8,7 @@
   "packages/desktop/test/windowsInstallerCompile.test.ts",
   "packages/services/test/assistantDispatchTarget.test.ts",
   "packages/services/test/assistantConfigActions.test.ts",
+  "packages/services/test/assistantQueryReply.test.ts",
   "packages/services/test/assistantFrameLedger.test.ts",
   "packages/services/test/assistantP2Flows.test.ts",
   "packages/services/test/assistantP4Host.test.ts",

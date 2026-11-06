@@ -78,9 +78,12 @@ export interface MateSource {
 export interface AssistantSourceReplyPort {
   reply(input: {
     channelRef: string;
+    /** 工单 id；P7 查询答复无工单，此值为触发 id（decision 关联的 trigger id——仅作
+     * 实现侧日志/幂等键，实现不应据此反查工单）。 */
     ticketId: string;
-    status: "done" | "failed";
-    /** 一句话摘要（output_summary/fail_reason 截断；GitHub 实现附 Co-authored-by 署名行）。 */
+    /** "query"=P7 查询直答（08 号详设 §3.5；无工单事实，summary 即答案文本）。 */
+    status: "done" | "failed" | "query";
+    /** 一句话摘要（output_summary/fail_reason/答复文本截断；GitHub 实现附 Co-authored-by 署名行）。 */
     summary: string;
   }): Promise<{ ok: true } | { ok: false; reason: string }>;
 }

@@ -536,6 +536,47 @@ describe("Mode B 建队与 teamActivity 第三信号（02 §5）", () => {
   }, 20_000);
 });
 
+describe("P7 查询直答（08 §3.3；观察模式 query_status 全链）", () => {
+  it("查询类候选卡 → Router query_status 臂 → 直答：无工单产生/decision 翻 status_replied/answer 投影/dismiss 出清", async () => {
+    const { service } = createService();
+    let dispatched = 0;
+    setAssistantDispatchPort(async (request) => {
+      dispatched += 1;
+      return { ok: true, value: { ticketId: request.ticketId, sessionId: "sess-q" } };
+    });
+    setAssistantRouterPort(async () => ({
+      ok: true,
+      output: JSON.stringify({
+        query_status: {
+          scope: { kind: "status", workspaceIdentity: "ws-a" },
+          reason: "进度查询，无需执行",
+        },
+        evidence: [{ quote: "进度怎样" }],
+      }),
+    }));
+    setAssistantFrameSource({ subscribe() { return { dispose: () => undefined }; } });
+    const recorded = await service.recordTrigger({
+      text: "ws-a 进度怎样",
+      simulated: ASSISTANT_STRENGTHS.explicit,
+      targetWorkspaceIdentity: "ws-a",
+    });
+    expect(recorded.ok).toBe(true);
+    await new Promise((resolve) => setTimeout(resolve, 40));
+    // 无工单产生（查询不派发）；decision 翻 status_replied 并携带 answer。
+    expect(dispatched).toBe(0);
+    const snapshot = await service.getSnapshot();
+    expect(snapshot.tickets).toHaveLength(0);
+    const decision = snapshot.decisions[0];
+    expect(decision?.outcome).toBe("status_replied");
+    expect(decision?.answer).toContain("ws-a");
+    // dismiss 出清（答复卡离开呈现集）。
+    const dismissed = await service.dismissQueryReply({ decisionId: decision?.id ?? 0 });
+    expect(dismissed.ok).toBe(true);
+    const after = await service.getSnapshot();
+    expect(after.decisions[0]?.outcome).toBe("ignored");
+  }, 20_000);
+});
+
 describe("换代（spec §8；02 §3）", () => {
   it("follow-up 锚校验失配（会话删除）→ 换代重派（浓缩段）+ follow-up 投新代", async () => {
     const { service } = createService();

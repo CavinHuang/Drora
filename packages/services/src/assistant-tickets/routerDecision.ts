@@ -4,7 +4,8 @@
  * Router（大副会话）按路由约言输出 JSON；host 侧用 zod 严格校验：
  * - 校验失败（不命中 schema）→ 该候选降级 Tier3 决策卡问人（不重试模型、不猜测），
  *   调用方只需看 parseRouterDecision 的 ok 臂；
- * - dispatch/hold/reject/attach 四臂互斥、恰现其一（attach 为 02 §2 Tier2 扩展）；
+ * - dispatch/hold/reject/attach/query_status 五臂互斥、恰现其一（attach 为 02 §2
+ *   Tier2 扩展；query_status 为 P7 对话式查询直答扩展，08 号详设 §3.1）；
  * - evidence 引用原文片段 ≤80 字、至多 3 条（ASSISTANT_SNAPSHOT_LIMITS 单出处）。
  *
  * 纯模块：无 IO、无 await；wire 语义只存在于 Router 会话文本（host 拼装的路由约言
@@ -47,6 +48,25 @@ const holdArmSchema = z.object({ reason: z.string().trim().min(1).max(500) }).st
 /** 拒绝臂：与工单无关/超范围。 */
 const rejectArmSchema = z.object({ reason: z.string().trim().min(1).max(500) }).strict();
 
+/**
+ * P7 查询直答臂（08 号详设 §3.1）：进度/状态/成本/摘要类意图 → host 确定性应答器
+ * 直答（不建票、不派 worker、不过 Mandate）。Router 只判意图与 scope；答案由 host
+ * 从账本模板生成（零 LLM 加工——与账本结构性恒一致）。写意图（停止/切换）不在此臂
+ * （约言引导 reject+面板指引）。
+ */
+const queryStatusArmSchema = z
+  .object({
+    scope: z
+      .object({
+        kind: z.enum(["status", "ticket", "usage", "digest"]),
+        workspaceIdentity: z.string().trim().max(200).optional(),
+        ticketId: z.string().trim().max(200).optional(),
+      })
+      .strict(),
+    reason: z.string().trim().min(1).max(500),
+  })
+  .strict();
+
 /** Mode C 臂（02 §2 Tier2 扩展）：附着既有会话；派发桥随后校验存在/归属 identity。 */
 const attachArmSchema = z
   .object({
@@ -61,14 +81,16 @@ export const routerDecisionSchema = z
     hold: holdArmSchema.optional(),
     reject: rejectArmSchema.optional(),
     attach: attachArmSchema.optional(),
+    query_status: queryStatusArmSchema.optional(),
     evidence: z.array(evidenceItemSchema).max(ASSISTANT_SNAPSHOT_LIMITS.routerEvidenceMax),
   })
   .strict()
   .refine(
     (value) =>
-      [value.dispatch, value.hold, value.reject, value.attach].filter((arm) => arm != null)
-        .length === 1,
-    { message: "dispatch/hold/reject/attach 必须恰现其一" },
+      [value.dispatch, value.hold, value.reject, value.attach, value.query_status].filter(
+        (arm) => arm != null,
+      ).length === 1,
+    { message: "dispatch/hold/reject/attach/query_status 必须恰现其一" },
   );
 
 export interface RouterDispatchArm {
@@ -89,7 +111,20 @@ export type RouterDecision =
   | { readonly kind: "dispatch"; readonly arm: RouterDispatchArm; readonly evidence: readonly string[] }
   | { readonly kind: "attach"; readonly arm: RouterAttachArm; readonly evidence: readonly string[] }
   | { readonly kind: "hold"; readonly reason: string; readonly evidence: readonly string[] }
-  | { readonly kind: "reject"; readonly reason: string; readonly evidence: readonly string[] };
+  | { readonly kind: "reject"; readonly reason: string; readonly evidence: readonly string[] }
+  | {
+      readonly kind: "query_status";
+      readonly arm: RouterQueryStatusArm;
+      readonly evidence: readonly string[];
+    };
+export interface RouterQueryStatusArm {
+  readonly scope: {
+    readonly kind: "status" | "ticket" | "usage" | "digest";
+    readonly workspaceIdentity?: string;
+    readonly ticketId?: string;
+  };
+  readonly reason: string;
+}
 
 export type RouterDecisionParseResult =
   | { readonly ok: true; readonly decision: RouterDecision }
@@ -162,6 +197,16 @@ export function parseRouterDecision(raw: unknown): RouterDecisionParseResult {
       decision: {
         kind: "attach",
         arm: value.attach,
+        evidence: value.evidence.map((item) => item.quote),
+      },
+    };
+  }
+  if (value.query_status) {
+    return {
+      ok: true,
+      decision: {
+        kind: "query_status",
+        arm: value.query_status,
         evidence: value.evidence.map((item) => item.quote),
       },
     };

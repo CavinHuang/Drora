@@ -47,6 +47,8 @@ interface FixtureDecision {
   triggerText: string;
   decidedMs: number;
   sourceKind: string;
+  /** P7（08 号详设 §3.4）：query_status 臂的确定性答复文本。 */
+  answer?: string;
   routerState?: "pending" | "suggested" | "failed";
   routerSuggestion?: AssistantRouterSuggestionView;
   routerError?: string;
@@ -352,6 +354,34 @@ export function createMateFixtureService(
     return seq;
   }
 
+  // P7（08 号详设 §3.4）：注入 status_replied 查询直答（MSA14 验收消费——答复文本
+  // 即 MSA 断言锚；无工单产生）。
+  function injectQueryReply(text = "查询直答 fixture 答复"): number {
+    seq += 1;
+    const triggerId = `TR-${seq}`;
+    triggers.push({
+      id: triggerId,
+      sourceKind: "local",
+      strength: ASSISTANT_STRENGTHS.explicit,
+      identity: "fixture/user-a",
+      text,
+      atMs: Date.now(),
+      targetWorkspaceIdentity: tab.workspaceIdentity,
+    });
+    decisions.push({
+      id: seq,
+      triggerId,
+      outcome: "status_replied",
+      decidedBy: "gate",
+      triggerText: text,
+      decidedMs: Date.now(),
+      sourceKind: "local",
+      answer: `答复：ws-a 进行中 1（修复登录），最近完成 1；数据时刻 ${new Date().toLocaleTimeString("zh-CN")}`,
+    });
+    publish();
+    return seq;
+  }
+
   const service: IAssistantTicketService = {
     async recordTrigger(input) {
       seq += 1;
@@ -635,6 +665,14 @@ export function createMateFixtureService(
       return { ok: true, value: { ok: true } };
     },
 
+    // P7（08 号详设）：查询答复卡 dismiss（status_replied → ignored；快照回显出清）。
+    async dismissQueryReply(input) {
+      const decision = decisions.find((d) => d.id === input.decisionId);
+      if (decision && decision.outcome === "status_replied") decision.outcome = "ignored";
+      publish();
+      return { ok: true, value: { ok: true } };
+    },
+
     // P5 设置中心：六 setter 内存实现（快照回显；MSA13 验收消费）。
     async setBudget(input) {
       budgetMax = input.maxActivePerWorkspace;
@@ -750,6 +788,7 @@ export function createMateFixtureService(
     resync: publish,
     injectRouterDecision,
     injectAutoNotice,
+    injectQueryReply,
     submitSource: service.submitSourceEntry,
     /** F1 守卫读点（mate-surface-ac MSA11 消费）：绕过 UI 直调 approveDecision 且
      * **不带 targetWorkspaceIdentity**——命中 trigger 落库回读臂（真实链 decision.

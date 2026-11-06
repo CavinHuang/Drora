@@ -6282,6 +6282,7 @@ view-model 32 项（`resolveMateErrorMessageId` 补 dispatchRejected →
 MSA13（2026-11-06 P5 设置中心批，同文件同 fixture）：高级区三输入（软预算/信任门两阈值/watchdog 间隔）一体保存→快照回填回显；Source 区 GitHub 开关+repo/点名词+身份映射行编辑→保存→已保存回执；模型 select 存在（fixture 无 registry 诚实禁用——真实清单链属真机验收域；fixture 补挂 TabStoreProvider）。
 ## Mate（大副）P3 Source/桌宠接缝批增量（2026-11-05）
 
+MSA14（2026-11-06 P7 对话式查询直答批，同文件同 fixture）：fixture-inject-query-reply → 状态答复卡（问题原文+answer+账本来源提示）→ dismiss 出清；无工单动作按钮（不可放行）。服务链路由 assistantQueryReply.test（四 scope/空态/有界）+ assistantP2Flows query 落点用例（无工单产生/status_replied/dismiss）锁定，两层互补。
 MSP01–06：`packages/desktop/test/e2e/conversation-session/manual-review/pending/mate-source-pet.test.mjs`。
 层级：同 MOUI/MSA 先例的真实 React renderer 浏览器候选（同一 fixture
 `packages/ui/test/fixtures/mate-browser.fixture.tsx`，P1/P2 控件共存——两资产同轮回归

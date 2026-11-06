@@ -86,7 +86,7 @@ function Fixture() {
     approveDirect,
     resync,
     injectRouterDecision,
-    injectAutoNotice,
+    injectAutoNotice, injectQueryReply,
     submitSource,
     approveBare,
     lastIngest: readLastIngest,
@@ -224,6 +224,9 @@ function Fixture() {
                   auto_notice×gate 决策+关联工单——真实 auto 直派判定在 host 侧，夹具只造
                   快照事实（告知卡呈现/工单号反查/档位归属验收）。 */}
               <button data-testid="fixture-inject-auto-notice" onClick={() => injectAutoNotice()}>
+              <button data-testid="fixture-inject-query-reply" onClick={() => injectQueryReply()}>
+                注入查询直答
+              </button>
                 Inject auto notice
               </button>
               <button data-testid="fixture-queue-next" onClick={queueNext}>

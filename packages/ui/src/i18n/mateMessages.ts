@@ -172,6 +172,10 @@ export const mateMessagesEn = {
   "mate.config.quota.hint":
     "Pushes per day across surfaces (decision cards are never suppressed). 0 aggregates all non-decision pushes into the next-day digest.",
   "mate.config.quota.invalid": "The quota must be an integer between 0 and 200.",
+  "mate.query.reply.title": "Mate reply",
+  "mate.query.reply.dismiss": "Dismiss",
+  "mate.query.reply.hint": "Answered from the Mate ledger — no ticket was created.",
+  "mate.router.suggested.query_status": "Status query",
   "mate.config.model.label": "Mate model",
   "mate.config.model.default": "CLI default",
   "mate.config.model.loading": "Loading models…",
@@ -374,6 +378,10 @@ export const mateMessagesZh = {
   "mate.config.quota.hint":
     "各端每日推送上限（条/日；决策卡永不抑制）。0=非决策类推送全部聚合进次日摘要。",
   "mate.config.quota.invalid": "配额必须是 0-200 的整数。",
+  "mate.query.reply.title": "大副答复",
+  "mate.query.reply.dismiss": "知道了",
+  "mate.query.reply.hint": "答复由大副账本生成——未创建工单。",
+  "mate.router.suggested.query_status": "状态查询",
   "mate.config.model.label": "大副模型",
   "mate.config.model.default": "CLI 缺省",
   "mate.config.model.loading": "模型清单加载中…",

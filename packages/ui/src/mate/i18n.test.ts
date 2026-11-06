@@ -174,6 +174,11 @@ const MATE_CONSUMED_KEYS: readonly string[] = [
   "mate.config.source.removeRow",
   "mate.config.source.save",
   "mate.config.source.saved",
+  // P7 查询直答卡（08 号详设）。
+  "mate.query.reply.title",
+  "mate.query.reply.dismiss",
+  "mate.query.reply.hint",
+  "mate.router.suggested.query_status",
   // P3 桌宠/任务行徽标通道。
   "mate.sessionLine.active",
   "mate.sessionLine.pending",

@@ -895,9 +895,14 @@ describe("schema v5/v6（stale 与核验滞留列只加不破）", () => {
     // P4 第二棒（04 详设 §3）：核验滞留与增量确认列（v6 只加不破）。
     expect(columns).toContain("awaiting_since_ms");
     expect(columns).toContain("increments_confirmed_ms");
+    // P7（08 号详设 §3.1，v7 只加不破）：查询直答答复列（router_evaluation 表）。
+    const evaluationColumns = (
+      db.raw.prepare("PRAGMA table_info(router_evaluation)").all() as Array<{ name: string }>
+    ).map((column) => column.name);
+    expect(evaluationColumns).toContain("answer_text");
     const version = db.raw.prepare("SELECT value FROM kv WHERE key = 'schema_version'").get() as {
       value: string;
     };
-    expect(Number(version.value)).toBe(6);
+    expect(Number(version.value)).toBe(7);
   });
 });

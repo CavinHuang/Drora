@@ -48,6 +48,11 @@ ticket.channel_ref）；Thread 直通 Tier1。
   W2=非 git/关 W1 → 声明域（空集=待声明整域，彼此互斥；**声明域「决策卡可编辑」入口
   P2 裁剪**——空集=待声明整域自动互斥进队列，编辑入口随声明域 UI 批次交付）；
   W3=附着不隔离但查冲突。
+- **P7 对话式查询直答（08 号详设 §3）**：routerDecision 五臂（+query_status）→
+  queryReply.ts 确定性应答器（四 scope 直答，数据面复用快照投影零第二读路径）；
+  router_evaluation.answer_text（v7）+ decision outcome=status_replied 同事务落
+  （唯一写者=评估循环）；dismissQueryReply（status_replied→ignored 出清）；
+  Source 答复外发经 replyPort status="query"（registry 快照差分幂等 decisionId）。
 - **P5 设置中心（06 号详设 §2）**：configActions.ts 六 setter（setBudget/
   setTrustGateThresholds/setWatchdogIntervalMinutes/setSourcesConfig/
   setSourceIdentityMap/setModelPreference）为 kv 可调参数的**唯一生产写入口**

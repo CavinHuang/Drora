@@ -279,6 +279,17 @@ function runAssistantMigrations(raw: AssistantDatabaseRaw): void {
       "INSERT INTO kv(key, value, updated_ms) VALUES ('schema_version', '6', strftime('%s','now') * 1000) ON CONFLICT(key) DO UPDATE SET value = '6', updated_ms = excluded.updated_ms",
     );
   }
+
+  if (currentVersion < 7) {
+    // v7（2026-11-06，P7 对话式查询直答）——只加不破（08 号详设 §3.1）：
+    // - router_evaluation.answer_text：query_status 臂的确定性应答文本（host 生成
+    //   零 LLM 加工；界=ASSISTANT_REPLY_LIMITS.replyTextMax）。NULL=非查询臂/未评估。
+    //   decision 同事务翻 outcome=status_replied（写者仍是评估循环唯一路径）。
+    addColumnIfMissing(raw, "router_evaluation", "answer_text", "TEXT");
+    raw.exec(
+      "INSERT INTO kv(key, value, updated_ms) VALUES ('schema_version', '7', strftime('%s','now') * 1000) ON CONFLICT(key) DO UPDATE SET value = '7', updated_ms = excluded.updated_ms",
+    );
+  }
 }
 
 /** ALTER TABLE ADD COLUMN 的幂等封装（PRAGMA table_info 查列存在性；迁移重入安全）。 */

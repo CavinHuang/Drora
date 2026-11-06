@@ -12,6 +12,7 @@ export {
   isMateAutoSwitchAvailable,
   isMateAwaitingVerification,
   isMateObserveDecision,
+  isMateQueryReply,
   isMatePendingDecision,
   isMateQueuedTicket,
   matePermissionTierMessageId,
@@ -53,6 +54,7 @@ export { MateSourceBadge } from "./MateSourceBadge.js";
 export { MateTicketRow, firstPreviewLine } from "./MateTicketRow.js";
 export { MateReportCard } from "./MateReportCard.js";
 export { MateObserveRow } from "./MateObserveRow.js";
+export { MateQueryReply } from "./MateQueryReply.js";
 export { MateConfigSection } from "./MateConfigSection.js";
 export { MateTicketDetail } from "./MateTicketDetail.js";
 export { MateSessionLine } from "./MateSessionLine.js";

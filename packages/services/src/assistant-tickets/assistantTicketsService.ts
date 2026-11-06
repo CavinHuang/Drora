@@ -207,6 +207,10 @@ export function createAssistantTicketsService(
   const { scheduleRouterEvaluation } = createRouterEvaluation({
     db,
     publish,
+    // P7 查询直答（08 号详设 §3.3）：query_status 臂经确定性应答器直答（本地 identity
+    // 模板占位+答复语言缺省 zh；Source 事件原语言随后续批接入）。
+    localIdentity,
+    replyLocale: "zh",
     onSuggested: ({ decisionId, verdictJson }) => {
       void autoDispatch.handleRouterSuggested({ decisionId, verdictJson }).catch((error) => {
         logger.warn("assistant-tickets auto 建议执行失败（决策卡留人工）", error);
@@ -445,6 +449,25 @@ export function createAssistantTicketsService(
         if (error instanceof AssistantStoreBusyError) return fail(ASSISTANT_ERROR_CODES.storeBusy);
         if (error instanceof AssistantStoreMigrationError)
           return fail(ASSISTANT_ERROR_CODES.storeMigration, String(error.message));
+        throw error;
+      }
+    },
+
+    // P7（08 号详设 §3.4）：查询答复卡 dismiss——status_replied → ignored（照
+    // ignoreDecision 同款单条 UPDATE 事务；出清后答复卡离开面板）。
+    async dismissQueryReply(input) {
+      try {
+        db.transaction((raw) => {
+          raw
+            .prepare(
+              "UPDATE admission_decision SET outcome = ? WHERE id = ? AND outcome = ?",
+            )
+            .run(ASSISTANT_OUTCOMES.ignored, input.decisionId, ASSISTANT_OUTCOMES.statusReplied);
+        });
+        publish();
+        return { ok: true, value: { ok: true } };
+      } catch (error) {
+        if (error instanceof AssistantStoreBusyError) return fail(ASSISTANT_ERROR_CODES.storeBusy);
         throw error;
       }
     },

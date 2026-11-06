@@ -11,6 +11,7 @@ import {
   MateDigestCard,
   MateObserveRow,
   MatePaneHeader,
+  MateQueryReply,
   MateReportCard,
   MateStatusStrip,
   MateTicketDetail,
@@ -23,6 +24,7 @@ import {
   isMateAutoNoticeDecision,
   isMateAwaitingVerification,
   isMateObserveDecision,
+  isMateQueryReply,
   isMatePendingDecision,
   isMateQueuedTicket,
   resolveMateBudgetActive,
@@ -131,6 +133,11 @@ export const MateSidePane = memo(function MateSidePane({
   // 体现，决策卡区无呈现面。只读行卡，随决策档（decision/all）展示。
   const autoNoticeDecisions = useMemo(
     () => snapshot?.decisions.filter(isMateAutoNoticeDecision) ?? [],
+    [snapshot],
+  );
+  // P7（08 号详设 §3.4）：查询直答卡——status_replied 决策，只读，随决策档展示。
+  const queryReplies = useMemo(
+    () => snapshot?.decisions.filter(isMateQueryReply) ?? [],
     [snapshot],
   );
   const showDecisions = filter === "decision" || filter === "all";
@@ -299,6 +306,18 @@ export const MateSidePane = memo(function MateSidePane({
               <div className="flex flex-col gap-1.5">
                 {observeDecisions.map((decision) => (
                   <MateObserveRow key={decision.id} decision={decision} />
+                ))}
+              </div>
+            ) : null}
+            {showObserves && queryReplies.length > 0 ? (
+              <div className="flex flex-col gap-1.5">
+                {queryReplies.map((decision) => (
+                  <MateQueryReply
+                    key={decision.id}
+                    decision={decision}
+                    service={service}
+                    workspaceKey={workspaceKey}
+                  />
                 ))}
               </div>
             ) : null}

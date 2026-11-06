@@ -45,7 +45,7 @@ export interface AssistantTriggerView {
  * kind 与 services routerDecision.ts 的 RouterDecision 四臂对齐（UI type-only）。
  */
 export interface AssistantRouterSuggestionView {
-  readonly kind: "dispatch" | "attach" | "hold" | "reject";
+  readonly kind: "dispatch" | "attach" | "hold" | "reject" | "query_status";
   readonly targetWorkspaceIdentity?: string;
   readonly sessionId?: string;
   readonly permissionTier?: AssistantPermissionTier;
@@ -77,6 +77,9 @@ export interface AssistantDecisionView {
   readonly routerSuggestion?: AssistantRouterSuggestionView;
   /** P2：Router 评估失败原因（诚实展示，不重试模型）。 */
   readonly routerError?: string;
+  /** P7（08 号详设 §3.4）：query_status 臂的确定性答复文本（host 生成零 LLM 加工；
+   * 界 replyTextMax；仅 outcome=status_replied 行携带）。 */
+  readonly answer?: string;
 }
 
 /** 写域视图（02 详设 §4；UI 据此明示隔离形态——worktree=目录级，paths=声明域，workspace=未隔离）。 */
@@ -300,6 +303,8 @@ export interface IAssistantTicketService {
 
   /** 忽略决策卡（N）：decision 记 rejected，trigger 保留。 */
   ignoreDecision(input: { decisionId: number }): Promise<AssistantResult<{ ok: true }>>;
+  /** P7（08 号详设 §3.4）：查询答复卡 dismiss（status_replied → ignored 出清）。 */
+  dismissQueryReply(input: { decisionId: number }): Promise<AssistantResult<{ ok: true }>>;
 
   /**
    * P3 Source 注册表的 channel 可见入口（03 详设 §3 手机 Source 事件面定型；renderer/

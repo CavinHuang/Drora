@@ -352,7 +352,8 @@ export function buildAssistantSnapshot(
       .prepare(
         `SELECT d.id, d.trigger_id, d.strength, d.mode, d.outcome, d.decided_by, d.decided_ms, t.text AS trigger_text,
               t.source_kind AS trigger_source_kind,
-              r.state AS router_state, r.verdict AS router_verdict, r.error AS router_error
+              r.state AS router_state, r.verdict AS router_verdict, r.error AS router_error,
+              r.answer_text AS router_answer
          FROM admission_decision d
          JOIN trigger t ON t.id = d.trigger_id
          LEFT JOIN router_evaluation r ON r.decision_id = d.id
@@ -371,6 +372,7 @@ export function buildAssistantSnapshot(
       router_state: string | null;
       router_verdict: string | null;
       router_error: string | null;
+      router_answer: string | null;
     }>
   ).map((row) => {
     const suggestion = parseRouterSuggestion(row.router_state, row.router_verdict);
@@ -390,6 +392,8 @@ export function buildAssistantSnapshot(
         : {}),
       ...(suggestion ? { routerSuggestion: suggestion } : {}),
       ...(row.router_error ? { routerError: row.router_error } : {}),
+      // P7（08 号详设 §3.4）：查询直答文本（仅 status_replied 行携带；界 replyTextMax）。
+      ...(row.router_answer ? { answer: row.router_answer } : {}),
     };
   });
   // 投影基准时刻（trust/quota/分代时长共用一个时钟读数，避免同帧内时刻漂移）。

@@ -84,6 +84,12 @@ interface MateState {
     workspaceKey: string,
     identities: readonly string[],
   ): Promise<AssistantResult<{ ok: true }>>;
+  /** P7（08 号详设 §3.4）：查询答复卡 dismiss（status_replied → ignored 出清）。 */
+  dismissQueryReply(
+    service: IAssistantTicketService,
+    workspaceKey: string,
+    input: { decisionId: number },
+  ): Promise<AssistantResult<{ ok: true }>>;
   /** W1 worktree 用户开关（spec §9 W2 兜底；只影响之后的派发规划）。 */
   setWorktreeDisabled(
     service: IAssistantTicketService,
@@ -291,6 +297,11 @@ export const useMateStore = create<MateState>((set, get) => {
     setWorktreeDisabled(service, workspaceKey, disabled) {
       const key = `ws:${workspaceKey}:worktreeDisabled:${disabled ? "1" : "0"}`;
       return runSingleFlight(key, () => service.setWorktreeDisabled(disabled));
+    },
+
+    dismissQueryReply(service, workspaceKey, input) {
+      const key = `ws:${workspaceKey}:queryDismiss:${input.decisionId}`;
+      return runSingleFlight(key, () => service.dismissQueryReply(input));
     },
 
     // P5 设置中心（06 号详设 §2）：六 setter 薄封装——single-flight 同款纪律，

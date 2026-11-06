@@ -64,6 +64,7 @@ export function composeRoutingPreamble(): string {
     '{"reject":{"reason":"≤500字"},"evidence":[…]}',
     "evidence 至多 3 条且必须逐字引用候选卡原文；路由注（附加说明）≤30 词；拿不准一律 hold，禁止编造。",
     "attach 臂的 sessionId 只能取自候选卡【附着候选】清单；清单缺席、为空或均不合适 → hold，禁止编造 sessionId。",
+    "P7 查询直答（08 号详设）：进度/状态/成本/摘要类**查询意图**（不要求执行）→ {\"query_status\":{\"scope\":{\"kind\":\"status|ticket|usage|digest\",\"workspaceIdentity\":可选,\"ticketId\":可选},\"reason\":\"≤500字\"},\"evidence\":[…]}——系统会按你的 scope 直查账本作答，无需 worker。含「去做/去修/去查一下」等执行动词 → dispatch/attach；管理写意图（停止工单/切模式/换代）→ reject 并在 reason 引导到面板操作（你没有写工具，也永不该有）。",
   ].join("\n");
 }
 

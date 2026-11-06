@@ -22,7 +22,7 @@ const { default: tailwindcss } = await import(
 );
 
 test(
-  "MSA01–13: Surface A status strip, Router suggestion prefill (dispatch/attach/failed/hold), team action, queued notice, Surface C tabs, generation badge, session-line, W1 worktree toggle, F1 bare-approve chain guard + F2 trigger feedback, F4 auto-notice card",
+  "MSA01–14: Surface A status strip, Router suggestion prefill (dispatch/attach/failed/hold), team action, queued notice, Surface C tabs, generation badge, session-line, W1 worktree toggle, F1 bare-approve chain guard + F2 trigger feedback, F4 auto-notice card",
   { timeout: 180000 },
   async () => {
     const output = await mkdtemp(join(tmpdir(), "mate-surface-ac-"));
@@ -357,6 +357,19 @@ test(
       assert.equal(await modelSelect.count(), 1);
       // fixture 无 registry：useModelSelectionView 走 unavailable → select 诚实禁用。
       assert.equal(await modelSelect.isDisabled(), true);
+
+      // MSA14（P7 对话式查询直答，08 号详设 §3.4）：注入 status_replied 决策 →
+      // 状态答复卡（问题原文+answer+dismiss）→ dismiss 出清；无任何工单动作按钮。
+      await page.getByTestId("fixture-inject-query-reply").click();
+      const queryReplyRow = page.getByTestId("mate-query-reply-row");
+      await queryReplyRow.waitFor();
+      assert.match(await queryReplyRow.textContent(), /查询直答 fixture 答复/);
+      assert.match(await queryReplyRow.textContent(), /答复由大副账本生成/);
+      assert.equal(await queryReplyRow.getByTestId("mate-decision-approve").count(), 0);
+      await queryReplyRow.getByRole("button", { name: /知道了|Dismiss/ }).click();
+      await page.waitForFunction(
+        () => document.querySelectorAll('[data-testid="mate-query-reply-row"]').length === 0,
+      );
 
       assert.deepEqual(errors, []);
       console.log(`Mate Surface evidence: ${output}`);

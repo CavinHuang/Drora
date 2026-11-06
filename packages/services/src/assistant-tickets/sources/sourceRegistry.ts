@@ -136,6 +136,35 @@ export function createMateSourceRegistry(deps: MateSourceRegistryDeps): MateSour
     }
   }
 
+  // P7（08 号详设 §3.5）：查询直答复外发——快照差分 status_replied 决策（幂等键
+  // decisionId；channel 经 triggers 回查），答复经既有 replyPort 外发原通道。
+  const repliedDecisions = new Set<number>();
+  function notifyQueryReplies(snapshot: AssistantSnapshot): void {
+    const port = deps.replyPort;
+    if (!port) return;
+    for (const decision of snapshot.decisions) {
+      if (decision.outcome !== "status_replied" || repliedDecisions.has(decision.id)) continue;
+      const channelRef = snapshot.triggers.find((t) => t.id === decision.triggerId)?.channelRef;
+      repliedDecisions.add(decision.id);
+      if (!channelRef || !decision.answer) continue;
+      void port
+        .reply({
+          channelRef,
+          ticketId: decision.triggerId,
+          status: "query",
+          summary: decision.answer.slice(0, 300),
+        })
+        .then((result) => {
+          if (!result.ok) {
+            logger.warn("assistant-tickets Source 查询答复外发失败（不重试）", result.reason);
+          }
+        })
+        .catch((error) => {
+          logger.warn("assistant-tickets Source 查询答复外发异常（不重试）", error);
+        });
+    }
+  }
+
   return {
     register(source) {
       if (byKind.has(source.kind)) {
@@ -149,6 +178,7 @@ export function createMateSourceRegistry(deps: MateSourceRegistryDeps): MateSour
       try {
         reconcile();
         notifyTerminalReplies(snapshot);
+        notifyQueryReplies(snapshot);
       } catch (error) {
         // 快照推送路径的异常不能打断服务 publish 循环。
         logger.warn("assistant-tickets source registry 快照处理失败", error);

@@ -8,7 +8,12 @@
 import { createServiceLogger } from "../logger/serviceLogger.js";
 import type { AssistantDatabase, AssistantDatabaseRaw } from "./assistantDatabase.js";
 import { getAssistantPorts } from "./assistantPorts.js";
+import {
+  ASSISTANT_OUTCOMES,
+  ASSISTANT_REPLY_LIMITS,
+} from "@drora/shared";
 import { parseRouterDecisionText } from "./routerDecision.js";
+import { composeQueryReply, type QueryReplyLocale } from "./queryReply.js";
 import {
   composeCandidateCard,
   filterAttachCandidates,
@@ -54,6 +59,10 @@ export interface RouterEvaluationDeps {
    * （observe 模式行为原样）。
    */
   readonly onSuggested?: (input: { decisionId: number; verdictJson: string }) => void;
+  /** P7（08 号详设 §3.3）：query_status 臂的本机用户 identity（应答器模板占位用）。 */
+  readonly localIdentity: string;
+  /** P7：答复语言（面板/Source 缺省 zh；Source 事件原语言后续批接入）。 */
+  readonly replyLocale?: QueryReplyLocale;
 }
 
 export interface RouterEvaluationTrigger {
@@ -102,10 +111,24 @@ export function createRouterEvaluation(deps: RouterEvaluationDeps): {
         ...(attachCandidates.length > 0 ? { attachCandidates } : {}),
       });
       const result = await router({ card: card.input });
+      // P7（08 号详设 §3.3）：query_status 臂 → host 确定性应答器直答——同事务落
+      // answer_text + decision 翻 outcome=status_replied（不建票、不派 worker、不进
+      // 决策卡集；answer 界 replyTextMax）。decision 配额计数在触发时已落，翻转不
+      // 回冲（decision 类永不抑制，统计偏差 ≤1 有界——contracts 注释即对账点）。
+      let queryReplyText: string | null = null;
       const finalize: { state: "suggested" | "failed"; verdict?: string; error?: string } =
         result.ok
           ? (() => {
               const parsed = parseRouterDecisionText(result.output);
+              if (parsed.ok && parsed.decision.kind === "query_status") {
+                const reply = composeQueryReply({
+                  scope: parsed.decision.arm.scope,
+                  raw: db.raw,
+                  localIdentity: deps.localIdentity,
+                  ...(deps.replyLocale ? { locale: deps.replyLocale } : {}),
+                });
+                queryReplyText = reply.text.slice(0, ASSISTANT_REPLY_LIMITS.replyTextMax);
+              }
               return parsed.ok
                 ? { state: "suggested" as const, verdict: JSON.stringify(parsed.decision) }
                 : { state: "failed" as const, error: parsed.reason };
@@ -114,9 +137,16 @@ export function createRouterEvaluation(deps: RouterEvaluationDeps): {
       db.transaction((raw: AssistantDatabaseRaw) => {
         raw
           .prepare(
-            "UPDATE router_evaluation SET state = ?, verdict = ?, error = ?, decided_ms = ? WHERE decision_id = ? AND state = 'pending'",
+            "UPDATE router_evaluation SET state = ?, verdict = ?, error = ?, answer_text = ?, decided_ms = ? WHERE decision_id = ? AND state = 'pending'",
           )
-          .run(finalize.state, finalize.verdict ?? null, finalize.error ?? null, nowMs(), input.decisionId);
+          .run(finalize.state, finalize.verdict ?? null, finalize.error ?? null, queryReplyText, nowMs(), input.decisionId);
+        if (queryReplyText !== null) {
+          raw
+            .prepare(
+              "UPDATE admission_decision SET outcome = ?, reason_code = 'query_replied' WHERE id = ? AND outcome = ?",
+            )
+            .run(ASSISTANT_OUTCOMES.statusReplied, input.decisionId, ASSISTANT_OUTCOMES.decisionCard);
+        }
       });
       if (finalize.state === "suggested" && finalize.verdict && deps.onSuggested) {
         try {

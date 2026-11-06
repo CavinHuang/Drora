@@ -26,6 +26,8 @@ export interface FixtureDecision {
   routerState?: "pending" | "suggested" | "failed";
   routerSuggestion?: AssistantRouterSuggestionView;
   routerError?: string;
+  /** P10b manage 放行执行结果（outcome=managed 行携带；服务 manage_state/note 同构投影）。 */
+  manageExecution?: AssistantDecisionView["manageExecution"];
 }
 
 export interface FixtureTicket {
@@ -104,5 +106,6 @@ export function toFixtureDecisionViews(
     ...(decision.routerState ? { routerState: decision.routerState } : {}),
     ...(decision.routerSuggestion ? { routerSuggestion: decision.routerSuggestion } : {}),
     ...(decision.routerError ? { routerError: decision.routerError } : {}),
+    ...(decision.manageExecution ? { manageExecution: decision.manageExecution } : {}),
   }));
 }

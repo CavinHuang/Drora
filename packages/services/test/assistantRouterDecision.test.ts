@@ -168,9 +168,11 @@ describe("routerShell 无状态壳（02 §1.1/§1.3）", () => {
     expect(truncatedCard.input).toContain(`原文超 ${ASSISTANT_SNAPSHOT_LIMITS.candidateBriefMax} 字已截断`);
     // 截断体（1500）+ 约言/元数据恒小于原文全长注入。界随约言指引演进重校准（照 P7
     // 先例注记）：P7 加查询臂指引+台账速览段指引后 ~2755；P10a 加 chat 判定指引后
-    // ~3019（约言 +150，候选卡必须让 Router 知晓 chat 臂——设计 §2.2 判定权在 Router）。
+    // ~3019（约言 +150，候选卡必须让 Router 知晓 chat 臂——设计 §2.2 判定权在 Router）；
+    // P10b 加 manage 臂判定指引（撤回原「管理写意图→reject」碎片改六臂指引）后
+    // ~3260（净 +~240）——界 +300。
     expect(truncatedCard.input.length).toBeLessThan(
-      ASSISTANT_SNAPSHOT_LIMITS.candidateBriefMax + 1550,
+      ASSISTANT_SNAPSHOT_LIMITS.candidateBriefMax + 1850,
     );
   });
 

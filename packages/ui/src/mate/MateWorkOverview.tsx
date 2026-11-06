@@ -1,5 +1,5 @@
 import { memo } from "react";
-import { ChevronRightIcon, LoaderCircleIcon } from "lucide-react";
+import { ChevronRightIcon, LoaderCircleIcon, SquareIcon } from "lucide-react";
 import type {
   MateWorkInventoryRow,
   MateWorkInventoryView,
@@ -12,6 +12,15 @@ import { cn } from "@/components/lib/utils.js";
 
 import { MateLamp } from "./MateLamp.js";
 import { mateTicketLampTone } from "./statusTone.js";
+
+/** P10b 台账行管理入口的目标描述（10 号详设 §3.3——入口多样、准入门唯一：产 trigger）。 */
+export interface MateWorkManageTarget {
+  readonly kind: "session" | "offpeak_task";
+  readonly ref: string;
+  readonly title: string;
+  /** 行所属台账分组键（AGENTS 身份键——管理触发的 target workspace）。 */
+  readonly workspaceKey: string;
+}
 
 /**
  * 全域工作总览卡（P8b，09 详设 §1.7；面板顶部状态条下）。
@@ -30,6 +39,11 @@ import { mateTicketLampTone } from "./statusTone.js";
  * managed 标记语义（09 §1.4）：sessionId ∈ 活动工单 incarnation.sessionId 集——该
  * 会话是大副工单的当代执行体（host 侧已算好，UI 只呈现不判定）。DESIGN.md token
  * 体系（text-ui-* 系列、border-input、bg-surface），照配置区现有形态，不为状态发明新色。
+ *
+ * P10b（10 号详设 §3.3）：会话行/闲时行管理入口「经大副停掉/取消」——点击只产管理
+ * 意图 trigger（文本含对象 id），与对话面/Source 文本走**同一准入门**（recordTrigger →
+ * 决策卡 → manage 臂 → 人工 Y），不建第二条执行路径；闲时行导航主体保持禁用（无任务
+ * 中心导航面），管理入口可发起。off 模式入口禁用（零执行）。
  */
 export const MateWorkOverview = memo(function MateWorkOverview({
   inventory,
@@ -38,6 +52,8 @@ export const MateWorkOverview = memo(function MateWorkOverview({
   onToggleWorkspace,
   onSelectTicket,
   onOpenSession,
+  onManageTarget,
+  manageDisabled,
 }: {
   /** 全域台账视图（snapshot.inventory；缺席+未就绪=旧 Host）。 */
   inventory?: MateWorkInventoryView;
@@ -53,6 +69,14 @@ export const MateWorkOverview = memo(function MateWorkOverview({
    * 会话行降级为禁用——诚实降级，不发明新导航面）。
    */
   onOpenSession?: (sessionId: string, groupKey: string) => void;
+  /**
+   * P10b（10 号详设 §3.3）：台账行管理入口——会话行/闲时行「经大副停掉/取消」。只产
+   * 管理意图 trigger（文本含对象），走同一准入门（recordTrigger→决策卡→manage 臂→
+   * 人工 Y），**不建第二条执行路径**。缺席=管理入口不渲染（诚实降级）。
+   */
+  onManageTarget?: (target: MateWorkManageTarget) => void;
+  /** off 模式：管理入口禁用（off=零执行，含触发零放行）。 */
+  manageDisabled?: boolean;
 }) {
   const { intl } = useDroraIntl();
   // 三态 1：旧 Host（无台账能力）——卡不渲染。
@@ -90,6 +114,8 @@ export const MateWorkOverview = memo(function MateWorkOverview({
             onToggle={() => onToggleWorkspace(workspace.key)}
             onSelectTicket={onSelectTicket}
             onOpenSession={onOpenSession}
+            {...(onManageTarget ? { onManageTarget } : {})}
+            {...(manageDisabled !== undefined ? { manageDisabled } : {})}
           />
         ))
       )}
@@ -104,12 +130,16 @@ const MateWorkWorkspaceRow = memo(function MateWorkWorkspaceRow({
   onToggle,
   onSelectTicket,
   onOpenSession,
+  onManageTarget,
+  manageDisabled,
 }: {
   workspace: MateWorkInventoryWorkspace;
   expanded: boolean;
   onToggle: () => void;
   onSelectTicket: (ticketId: string) => void;
   onOpenSession?: (sessionId: string, groupKey: string) => void;
+  onManageTarget?: (target: MateWorkManageTarget) => void;
+  manageDisabled?: boolean;
 }) {
   const { intl } = useDroraIntl();
   const summary = deriveWorkspaceRowSummary(workspace);
@@ -183,14 +213,64 @@ const MateWorkWorkspaceRow = memo(function MateWorkWorkspaceRow({
             row.kind === MATE_WORK_INVENTORY_ROW_KINDS.ticket ? (
               <MateWorkTicketLine key={`ticket:${row.ticketId}`} row={row} onSelectTicket={onSelectTicket} />
             ) : row.kind === MATE_WORK_INVENTORY_ROW_KINDS.session ? (
-              <MateWorkSessionLine key={`session:${row.sessionId}`} row={row} groupKey={workspace.key} onOpenSession={onOpenSession} />
+              <MateWorkSessionLine
+                key={`session:${row.sessionId}`}
+                row={row}
+                groupKey={workspace.key}
+                onOpenSession={onOpenSession}
+                {...(onManageTarget ? { onManageTarget } : {})}
+                {...(manageDisabled !== undefined ? { manageDisabled } : {})}
+              />
             ) : (
-              <MateWorkOffpeakLine key={`offpeak:${row.taskId}`} row={row} />
+              <MateWorkOffpeakLine
+                key={`offpeak:${row.taskId}`}
+                row={row}
+                groupKey={workspace.key}
+                {...(onManageTarget ? { onManageTarget } : {})}
+                {...(manageDisabled !== undefined ? { manageDisabled } : {})}
+              />
             ),
           )}
         </div>
       ) : null}
     </div>
+  );
+});
+
+/**
+ * P10b 管理入口按钮（10 号详设 §3.3）：会话行=「经大副停掉」/闲时行=「经大副取消」
+ * ——点击只产管理意图 trigger（含对象 id 的文本），经同一准入门进 manage 决策卡；
+ * 执行仍须人工 Y（本入口零执行）。off 模式禁用（零执行）；onManageTarget 缺席不渲染。
+ */
+const MateWorkManageButton = memo(function MateWorkManageButton({
+  kind,
+  target,
+  onManageTarget,
+  disabled,
+}: {
+  kind: "session" | "offpeak_task";
+  target: MateWorkManageTarget;
+  onManageTarget: (target: MateWorkManageTarget) => void;
+  disabled: boolean;
+}) {
+  const { intl } = useDroraIntl();
+  const labelId = kind === "session" ? "mate.manage.row.stop" : "mate.manage.row.cancel";
+  const hintId = disabled ? "mate.manage.row.offHint" : labelId;
+  return (
+    <button
+      type="button"
+      onClick={(event) => {
+        event.stopPropagation();
+        if (!disabled) onManageTarget(target);
+      }}
+      disabled={disabled}
+      title={intl.formatMessage({ id: hintId })}
+      data-testid={`mate-work-overview-${kind === "session" ? "session" : "offpeak"}-manage`}
+      className="shrink-0 rounded-md p-1 text-foreground-subtlest transition-colors hover:bg-surface-hover hover:text-foreground-subtle disabled:cursor-not-allowed disabled:opacity-50"
+      aria-label={intl.formatMessage({ id: labelId })}
+    >
+      <SquareIcon aria-hidden className="size-3.5" />
+    </button>
   );
 });
 
@@ -241,15 +321,23 @@ const MateWorkTicketLine = memo(function MateWorkTicketLine({
   );
 });
 
-/** 台账会话/teams 行（标题+phase+managed 徽标；点击=onOpenMateSession 既有导航）。 */
+/**
+ * 台账会话/teams 行（标题+phase+managed 徽标；点击=onOpenMateSession 既有导航）。
+ * P10b（10 号详设 §3.3）：行尾管理入口「经大副停掉」——主行与入口按钮并列（不嵌套
+ * button），入口只产管理意图 trigger（同一准入门），行导航语义不变。
+ */
 const MateWorkSessionLine = memo(function MateWorkSessionLine({
   row,
   groupKey,
   onOpenSession,
+  onManageTarget,
+  manageDisabled,
 }: {
   row: Extract<MateWorkInventoryRow, { kind: typeof MATE_WORK_INVENTORY_ROW_KINDS.session }>;
   groupKey: string;
   onOpenSession?: (sessionId: string, groupKey: string) => void;
+  onManageTarget?: (target: MateWorkManageTarget) => void;
+  manageDisabled?: boolean;
 }) {
   const { intl } = useDroraIntl();
   // 导航门槛与既有汇报卡同形（onOpenSession 注入即可点；已结束会话照常可开——
@@ -285,60 +373,93 @@ const MateWorkSessionLine = memo(function MateWorkSessionLine({
       </span>
     </>
   );
+  const manageEntry =
+    onManageTarget && !row.sessionEnded ? (
+      <MateWorkManageButton
+        kind="session"
+        target={{ kind: "session", ref: row.sessionId, title: row.title, workspaceKey: groupKey }}
+        onManageTarget={onManageTarget}
+        disabled={manageDisabled === true}
+      />
+    ) : null;
   if (!navigable) {
     return (
-      <div
-        className="flex w-full items-center gap-2 rounded-lg border border-border/60 bg-surface px-2 py-1.5 opacity-60"
-        data-testid="mate-work-overview-session-row"
-        aria-disabled="true"
-      >
-        {body}
+      <div className="flex w-full items-center gap-1">
+        <div
+          className="flex min-w-0 flex-1 items-center gap-2 rounded-lg border border-border/60 bg-surface px-2 py-1.5 opacity-60"
+          data-testid="mate-work-overview-session-row"
+          aria-disabled="true"
+        >
+          {body}
+        </div>
+        {manageEntry}
       </div>
     );
   }
   return (
-    <button
-      type="button"
-      onClick={() => onOpenSession?.(row.sessionId, groupKey)}
-      data-testid="mate-work-overview-session-row"
-      className="flex w-full items-center gap-2 rounded-lg border border-border/60 bg-surface px-2 py-1.5 text-left transition-colors hover:bg-surface-hover"
-    >
-      {body}
-    </button>
+    <div className="flex w-full items-center gap-1">
+      <button
+        type="button"
+        onClick={() => onOpenSession?.(row.sessionId, groupKey)}
+        data-testid="mate-work-overview-session-row"
+        className="flex min-w-0 flex-1 items-center gap-2 rounded-lg border border-border/60 bg-surface px-2 py-1.5 text-left transition-colors hover:bg-surface-hover"
+      >
+        {body}
+      </button>
+      {manageEntry}
+    </div>
   );
 });
 
 /**
- * 台账闲时任务行（本 pane 无任务中心导航面——禁用+title 提示，不发明新导航面；
- * 09 §1.7 行点击语义里 offpeak 的落点在导航可达时才启用）。
+ * 台账闲时任务行（本 pane 无任务中心导航面——行主体保持禁用+title 提示，不发明新
+ * 导航面；09 §1.7 行点击语义里 offpeak 的落点在导航可达时才启用）。P10b（10 号详设
+ * §3.3）：禁用态解除为「可发起管理动作」——行尾「经大副取消」入口可点（产管理意图
+ * trigger 走同一准入门），导航主体仍禁用。
  */
 const MateWorkOffpeakLine = memo(function MateWorkOffpeakLine({
   row,
+  groupKey,
+  onManageTarget,
+  manageDisabled,
 }: {
   row: Extract<MateWorkInventoryRow, { kind: typeof MATE_WORK_INVENTORY_ROW_KINDS.offpeak }>;
+  groupKey: string;
+  onManageTarget?: (target: MateWorkManageTarget) => void;
+  manageDisabled?: boolean;
 }) {
   const { intl } = useDroraIntl();
   return (
-    <button
-      type="button"
-      disabled
-      title={intl.formatMessage({ id: "mate.work.offpeak.disabled" })}
-      data-testid="mate-work-overview-offpeak-row"
-      aria-disabled="true"
-      className="flex w-full cursor-not-allowed items-center gap-2 rounded-lg border border-border/60 bg-surface px-2 py-1.5 text-left opacity-60"
-    >
-      <span
-        aria-hidden
-        className="size-2 shrink-0 rounded-full border border-foreground-subtlest"
-      />
-      <span className="min-w-0 flex-1 truncate text-ui-sm text-foreground">{row.title}</span>
-      {row.status ? (
-        <span className="shrink-0 font-mono text-ui-xs text-foreground-subtlest">{row.status}</span>
+    <div className="flex w-full items-center gap-1">
+      <button
+        type="button"
+        disabled
+        title={intl.formatMessage({ id: "mate.work.offpeak.disabled" })}
+        data-testid="mate-work-overview-offpeak-row"
+        aria-disabled="true"
+        className="flex min-w-0 flex-1 cursor-not-allowed items-center gap-2 rounded-lg border border-border/60 bg-surface px-2 py-1.5 text-left opacity-60"
+      >
+        <span
+          aria-hidden
+          className="size-2 shrink-0 rounded-full border border-foreground-subtlest"
+        />
+        <span className="min-w-0 flex-1 truncate text-ui-sm text-foreground">{row.title}</span>
+        {row.status ? (
+          <span className="shrink-0 font-mono text-ui-xs text-foreground-subtlest">{row.status}</span>
+        ) : null}
+        <span className="shrink-0 text-ui-xs text-foreground-subtlest">
+          {formatTaskRelativeTime(row.updatedAtMs, intl)}
+        </span>
+      </button>
+      {onManageTarget ? (
+        <MateWorkManageButton
+          kind="offpeak_task"
+          target={{ kind: "offpeak_task", ref: row.taskId, title: row.title, workspaceKey: groupKey }}
+          onManageTarget={onManageTarget}
+          disabled={manageDisabled === true}
+        />
       ) : null}
-      <span className="shrink-0 text-ui-xs text-foreground-subtlest">
-        {formatTaskRelativeTime(row.updatedAtMs, intl)}
-      </span>
-    </button>
+    </div>
   );
 });
 

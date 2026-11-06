@@ -97,6 +97,8 @@ export function createMateFixtureService(
   let awaitNextTicket = false;
   // P3 接缝批：手机入口 ingest 结果读点（direct:<ticketId>:<text> / gate:<triggerId>:<outcome>）。
   let lastIngest = "";
+  // P10b：manage 放行入参读点（MSA19 断言决策卡 Y 走 approveManageDecision 入口）。
+  let lastManageApproveInput: number | null = null;
   // P8b 台账注入状态件拆 mate-browser.fixture-inventory.ts（≤800 行纪律）；P9 自主
   // 节奏状态件拆 mate-browser.fixture-autonomy.ts；P4 配额/打扰闸/watchdog 通知区
   // 状态件拆 mate-browser.fixture-quota.ts；信任门投影/auto-locked 拆
@@ -653,6 +655,33 @@ export function createMateFixtureService(
       return { ok: true, value: { ok: true } };
     },
 
+    // P10b（10 号详设 §3.1）：manage 臂人工放行——内存版同构语义（真实链=预检可见集
+    // →事务翻 managed+executing→异步执行端口→回写 executed/skipped/failed；本夹具
+    // 只造投影事实：翻 managed+executing 即刻 publish，500ms 后 executed 落实——
+    // MSA19 断言对话流结果消息按稳定终态推进）。幂等：已 managed 二次放行原样返回。
+    async approveManageDecision(input) {
+      lastManageApproveInput = input.decisionId;
+      const decision = decisions.find((item) => item.id === input.decisionId);
+      if (!decision || decision.outcome !== ASSISTANT_OUTCOMES.decisionCard) {
+        return { ok: false, error: { code: "mate.decision.not_found" } };
+      }
+      decision.outcome = ASSISTANT_OUTCOMES.managed;
+      decision.decidedBy = "user";
+      decision.manageExecution = { state: "executing" };
+      publish();
+      const managedId = decision.id;
+      setTimeout(() => {
+        const target = decisions.find((item) => item.id === managedId);
+        if (!target || target.outcome !== ASSISTANT_OUTCOMES.managed) return;
+        target.manageExecution = {
+          state: "executed",
+          note: "已发 stop（expectedForegroundExecutionId=exec-manage-1）",
+        };
+        publish();
+      }, 500);
+      return { ok: true, value: { ok: true } };
+    },
+
     // P5 设置中心：六 setter 内存实现（快照回显；MSA13 验收消费）。
     async setBudget(input) {
       budgetMax = input.maxActivePerWorkspace;
@@ -769,6 +798,10 @@ export function createMateFixtureService(
     /** 手机入口 ingest 结果读点（direct:<ticketId>:<text> / gate:<triggerId>:<outcome>）。 */
     lastIngest(): string {
       return lastIngest;
+    },
+    /** P10b manage 放行读点（`decisionId=<n>`；MSA19 断言 Y 走 manage 入口）。 */
+    lastManageApproveInput(): string {
+      return `decisionId=${lastManageApproveInput ?? "-"}`;
     },
     queueNext(): void {
       queueNextApprove = true;

@@ -15,7 +15,8 @@
  *
  * 纯模块：kv 状态由调用方读写（服务闭包经 db），本文件只做纯计算。
  */
-import { ASSISTANT_SNAPSHOT_LIMITS } from "@drora/shared";
+import { ASSISTANT_MANAGE_LIMITS, ASSISTANT_SNAPSHOT_LIMITS } from "@drora/shared";
+import type { MateWorkInventoryView } from "@drora/shared";
 import type { AssistantSessionSummaryLite } from "./assistantPorts.js";
 
 /** 台账 kv 键（mate.sqlite kv 表；存储键单出处）。 */
@@ -65,7 +66,8 @@ export function composeRoutingPreamble(): string {
     "evidence 至多 3 条且必须逐字引用候选卡原文；路由注（附加说明）≤30 词；拿不准一律 hold，禁止编造。",
     "attach 臂的 sessionId 只能取自候选卡【附着候选】清单；清单缺席、为空或均不合适 → hold，禁止编造 sessionId。",
     "候选卡【台账速览】段（若有）是大副账本的当前事实（活动/待决策/最近完成计数；P8 起含「全域 …」行=跨项目会话/teams/闲时任务概览）——查询意图的 scope 判定与 dispatch/attach 的目标佐证以它为准（attach 目标佐证不限于大副工单，但 sessionId 仍只能取自【附着候选】清单）；缺席时按原文判断，禁止臆测账本内容。",
-    "P7 查询直答（08 号详设；P8 扩 work；P10a 扩 chat）：进度/状态/成本/摘要类**查询意图**（不要求执行）→ {\"query_status\":{\"scope\":{\"kind\":\"status|ticket|usage|digest|work\",\"workspaceIdentity\":可选,\"ticketId\":可选},\"reason\":\"≤500字\"},\"evidence\":[…]}——系统会按你的 scope 直查账本作答，无需 worker。问「最近都在忙什么/各项目什么情况」等跨项目问题用 work（全域工作台账视角）。非四 scope 的读意图（闲聊/咨询/泛问题）→ {\"query_status\":{\"scope\":{\"kind\":\"chat\"},\"reason\":\"≤500字\"},\"evidence\":[…]}——系统会以你身份追加一轮自由作答。含「去做/去修/去查一下」等执行动词 → dispatch/attach；管理写意图（停止工单/切模式/换代）→ reject 并在 reason 引导到面板操作（你没有写工具，也永不该有）。",
+    "P7 查询直答（08 号详设；P8 扩 work；P10a 扩 chat）：进度/状态/成本/摘要类**查询意图**（不要求执行）→ {\"query_status\":{\"scope\":{\"kind\":\"status|ticket|usage|digest|work\",\"workspaceIdentity\":可选,\"ticketId\":可选},\"reason\":\"≤500字\"},\"evidence\":[…]}——系统会按你的 scope 直查账本作答，无需 worker。问「最近都在忙什么/各项目什么情况」等跨项目问题用 work（全域工作台账视角）。非四 scope 的读意图（闲聊/咨询/泛问题）→ {\"query_status\":{\"scope\":{\"kind\":\"chat\"},\"reason\":\"≤500字\"},\"evidence\":[…]}——系统会以你身份追加一轮自由作答。含「去做/去修/去查一下」等执行动词 → dispatch/attach。",
+    "P10b 管理动作：管理写意图（停掉会话/取消闲时任务）→ {\"manage\":{\"targetKind\":\"session|offpeak_task\",\"targetRef\":\"…\",\"action\":\"stop_turn|cancel\",\"reason\":\"≤200字\"},\"evidence\":[…]}——仅 session+stop_turn / offpeak_task+cancel 两配对；targetRef 只能取自候选卡【可管理对象】清单（缺席/为空/不合适 → hold 引导面板，禁止编造）；管理必须决策卡人工 Y。停大副自己的工单/切模式/换代 → reject 引导面板。",
   ].join("\n");
 }
 
@@ -160,6 +162,63 @@ export function filterAttachCandidates(input: {
   return result;
 }
 
+// ---------------------------------------------------------------------------
+// P10b（10 号详设 §3.1）：manage 臂台账可见集——评估输入携带的可管理对象清单
+// （attach【附着候选】同款结构化反编造载体；约言约束 Router 只能从中取 targetRef，
+// 放行预检 manageActions 按**实时**可见集 fail-closed 兜底——两道防线同 attach）。
+// ---------------------------------------------------------------------------
+
+/** 候选卡携带的可管理对象（台账行投影；workspaceKey 供放行预检解析执行目标域）。 */
+export interface RouterManageTarget {
+  readonly targetKind: "session" | "offpeak_task";
+  readonly targetRef: string;
+  readonly title: string;
+  /** 台账分组键（AGENTS 身份键；执行端口据此定位会话/任务所在 workspace 域）。 */
+  readonly workspaceKey: string;
+}
+
+/**
+ * 台账可见集推导（纯函数）：inventory 会话行/闲时行 → 有界可管理对象清单。
+ * 每类各取最近活动在前 targetsMaxPerKind 条（视图本身已按最近活动排序）；已结束
+ * 会话不可停（无当前回合）不入清单。工单行不入（停大副自有工单走 stopMandate
+ * 既有面，非 manage 臂）。inventory 缺席（provider 未注入/冷启动）→ 空集（候选卡
+ * 不出段，约言禁止 Router 输出 manage 臂——诚实降级 Tier3）。
+ */
+export function deriveManageTargets(
+  inventory: MateWorkInventoryView | null,
+): RouterManageTarget[] {
+  if (!inventory) return [];
+  const targets: RouterManageTarget[] = [];
+  const perKindBudget = ASSISTANT_MANAGE_LIMITS.targetsMaxPerKind;
+  let sessions = 0;
+  let offpeak = 0;
+  for (const workspace of inventory.workspaces) {
+    for (const row of workspace.rows) {
+      if (row.kind === "session") {
+        if (row.sessionEnded) continue;
+        if (sessions >= perKindBudget) continue;
+        sessions += 1;
+        targets.push({
+          targetKind: "session",
+          targetRef: row.sessionId,
+          title: row.title,
+          workspaceKey: workspace.key,
+        });
+      } else if (row.kind === "offpeak") {
+        if (offpeak >= perKindBudget) continue;
+        offpeak += 1;
+        targets.push({
+          targetKind: "offpeak_task",
+          targetRef: row.taskId,
+          title: row.title,
+          workspaceKey: workspace.key,
+        });
+      }
+    }
+  }
+  return targets;
+}
+
 export interface CandidateCardInput {
   readonly triggerId: string;
   /** 用户原文 verbatim（不改写；超长截断并如实标注）。 */
@@ -176,6 +235,11 @@ export interface CandidateCardInput {
    * Router 按约言不得输出 attach 臂。
    */
   readonly attachCandidates?: readonly RouterAttachCandidate[];
+  /**
+   * P10b manage 台账可见集（deriveManageTargets 产出；10 号详设 §3.1）。缺席/空集=
+   * 无可管理对象，Router 按约言不得输出 manage 臂（hold 引导面板）。
+   */
+  readonly manageTargets?: readonly RouterManageTarget[];
 }
 
 export interface CandidateCard {
@@ -210,13 +274,22 @@ export function composeCandidateCard(input: CandidateCardInput): CandidateCard {
         )
         .join("\n")}`
     : "";
+  // P10b：可见集段（manage 臂 targetRef 的唯一合法来源；缺席不出段——约言禁止 manage）。
+  const manageList = input.manageTargets?.length
+    ? `\n\n【可管理对象】台账当前可见的会话/闲时任务（manage 臂 targetRef 必须从这里选）：\n${input.manageTargets
+        .map(
+          (target) =>
+            `- ${target.targetKind} ${target.targetRef} 「${target.title}」`,
+        )
+        .join("\n")}`
+    : "";
   const card = [
     "【候选卡】以下是用户请求原文（verbatim，未改写）：",
     "---",
     body,
     "---",
     meta,
-    `${truncated ? `\n（原文超 ${max} 字已截断；全文见读指针，不得臆测截断内容。）` : ""}${digest}${candidates}`,
+    `${truncated ? `\n（原文超 ${max} 字已截断；全文见读指针，不得臆测截断内容。）` : ""}${digest}${candidates}${manageList}`,
     "\n请按约言输出 JSON 决策。",
   ].join("\n");
   return { input: `${composeRoutingPreamble()}\n\n${card}`, truncated, readPointer };

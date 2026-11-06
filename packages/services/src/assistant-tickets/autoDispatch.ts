@@ -261,6 +261,16 @@ export function createAssistantAutoDispatch(deps: AssistantAutoDispatchDeps): {
     } catch {
       return; // verdict 损坏不猜测（卡留人工）
     }
+    // P10b（10 号详设 §3.1/§0 v2.1）：manage 臂永不自动执行——**auto 只自动建票派发**
+    // （管理≠自动），管理动作一律留决策卡人工 Y（spec §14 P10 行「auto 模式管理动作
+    // 同样必须人工 Y」）。显式排除（不靠下方 dispatch/attach 白名单的隐式遗漏——
+    // autonomy suggest 卡不进评估循环是 §2.2.1 同款补强先例）；留 info 供审计。
+    if (verdict.kind === "manage") {
+      logger.info("assistant-tickets auto 不放行 manage 臂（管理动作必须人工 Y）", {
+        decisionId: input.decisionId,
+      });
+      return;
+    }
     if (verdict.kind !== "dispatch" && verdict.kind !== "attach") return;
     // evidence 强约束（04 详设 §2「必须命中 evidence 引用原文」）：空数组不算命中。
     const evidence = Array.isArray(verdict.evidence)

@@ -262,6 +262,23 @@ export const mateMessagesEn = {
   "mate.thread.composer.send": "Send",
   "mate.thread.composer.off":
     "The Mate is off: the conversation is read-only and input is disabled (reads execute nothing either).",
+
+  // ---- P10b 管理动作面（10 号详设 §3.1/§3.3；决策卡 manage 呈现+台账行管理入口） ----
+  "mate.router.suggested.manage": "Suggestion: management action",
+  "mate.manage.action.stop_turn": "Stop the current turn",
+  "mate.manage.action.cancel": "Cancel the off-peak task",
+  "mate.manage.target.session": "Session",
+  "mate.manage.target.offpeak_task": "Off-peak task",
+  "mate.manage.state.executing": "Executing…",
+  "mate.manage.state.executed": "Executed",
+  "mate.manage.state.skipped": "No action needed (target already terminal)",
+  "mate.manage.state.failed": "Execution failed",
+  "mate.manage.row.stop": "Stop via the Mate",
+  "mate.manage.row.cancel": "Cancel via the Mate",
+  "mate.manage.row.offHint": "The Mate is off: management actions are disabled",
+  "mate.thread.manage.result": "Management action result",
+  "mate.error.manageInvalid": "Target not in the Mate's work inventory (or no longer manageable); the card is unchanged.",
+  "mate.error.manageUnavailable": "The management execution channel is unavailable on this host.",
 };
 
 export const mateMessagesZh = {
@@ -512,4 +529,21 @@ export const mateMessagesZh = {
   "mate.thread.composer.send": "发送",
   "mate.thread.composer.off":
     "大副处于 off 模式：对话只读、输入停用（读意图也零执行）。",
+
+  // ---- P10b 管理动作面（10 号详设 §3.1/§3.3；决策卡 manage 呈现+台账行管理入口） ----
+  "mate.router.suggested.manage": "建议：管理动作",
+  "mate.manage.action.stop_turn": "停掉当前回合",
+  "mate.manage.action.cancel": "取消闲时任务",
+  "mate.manage.target.session": "会话",
+  "mate.manage.target.offpeak_task": "闲时任务",
+  "mate.manage.state.executing": "执行中…",
+  "mate.manage.state.executed": "已执行",
+  "mate.manage.state.skipped": "已无需执行（目标已是终态）",
+  "mate.manage.state.failed": "执行失败",
+  "mate.manage.row.stop": "经大副停掉",
+  "mate.manage.row.cancel": "经大副取消",
+  "mate.manage.row.offHint": "大副处于 off 模式：管理动作停用",
+  "mate.thread.manage.result": "管理动作结果",
+  "mate.error.manageInvalid": "目标不在大副台账（或已不可管理），决策卡未变动。",
+  "mate.error.manageUnavailable": "该主机未装配管理执行通道。",
 };

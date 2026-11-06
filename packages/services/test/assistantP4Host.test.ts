@@ -900,9 +900,15 @@ describe("schema v5/v6（stale 与核验滞留列只加不破）", () => {
       db.raw.prepare("PRAGMA table_info(router_evaluation)").all() as Array<{ name: string }>
     ).map((column) => column.name);
     expect(evaluationColumns).toContain("answer_text");
+    // P10b（10 号详设 §3.1，v8 只加不破）：manage 执行结果回写列（admission_decision 表）。
+    const decisionColumns = (
+      db.raw.prepare("PRAGMA table_info(admission_decision)").all() as Array<{ name: string }>
+    ).map((column) => column.name);
+    expect(decisionColumns).toContain("manage_state");
+    expect(decisionColumns).toContain("manage_note");
     const version = db.raw.prepare("SELECT value FROM kv WHERE key = 'schema_version'").get() as {
       value: string;
     };
-    expect(Number(version.value)).toBe(7);
+    expect(Number(version.value)).toBe(8);
   });
 });

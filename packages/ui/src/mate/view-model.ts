@@ -424,7 +424,61 @@ export function mateRouterSuggestionKindMessageId(
     // 返回词典键（mate.router.suggested.query_status）供详情/排查展示。
     case "query_status":
       return "mate.router.suggested.query_status";
+    // P10b 管理臂（10 号详设 §3.1）：决策卡建议区「管理动作」标题（对象/动作/理由/证据）。
+    case "manage":
+      return "mate.router.suggested.manage";
   }
+}
+
+// ---------------------------------------------------------------------------
+// P10b 管理动作面（10 号详设 §3.1）：manage 臂呈现的封闭映射（对象/动作/执行结果）。
+// 枚举值=contracts ASSISTANT_MANAGE_* 单出处经服务投影透传；未知值返回 null 不渲染。
+// ---------------------------------------------------------------------------
+
+/** manage 目标类别 → i18n 键（mate.manage.target.*）。 */
+export function mateManageTargetKindMessageId(targetKind: string): string | null {
+  switch (targetKind) {
+    case "session":
+      return "mate.manage.target.session";
+    case "offpeak_task":
+      return "mate.manage.target.offpeak_task";
+    default:
+      return null;
+  }
+}
+
+/** manage 动作 → i18n 键（mate.manage.action.*）。 */
+export function mateManageActionMessageId(action: string): string | null {
+  switch (action) {
+    case "stop_turn":
+      return "mate.manage.action.stop_turn";
+    case "cancel":
+      return "mate.manage.action.cancel";
+    default:
+      return null;
+  }
+}
+
+/** manage 执行结果状态 → i18n 键（mate.manage.state.*；MateDecisionCard 结果行与
+ * MateThread 管理结果消息共用，不各写第二份措辞）。 */
+export function mateManageStateMessageId(
+  state: NonNullable<AssistantDecisionView["manageExecution"]>["state"],
+): string {
+  switch (state) {
+    case "executing":
+      return "mate.manage.state.executing";
+    case "executed":
+      return "mate.manage.state.executed";
+    case "skipped":
+      return "mate.manage.state.skipped";
+    case "failed":
+      return "mate.manage.state.failed";
+  }
+}
+
+/** manage 放行终态行（outcome=managed）：对话流管理结果消息的判定谓词。 */
+export function isMateManageExecutedDecision(decision: AssistantDecisionView): boolean {
+  return decision.outcome === ASSISTANT_OUTCOMES.managed;
 }
 
 /** 权限档 → i18n 键（mate.card.tier.*；决策卡徽标与放行动作共用，P2 按建议渲染）。 */
@@ -571,7 +625,10 @@ export type MateErrorMessageId =
   | "mate.config.advanced.intervalInvalid"
   // P9 节奏区心跳间隔本地校验失败（09 号详设 §2；界=ASSISTANT_CONFIG_LIMITS
   // .autonomyIntervalMinutes 单出处 30-1440）。
-  | "mate.config.rhythm.intervalInvalid";
+  | "mate.config.rhythm.intervalInvalid"
+  // P10b 管理动作面（10 号详设 §3.1）：manage 放行预检失败（可见集失配/通道未装配）。
+  | "mate.error.manageInvalid"
+  | "mate.error.manageUnavailable";
 
 /** 服务失败臂 → 文案键；未知码一律落 generic，不把原始错误文本直接展示给用户。 */
 export function resolveMateErrorMessageId(
@@ -596,6 +653,12 @@ export function resolveMateErrorMessageId(
       // 等待建议后重放。落 generic「操作失败」会让远程 tab 反复重试恒败且零指引，
       // 与本批 CONTRACT.md 声明的「诚实拒绝可改选」呈现语义脱节。
       return "mate.error.dispatchRejected";
+    case ASSISTANT_ERROR_CODES.manageTargetInvalid:
+      // P10b（10 号详设 §3.1）：可见集失配拒绝（attach 同款 fail-closed）——专属文案
+      // 说明「目标不在台账」，不落 generic（与 dispatchRejected 同理：正常设计路径）。
+      return "mate.error.manageInvalid";
+    case ASSISTANT_ERROR_CODES.manageUnavailable:
+      return "mate.error.manageUnavailable";
     default:
       return "mate.error.generic";
   }

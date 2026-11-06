@@ -658,6 +658,7 @@ import {
   setAssistantFrameSource,
   setAssistantRouterPort,
   setAssistantRouterChatPort,
+  setAssistantManagePort,
   setAssistantSessionsIndexPort,
   setAssistantWorkspaceProbePort,
   setAssistantGitWorktreePort,
@@ -678,6 +679,12 @@ import {
   type WorkInventoryTaskMetaInput,
 } from "./assistant-tickets/workInventoryBootstrap.js";
 import { ROUTER_KV_KEYS, shouldRotateRouterSession } from "./assistant-tickets/routerShell.js";
+// P10b manage 执行面（10 号详设 §3.1）：取帧判定纯函数（manageActions 单测同引）与
+// bots 既有会话快照读面（readBotGroupRuntimeSnapshot——同一 subscribeConversationV4
+// 通道的既有调用方先例，mate 复用不建第二读路径）；v4 stop ACK 断言（assertV4CommandAckOk）
+// 复用下方既有 import。
+import { planManageStopTurn } from "./assistant-tickets/manageActions.js";
+import { readBotGroupRuntimeSnapshot } from "./drora-agent/groupRuntimeSnapshot.js";
 import type { AssistantWatchdogRoundResult } from "./assistant-tickets/watchdog.js";
 import type { AssistantAutonomyRoundResult } from "./assistant-tickets/autonomy.js";
 import { ASSISTANT_ERROR_CODES, ASSISTANT_IDENTITY, ASSISTANT_SETTINGS_KEYS } from "@drora/shared";
@@ -4171,6 +4178,91 @@ export function createLocalServices(options: {
         return undefined;
       }
     },
+  });
+  // P10b manage 执行端口（10 号详设 §3.1；**无特权路径铁律**——全部是既有 harness
+  // 服务面的新调用方，守卫原样适用，守卫拒绝=如实失败落卡）：
+  // - session/stop_turn：经 bots 既有 readBotGroupRuntimeSnapshot（同一
+  //   subscribeConversationV4 后台订阅通道——droraTaskServiceAdapter getBotTopicExecution
+  //   同款先例）读会话控制面 → planManageStopTurn 取帧（expectedForegroundExecutionId
+  //   来自 CLI activeWorks，与 UI SessionPane.handleStop 同一取帧语义）→ 经该会话发
+  //   v4 stop（CAS 守卫由 CLI 原样执行，ACK 非 ok=失败）；
+  // - offpeak_task/cancel：OffPeakTaskService.cancelTask（服务集合单例——renderer 直连
+  //   同一实例；返回行 status=cancelled=本次落终态，其他终态=已终态幂等成功）。
+  // workspace 定位（台账分组键→v4 目标）：本地绝对路径键=本地 workspace（identity
+  // 缺席）；其余=identity 键、路径回落共享对话目录——P8 sessions-index 订阅同款
+  // resolveWorkspaceKey 逆映射（两形态落同一 workspace 键）。读失败/定位失配=诚实
+  // 失败（不猜测、不旁路重试）。
+  function assistantManageWorkspaceTarget(workspaceKey: string): {
+    workspacePath: string;
+    workspaceIdentity?: string;
+  } {
+    if (isAbsolute(workspaceKey)) {
+      return { workspacePath: workspaceKey };
+    }
+    return { workspacePath: getConversationWorkspaceDir(), workspaceIdentity: workspaceKey };
+  }
+  setAssistantManagePort(async ({ targetKind, targetRef, action, workspaceKey }) => {
+    try {
+      if (targetKind === "offpeak_task") {
+        const offPeak = services.getOptional(IOffPeakTaskService);
+        if (!offPeak) {
+          return { ok: false as const, reason: "OffPeakTaskService 不可用" };
+        }
+        const task = await offPeak.cancelTask(targetRef);
+        if (!task) {
+          // cancelTask 对不存在/已删行返回 null：可见集刚见过该对象，行已不在=已完结
+          // 或已删除（deleteTask 先 cancel 后删行）——按幂等成功「已无需执行」如实标注。
+          return {
+            ok: true as const,
+            outcome: "already_terminal" as const,
+            detail: "任务已不在台账（已完结或已删除），已无需执行",
+          };
+        }
+        return task.status === "cancelled"
+          ? { ok: true as const, outcome: "executed" as const, detail: "已取消闲时任务" }
+          : {
+              ok: true as const,
+              outcome: "already_terminal" as const,
+              detail: `任务已是终态（${task.status}），已无需执行`,
+            };
+      }
+      // session + stop_turn（动作配对已由 schema 强校验；防御式拒绝其余组合）。
+      if (action !== "stop_turn") {
+        return { ok: false as const, reason: `session 目标不支持动作 ${action}` };
+      }
+      const workspaceTarget = assistantManageWorkspaceTarget(workspaceKey);
+      const snapshot = await readBotGroupRuntimeSnapshot(droraAgentService, {
+        ...workspaceTarget,
+        sessionId: targetRef,
+      });
+      const plan = planManageStopTurn(snapshot.control);
+      if (plan.kind === "none") {
+        return { ok: true as const, outcome: "already_terminal" as const, detail: plan.detail };
+      }
+      const ack = await droraAgentService.sendConversationCommandV4({
+        ...workspaceTarget,
+        envelope: createHostCommandEnvelope({
+          type: "stop",
+          sessionId: targetRef,
+          payload: plan.expectedForegroundExecutionId
+            ? { expectedForegroundExecutionId: plan.expectedForegroundExecutionId }
+            : {},
+        }),
+      });
+      assertV4CommandAckOk("stop", ack, `session=${targetRef}`);
+      return {
+        ok: true as const,
+        outcome: "executed" as const,
+        detail: plan.expectedForegroundExecutionId
+          ? `已发 stop（expectedForegroundExecutionId=${plan.expectedForegroundExecutionId}）`
+          : "已发 stop（活动帧无执行身份，不带守卫参数）",
+      };
+    } catch (error) {
+      return {
+        ok: false as const,
+        reason: error instanceof Error ? error.message : String(error),
+      };
+    }
   });
   // watchdog host face（P4，04 详设 §1）：desktop host cron 经 getAssistantTicketsHostFace
   // 取轮入口；awaiting 判据事实源（P4 第二棒工件核验）由服务内部按轮喂入，host face

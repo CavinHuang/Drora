@@ -175,6 +175,7 @@
   "packages/services/src/drora-extensions/contract.test.ts",
   "packages/services/src/gen-ui/contract.test.ts",
   "packages/services/test/assistantMateChat.test.ts",
+  "packages/services/test/assistantManageActions.test.ts",
   "packages/services/test/assistantMateThread.test.ts",
   "packages/services/test/inputPredictionSwitch.test.ts",
   "packages/services/test/knowledgeJevAdapter.test.ts",

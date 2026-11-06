@@ -18,9 +18,13 @@ import {
   deriveMateThreadRows,
   formatMateThreadClock,
   isMateAutoNoticeDecision,
+  isMateManageExecutedDecision,
   isMatePendingDecision,
   isMateQueryReply,
   isMateThreadTicketNavigable,
+  mateManageActionMessageId,
+  mateManageStateMessageId,
+  mateManageTargetKindMessageId,
   mateSourceKindMessageId,
   mateTicketGenerationNumber,
   mergeMateThreadRows,
@@ -365,7 +369,64 @@ const MateThreadDecisionRow = memo(function MateThreadDecisionRow({
       </div>
     );
   }
+  // P10b（10 号详设 §3.1）：manage 放行终态=管理结果消息（executed/skipped=已无需
+  // 执行/failed+原因；执行细节在 host 侧 manageActions——对话流只消费决策投影）。
+  if (isMateManageExecutedDecision(decision)) {
+    return <MateThreadManageResult decision={decision} />;
+  }
   return null;
+});
+
+/**
+ * 管理结果消息（outcome=managed）：对象+动作摘要行 + 执行结果状态（executed/skipped/
+ * failed/executing）+ note verbatim（失败原因/幂等标注）。无动作按钮（执行已发生或已
+ * 拒绝；失败重新触发=用户重新发起管理意图走新卡，不在本消息上重试）。
+ */
+const MateThreadManageResult = memo(function MateThreadManageResult({
+  decision,
+}: {
+  decision: AssistantDecisionView;
+}) {
+  const { intl } = useDroraIntl();
+  const suggestion = decision.routerSuggestion;
+  const actionLabel =
+    suggestion?.manageAction && mateManageActionMessageId(suggestion.manageAction) !== null
+      ? intl.formatMessage({ id: mateManageActionMessageId(suggestion.manageAction)! })
+      : null;
+  const targetLabel =
+    suggestion?.manageTargetRef &&
+    suggestion.manageTargetKind &&
+    mateManageTargetKindMessageId(suggestion.manageTargetKind) !== null
+      ? `${intl.formatMessage({
+          id: mateManageTargetKindMessageId(suggestion.manageTargetKind)!,
+        })} ${suggestion.manageTargetRef}`
+      : (suggestion?.manageTargetRef ?? null);
+  const execution = decision.manageExecution;
+  return (
+    <div
+      className="flex w-full flex-col items-start gap-0.5"
+      data-testid="mate-thread-manage-result"
+    >
+      <span className="text-ui-xs text-foreground-subtlest">
+        {intl.formatMessage({ id: "mate.thread.manage.result" })}
+      </span>
+      <div className="max-w-[85%] rounded-lg border border-border bg-surface px-2.5 py-1.5">
+        {actionLabel ?? targetLabel ? (
+          <p className="break-all text-ui-sm text-foreground">
+            {actionLabel ?? ""}
+            {actionLabel && targetLabel ? " · " : ""}
+            {targetLabel ?? ""}
+          </p>
+        ) : null}
+        {execution ? (
+          <p className="mt-0.5 break-words text-ui-xs text-foreground-subtle">
+            {intl.formatMessage({ id: mateManageStateMessageId(execution.state) })}
+            {execution.note ? `：${execution.note}` : ""}
+          </p>
+        ) : null}
+      </div>
+    </div>
+  );
 });
 
 /**

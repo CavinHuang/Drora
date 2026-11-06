@@ -4,16 +4,21 @@
  * Router（大副会话）按路由约言输出 JSON；host 侧用 zod 严格校验：
  * - 校验失败（不命中 schema）→ 该候选降级 Tier3 决策卡问人（不重试模型、不猜测），
  *   调用方只需看 parseRouterDecision 的 ok 臂；
- * - dispatch/hold/reject/attach/query_status 五臂互斥、恰现其一（attach 为 02 §2
- *   Tier2 扩展；query_status 为 P7 对话式查询直答扩展，08 号详设 §3.1）；
+ * - dispatch/hold/reject/attach/query_status/manage 六臂互斥、恰现其一（attach 为 02 §2
+ *   Tier2 扩展；query_status 为 P7 对话式查询直答扩展，08 号详设 §3.1；manage 为 P10b
+ *   管理动作面扩展，10 号详设 §3.1——经批准的管理动作，永不 auto 放行）；
  * - evidence 引用原文片段 ≤80 字、至多 3 条（ASSISTANT_SNAPSHOT_LIMITS 单出处）。
  *
  * 纯模块：无 IO、无 await；wire 语义只存在于 Router 会话文本（host 拼装的路由约言
  * 携带 schema 形状），不涉及跨进程契约键，故字面量收在本文件（AGENTS.md 契约键
- * 单一出处的范围是跨进程/跨包字面量）。
+ * 单一出处的范围是跨进程/跨包字面量）。manage 臂枚举值是跨包契约（services schema/
+ * 执行端口/快照投影/UI 呈现同引），引用 contracts ASSISTANT_MANAGE_* 常量。
  */
 import { z } from "zod";
 import {
+  ASSISTANT_MANAGE_ACTIONS,
+  ASSISTANT_MANAGE_LIMITS,
+  ASSISTANT_MANAGE_TARGET_KINDS,
   ASSISTANT_PERMISSION_TIERS,
   ASSISTANT_SNAPSHOT_LIMITS,
 } from "@drora/shared";
@@ -79,6 +84,39 @@ const attachArmSchema = z
   })
   .strict();
 
+/**
+ * P10b manage 臂（10 号详设 §3.1）：用户管理意图（停掉会话当前回合/取消闲时任务）→
+ * 决策卡人工 Y 后经既有 harness 服务面执行（大副零新执行逻辑）。targetRef 只能取自
+ * 候选卡【可管理对象】清单（attach 臂同款反编造纪律——约言约束+放行预检 fail-closed
+ * 兜底，见 manageActions）。动作族封闭（10 号详设 §3.2）：session↔stop_turn、
+ * offpeak_task↔cancel 的合法配对在本 schema superRefine 强校验，交叉组合失配拒绝。
+ */
+const manageArmSchema = z
+  .object({
+    targetKind: z.enum([
+      ASSISTANT_MANAGE_TARGET_KINDS.session,
+      ASSISTANT_MANAGE_TARGET_KINDS.offpeakTask,
+    ]),
+    targetRef: z.string().trim().min(1).max(200),
+    action: z.enum([ASSISTANT_MANAGE_ACTIONS.stopTurn, ASSISTANT_MANAGE_ACTIONS.cancel]),
+    reason: z.string().trim().min(1).max(ASSISTANT_MANAGE_LIMITS.reasonMax),
+  })
+  .strict()
+  .superRefine((arm, context) => {
+    const valid =
+      (arm.targetKind === ASSISTANT_MANAGE_TARGET_KINDS.session &&
+        arm.action === ASSISTANT_MANAGE_ACTIONS.stopTurn) ||
+      (arm.targetKind === ASSISTANT_MANAGE_TARGET_KINDS.offpeakTask &&
+        arm.action === ASSISTANT_MANAGE_ACTIONS.cancel);
+    if (!valid) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `manage 臂动作与对象失配（${arm.targetKind} 不支持 ${arm.action}）`,
+        path: ["action"],
+      });
+    }
+  });
+
 export const routerDecisionSchema = z
   .object({
     dispatch: dispatchArmSchema.optional(),
@@ -86,15 +124,21 @@ export const routerDecisionSchema = z
     reject: rejectArmSchema.optional(),
     attach: attachArmSchema.optional(),
     query_status: queryStatusArmSchema.optional(),
+    manage: manageArmSchema.optional(),
     evidence: z.array(evidenceItemSchema).max(ASSISTANT_SNAPSHOT_LIMITS.routerEvidenceMax),
   })
   .strict()
   .refine(
     (value) =>
-      [value.dispatch, value.hold, value.reject, value.attach, value.query_status].filter(
-        (arm) => arm != null,
-      ).length === 1,
-    { message: "dispatch/hold/reject/attach/query_status 必须恰现其一" },
+      [
+        value.dispatch,
+        value.hold,
+        value.reject,
+        value.attach,
+        value.query_status,
+        value.manage,
+      ].filter((arm) => arm != null).length === 1,
+    { message: "dispatch/hold/reject/attach/query_status/manage 必须恰现其一" },
   );
 
 export interface RouterDispatchArm {
@@ -110,7 +154,17 @@ export interface RouterAttachArm {
   readonly targetWorkspaceIdentity: string;
 }
 
-/** 归一后的 Router 决策（四臂 tagged union；evidence 原样携带供决策卡预填）。 */
+/** P10b manage 臂归一形状（zod 推断；枚举值=contracts ASSISTANT_MANAGE_* 单出处）。 */
+export interface RouterManageArm {
+  readonly targetKind:
+    | typeof ASSISTANT_MANAGE_TARGET_KINDS.session
+    | typeof ASSISTANT_MANAGE_TARGET_KINDS.offpeakTask;
+  readonly targetRef: string;
+  readonly action: typeof ASSISTANT_MANAGE_ACTIONS.stopTurn | typeof ASSISTANT_MANAGE_ACTIONS.cancel;
+  readonly reason: string;
+}
+
+/** 归一后的 Router 决策（六臂 tagged union；evidence 原样携带供决策卡预填）。 */
 export type RouterDecision =
   | { readonly kind: "dispatch"; readonly arm: RouterDispatchArm; readonly evidence: readonly string[] }
   | { readonly kind: "attach"; readonly arm: RouterAttachArm; readonly evidence: readonly string[] }
@@ -120,7 +174,8 @@ export type RouterDecision =
       readonly kind: "query_status";
       readonly arm: RouterQueryStatusArm;
       readonly evidence: readonly string[];
-    };
+    }
+  | { readonly kind: "manage"; readonly arm: RouterManageArm; readonly evidence: readonly string[] };
 export interface RouterQueryStatusArm {
   readonly scope: {
     /** P10a：含 "chat"（无参形态——workspaceIdentity/ticketId 对 chat 无意义，缺省不携带）。 */
@@ -202,6 +257,16 @@ export function parseRouterDecision(raw: unknown): RouterDecisionParseResult {
       decision: {
         kind: "attach",
         arm: value.attach,
+        evidence: value.evidence.map((item) => item.quote),
+      },
+    };
+  }
+  if (value.manage) {
+    return {
+      ok: true,
+      decision: {
+        kind: "manage",
+        arm: value.manage,
         evidence: value.evidence.map((item) => item.quote),
       },
     };

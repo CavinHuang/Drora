@@ -122,6 +122,36 @@ export type AssistantRouterChatPort = (input: {
 }) => Promise<{ ok: true; output: string } | { ok: false; reason: string }>;
 
 // ---------------------------------------------------------------------------
+// P10b（10 号详设 §3.1）：manage 执行端口——管理动作的既有 harness 服务面适配层
+// （node.ts set*）。**无特权路径铁律（v2.1）**：session=经该会话的 v4 stop 命令
+// （expectedForegroundExecutionId 从会话活动执行帧取——与 UI SessionPane 同一取帧
+// 语义，守卫原样适用，CLI 拒绝即失败）；offpeak=offPeakTaskService.cancelTask。
+// 服务侧（manageActions）只做判定+批准编排，执行细节全在本端口装配——大副零新
+// 执行逻辑，全部是既有 harness 调用面的新调用方。
+// ---------------------------------------------------------------------------
+
+/** manage 执行请求（workspaceKey=台账可见集解析出的对象所属 workspace 域键）。 */
+export interface AssistantManageExecutionRequest {
+  readonly targetKind: "session" | "offpeak_task";
+  readonly targetRef: string;
+  readonly action: "stop_turn" | "cancel";
+  readonly workspaceKey: string;
+}
+
+/** manage 执行结果（回写决策 manage_state/manage_note 的语义源）。 */
+export type AssistantManageExecutionResult =
+  /** 命令已发（stop ACK 通过/取消已落终态）。detail 可选执行标注。 */
+  | { readonly ok: true; readonly outcome: "executed"; readonly detail?: string }
+  /** 目标已终态=幂等成功（会话无可停执行/任务已完结或已删除）——「已无需执行」。 */
+  | { readonly ok: true; readonly outcome: "already_terminal"; readonly detail: string }
+  /** 执行通道失败（守卫拒绝含此内）——如实落卡，不放宽不重试。 */
+  | { readonly ok: false; readonly reason: string };
+
+export type AssistantManagePort = (
+  input: AssistantManageExecutionRequest,
+) => Promise<AssistantManageExecutionResult>;
+
+// ---------------------------------------------------------------------------
 // 会话索引端口（Tier2 候选集 / 锚对账 / Mode B teamActivity / 生命周期事件；02 §2/§3/§5）
 // ---------------------------------------------------------------------------
 
@@ -241,6 +271,7 @@ let attachPort: AssistantAttachPort | null = null;
 let frameSource: AssistantFrameSourcePort | null = null;
 let routerPort: AssistantRouterPort | null = null;
 let routerChatPort: AssistantRouterChatPort | null = null;
+let managePort: AssistantManagePort | null = null;
 let sessionsIndexPort: AssistantSessionsIndexPort | null = null;
 let workspaceProbePort: AssistantWorkspaceProbePort | null = null;
 let gitWorktreePort: AssistantGitWorktreePort | null = null;
@@ -266,6 +297,10 @@ export function setAssistantRouterPort(port: AssistantRouterPort | null): void {
 
 export function setAssistantRouterChatPort(port: AssistantRouterChatPort | null): void {
   routerChatPort = port;
+}
+
+export function setAssistantManagePort(port: AssistantManagePort | null): void {
+  managePort = port;
 }
 
 export function setAssistantSessionsIndexPort(port: AssistantSessionsIndexPort | null): void {
@@ -300,6 +335,8 @@ export function getAssistantPorts(): {
   readonly router: AssistantRouterPort | null;
   /** P10a：Router 聊天轮入口（null=旧装配无聊天轮——消费方按 failed 诚实降级）。 */
   readonly routerChat: AssistantRouterChatPort | null;
+  /** P10b：manage 执行入口（null=旧装配无执行面——放行预检按 manageUnavailable 拒绝）。 */
+  readonly manage: AssistantManagePort | null;
   readonly sessionsIndex: AssistantSessionsIndexPort | null;
   readonly workspaceProbe: AssistantWorkspaceProbePort | null;
   readonly gitWorktree: AssistantGitWorktreePort | null;
@@ -313,6 +350,7 @@ export function getAssistantPorts(): {
     frameSource,
     router: routerPort,
     routerChat: routerChatPort,
+    manage: managePort,
     sessionsIndex: sessionsIndexPort,
     workspaceProbe: workspaceProbePort,
     gitWorktree: gitWorktreePort,

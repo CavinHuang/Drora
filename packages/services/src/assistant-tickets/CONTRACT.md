@@ -187,8 +187,28 @@ ticket.channel_ref）；Thread 直通 Tier1。
   （P10a-2 对话管理台验收面）。验收=assistantMateChat.test.ts（7 项）+
   assistantMateThread.test.ts（6 项），登记 scripts/drora-test-files.json（drora 并发
   清单——生成器 glob 覆盖，重跑收敛）。
+- **P10b 管理动作面（10 号详设 §3，feat/drora-mate）**：routerDecision 第六臂 manage
+  （合法配对 superRefine 强校验：session↔stop_turn / offpeak_task↔cancel；枚举=
+  contracts ASSISTANT_MANAGE_* 单出处）。台账可见集两道防线：候选卡【可管理对象】段
+  （deriveManageTargets：inventory 会话/闲时行有界清单，携 workspaceKey；已结束会话
+  不入）+放行预检 fail-closed（清单外=mate.manage.invalid / provider 缺席=mate.manage.
+  unavailable，卡不消费——attach 派发桥同构）。人工 Y=IAssistantTicketService.
+  approveManageDecision（独立入口：管理动作不建 mandate/ticket 不派 worker，返回
+  {ok}；与 approveDecision 的准入门同一）：事务翻 outcome=managed（新枚举——decided_by
+  =user 但不进放行率口径 decision_card+user）+manage_state=executing（schema v8 列
+  admission_decision.manage_state/manage_note，唯一写者=manageActions 放行与回写事务）
+  → publish 后异步经 manage 执行端口（setAssistantManagePort）：session=bots 既有
+  readBotGroupRuntimeSnapshot（同一 subscribeConversationV4 后台通道）读控制面→
+  planManageStopTurn 取帧（expectedForegroundExecutionId=activeWorks 首帧，与 UI
+  SessionPane.handleStop 同一取帧语义，纯函数单测锁）→v4 stop（守卫原样适用）；
+  offpeak=OffPeakTaskService.cancelTask（services 集合单例）。回写 executed/skipped
+  （已无需执行）/failed+note（不自动重试；同卡二次放行幂等）。auto 永不放行：
+  autoDispatch.handleRouterSuggested 显式排除 manage 臂（先于白名单判定+info 审计）。
+  快照投影 manageExecution（防御式列值收窄）；mateThread 分页 SELECT 同步携带两列。
+  验收=assistantManageActions.test.ts（17 项，drora 清单）+MSA19。
 - 端口纪律：本模块不 import drora-agent/git——v4 命令、会话索引、workspace 探测、
-  git worktree、工件只读核验（P4 第二棒）、AppSettings 配额读（P4）八端口全在装配层
+  git worktree、工件只读核验（P4 第二棒）、AppSettings 配额读（P4）、manage 执行
+  （P10b）端口全在装配层
   （services/node.ts set*，assistantPorts.ts 唯一形状）；
   未注入按各语义诚实降级（派发=dispatch.rejected、Router=无建议、会话索引=候选空集/
   锚不可校验、探测=跳过 W1 规划按 workspace 域派发）。Router 端口双臂解除（装配层实现）：候选卡

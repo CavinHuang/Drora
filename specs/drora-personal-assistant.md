@@ -43,8 +43,8 @@ preset 无 bash、无写盘工具，只做路由、派发、盯单、汇报。
 2. **五入口一个 Mate**：桌面对话、Side Pane 任务中心、手机（App/远控）、IM（飞书
    channelRuntime 既有；其余经 §5 Source 注册表扩展）、语音（接 voice-agent spec）。
    **P10 设计注记（2026-11-07 v2.1，10 号详设；P10a-1 服务面与 P10a-2 对话管理台 UI
-   已实施（见下落地注记），P10b/P10c 纯设计未实施；v1 入口倒转已被用户裁定
-   修正，v2.1 按「harness 动作行为完全不变、大副纯增量」复审）**：大副=harness 之上的
+   与 P10b 管理动作面已实施（见下落地注记），P10c 纯设计未实施；v1 入口倒转已被用户
+   裁定修正，v2.1 按「harness 动作行为完全不变、大副纯增量」复审）**：大副=harness 之上的
    **增量管理员/管家层**——可管理 harness 内任何对象（会话/任务/team），**只对用户
    一个委托人负责**（单委托人原则）；既有直连入口全部保持（**不做 Mate-first 路由**）。
    **harness 零改动铁律**：P10 一切件落在 mate 自有面（新文件/既有服务面的新调用方），
@@ -106,7 +106,54 @@ preset 无 bash、无写盘工具，只做路由、派发、盯单、汇报。
    answer 透传补齐对齐服务单投影口径）。验收=MSA18（mate-surface-ac 扩展：四类消息/
    composer 同链/分页升序无重复+耗尽收起/off 禁用；兄弟资产 locator 按 mate-inbox-list
    容器收敛——断言语义不变）+view-model 6 项（drora-fork-isolated 清单）+i18n 守护
-   3 项；五资产 node --test 实跑全绿。P10b（manage 臂）未实施。
+   3 项；五资产 node --test 实跑全绿。
+   **P10b 落地注记（2026-11-07，10 号详设 §3 v2.1 管理动作面批次）**：①manage 第六臂
+   ——routerDecisionSchema 扩 manage（targetKind: session|offpeak_task / targetRef /
+   action: stop_turn|cancel / reason ≤ASSISTANT_MANAGE_LIMITS.reasonMax=200；**合法配对
+   superRefine 强校验**：session↔stop_turn、offpeak_task↔cancel，交叉组合失配拒绝），
+   refine 改「六臂恰现其一」；枚举值经 contracts ASSISTANT_MANAGE_* 单出处（schema/执行
+   端口/快照投影/UI 同引）。②台账可见集（attach 反编造同款两道防线）——候选卡新增
+   【可管理对象】段（deriveManageTargets 纯函数：inventory 会话行/闲时行有界清单，
+   每类 targetsMaxPerKind=5、已结束会话不入、携 workspaceKey；与速览共用评估链同一
+   inventory 读点）；约言同步 manage 判定指引（清单缺席→hold 引导面板）；**放行预检
+   fail-closed 兜底**（manageActions 事务前按实时可见集复核，清单外 targetRef=
+   manageTargetInvalid 拒绝、provider 缺席=manageUnavailable，卡不消费——attach
+   probeAttachTarget 同构）。③人工 Y+异步执行——IAssistantTicketService 新增
+   `approveManageDecision`（与 approveDecision 分道：管理动作不建 mandate/ticket 不派
+   worker；返回形状不同故独立入口，准入门同一）：事务翻 outcome=**managed**（新枚举；
+   decided_by=user 但 outcome≠decision_card——不污染放行率口径 decision_card+user，
+   管理批准不是 Router 建议质量样本）+manage_state=executing（schema v8：
+   admission_decision.manage_state/manage_note 列，只加不破）→ publish 后异步经
+   **manage 执行端口**（setAssistantManagePort，node.ts 装配的既有 harness 服务面新
+   调用方）：session=经 bots 既有 readBotGroupRuntimeSnapshot（同一
+   subscribeConversationV4 后台通道）读会话控制面→planManageStopTurn 取帧
+   （expectedForegroundExecutionId=activeWorks 首个带 id 帧，**与 UI SessionPane
+   .handleStop 同一取帧语义**——纯函数单测锁死）→经该会话发 v4 stop（CAS 守卫由 CLI
+   原样执行，ACK 非 ok=失败）；offpeak=OffPeakTaskService.cancelTask（服务集合单例，
+   renderer 直连同一实例；返回行 status=cancelled=executed、其他终态/null=already_
+   terminal 幂等成功）。执行结果回写 manage_state=executed/skipped（已无需执行）/
+   failed+manage_note（≤noteMax 截断；**失败不自动重试**，重新触发=新卡新决策；同卡
+   二次放行幂等）。**无特权路径**：mate 执行走与 UI 同一调用面，守卫原样适用，守卫
+   拒绝=如实落卡。④auto 永不自动执行 manage——autoDispatch.handleRouterSuggested 显式
+   排除 manage 臂（先于 dispatch/attach 白名单判定+info 审计日志；autonomy suggest 卡
+   不进评估循环是同款补强先例）+单测断言（auto 下 manage 建议落 suggested 但零建票零
+   执行零端口调用）。⑤台账行管理入口（§3.3 入口多样、准入门唯一）——MateWorkOverview
+   会话行/闲时行行尾「经大副停掉/取消」（SquareIcon 按钮，与主行并列不嵌套；**闲时行
+   导航主体保持禁用+title 语义不变**，仅管理入口可发起）；点击=mateStore.recordTrigger
+   (explicit, target=行所属组键) 产管理意图 trigger（文本含对象 id——Router 可见集匹配
+   targetRef 依据），与 composer//mate 拦截完全同链；off 模式入口禁用（manageDisabled）
+   。⑥呈现——决策卡 manage 建议区（对象/动作/理由/证据；E 追加说明不渲染——管理动作
+   无 brief 可改；建队捷径不放）+Y=mate-decision-approve-manage（approveManageDecision
+   入口）；对话流 outcome=managed 出「管理动作结果」消息（对象+动作+执行状态 executed/
+   skipped/failed+note verbatim；无动作按钮——失败重新触发=新卡）；快照 AssistantDecision
+   View.manageExecution 投影（防御式列值收窄）；mateManage* 封闭映射与 i18n mate.manage.*
+   14 键双语+守护。验收=assistantManageActions.test.ts（17 项：schema 对偶/配对失配/
+   reason 界/可见集推导与拒绝/provider 缺席/通道未装配/成功链含端口传参断言/幂等终态
+   skipped/失败回写不重试/auto 零执行/非 manage 卡拒绝/放行率零污染，登记 drora 清单）
+   +view-model 6 项（fork-isolated 清单）+MSA19（mate-surface-ac 扩展：manage 呈现+Y
+   执行链 fixture 同构——**真实执行面 host 侧由单测锁、fixture 只造投影事实，照 MSA15
+   先例标注**；台账行入口 trigger 读点+off 禁用）。候选卡约言加 manage 指引后卡长预算
+   界随校准（assistantRouterDecision.test 先例注记）。
 3. **交互契约三条**：
    - 决策收件箱不刷屏：默认只推送需要人拍板的事，带每日打扰配额（可配，默认 5）。
      **P4 落地注记（2026-11-05，feat/mate-p4 host 侧批次）**：配额中心数据与判定面
@@ -529,7 +576,7 @@ desktop-continuous：Router 会话实时流。web-remote-replayable：手机只�
 | P6   | 桌宠工作面板（07 号详设）                                               | 托盘速览升级为三区工作面板（TRAE宝 式）：待决策（既有）+ 进行中（增强：模式徽标 B/C + 最近活动时刻 HH:mm）+ **最近完成**（done/failed 最近 4 条倒序、失败红、点行直达详情）；投影 recentTickets 可选字段（旧帧缺席=区隐藏，Main safeParse 兼容）。验收：petProjection 单测 +2 + seam 断言扩展 + MSP07 发布链端到端 |
 | P8   | 全域工作台账（09 号详设 §1，设计 v2）                                   | 大副看得见全部工作：mate 工单账 + 用户会话/teams（sessions-index 投影）+ off-peak 任务（tasks-index）三源合并的跨项目台账投影。接缝=provider 端口（`setAssistantInventoryProvider`）注入快照 `inventory?` 可选字段（**部分源缺席=整体缺席**，null=冷启动「投影就绪中」）；bootstrap 三步破循环依赖（近 14d 工单 target ∪ tasks-index 项目集→逐 workspace 常驻订阅（持有者=装配层 disposer，不走引擎 watcher 清零语义）→刷新驱动重推导动态发现，订阅集 ≤16 超界最久未活动退订）；刷新环路=delta/广播→host face `refreshInventory?()`→服务节流重 publish（30s kv `inventory_refresh_interval_ms` 可调，前沿+尾沿）。多窗口口径=本窗口 host 可见域（09 §1.2 登记）。**P8a 已实施（feat/drora-mate）**：contracts `mateWorkInventorySchema`+界常量（inventoryWorkspaceMax=6/RowMax=20/WorkspaceSetMax=16/TitleMax=120）+INVENTORY_DEFAULTS、workInventory 纯函数（合并/managed/有界/自举推导）、workInventoryBootstrap 装配运行时、服务 refreshInventory 节流；单测 assistantWorkInventory.test.ts（14 项，登记 isolated 清单）。**变更指纹跳过已实施（2026-11-06 复审，09 §4 对策后半兑现）**：assembleWorkInventory 不读时钟为纯函数，provider 对输入域（工单行/订阅域会话投影/off-peak 缓存）算稳定指纹（会话按订阅键+sessionId 排序归一，插序翻转不误判），未变则复用上次视图引用跳过重组装——工单事件高频 publish 不再产新对象（快照按内容序列化与 UI memo 吃引用稳定）；回归=assistantWorkInventory.test.ts「provider 变更指纹跳过」矩阵。**P8b 已实施（feat/drora-mate）**：query_status 第六 scope kind `"work"`（±workspaceIdentity；应答器读快照 inventory——缺席回落工单账并注明「仅工单视角」，09 §1.6）；`composeLedgerDigest` 消费 inventory（速览段追加全域会话/teams/闲时事实，界 `ledgerDigestInventoryMax=600` 进 SNAPSHOT_LIMITS——与工单速览 400 两界并存，attach 佐证扩为全域）；快照 `inventoryReady?` 就绪信号（provider 装配即 true——UI 三态区分的结构性依据：true+inventory 缺席=「投影就绪中」、字段缺席=旧 Host 卡不渲染，禁超时兜底）；UI `MateWorkOverview.tsx` 总览卡（面板顶部状态条下：每项目行 kind 徽标计数/最近活动/停滞警示点/managed 标记+展开行列表——工单行 selectTicket 下钻、会话行 onOpenMateSession 既有导航（跨组传组键作路径）、闲时行禁用+提示（无任务中心导航面不发明新面））；MSA15 资产（mate-surface-ac 实跑 29.8s pass+同 fixture 四资产回归）。**登记（v2 审查后的有意收敛）**：sessions-index v4 帧不携带跨域 workspace 引用，「delta 出现新 workspace 引用」的动态发现在现 wire 上无载体——收敛为刷新驱动的 desired 集重推导（delta/工单 publish/state:projects 广播均触发对账），新增未订阅 workspace 的发现有时延但有界；单 workspace 订阅失败按源缺席处理（整体缺席语义，不拼半张账） |
 | P9   | 自主节奏层（09 号详设 §2，设计 v2）                                      | 自主评估循环：心跳=watchdog cron tick 同源触发（独立 face 入口 `runAutonomyRound` **fire-and-forget 不进 watchdog await 链**；kv `autonomy_interval_ms` 缺省 30min 节流+`autonomy_enabled` 总闸缺省 true）。自主评估=全域速览（composeLedgerDigest）直调 router port（输入含「本输入为自主评估」互扰标记；`countTowardsRotation=false` 不计入 ticketsSinceRotation）→ 独立 zod `autonomyVerdictSchema` 三臂恰现其一（quiet/report{text≤800}/suggest{brief,dispatch\|attach+参数}——非 routerDecisionSchema 第六臂；解析失败=quiet+warn，不落 router_evaluation 不进 Tier3）。三臂出口：quiet 零动作；report→admitDisturbance(kind=report) 过闸→自主通知区（kv `autonomy_notices` 与 watchdog_notices 分键单写者、快照 watchdogNotices 合并投影=MateDigestCard 既有面）+桌宠气泡（petProjection 差分源扩 report 帧 `autonomyBubble`+deriveMateAutonomyBubble）；suggest→**独立建卡事务**（trigger source_kind=autonomy+strength=autonomous 字面量如实标注+decision outcome=decision_card decided_by=gate+同事务 decision 配额计数+**建卡即写 `autonomy_muted:<对象hash>` 24h**；**不调 scheduleRouterEvaluation——auto 模式无任何自动建票路径**，卡上 routerState 缺席=无建议区人工终审）。防打扰五闸：配额闸/速览指纹去重 24h（hash 输入域=对象集合+状态摘要排除时刻类字段）/建卡即冷却/否定记忆（忽略 autonomy 卡→同对象 48h，服务 ignoreDecision 事务内 writeAutonomyNegationTx）/总闸+首启一次性告知通知。mode 联动：off=整体停跳（含评估读）；observe/auto=autonomy_enabled 控制。设置区=MateConfigSection 节奏区两项（自主观察开关+心跳间隔 30-1440min，bounds=ASSISTANT_CONFIG_LIMITS.autonomyIntervalMinutes）+快照 `rhythm?` 投影；ASSISTANT_SOURCE_KINDS 扩 autonomy（徽标消费方 view-model/pet schema 同步）+i18n 双语+守卫清单。**已实施（feat/drora-mate）**：autonomy.ts（schema/循环/建卡事务/指纹/冷却）、快照合并投影+rhythm?、cron fire-and-forget、desktopPet 自主气泡+open-mate 命令、节奏区 UI、assistantAutonomy.test.ts（24 项：三臂 schema 对偶断言/off 停跳/节流/指纹去重/quiet 零动作/report 过闸+超额聚合/suggest 事务+冷却+§2.2.1 补强断言（router_evaluation 零行+auto 无建票）/否定记忆/解析失败/首启告知/节奏投影/通知区合并）+cron 3 项（fire-and-forget 不阻塞 watchdog/旧 face 缺席/异常只 warn）+petProjection 自主气泡差分 3 项；MSA16 资产（mate-surface-ac：autonomy 徽标卡+节奏区写入回显）。遗留（随总闸联调验收）：真实 Host 心跳 30min 真机节奏、真实 Router 会话自主评估真机链路 |
-| P10  | 大副管理动作面与对话管理台（10 号详设 **v2.1**；P10a-1 已实施，其余纯设计）                  | 用户裁定（2026-11-07 v2 修正）：大副=harness 的管理员/管家——可管理 harness 内任何对象、只对用户一个委托人负责（单委托人原则）；**入口不倒转**（既有直连全保留，Mate-first 路由撤回）。**P10a 对话管理台**：面板对话流=台账的消息投影（用户消息=trigger verbatim/决策卡内嵌（管理指令的 Y/N 在对话现场）/答复=status_replied 气泡/工单摘要行），composer 发送=recordTrigger(explicit)（与 /mate 拦截同链）；query scope kind 扩 `chat`（Router 判定非四 scope 读意图→Router 会话聊天轮：互扰标记+不计轮转+无工具+约言禁承诺执行）；readMateThread 分页只读；mode 矩阵=off 对话面只读。**P10b 管理动作面**：routerDecisionSchema 扩 manage 第六臂 {targetKind: session\|offpeak_task, targetRef, action: stop_turn\|cancel, reason, evidence}——targetRef 只能取自台账可见集（attach 同款反编造）；决策卡人工 Y → **既有 harness 服务面**执行（session=v4 stop 含 expectedForegroundExecutionId 守卫/offpeak=offPeakTaskService.cancelTask），执行结果回写卡（幂等终态=已无需执行；失败不重试）；**auto 同样必须人工 Y（管理≠自动；autonomy 对管理动作最多 suggest 建卡）**；动作族封闭 enum（一期 stop_turn/cancel；delete/rewind/fork、他人 team 写、automations 均登记不做）；台账行（MateWorkOverview 会话行/闲时行）出「经大副停掉/取消」直达同一 manage 卡（入口多样、准入门唯一）。红线修订：「投影不等于接管」→「**接管=经批准的管理动作**」。**harness 零改动铁律（v2.1）**：执行走与 UI 同一调用面、守卫原样适用、无特权路径；P10c 主区一级入口降级**不做**（壳层手术违反铁律；重启=纯注册式扩展点+用户特批）。分批 P10a-1 服务面（chat kind+chat 轮+readMateThread，1 天）→P10a-2 UI（对话管理台+MSA18，1-1.5 天）；P10b（manage 臂+执行面+台账行入口+MSA19，1-1.5 天）独立可并行。**P10a-1 已实施（2026-11-07，§2 落地注记）**：chat scope kind（routerDecision 枚举+路由约言指引）+Router 聊天轮端口（`setAssistantRouterChatPort`：node.ts 与候选卡评估**同一会话壳+串行化队列**、互扰标记「本输入为聊天轮」、countTowardsRotation 恒 false 不计轮转、输出 ≤800 code points 截断无失败解析态、reason_code=`chat_replied` 与 query_replied 区分、通道缺席/失败=failed 留 Tier3；既有臂落账路径保持同步零微任务回归）+readMateThread（channel 面只读：三源合并倒序取正序回/同刻并列组 trigger→decision 呈现序且分页界不切分/MATE_THREAD_LIMITS 单出处）+快照 trigger/decision 行映射上收共用（assistantSnapshot 单投影口径）+UI fixture 内存版（mate-browser.fixture-thread）+单测 assistantMateChat.test.ts（7）/assistantMateThread.test.ts（6）登记 drora 清单。**P10a-2 已实施（2026-11-07，§2 落地注记）**：对话管理台=MateSidePane「对话」区（MateThreadSection 新组件）——四类消息投影（用户消息 trigger verbatim+绝对时刻零定时器/决策卡内嵌复用 MateDecisionCard 与收件箱同卡双视图/答复气泡 status_replied 含 chat_replied 消费 answer——原 MateQueryReply 卡区撤除组件删除/工单摘要行终态+换代标注、快照容量内下钻详情 LRU 裁剪降级不可点；auto_notice 内嵌）+composer 单行发送=recordTrigger(explicit, target=workspaceKey) 与 /mate 拦截同链（off 禁用+提示，对话面只读）+「加载更早」readMateThread(beforeMs) 缺省全流旧页组件局部态不进 store（诚实边界：游标=最旧可见行，源窗截出的较新行不在恢复集）；i18n mate.thread.* 双语；验收 MSA18（mate-surface-ac 扩展+兄弟资产 mate-inbox-list 容器收敛）+view-model 6 项+i18n 守护扩键，五浏览器资产 node --test 全绿。P10b 未实施 |
+| P10  | 大副管理动作面与对话管理台（10 号详设 **v2.1**；P10a-1/P10a-2/P10b 已实施，P10c 条件触发）                  | 用户裁定（2026-11-07 v2 修正）：大副=harness 的管理员/管家——可管理 harness 内任何对象、只对用户一个委托人负责（单委托人原则）；**入口不倒转**（既有直连全保留，Mate-first 路由撤回）。**P10a 对话管理台**：面板对话流=台账的消息投影（用户消息=trigger verbatim/决策卡内嵌（管理指令的 Y/N 在对话现场）/答复=status_replied 气泡/工单摘要行），composer 发送=recordTrigger(explicit)（与 /mate 拦截同链）；query scope kind 扩 `chat`（Router 判定非四 scope 读意图→Router 会话聊天轮：互扰标记+不计轮转+无工具+约言禁承诺执行）；readMateThread 分页只读；mode 矩阵=off 对话面只读。**P10b 管理动作面**：routerDecisionSchema 扩 manage 第六臂 {targetKind: session\|offpeak_task, targetRef, action: stop_turn\|cancel, reason, evidence}——targetRef 只能取自台账可见集（attach 同款反编造）；决策卡人工 Y → **既有 harness 服务面**执行（session=v4 stop 含 expectedForegroundExecutionId 守卫/offpeak=offPeakTaskService.cancelTask），执行结果回写卡（幂等终态=已无需执行；失败不重试）；**auto 同样必须人工 Y（管理≠自动；autonomy 对管理动作最多 suggest 建卡）**；动作族封闭 enum（一期 stop_turn/cancel；delete/rewind/fork、他人 team 写、automations 均登记不做）；台账行（MateWorkOverview 会话行/闲时行）出「经大副停掉/取消」直达同一 manage 卡（入口多样、准入门唯一）。红线修订：「投影不等于接管」→「**接管=经批准的管理动作**」。**harness 零改动铁律（v2.1）**：执行走与 UI 同一调用面、守卫原样适用、无特权路径；P10c 主区一级入口降级**不做**（壳层手术违反铁律；重启=纯注册式扩展点+用户特批）。分批 P10a-1 服务面（chat kind+chat 轮+readMateThread，1 天）→P10a-2 UI（对话管理台+MSA18，1-1.5 天）；P10b（manage 臂+执行面+台账行入口+MSA19，1-1.5 天）独立可并行。**P10a-1 已实施（2026-11-07，§2 落地注记）**：chat scope kind（routerDecision 枚举+路由约言指引）+Router 聊天轮端口（`setAssistantRouterChatPort`：node.ts 与候选卡评估**同一会话壳+串行化队列**、互扰标记「本输入为聊天轮」、countTowardsRotation 恒 false 不计轮转、输出 ≤800 code points 截断无失败解析态、reason_code=`chat_replied` 与 query_replied 区分、通道缺席/失败=failed 留 Tier3；既有臂落账路径保持同步零微任务回归）+readMateThread（channel 面只读：三源合并倒序取正序回/同刻并列组 trigger→decision 呈现序且分页界不切分/MATE_THREAD_LIMITS 单出处）+快照 trigger/decision 行映射上收共用（assistantSnapshot 单投影口径）+UI fixture 内存版（mate-browser.fixture-thread）+单测 assistantMateChat.test.ts（7）/assistantMateThread.test.ts（6）登记 drora 清单。**P10a-2 已实施（2026-11-07，§2 落地注记）**：对话管理台=MateSidePane「对话」区（MateThreadSection 新组件）——四类消息投影（用户消息 trigger verbatim+绝对时刻零定时器/决策卡内嵌复用 MateDecisionCard 与收件箱同卡双视图/答复气泡 status_replied 含 chat_replied 消费 answer——原 MateQueryReply 卡区撤除组件删除/工单摘要行终态+换代标注、快照容量内下钻详情 LRU 裁剪降级不可点；auto_notice 内嵌）+composer 单行发送=recordTrigger(explicit, target=workspaceKey) 与 /mate 拦截同链（off 禁用+提示，对话面只读）+「加载更早」readMateThread(beforeMs) 缺省全流旧页组件局部态不进 store（诚实边界：游标=最旧可见行，源窗截出的较新行不在恢复集）；i18n mate.thread.* 双语；验收 MSA18（mate-surface-ac 扩展+兄弟资产 mate-inbox-list 容器收敛）+view-model 6 项+i18n 守护扩键，五浏览器资产 node --test 全绿。**P10b 已实施（2026-11-07，§2 落地注记）**：manage 第六臂（合法配对 superRefine 强校验+ASSISTANT_MANAGE_* 契约单出处）+台账可见集两道防线（候选卡【可管理对象】段 deriveManageTargets+放行预检 fail-closed：清单外=mate.manage.invalid/provider 缺席=mate.manage.unavailable 卡不消费）+approveManageDecision 人工 Y（事务翻 outcome=managed+schema v8 manage_state/manage_note；不污染放行率口径）→异步 manage 执行端口（session=bots 既有 readBotGroupRuntimeSnapshot 读控制面→planManageStopTurn 取帧（与 SessionPane.handleStop 同一取帧语义）→v4 stop 守卫原样适用；offpeak=cancelTask 单例；结果回写 executed/skipped=已无需执行/failed+note 不重试）+autoDispatch 显式排除 manage（先于白名单判定+info 审计）+台账行管理入口（会话行/闲时行行尾「经大副停掉/取消」→recordTrigger(explicit,target=组键) 同一准入门；闲时行导航主体禁用语义不变；off 禁用）+决策卡 manage 呈现（对象/动作/理由/证据；E 不渲染）与对话流「管理动作结果」消息（manageExecution 投影）；验收=assistantManageActions.test.ts 17 项（drora 清单）+view-model 6 项+MSA19（mate-surface-ac 扩展，fixture 只造投影事实照 MSA15 先例） |
 
 ## 15. 明确不做（反模式）
 

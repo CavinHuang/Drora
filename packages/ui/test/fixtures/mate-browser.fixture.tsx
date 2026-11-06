@@ -127,6 +127,7 @@ function Fixture() {
     toggleThreadTruncation,
     seedThreadHistory,
     lastTriggerInput: readLastTrigger,
+    lastManageApproveInput: readLastManageApprove,
   } = useMemo(
     () =>
       createMateFixtureService(
@@ -181,6 +182,12 @@ function Fixture() {
     const subscription = service.onDidChange(() => setLastTrigger(readLastTrigger()));
     return () => subscription.dispose();
   }, [service, readLastTrigger]);
+  // P10b：manage 放行读点（快照推送随动——approveManageDecision 翻 managed 即 publish）。
+  const [lastManageApprove, setLastManageApprove] = useState("");
+  useEffect(() => {
+    const subscription = service.onDidChange(() => setLastManageApprove(readLastManageApprove()));
+    return () => subscription.dispose();
+  }, [service, readLastManageApprove]);
   return (
     // TooltipProvider 照 Root.tsx 根层共享一次：MateConfigSection 的 auto 禁用钮经
     // ControlHintTooltip 消费 Radix 上下文，缺 Provider 会整树抛错（PR-1B 审查发现 1）。
@@ -249,6 +256,28 @@ function Fixture() {
               >
                 Inject failed router
               </button>
+              {/* P10b manage 臂验收（MSA19 消费；真实评估/可见集预检/异步执行面在 host 侧
+                  manageActions+node.ts 装配——单测锁定；夹具只造决策卡建议投影事实，
+                  targetRef=MSA15 台账注入的会话行 sess-inv-open，同构「可见集成员」）。 */}
+              <button
+                data-testid="fixture-inject-manage"
+                onClick={() =>
+                  injectRouterDecision(
+                    "suggested",
+                    {
+                      kind: "manage",
+                      manageTargetKind: "session",
+                      manageTargetRef: "sess-inv-open",
+                      manageAction: "stop_turn",
+                      reason: "用户要求停掉该会话的当前回合（卡住无进展）",
+                      evidence: ["请把会话 sess-inv-open 的当前回合停掉"],
+                    },
+                    "请把会话 sess-inv-open（用户手开的会话）的当前回合停掉",
+                  )
+                }
+              >
+                注入 manage 建议卡
+              </button>
               {/* 2026-11-06 二轮审查（F1 守卫，mate-surface-ac MSA11 消费）：不带 target
                   直放行最新决策卡——命中 trigger 落库回读臂；UI 触发未恒传 workspaceKey
                   的回归在此 validationFailed（fixture-last-brief 不推进即红）。 */}
@@ -299,6 +328,13 @@ function Fixture() {
                 onClick={() => void service.setMode(ASSISTANT_MODES.off)}
               >
                 Mode off
+              </button>
+              {/* P10b：off 矩阵后回 observe（MSA19 台账行管理入口断言需要非 off 态）。 */}
+              <button
+                data-testid="fixture-mode-observe"
+                onClick={() => void service.setMode(ASSISTANT_MODES.observe)}
+              >
+                Mode observe
               </button>
               <button data-testid="fixture-queue-next" onClick={queueNext}>
                 Queue next approve
@@ -364,6 +400,7 @@ function Fixture() {
               <output data-testid="fixture-mate-pet-projection">{lastProjection}</output>
               <output data-testid="fixture-last-admit">{lastAdmit}</output>
               <output data-testid="fixture-last-trigger">{lastTrigger}</output>
+              <output data-testid="fixture-manage-approve-input">{lastManageApprove}</output>
             </div>
             <div className="mx-auto" style={{ width: 480, height: 780 }}>
               <MateSidePane

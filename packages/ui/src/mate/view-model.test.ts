@@ -24,11 +24,15 @@ import {
   isMateActiveTicket,
   isMateAutoNoticeDecision,
   isMateAutoSwitchAvailable,
+  isMateManageExecutedDecision,
   isMateObserveDecision,
   isMatePendingDecision,
   isMateQueuedTicket,
   isMateAwaitingVerification,
   isMateThreadTicketNavigable,
+  mateManageActionMessageId,
+  mateManageStateMessageId,
+  mateManageTargetKindMessageId,
   matePermissionTierMessageId,
   mateRouterSuggestionKindMessageId,
   mateStaleBadgeKind,
@@ -675,5 +679,64 @@ describe("P10a-2 formatMateThreadClock / isMateThreadTicketNavigable", () => {
     const snap = snapshot({ tickets: [ticket({ id: "T-in" })] });
     expect(isMateThreadTicketNavigable(snap, "T-in")).toBe(true);
     expect(isMateThreadTicketNavigable(snap, "T-truncated")).toBe(false);
+  });
+});
+
+describe("P10b 管理动作面映射（manage 臂呈现/终态行/错误码）", () => {
+  it("manage kind → mate.router.suggested.manage（第六臂封闭映射补齐）", () => {
+    expect(mateRouterSuggestionKindMessageId("manage")).toBe("mate.router.suggested.manage");
+  });
+
+  it("对象/动作封闭映射：合法值出键、未知值 null 不渲染", () => {
+    expect(mateManageTargetKindMessageId("session")).toBe("mate.manage.target.session");
+    expect(mateManageTargetKindMessageId("offpeak_task")).toBe("mate.manage.target.offpeak_task");
+    expect(mateManageTargetKindMessageId("team")).toBeNull();
+    expect(mateManageActionMessageId("stop_turn")).toBe("mate.manage.action.stop_turn");
+    expect(mateManageActionMessageId("cancel")).toBe("mate.manage.action.cancel");
+    expect(mateManageActionMessageId("delete")).toBeNull();
+  });
+
+  it("执行结果状态映射四态齐备（executing/executed/skipped/failed）", () => {
+    expect(mateManageStateMessageId("executing")).toBe("mate.manage.state.executing");
+    expect(mateManageStateMessageId("executed")).toBe("mate.manage.state.executed");
+    expect(mateManageStateMessageId("skipped")).toBe("mate.manage.state.skipped");
+    expect(mateManageStateMessageId("failed")).toBe("mate.manage.state.failed");
+  });
+
+  it("isMateManageExecutedDecision：outcome=managed 判定终态行（其余 outcome 不命中）", () => {
+    expect(
+      isMateManageExecutedDecision(decision({ id: 1, outcome: ASSISTANT_OUTCOMES.managed })),
+    ).toBe(true);
+    expect(
+      isMateManageExecutedDecision(decision({ id: 2, outcome: ASSISTANT_OUTCOMES.decisionCard })),
+    ).toBe(false);
+    expect(
+      isMateManageExecutedDecision(decision({ id: 3, outcome: ASSISTANT_OUTCOMES.statusReplied })),
+    ).toBe(false);
+  });
+
+  it("错误码映射：manageTargetInvalid/manageUnavailable 专属文案（不落 generic）", () => {
+    expect(resolveMateErrorMessageId({ code: ASSISTANT_ERROR_CODES.manageTargetInvalid })).toBe(
+      "mate.error.manageInvalid",
+    );
+    expect(resolveMateErrorMessageId({ code: ASSISTANT_ERROR_CODES.manageUnavailable })).toBe(
+      "mate.error.manageUnavailable",
+    );
+  });
+
+  it("manage 终态行进对话流首屏投影（deriveMateThreadRows 含 managed decision 行）", () => {
+    const rows = deriveMateThreadRows(
+      snapshot({
+        decisions: [
+          decision({
+            id: 9,
+            outcome: ASSISTANT_OUTCOMES.managed,
+            manageExecution: { state: "executed", note: "已发 stop" },
+          }),
+        ],
+      }),
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.kind).toBe("decision");
   });
 });

@@ -1,9 +1,11 @@
 import { memo, useCallback, useMemo } from "react";
 import { AnchorIcon, LoaderCircleIcon } from "lucide-react";
+import { ASSISTANT_MODES, ASSISTANT_STRENGTHS } from "@drora/shared";
 import { useDroraIntl } from "@/i18n/IntlProvider.js";
 import type { MateSidePaneTab } from "@/lib/workspaceSidePane.js";
 import { useAssistantTickets } from "@/hooks/useAssistantTickets.js";
 import { useMateStore } from "@/store/mateStore.js";
+import type { MateWorkManageTarget } from "@/mate/MateWorkOverview.js";
 import {
   MateAutoNoticeRow,
   MateConfigSection,
@@ -201,9 +203,29 @@ export const MateSidePane = memo(function MateSidePane({
     [onOpenMateSession, tab.remoteSessionId, tab.workspaceIdentity, tab.workspacePath],
   );
 
+  // P10b（10 号详设 §3.3）：台账行管理入口的触发动作（store 订阅在此，处理器在服务
+  // 判空守卫之后定义——见 handleManageTarget）。管理意图文本含对象 id（Router 可见集
+  // 匹配 targetRef 的依据），与 composer//mate 拦截完全同链；不建第二条执行路径。
+  const recordTrigger = useMateStore((state) => state.recordTrigger);
+
   if (service === null || snapshot === null || viewModel === null || statusLine === null) {
     return <MateUnavailableState loading={loading && service !== null} error={error} />;
   }
+
+  // P10b（10 号详设 §3.3）：管理意图 trigger（explicit+target=对象所属 workspace 键）；
+  // 后续仍走决策卡 manage 臂+人工 Y（同一准入门）。off 模式入口禁用（off=零执行）。
+  const manageDisabled = snapshot.mode === ASSISTANT_MODES.off;
+  const handleManageTarget = (target: MateWorkManageTarget): void => {
+    const text =
+      target.kind === "session"
+        ? `请把会话 ${target.ref}「${target.title}」的当前回合停掉`
+        : `请取消闲时任务 ${target.ref}「${target.title}」`;
+    void recordTrigger(service, workspaceKey, {
+      text,
+      simulated: ASSISTANT_STRENGTHS.explicit,
+      targetWorkspaceIdentity: target.workspaceKey,
+    });
+  };
 
   // Surface C 二级视图：选中工单存在即整面板切换为详情（返回=清 selectedTicketId 回
   // 列表；状态条保留在顶——它是会话级摘要，不随下钻消失）。
@@ -252,6 +274,8 @@ export const MateSidePane = memo(function MateSidePane({
         onToggleWorkspace={(groupKey) => toggleWorkWorkspace(workspaceKey, groupKey)}
         onSelectTicket={(ticketId) => selectTicket(workspaceKey, ticketId)}
         {...(onOpenMateSession ? { onOpenSession: handleOpenWorkSession } : {})}
+        onManageTarget={handleManageTarget}
+        manageDisabled={manageDisabled}
       />
       <MatePaneHeader
         filter={filter}

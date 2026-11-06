@@ -20,8 +20,6 @@ import { createServiceLogger } from "../logger/serviceLogger.js";
 import {
   ASSISTANT_KV_KEYS,
   readAssistantConfig,
-  readAssistantInventoryRefreshIntervalMs,
-  readAssistantKv,
 } from "./assistantConfig.js";
 import {
   AssistantDatabase,
@@ -55,6 +53,8 @@ import { createAssistantAutoDispatch } from "./autoDispatch.js";
 import { createAssistantQuotaService } from "./quotaCenterService.js";
 import { resolveAssistantDailyQuota } from "./quotaCenter.js";
 import { createMateThreadReader } from "./mateThread.js";
+import { createManageActions } from "./manageActions.js";
+import { createInventoryRefreshLoop } from "./inventoryRefresh.js";
 import { getAssistantPorts } from "./assistantPorts.js";
 import { createAssistantRecordTrigger } from "./triggerRecord.js";
 import { createAssistantConfigActions } from "./configActions.js";
@@ -194,6 +194,10 @@ export function createAssistantTicketsService(
   // P9：扩自主节奏两 setter（总闸/心跳间隔——同 writeKv 纪律）。
   const configActions = createAssistantConfigActions({ db, publish });
 
+  // P10b（10 号详设 §3.1）：manage 臂人工放行编排（实现拆 manageActions.ts——≤800 行
+  // 纪律，照 configActions 拆分先例）。
+  const manageActions = createManageActions({ db, publish });
+
   // P9 自主节奏（09 详设 §2 v2；实现件/runner 工厂在 autonomy.ts）：host cron 同源
   // fire-and-forget 触发（不进 watchdog await 链）；节流/总闸/off 停跳/在途互斥在
   // runner 裁决。suggest 臂独立建卡事务不调 scheduleRouterEvaluation（auto 无自动
@@ -212,39 +216,13 @@ export function createAssistantTicketsService(
   // - publish 每次读装配层 provider（getAssistantPorts().inventory）挂 extras.inventory
   //   ——provider 抛错/null → 快照不携带 inventory（部分源缺席=整体缺席；publish 不失败）；
   // - refreshInventory：刷新环路的节流入口（sessions-index delta / tasks-index 回调
-  //   → host face refreshInventory → 本入口）。最小间隔 kv `inventory_refresh_interval_ms`
-  //   可调（缺省 30s，contracts ASSISTANT_INVENTORY_DEFAULTS）——前沿节流防高频会话
-  //   帧放大 publish，尾沿定时器补一拍保证突发末帧状态最终落账（单定时器、dispose 收口，
-  //   非轮询——「零新轮询」红线不受影响）。任何一次 publish（含工单事件路径）都算
-  //   「台账新鲜」基准：快照携带的是 provider 当刻输出。
+  //   → host face refreshInventory → 本入口）。最小间隔/尾沿补一拍/收口语义拆在
+  //   inventoryRefresh.ts（≤800 行纪律，行为逐行等价）。
   // ------------------------------------------------------------------
-  let lastInventorySnapshotMs = 0;
-  let inventoryRefreshTimer: ReturnType<typeof setTimeout> | null = null;
-  function clearInventoryRefreshTimer(): void {
-    if (inventoryRefreshTimer === null) return;
-    clearTimeout(inventoryRefreshTimer);
-    inventoryRefreshTimer = null;
-  }
-  function refreshInventory(): void {
-    const intervalMs = readAssistantInventoryRefreshIntervalMs((key) =>
-      readAssistantKv(db.raw, key),
-    );
-    const elapsed = nowMs() - lastInventorySnapshotMs;
-    if (elapsed >= intervalMs) {
-      clearInventoryRefreshTimer();
-      publish();
-      return;
-    }
-    if (inventoryRefreshTimer === null) {
-      inventoryRefreshTimer = setTimeout(() => {
-        inventoryRefreshTimer = null;
-        publish();
-      }, intervalMs - elapsed);
-    }
-  }
+  const inventoryRefresh = createInventoryRefreshLoop({ db, publish });
 
   function publish(): void {
-    lastInventorySnapshotMs = nowMs();
+    inventoryRefresh.markFresh();
     let inventory: MateWorkInventoryView | null = null;
     const inventoryProvider = getAssistantPorts().inventory;
     if (inventoryProvider) {
@@ -574,6 +552,9 @@ export function createAssistantTicketsService(
       }
     },
 
+    // P10b（10 号详设 §3.1）：manage 臂人工放行（实现拆 manageActions.ts）。
+    ...manageActions,
+
     async dismissObservation(input) {
       try {
         db.transaction((raw) => {
@@ -771,7 +752,7 @@ export function createAssistantTicketsService(
     // 服务级订阅收口（全链审查遗留 16）：disposeServiceResources 统一调用。
     // P8：尾沿刷新定时器同批收口（防 dispose 后定时器再 publish 打已关库）。
     dispose: () => {
-      clearInventoryRefreshTimer();
+      inventoryRefresh.dispose();
       engine.disposeWatchers();
     },
     followUp: engine.followUp,
@@ -789,8 +770,8 @@ export function createAssistantTicketsService(
             input?.awaitingCandidates ?? collectAwaitingCandidates(db.raw, nowMs()),
         },
       ),
-    // P8 台账刷新环路入口（09 详设 §1.2；节流在 refreshInventory 闭包内）。
-    refreshInventory,
+    // P8 台账刷新环路入口（09 详设 §1.2；节流在 inventoryRefresh 模块内）。
+    refreshInventory: () => inventoryRefresh.refreshInventory(),
     // P9 自主评估轮（09 详设 §2；host cron 同源 fire-and-forget——不进 watchdog await 链）。
     runAutonomyRound,
     autoDispatchDecision: (input) => autoDispatch.autoDispatchDecision(input),

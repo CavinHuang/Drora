@@ -290,6 +290,21 @@ function runAssistantMigrations(raw: AssistantDatabaseRaw): void {
       "INSERT INTO kv(key, value, updated_ms) VALUES ('schema_version', '7', strftime('%s','now') * 1000) ON CONFLICT(key) DO UPDATE SET value = '7', updated_ms = excluded.updated_ms",
     );
   }
+
+  if (currentVersion < 8) {
+    // v8（2026-11-07，P10b 管理动作面）——只加不破（10 号详设 §3.1）：
+    // - admission_decision.manage_state：manage 臂人工放行后的执行结果状态
+    //   （contracts ASSISTANT_MANAGE_STATES：executing/executed/skipped/failed；
+    //   唯一写者=manageActions 放行事务与执行回写事务；旧行 NULL=非 manage 决策）。
+    // - admission_decision.manage_note：执行回写标注（成功详情/幂等「已无需执行」/
+    //   失败原因；界=ASSISTANT_MANAGE_LIMITS.noteMax）。outcome 同放行事务翻 managed
+    //   （不污染放行率口径 decision_card+user——管理批准不是 Router 建议质量样本）。
+    addColumnIfMissing(raw, "admission_decision", "manage_state", "TEXT");
+    addColumnIfMissing(raw, "admission_decision", "manage_note", "TEXT");
+    raw.exec(
+      "INSERT INTO kv(key, value, updated_ms) VALUES ('schema_version', '8', strftime('%s','now') * 1000) ON CONFLICT(key) DO UPDATE SET value = '8', updated_ms = excluded.updated_ms",
+    );
+  }
 }
 
 /** ALTER TABLE ADD COLUMN 的幂等封装（PRAGMA table_info 查列存在性；迁移重入安全）。 */

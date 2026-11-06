@@ -20,6 +20,8 @@ type MateRecordTriggerInput = Parameters<IAssistantTicketService["recordTrigger"
 type MateApproveDecisionInput = Parameters<IAssistantTicketService["approveDecision"]>[0];
 /** ignoreDecision 入参。 */
 type MateIgnoreDecisionInput = Parameters<IAssistantTicketService["ignoreDecision"]>[0];
+/** P10b manage 臂人工放行入参（决策卡 Y——事务翻 managed 后异步执行，结果经快照回写）。 */
+type MateApproveManageInput = Parameters<IAssistantTicketService["approveManageDecision"]>[0];
 /** dismissObservation 入参。 */
 type MateDismissObservationInput = Parameters<IAssistantTicketService["dismissObservation"]>[0];
 /** P4 第二棒：工件核验人工确认入参。 */
@@ -62,6 +64,16 @@ interface MateState {
     service: IAssistantTicketService,
     workspaceKey: string,
     input: MateIgnoreDecisionInput,
+  ): Promise<AssistantResult<{ ok: true }>>;
+  /**
+   * P10b manage 臂人工放行（Y；10 号详设 §3.1）：管理动作批准入口——服务事务翻
+   * managed 后异步经既有 harness 服务面执行，结果经快照 manageExecution 回写呈现；
+   * 成功后按代际折叠本 workspace 的本卡（approveDecision 同款收尾）。
+   */
+  approveManageDecision(
+    service: IAssistantTicketService,
+    workspaceKey: string,
+    input: MateApproveManageInput,
   ): Promise<AssistantResult<{ ok: true }>>;
   /** 观察行忽略（would-accept 行 N）。 */
   dismissObservation(
@@ -301,6 +313,17 @@ export const useMateStore = create<MateState>((set, get) => {
       const key = `ws:${workspaceKey}:ignore:${input.decisionId}`;
       return runSingleFlight(key, async (generation) => {
         const result = await service.ignoreDecision(input);
+        if (result.ok) settleExpandedDecision(workspaceKey, generation, input.decisionId);
+        return result;
+      });
+    },
+
+    // P10b（10 号详设 §3.1）：manage 放行——single-flight+代际丢弃同款纪律（同卡双击
+    // 只发一次 RPC；服务侧事务幂等兜底）。
+    approveManageDecision(service, workspaceKey, input) {
+      const key = `ws:${workspaceKey}:approveManage:${input.decisionId}`;
+      return runSingleFlight(key, async (generation) => {
+        const result = await service.approveManageDecision(input);
         if (result.ok) settleExpandedDecision(workspaceKey, generation, input.decisionId);
         return result;
       });

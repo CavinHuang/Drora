@@ -54,7 +54,7 @@ export interface AssistantTriggerView {
  * kind 与 services routerDecision.ts 的 RouterDecision 四臂对齐（UI type-only）。
  */
 export interface AssistantRouterSuggestionView {
-  readonly kind: "dispatch" | "attach" | "hold" | "reject" | "query_status";
+  readonly kind: "dispatch" | "attach" | "hold" | "reject" | "query_status" | "manage";
   readonly targetWorkspaceIdentity?: string;
   readonly sessionId?: string;
   readonly permissionTier?: AssistantPermissionTier;
@@ -62,6 +62,12 @@ export interface AssistantRouterSuggestionView {
   readonly appendix?: string;
   readonly reason?: string;
   readonly evidence: readonly string[];
+  /** P10b manage 臂（10 号详设 §3.1）：对象类别（session/offpeak_task）。 */
+  readonly manageTargetKind?: "session" | "offpeak_task";
+  /** P10b：目标引用（sessionId/offPeakTaskId——台账可见集成员）。 */
+  readonly manageTargetRef?: string;
+  /** P10b：动作（stop_turn/cancel；合法配对由 schema 强校验）。 */
+  readonly manageAction?: "stop_turn" | "cancel";
 }
 
 export interface AssistantDecisionView {
@@ -89,6 +95,15 @@ export interface AssistantDecisionView {
   /** P7（08 号详设 §3.4）：query_status 臂的确定性答复文本（host 生成零 LLM 加工；
    * 界 replyTextMax；仅 outcome=status_replied 行携带）。 */
   readonly answer?: string;
+  /**
+   * P10b（10 号详设 §3.1）：manage 放行的执行结果投影（admission_decision.manage_state/
+   * manage_note 列；仅 outcome=managed 行携带）。state=executing/executed/skipped（已
+   * 无需执行）/failed；note=执行标注或失败原因。UI 决策卡/对话流据此呈现管理结果。
+   */
+  readonly manageExecution?: {
+    readonly state: "executing" | "executed" | "skipped" | "failed";
+    readonly note?: string;
+  };
 }
 
 /** 写域视图（02 详设 §4；UI 据此明示隔离形态——worktree=目录级，paths=声明域，workspace=未隔离）。 */
@@ -362,6 +377,19 @@ export interface IAssistantTicketService {
 
   /** 忽略决策卡（N）：decision 记 rejected，trigger 保留。 */
   ignoreDecision(input: { decisionId: number }): Promise<AssistantResult<{ ok: true }>>;
+
+  /**
+   * P10b（10 号详设 §3.1）：manage 臂决策卡人工放行（Y）——管理动作的批准入口。
+   * 与 approveDecision（建票派发）分道：管理动作不建 mandate/ticket、不派 worker；
+   * 事务翻 outcome=managed + manage_state=executing 后**异步**经 manage 执行端口调既有
+   * harness 服务面（session=v4 stop 含 expectedForegroundExecutionId 守卫/offpeak=
+   * cancelTask——无特权路径无旁路，守卫拒绝=如实失败），结果回写 manage_state/note
+   * （executed/skipped=已无需执行/failed+原因；失败不自动重试）。放行预检 fail-closed：
+   * 非 manage 决策/targetRef 不在实时台账可见集/执行通道未装配 → 拒绝且卡不消费。
+   * 同卡二次放行幂等返回。**auto 模式同样必须人工 Y**（autoDispatch 显式排除 manage
+   * 臂——管理≠自动）。
+   */
+  approveManageDecision(input: { decisionId: number }): Promise<AssistantResult<{ ok: true }>>;
   /** P7（08 号详设 §3.4）：查询答复卡 dismiss（status_replied → ignored 出清）。 */
   dismissQueryReply(input: { decisionId: number }): Promise<AssistantResult<{ ok: true }>>;
 

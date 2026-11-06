@@ -250,6 +250,24 @@ const MATE_CONSUMED_KEYS: readonly string[] = [
   "mate.config.rhythm.hint",
   "mate.config.rhythm.interval",
   "mate.config.rhythm.intervalInvalid",
+  // P10b 管理动作面（10 号详设 §3.1/§3.3）：决策卡 manage 呈现/对话流结果消息/
+  // 台账行管理入口/预检失败文案（mateRouterSuggestionKindMessageId 第六臂+manage
+  // 封闭映射函数出键）。
+  "mate.router.suggested.manage",
+  "mate.manage.action.stop_turn",
+  "mate.manage.action.cancel",
+  "mate.manage.target.session",
+  "mate.manage.target.offpeak_task",
+  "mate.manage.state.executing",
+  "mate.manage.state.executed",
+  "mate.manage.state.skipped",
+  "mate.manage.state.failed",
+  "mate.manage.row.stop",
+  "mate.manage.row.cancel",
+  "mate.manage.row.offHint",
+  "mate.thread.manage.result",
+  "mate.error.manageInvalid",
+  "mate.error.manageUnavailable",
 ];
 
 /** tab 条与 launcher 消费（sidePaneTabPresentation / AnimatedSidePanePanel launcher）。 */

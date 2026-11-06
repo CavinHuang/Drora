@@ -17,6 +17,7 @@ import { composeLedgerDigest, composeQueryReply, type QueryReplyLocale } from ".
 import {
   composeCandidateCard,
   composeChatTurnInput,
+  deriveManageTargets,
   filterAttachCandidates,
   type RouterAttachCandidate,
 } from "./routerShell.js";
@@ -135,6 +136,9 @@ export function createRouterEvaluation(deps: RouterEvaluationDeps): {
       // 感知账本（查询意图判定/attach 佐证）；空台账缺席（不出现速览段）。
       // P8b（09 §1.6）：传入全域台账视图——速览段追加速览段全域会话/teams/闲时事实。
       const inventory = readAssistantInventoryView();
+      // P10b（10 号详设 §3.1）：manage 台账可见集与速览共用同一 inventory 读点（同轮
+      // 评估内口径一致）；manage 臂 verdict 经 manageActions 放行预检按实时可见集复核。
+      const manageTargets = deriveManageTargets(inventory);
       const ledgerDigest = composeLedgerDigest(db.raw, deps.localIdentity, nowMs, input.decisionId, inventory);
       const card = composeCandidateCard({
         triggerId: input.trigger.id,
@@ -145,6 +149,7 @@ export function createRouterEvaluation(deps: RouterEvaluationDeps): {
         targetWorkspaceIdentity: input.trigger.workspaceIdentity,
         ...(ledgerDigest ? { digest: ledgerDigest } : {}),
         ...(attachCandidates.length > 0 ? { attachCandidates } : {}),
+        ...(manageTargets.length > 0 ? { manageTargets } : {}),
       });
       const result = await router({ card: card.input });
       // P7（08 号详设 §3.3）：query_status 臂 → host 直答——同事务落 answer_text +

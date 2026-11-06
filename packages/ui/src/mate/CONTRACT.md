@@ -193,6 +193,27 @@ expandedDecisionId / expandedWorkKeys` 四件 UI 局部态，按 workspace 分�
   分页读不受限）。
 - 快照消费不变（无新快照字段）；i18n 键族 `mate.thread.*` 入守卫清单。
 
+## P10b 增量（2026-11-07，管理动作面，10 号详设 §3.1/§3.3）
+
+- **MateDecisionCard manage 臂**：suggestion.kind="manage" 渲染对象/动作/理由/证据
+  （`mate-decision-manage-arm`；mateManageActionMessageId/mateManageTargetKindMessageId
+  封闭映射）；Y=**mate-decision-approve-manage** → `mateStore.approveManageDecision`
+  （service approveManageDecision——管理动作批准入口，不建票不派 worker；结果经快照
+  manageExecution 回写）；E 追加说明不渲染（管理动作无 brief 可改）；建队捷径不放。
+  预检失败（mate.manage.invalid/mate.manage.unavailable）按封闭错误码出 role=alert。
+- **MateThread 管理结果消息**：outcome=managed（`isMateManageExecutedDecision`）出
+  「管理动作结果」消息（对象+动作+执行状态 mateManageStateMessageId executed/skipped
+  =已无需执行/failed+note verbatim）；无动作按钮（失败重新触发=新卡新决策）。
+- **MateWorkOverview 管理入口**（§3.3 入口多样、准入门唯一）：会话行/闲时行行尾
+  「经大副停掉/取消」（MateWorkManageButton，与主行并列不嵌套；**行点击/禁用+title
+  语义不变**——闲时行导航主体仍禁用，仅管理入口可发起）；点击经 MateSidePane
+  `handleManageTarget` → recordTrigger(explicit, target=行所属组键) 产管理意图 trigger
+  （文本含对象 id），与 composer//mate 拦截完全同链——**不建第二条执行路径**；off
+  模式入口禁用（manageDisabled）。
+- 快照新消费字段：`AssistantDecisionView.manageExecution?`（服务 v8 列投影）与
+  suggestion manage 三字段（manageTargetKind/manageTargetRef/manageAction）；i18n 键族
+  `mate.manage.*`+`mate.thread.manage.result`+`mate.error.manage*` 入守卫清单。
+
 ## 与其它模块的交集
 
 - `services`（assistant-tickets）：channel 代理消费快照与动作；类型引用只走 services

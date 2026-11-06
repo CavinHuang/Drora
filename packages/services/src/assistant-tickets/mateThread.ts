@@ -112,7 +112,8 @@ export function readAssistantMateThread(
       `SELECT d.id, d.trigger_id, d.strength, d.mode, d.outcome, d.decided_by, d.decided_ms, t.text AS trigger_text,
               t.source_kind AS trigger_source_kind,
               r.state AS router_state, r.verdict AS router_verdict, r.error AS router_error,
-              r.answer_text AS router_answer
+              r.answer_text AS router_answer,
+              d.manage_state, d.manage_note
        FROM admission_decision d
        JOIN trigger t ON t.id = d.trigger_id
        LEFT JOIN router_evaluation r ON r.decision_id = d.id

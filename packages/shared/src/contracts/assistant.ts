@@ -31,8 +31,14 @@
  * v6（2026-11-05，P4 第二棒汇报卡完整版）：新增 ticket.awaiting_since_ms /
  * ticket.increments_confirmed_ms 列——工件核验滞留（04 详设 §3：W1 工单 turn ended
  * 后只读核验，核验失败滞留 awaiting_output 喂 watchdog；唯一写者=服务核验路径与
- * confirmTicketOutput/confirmTicketIncrements；旧行 NULL=不滞留/未确认增量不存在）。 */
-export const ASSISTANT_STORE_SCHEMA_VERSION = 7;
+ * confirmTicketOutput/confirmTicketIncrements；旧行 NULL=不滞留/未确认增量不存在）。
+ * v7（2026-11-06，P7）：router_evaluation.answer_text——query_status 臂答复文本。
+ * v8（2026-11-07，P10b 管理动作面）：新增 admission_decision.manage_state /
+ * manage_note 列——manage 臂人工放行后的执行结果回写（10 号详设 §3.1：executing/
+ * executed/skipped/failed；唯一写者=manageActions 执行回写事务；旧行 NULL=非 manage
+ * 决策）。outcome 同事务翻 managed（不污染放行率口径 decision_card+user）。 */
+export const ASSISTANT_STORE_SCHEMA_VERSION = 8;
+
 
 // ---------------------------------------------------------------------------
 // 身份与派发模式（spec §1 命名契约 / §7 三模式；P2 定案见 02 详设 §1.1/§5）
@@ -277,6 +283,14 @@ export const ASSISTANT_OUTCOMES = {
    * 动作、不进放行率；decision 配额计数在触发时已落（翻转 outcome 不回冲，decision
    * 类永不抑制，统计偏差 ≤1 有界——contracts 注释即对账点）。 */
   statusReplied: "status_replied",
+  /**
+   * P10b（10 号详设 §3.1）：manage 臂人工放行终态——管理动作已批准（执行结果回写
+   * admission_decision.manage_state/manage_note 列，快照 manageExecution 投影）。
+   * 与 dispatch/attach 放行（outcome 保持 decision_card+decided_by=user）不同：
+   * 管理动作不建票不派 worker，也不进放行率统计口径（releaseCount=decision_card+user
+   * ——管理批准不是「Router 建议质量」的样本，混入会污染信任门）。
+   */
+  managed: "managed",
   rejected: "rejected",
   ignored: "ignored",
 } as const;
@@ -287,6 +301,57 @@ export const ASSISTANT_REPLY_LIMITS = {
 } as const;
 
 export type AssistantOutcome = (typeof ASSISTANT_OUTCOMES)[keyof typeof ASSISTANT_OUTCOMES];
+
+// ---------------------------------------------------------------------------
+// P10b 管理动作面（10 号详设 §3；封闭动作族——新增动作=新设计决策+登记，不做通用
+// 「任意命令透传」）。字面量单出处：routerDecision schema、执行端口、快照投影与 UI
+// 呈现只引用本常量，禁止两处独立写字面量。
+// ---------------------------------------------------------------------------
+
+/** manage 臂目标对象类别（session=用户手开会话；offpeak_task=闲时任务）。 */
+export const ASSISTANT_MANAGE_TARGET_KINDS = {
+  session: "session",
+  offpeakTask: "offpeak_task",
+} as const;
+
+export type AssistantManageTargetKind =
+  (typeof ASSISTANT_MANAGE_TARGET_KINDS)[keyof typeof ASSISTANT_MANAGE_TARGET_KINDS];
+
+/** manage 臂动作封闭集：session→stop_turn（v4 stop 含 executionId 守卫）；
+ * offpeak_task→cancel（offPeakTaskService.cancelTask）。动作与对象类别的合法配对
+ * 在 routerDecision schema superRefine 强校验（交叉组合失配拒绝）。 */
+export const ASSISTANT_MANAGE_ACTIONS = {
+  stopTurn: "stop_turn",
+  cancel: "cancel",
+} as const;
+
+export type AssistantManageAction =
+  (typeof ASSISTANT_MANAGE_ACTIONS)[keyof typeof ASSISTANT_MANAGE_ACTIONS];
+
+/** manage 执行结果状态（admission_decision.manage_state 列值；执行回写唯一写者）。 */
+export const ASSISTANT_MANAGE_STATES = {
+  /** 已批准、执行中（事务提交后异步执行，结果未回）。 */
+  executing: "executing",
+  /** 执行成功。 */
+  executed: "executed",
+  /** 目标已终态=幂等成功「已无需执行」（10 号详设 §3.1 执行失败语义）。 */
+  skipped: "skipped",
+  /** 执行通道失败（note 落原因；不自动重试，重新触发=新卡新决策）。 */
+  failed: "failed",
+} as const;
+
+export type AssistantManageState =
+  (typeof ASSISTANT_MANAGE_STATES)[keyof typeof ASSISTANT_MANAGE_STATES];
+
+/** P10b manage 臂有界参数（单出处——schema 校验与执行回写截断同源）。 */
+export const ASSISTANT_MANAGE_LIMITS = {
+  /** 管理理由界（code point；卡上呈现，比 dispatch/hold 的 500 更紧——管理动作更需短理由）。 */
+  reasonMax: 200,
+  /** 执行回写 note 界（code point；失败原因/幂等标注文本）。 */
+  noteMax: 300,
+  /** 候选卡【可管理对象】清单每 kind 条目上界（attach 候选同界先例）。 */
+  targetsMaxPerKind: 5,
+} as const;
 
 /**
  * 派发权限档（Mandate scope.permissionTier）：即 DroraSessionMode 子集
@@ -356,6 +421,13 @@ export const ASSISTANT_ERROR_CODES = {
   anchorMismatch: "mate.incarnation.anchor_mismatch",
   /** Source 事件入口被开关关闭（source_config 对应 kind enabled ≠ true；spec §6 收尾注记）。 */
   sourceDisabled: "mate.source.disabled",
+  /**
+   * P10b（10 号详设 §3.1）：manage 放行预检失败——目标不在台账可见集（attach 臂
+   * attachTargetInvalid 的同款反编造失配拒绝；清单外 targetRef=失配，决策卡不消费）。
+   */
+  manageTargetInvalid: "mate.manage.invalid",
+  /** P10b：manage 执行通道未装配（旧装配/台账 provider 缺席）——诚实拒绝，不猜测目标。 */
+  manageUnavailable: "mate.manage.unavailable",
 } as const;
 
 export type AssistantErrorCode = (typeof ASSISTANT_ERROR_CODES)[keyof typeof ASSISTANT_ERROR_CODES];

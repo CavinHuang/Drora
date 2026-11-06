@@ -328,6 +328,23 @@ function parseRouterSuggestion(
         evidence,
       };
     }
+    // P10b manage 臂（10 号详设 §3.1）：对象/动作/理由投影（合法配对已由 schema 强校验，
+    // 此处防御式字段读取不重复跑 schema）。
+    if (kind === "manage") {
+      const arm = parsed.arm ?? {};
+      return {
+        kind,
+        ...(arm.targetKind === "session" || arm.targetKind === "offpeak_task"
+          ? { manageTargetKind: arm.targetKind }
+          : {}),
+        ...(typeof arm.targetRef === "string" ? { manageTargetRef: arm.targetRef } : {}),
+        ...(arm.action === "stop_turn" || arm.action === "cancel"
+          ? { manageAction: arm.action }
+          : {}),
+        ...(typeof arm.reason === "string" ? { reason: arm.reason } : {}),
+        evidence,
+      };
+    }
     if (kind === "hold" || kind === "reject") {
       return { kind, ...(parsed.reason ? { reason: parsed.reason } : {}), evidence };
     }
@@ -369,6 +386,9 @@ export type AssistantDecisionRowDb = {
   router_verdict: string | null;
   router_error: string | null;
   router_answer: string | null;
+  /** P10b：manage 执行结果列（schema v8；NULL=非 manage 决策）。 */
+  manage_state: string | null;
+  manage_note: string | null;
 };
 
 /** trigger 行 → 视图（P10a 起快照与对话流分页共用同一映射——单一投影口径）。 */
@@ -389,6 +409,14 @@ export function assistantTriggerRowToView(row: AssistantTriggerRowDb): Assistant
 /** decision 行 → 视图（P10a 起快照与对话流分页共用同一映射；answer 语义见 AssistantDecisionView）。 */
 export function assistantDecisionRowToView(row: AssistantDecisionRowDb): AssistantSnapshot["decisions"][number] {
   const suggestion = parseRouterSuggestion(row.router_state, row.router_verdict);
+  // P10b：manage 执行结果投影（列值防御式收窄——未知列值不投影，消费方按缺席降级）。
+  const manageState =
+    row.manage_state === "executing" ||
+    row.manage_state === "executed" ||
+    row.manage_state === "skipped" ||
+    row.manage_state === "failed"
+      ? row.manage_state
+      : undefined;
   return {
     id: row.id,
     triggerId: row.trigger_id,
@@ -408,6 +436,14 @@ export function assistantDecisionRowToView(row: AssistantDecisionRowDb): Assista
     // P7（08 号详设 §3.4）：查询直答文本（query_status 评估行携带；dismiss 后
     // outcome=ignored 但 answer 保留——消费方按 outcome 过滤呈现，见 MateQueryReply）。
     ...(row.router_answer ? { answer: row.router_answer } : {}),
+    ...(manageState
+      ? {
+          manageExecution: {
+            state: manageState,
+            ...(row.manage_note ? { note: row.manage_note } : {}),
+          },
+        }
+      : {}),
   };
 }
 
@@ -437,7 +473,8 @@ export function buildAssistantSnapshot(
         `SELECT d.id, d.trigger_id, d.strength, d.mode, d.outcome, d.decided_by, d.decided_ms, t.text AS trigger_text,
               t.source_kind AS trigger_source_kind,
               r.state AS router_state, r.verdict AS router_verdict, r.error AS router_error,
-              r.answer_text AS router_answer
+              r.answer_text AS router_answer,
+              d.manage_state, d.manage_note
          FROM admission_decision d
          JOIN trigger t ON t.id = d.trigger_id
          LEFT JOIN router_evaluation r ON r.decision_id = d.id

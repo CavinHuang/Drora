@@ -9,6 +9,8 @@ import type {
 import { useDroraIntl } from "@/i18n/IntlProvider.js";
 import { Button } from "@/components/ui/button.js";
 import {
+  mateManageActionMessageId,
+  mateManageTargetKindMessageId,
   matePermissionTierMessageId,
   mateRouterSuggestionKindMessageId,
   resolveMateErrorMessageId,
@@ -34,6 +36,10 @@ import { MateSourceBadge } from "./MateSourceBadge.js";
  *   hold/reject 建议只展示 reason，人工终审不变（observe 全量零执行）。
  * - Mode B 建队=第二放行动作（dispatchMode:'B'，仅 dispatch/attach 建议与无建议时
  *   渲染——hold/reject 建议下不提供建队捷径）。
+ * - P10b manage 建议臂（10 号详设 §3.1）：建议区呈现对象/动作/理由/证据；Y 走
+ *   approveManageDecision（管理动作批准入口——不建票不派 worker，服务侧事务翻
+ *   managed 后异步经既有 harness 服务面执行，结果经快照 manageExecution 回写）；
+ *   E 追加说明不渲染（管理动作无 brief 可改）。
  * - 权限档按建议渲染（缺省 build）；**建议 yolo 时不传 tier**（服务接口类型层排除
  *   yolo——放行回落 build 默认，徽标仍诚实显示建议档，spec §2.5 的 yolo 直派通道
  *   在 P2 不存在）。
@@ -67,12 +73,18 @@ export const MateDecisionCard = memo(function MateDecisionCard({
 }) {
   const { intl } = useDroraIntl();
   const approveDecision = useMateStore((state) => state.approveDecision);
+  const approveManageDecision = useMateStore((state) => state.approveManageDecision);
   const ignoreDecision = useMateStore((state) => state.ignoreDecision);
   const [appendix, setAppendix] = useState("");
   const [failure, setFailure] = useState<MateErrorMessageId | null>(null);
   const [queuedNotice, setQueuedNotice] = useState(false);
 
   const suggestion = decision.routerSuggestion;
+  // P10b（10 号详设 §3.1）：manage 臂——Y 走 approveManageDecision（管理动作批准入口，
+  // 不建票不派 worker）；E 追加说明无意义（管理动作无 brief 可改），建队捷径不放
+  // （showTeamAction 只认 dispatch/attach）。放行预检失败（可见集失配/通道未装配）
+  // 按封闭错误码出 role=alert，卡不消费可重试新卡。
+  const isManage = suggestion?.kind === "manage";
   // 权限档预填：建议带 build/guarded 用建议档；yolo 建议不传（服务回落 build——
   // 接口类型 Exclude<...,'yolo'>，P2 无 yolo 派发通道，见组件头注释）。
   const suggestedTier: AssistantPermissionTier | undefined = suggestion?.permissionTier;
@@ -212,6 +224,29 @@ export const MateDecisionCard = memo(function MateDecisionCard({
               })}
             </p>
           ) : null}
+          {suggestion.kind === "manage" ? (
+            <div className="mt-1 flex flex-col gap-0.5" data-testid="mate-decision-manage-arm">
+              {suggestion.manageAction &&
+              mateManageActionMessageId(suggestion.manageAction) !== null ? (
+                <p className="text-ui-xs text-foreground-subtle">
+                  {intl.formatMessage({
+                    id: mateManageActionMessageId(suggestion.manageAction)!,
+                  })}
+                </p>
+              ) : null}
+              {suggestion.manageTargetRef ? (
+                <p className="break-all font-mono text-ui-xs text-foreground-subtle">
+                  {suggestion.manageTargetKind &&
+                  mateManageTargetKindMessageId(suggestion.manageTargetKind) !== null
+                    ? `${intl.formatMessage({
+                        id: mateManageTargetKindMessageId(suggestion.manageTargetKind)!,
+                      })} · `
+                    : ""}
+                  {suggestion.manageTargetRef}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
           {suggestion.reason ? (
             <p className="mt-1 break-words text-ui-xs text-foreground-subtle">
               {intl.formatMessage({ id: "mate.router.reason" })}：{suggestion.reason}
@@ -241,19 +276,31 @@ export const MateDecisionCard = memo(function MateDecisionCard({
         </p>
       ) : null}
       <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
-        <Button
-          size="xs"
-          onClick={() =>
-            approve(
-              suggestion?.kind === "attach" && suggestion.sessionId
-                ? { attachToSessionId: suggestion.sessionId }
-                : { dispatchMode: "A" },
-            )
-          }
-          data-testid="mate-decision-approve"
-        >
-          {intl.formatMessage({ id: "mate.card.approve" })}
-        </Button>
+        {isManage ? (
+          <Button
+            size="xs"
+            onClick={() =>
+              run(approveManageDecision(service, workspaceKey, { decisionId: decision.id }))
+            }
+            data-testid="mate-decision-approve-manage"
+          >
+            {intl.formatMessage({ id: "mate.card.approve" })}
+          </Button>
+        ) : (
+          <Button
+            size="xs"
+            onClick={() =>
+              approve(
+                suggestion?.kind === "attach" && suggestion.sessionId
+                  ? { attachToSessionId: suggestion.sessionId }
+                  : { dispatchMode: "A" },
+              )
+            }
+            data-testid="mate-decision-approve"
+          >
+            {intl.formatMessage({ id: "mate.card.approve" })}
+          </Button>
+        )}
         {showTeamAction ? (
           <Button
             size="xs"
@@ -272,15 +319,17 @@ export const MateDecisionCard = memo(function MateDecisionCard({
         >
           {intl.formatMessage({ id: "mate.card.ignore" })}
         </Button>
-        <Button
-          size="xs"
-          variant="ghost"
-          aria-expanded={expanded}
-          onClick={() => onToggleExpanded(expanded ? null : decision.id)}
-          data-testid="mate-decision-edit"
-        >
-          {intl.formatMessage({ id: "mate.card.edit" })}
-        </Button>
+        {isManage ? null : (
+          <Button
+            size="xs"
+            variant="ghost"
+            aria-expanded={expanded}
+            onClick={() => onToggleExpanded(expanded ? null : decision.id)}
+            data-testid="mate-decision-edit"
+          >
+            {intl.formatMessage({ id: "mate.card.edit" })}
+          </Button>
+        )}
       </div>
       {expanded ? (
         <div className="mt-2 flex flex-col gap-1.5">

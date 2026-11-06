@@ -12,6 +12,10 @@
 // 同卡双视图**（设计语义：同源同卡不双写）——既有卡片 locator 按 mate-inbox-list 容器
 // 收敛（断言语义不变：仍指向收件箱视角的同一张卡）；MSA14 答复呈现随 P10a-2 迁入
 // 对话流答复气泡。
+// MSA19 为 P10b 管理动作面批追加（10 号详设 §3.1/§3.3：决策卡 manage 呈现+Y 执行链
+// +台账行管理入口）。真实评估/可见集预检/异步执行面在 host 侧 manageActions+node.ts
+// 装配——由 packages/services/test/assistantManageActions.test.ts（17 项）锁定
+// （照 MSA15 先例：夹具只造投影事实，不伪造组装链路）。
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createRequire } from "node:module";
@@ -28,7 +32,7 @@ const { default: tailwindcss } = await import(
 );
 
 test(
-  "MSA01–18: Surface A status strip, Router suggestion prefill (dispatch/attach/failed/hold), team action, queued notice, Surface C tabs, generation badge, session-line, W1 worktree toggle, F1 bare-approve chain guard + F2 trigger feedback, F4 auto-notice card, P7 query reply, P8 work overview card, P9 autonomy card badge + rhythm section echo, P10a-2 conversation surface (four message kinds + composer + off matrix + thread pagination)",
+  "MSA01–19: Surface A status strip, Router suggestion prefill (dispatch/attach/failed/hold), team action, queued notice, Surface C tabs, generation badge, session-line, W1 worktree toggle, F1 bare-approve chain guard + F2 trigger feedback, F4 auto-notice card, P7 query reply, P8 work overview card, P9 autonomy card badge + rhythm section echo, P10a-2 conversation surface (four message kinds + composer + off matrix + thread pagination), P10b management surface (manage decision card + Y execution chain + inventory-row manage entry)",
   { timeout: 300000 },
   async () => {
     const output = await mkdtemp(join(tmpdir(), "mate-surface-ac-"));
@@ -654,6 +658,83 @@ test(
       assert.match(
         await page.getByTestId("mate-thread-composer-off-hint").textContent(),
         /off 模式/,
+      );
+      // off 下台账行管理入口同步禁用（管理动作零执行面；title 提示）。
+      const offpeakManageOff = page.getByTestId("mate-work-overview-offpeak-manage");
+      await offpeakManageOff.waitFor();
+      assert.equal(await offpeakManageOff.isDisabled(), true);
+
+      // MSA19（P10b 管理动作面，10 号详设 §3.1/§3.3；真实评估/可见集预检/异步执行面在
+      // host 侧 manageActions+node.ts 装配——assistantManageActions.test.ts 17 项锁定；
+      // 夹具只造决策卡建议与执行结果投影事实，照 MSA15 先例标注。targetRef=MSA15 台账
+      // 注入的会话行 sess-inv-open，同构「台账可见集成员」）：
+      // ①决策卡 manage 呈现——建议区「管理动作」+动作（停掉当前回合）+对象（会话·
+      // sess-inv-open）+理由+证据；E 追加说明不渲染（manage 无 brief 可改）。
+      await page.getByTestId("fixture-mode-observe").click();
+      await page.waitForFunction(
+        () =>
+          document.querySelector('[data-testid="mate-thread-composer-input"]')?.disabled === false,
+      );
+      await page.getByTestId("fixture-inject-manage").click();
+      // 此时收件箱尚有 MSA16/MSA18 的待决卡，且同卡在对话流/收件箱双视图——按容器+
+      // manage 臂内容锚定收件箱视角的本卡（strict mode，断言语义仍指向同一张卡）。
+      const manageCard = inbox.locator('[data-testid="mate-decision-card"]', {
+        has: page.getByTestId("mate-decision-manage-arm"),
+      });
+      await manageCard.waitFor();
+      const manageSuggestion = manageCard.getByTestId("mate-decision-router-suggestion");
+      await manageSuggestion.waitFor();
+      assert.match(await manageSuggestion.textContent(), /建议：管理动作/);
+      assert.match(await manageSuggestion.textContent(), /停掉当前回合/);
+      assert.match(await manageSuggestion.textContent(), /会话 · sess-inv-open/);
+      assert.match(await manageSuggestion.textContent(), /卡住无进展/);
+      assert.equal(await manageCard.getByTestId("mate-decision-manage-arm").count(), 1);
+      assert.equal(await manageCard.getByTestId("mate-decision-router-evidence").count(), 1);
+      assert.equal(await manageCard.getByTestId("mate-decision-edit").count(), 0);
+      assert.equal(await manageCard.getByTestId("mate-decision-approve-team").count(), 0);
+      // ②Y 执行链——mate-decision-approve-manage（manage 专属放行钮）→ 服务翻 managed
+      // （卡出待决）→ 对话流「管理动作结果」消息（executing → executed+note 推进）。
+      // 普通放行钮不渲染（manage 卡不建票）。
+      assert.equal(await manageCard.getByTestId("mate-decision-approve").count(), 0);
+      await inbox.getByTestId("mate-decision-approve-manage").click();
+      await page.waitForFunction(() =>
+        /decisionId=\d+/.test(
+          document.querySelector('[data-testid="fixture-manage-approve-input"]')?.textContent ?? "",
+        ),
+      );
+      const manageResult = thread.getByTestId("mate-thread-manage-result");
+      await manageResult.waitFor();
+      assert.match(await manageResult.textContent(), /管理动作结果/);
+      assert.match(await manageResult.textContent(), /停掉当前回合/);
+      assert.match(await manageResult.textContent(), /sess-inv-open/);
+      await page.waitForFunction(
+        () =>
+          /已执行/.test(
+            document.querySelector('[data-testid="mate-thread-manage-result"]')?.textContent ?? "",
+          ),
+        undefined,
+        { timeout: 15000 },
+      );
+      assert.match(await manageResult.textContent(), /已发 stop/);
+      // ③台账行管理入口（§3.3 入口多样、准入门唯一）——会话行「经大副停掉」产管理意图
+      // trigger（explicit+target=组键，文本含对象 id：fixture-last-trigger 读点）；闲时行
+      // 入口可点（导航主体仍禁用+title 提示——本 pane 无任务中心导航面语义不变）。
+      const sessionManage = page.getByTestId("mate-work-overview-session-manage");
+      await sessionManage.first().waitFor();
+      assert.ok((await sessionManage.count()) >= 1, "session rows expose manage entries");
+      await sessionManage.first().click();
+      await page.waitForFunction(() =>
+        /simulated=explicit target=fixture\/workspace text=请把会话 sess-/.test(
+          document.querySelector('[data-testid="fixture-last-trigger"]')?.textContent ?? "",
+        ),
+      );
+      const offpeakManage = page.getByTestId("mate-work-overview-offpeak-manage");
+      assert.equal(await offpeakManage.count(), 1);
+      assert.equal(await offpeakManage.isDisabled(), false);
+      assert.equal(await page.getByTestId("mate-work-overview-offpeak-row").isDisabled(), true);
+      assert.match(
+        await page.getByTestId("mate-work-overview-offpeak-row").getAttribute("title"),
+        /任务中心/,
       );
 
       assert.deepEqual(errors, []);

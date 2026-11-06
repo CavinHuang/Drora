@@ -63,10 +63,13 @@ describe("mateStore 局部态（按 workspace 分域）", () => {
     store.setFilter("ws-a", "all");
     store.selectTicket("ws-a", "T-9");
     store.expandDecision("ws-a", 7);
+    // 全形状锁定（MateLocalUiState 四字段）：P8b 台账组展开态 expandedWorkKeys 不被
+    // 三件局部态写入触及（保持初值空数组——质量门禁补救轮补齐 P8b 漏改的断言形状）。
     expect(useMateStore.getState().byWorkspace["ws-a"]).toEqual({
       filter: "all",
       selectedTicketId: "T-9",
       expandedDecisionId: 7,
+      expandedWorkKeys: [],
     });
   });
 
@@ -81,12 +84,27 @@ describe("mateStore 局部态（按 workspace 分域）", () => {
       filter: "decision",
       selectedTicketId: null,
       expandedDecisionId: 7,
+      expandedWorkKeys: [],
     });
     expect(useMateStore.getState().byWorkspace["ws-b"]).toEqual({
       filter: "observe",
       selectedTicketId: "T-2",
       expandedDecisionId: 9,
+      expandedWorkKeys: [],
     });
+  });
+
+  it("toggleWorkWorkspace 幂等 toggle 且按 workspace 隔离（P8b 总览卡组展开态）", () => {
+    const store = useMateStore.getState();
+    store.toggleWorkWorkspace("ws-a", "proj-1");
+    store.toggleWorkWorkspace("ws-a", "proj-2");
+    // 同组二次 toggle=收起（幂等 toggle，非追加）。
+    store.toggleWorkWorkspace("ws-a", "proj-1");
+    expect(useMateStore.getState().byWorkspace["ws-a"]?.expandedWorkKeys).toEqual(["proj-2"]);
+    // B 区同组键独立，不随 A 区联动。
+    store.toggleWorkWorkspace("ws-b", "proj-2");
+    expect(useMateStore.getState().byWorkspace["ws-b"]?.expandedWorkKeys).toEqual(["proj-2"]);
+    expect(useMateStore.getState().byWorkspace["ws-a"]?.expandedWorkKeys).toEqual(["proj-2"]);
   });
 });
 

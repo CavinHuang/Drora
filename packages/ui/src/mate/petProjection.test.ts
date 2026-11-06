@@ -6,6 +6,7 @@ import {
   ASSISTANT_STRENGTHS,
   ASSISTANT_TICKET_STATUSES,
   MATE_PET_PROJECTION_LIMITS,
+  matePetProjectionSchema,
 } from "@drora/shared";
 import type { AssistantDecisionView, AssistantSnapshot, AssistantTicketView } from "@drora/services";
 
@@ -213,22 +214,28 @@ describe("projectMatePet（快照 → 桌宠有界投影）", () => {
             failReason: "assistant_row_failed",
             updatedAtMs: T0 + 100,
           }),
-          ticket({ id: "T-silent", status: ASSISTANT_TICKET_STATUSES.done, updatedAtMs: T0 - 1 }),
+          // 无摘要 done（outputSummary/failReason 均 null）——审修复 F1：置于界内
+          // （T0+50，晚于全部 T-d*）使「summary 省略」分支可证伪（界内行正向断言）。
+          ticket({ id: "T-silent", status: ASSISTANT_TICKET_STATUSES.done, updatedAtMs: T0 + 50 }),
         ],
       }),
     );
     const recent = projection.recentTickets ?? [];
     expect(recent).toHaveLength(MATE_PET_PROJECTION_LIMITS.recentMax);
-    // 最新终态（failed）排首并携带 fail_reason 摘要；done 无 output_summary 且非 failed
-    // → summary 省略（T-silent 落出 recentMax 界，另证：界内 done 均有摘要）。
+    // 最新终态（failed）排首并携带 fail_reason 摘要；done 无 output_summary 且非
+    // failed → summary 省略（T-silent=界内无摘要 done，正向断言见下）。
     expect(recent[0]).toMatchObject({
       ticketId: "T-fail",
       status: "failed",
       summary: "assistant_row_failed",
       updatedAtMs: T0 + 100,
     });
-    expect(recent[1]?.ticketId).toBe(`T-d${MATE_PET_PROJECTION_LIMITS.recentMax + 1}`);
-    expect(recent.every((row) => row.summary !== undefined)).toBe(true);
+    // 次序=T-fail(T0+100) > T-silent(T0+50) > T-d5（recentMax+1 条 done 中最新）> …。
+    expect(recent[1]?.ticketId).toBe("T-silent");
+    expect(recent[2]?.ticketId).toBe(`T-d${MATE_PET_PROJECTION_LIMITS.recentMax + 1}`);
+    // 无摘要 done 界内省略 summary（审修复 F1 正向断言：恒带空串/伪造文案即红）。
+    expect(recent.find((row) => row.ticketId === "T-silent")?.summary).toBeUndefined();
+    expect(recent.every((row) => row.ticketId === "T-silent" || row.summary !== undefined)).toBe(true);
     // 首条与 latestReport 同源（同一最新终态工单）。
     expect(projection.latestReport?.ticketId).toBe("T-fail");
   });
@@ -256,6 +263,19 @@ describe("projectMatePet（快照 → 桌宠有界投影）", () => {
     expect(projection.latestReport?.status).toBe("failed");
     expect(projection.latestReport?.summary).toBe("失败：原因首行");
     expect(matePetReportSummary(snap.tickets[0]!)).toBe("完成：首行摘要");
+  });
+
+  it("旧发布方帧（无 recentTickets/行级新字段）过投影 schema——Main/宠物窗 safeParse 兼容锁定（07 §1）", () => {
+    const legacyFrame = {
+      pendingDecisions: [],
+      activeTickets: [
+        { ticketId: "T-1", status: "running", brief: "旧帧行", targetWorkspaceIdentity: "ws-a" },
+      ],
+      latestReport: null,
+      bubble: null,
+    };
+    const parsed = matePetProjectionSchema.safeParse(legacyFrame);
+    expect(parsed.success).toBe(true);
   });
 
   it("空快照 → 全空投影（bubble 恒 null——判定在发布方差分）", () => {

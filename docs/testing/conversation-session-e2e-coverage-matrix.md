@@ -6307,6 +6307,7 @@ promotion、未 CI admission；Electron 真机桌宠（badge 数=任务中心待
 tray 放行一致性）与飞书/GitHub 真实凭据连通随总闸联调验收（specs §14 P3 验收行）。
 
 MSP07（2026-11-06 P6 桌宠工作面板批，同文件同 fixture）：发布链端到端携带 recentTickets（≥2 条终态、首条与 latestReport 同源同票、倒序）；渲染层（三区/failed 红/点行直达/旧帧缺席隐藏）由 desktopPetMateSeam 单测锁定，两层互补。
+
 ## Mate（大副）P4 第二棒增量（2026-11-05，汇报卡完整版 + 配额中心 UI）
 
 MRP01–07：`packages/desktop/test/e2e/conversation-session/manual-review/pending/mate-p4-ui.test.mjs`。

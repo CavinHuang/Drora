@@ -300,7 +300,12 @@ export function createThreadHistoryFixture(deps: {
       deps.publish();
     },
     captureTriggerInput(input) {
-      lastTrigger = `simulated=${input.simulated} target=${input.targetWorkspaceIdentity ?? "-"} text=${input.text}`;
+      // P10b 修复轮：管理入口触发（manageIntent=true，台账行「经大副停掉/取消」）在摘要
+      // 追加 manage=true 段——MSA19 断言 UI 传参（auto 下服务侧降级 decision_card 的准入
+      // 守卫由 assistantManageActions.test.ts 锁定）；composer 等无标记触发摘要不变。
+      lastTrigger = `simulated=${input.simulated} target=${input.targetWorkspaceIdentity ?? "-"} text=${input.text}${
+        input.manageIntent ? " manage=true" : ""
+      }`;
     },
     lastTriggerInput() {
       return lastTrigger;

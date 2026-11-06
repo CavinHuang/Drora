@@ -137,17 +137,32 @@ preset 无 bash、无写盘工具，只做路由、派发、盯单、汇报。
    拒绝=如实落卡。④auto 永不自动执行 manage——autoDispatch.handleRouterSuggested 显式
    排除 manage 臂（先于 dispatch/attach 白名单判定+info 审计日志；autonomy suggest 卡
    不进评估循环是同款补强先例）+单测断言（auto 下 manage 建议落 suggested 但零建票零
-   执行零端口调用）。⑤台账行管理入口（§3.3 入口多样、准入门唯一）——MateWorkOverview
+   执行零端口调用）。④b **auto 准入与旧放行口双守卫（2026-11-07 安全审查修复轮）**：
+   recordTrigger 输入扩可选 `manageIntent`（管理入口标记）——triggerRecord 对
+   manageIntent×auto_notice 在预检与事务内两处降级 decision_card（reason_code=
+   manage_requires_manual_approval 留痕；复用 autoDispatch「降级问人」同款语义），
+   管理入口在 auto 模式下也不直派（§0「管理动作永不 auto 放行」的准入侧落点——修复
+   前台账行入口 explicit+target 在 auto 下会走 auto_notice→同事务建票→派 worker，
+   brief=管理意图原文，形成管理意图的第二条执行路径）；缺省 false 既有 explicit 直派
+   语义零变化。同时 postApproval.runApprovalPrecheck 对 **suggested manage verdict
+   诚实拒绝**（validationFailed、卡不消费、不建票）——manage 建议卡的唯一放行口=
+   approveManageDecision，不再依赖 UI 呈现约束（修复前桌宠速览等臂无关消费方经
+   approveDecision 可把 manage 卡批准成「派 worker 执行管理意图原文」）。⑤台账行管理
+   入口（§3.3 入口多样、准入门唯一）——MateWorkOverview
    会话行/闲时行行尾「经大副停掉/取消」（SquareIcon 按钮，与主行并列不嵌套；**闲时行
    导航主体保持禁用+title 语义不变**，仅管理入口可发起）；点击=mateStore.recordTrigger
-   (explicit, target=行所属组键) 产管理意图 trigger（文本含对象 id——Router 可见集匹配
-   targetRef 依据），与 composer//mate 拦截完全同链；off 模式入口禁用（manageDisabled）
-   。⑥呈现——决策卡 manage 建议区（对象/动作/理由/证据；E 追加说明不渲染——管理动作
+   (explicit, target=行所属组键, **manageIntent=true**) 产管理意图 trigger（文本含对象
+   id——Router 可见集匹配 targetRef 依据），与 composer//mate 拦截同一准入门但携带管理
+   标记（single-flight key 纳入 manageIntent 防同文本并发撞 key）；off 模式入口禁用
+   （manageDisabled）。⑥呈现——决策卡 manage 建议区（对象/动作/理由/证据；E 追加说明不渲染——管理动作
    无 brief 可改；建队捷径不放）+Y=mate-decision-approve-manage（approveManageDecision
    入口）；对话流 outcome=managed 出「管理动作结果」消息（对象+动作+执行状态 executed/
    skipped/failed+note verbatim；无动作按钮——失败重新触发=新卡）；快照 AssistantDecision
    View.manageExecution 投影（防御式列值收窄）；mateManage* 封闭映射与 i18n mate.manage.*
-   14 键双语+守护。验收=assistantManageActions.test.ts（17 项：schema 对偶/配对失配/
+   14 键双语+守护。验收=assistantManageActions.test.ts（**22 项**（修复轮 +5：auto 台账行
+   入口 manageIntent 降级出卡零派发+reason_code 留痕+人工 Y 全链/无标记 explicit 直派
+   对照不回归/observe 守卫幂等/approveDecision 对 manage 卡诚实拒绝含拒绝后正确入口仍可
+   达/dispatch 建议卡不受影响对照）：schema 对偶/配对失配/
    reason 界/可见集推导与拒绝/provider 缺席/通道未装配/成功链含端口传参断言/幂等终态
    skipped/失败回写不重试/auto 零执行/非 manage 卡拒绝/放行率零污染，登记 drora 清单）
    +view-model 6 项（fork-isolated 清单）+MSA19（mate-surface-ac 扩展：manage 呈现+Y

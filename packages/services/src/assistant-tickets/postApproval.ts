@@ -63,6 +63,22 @@ export async function runApprovalPrecheck(
           arm?: { sessionId?: string; targetWorkspaceIdentity?: string };
         })
       : undefined;
+  // P10b（10 号详设 §3.1/§3.3「准入门唯一」；2026-11-07 安全审查修复）：manage 建议卡
+  // 的唯一放行口是 approveManageDecision（不建 mandate/ticket、不派 worker，经 manage
+  // 执行端口调既有 harness 服务面）。本放行口对 suggested manage verdict 诚实拒绝
+  // （validationFailed 同款、卡不消费、不建票）——此前 precheck 只消费 attach/dispatch
+  // 臂，manage 卡经本口会以「管理意图原文」为 brief 建 worker 票，管理动作形成第二条
+  // 执行路径（桌宠速览等臂无关消费方真实可达）；服务层拒绝后任何消费方都被挡住，不再
+  // 依赖 UI 呈现约束。无 suggested 评估的普通卡不受影响（suggestion=undefined 直通）。
+  if (suggestion?.kind === "manage") {
+    return {
+      ok: false,
+      error: {
+        code: ASSISTANT_ERROR_CODES.validationFailed,
+        reason: "manage 决策卡不可经 approveDecision 放行（管理动作唯一放行口=approveManageDecision）",
+      },
+    };
+  }
   const attachSessionId =
     input.attachToSessionId?.trim() ||
     (suggestion?.kind === "attach" ? suggestion.arm?.sessionId : undefined);

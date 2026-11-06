@@ -3,6 +3,11 @@
  * - schema 对偶断言：manage 第六臂（六臂恰现其一/合法配对/reason 界）；
  * - 可见集拒绝：targetRef 清单外失配拒绝（attach 反编造同款）；
  * - auto 无执行断言：manage verdict 在 auto 模式下不建票不消费（管理≠自动）；
+ * - 台账行管理入口（安全修复轮）：recordTrigger(manageIntent) 在 auto 下 explicit
+ *   直派被降级 decision_card（reason_code 留痕）出 manage 卡人工 Y；无标记的既有
+ *   explicit 直派语义不回归；observe 行为零变化；
+ * - approveDecision 诚实拒绝（安全修复轮）：manage suggested 卡经旧放行口=
+ *   validationFailed、卡不消费、零建票；dispatch suggested 卡不受影响；
  * - 执行面守卫传参：planManageStopTurn 取帧矩阵（executionId 来自活动执行帧——
  *   node.ts 装配与 UI SessionPane 同语义的判定锁）；
  * - 幂等终态（already_terminal=skipped「已无需执行」）/失败回写（failed+原因，不重试）/
@@ -452,5 +457,216 @@ describe("auto 模式永不自动执行 manage（10 号详设 §0/§3.1）", () 
     expect(decision?.outcome).toBe(ASSISTANT_OUTCOMES.decisionCard);
     expect(decision?.routerSuggestion?.kind).toBe("manage");
     expect(decision?.manageExecution).toBeUndefined();
+  });
+
+  it("auto 下台账行管理入口（recordTrigger manageIntent）：explicit 直派被降级 decision_card，评估循环出 manage 卡，人工 Y 才执行（零 worker 派发）", async () => {
+    const db = openAssistantDatabase(":memory:");
+    const service = createAssistantTicketsService({
+      databasePath: ":memory:",
+      localIdentity: LOCAL_IDENTITY,
+      database: db,
+    });
+    kvSet(db, "mode", ASSISTANT_MODES.auto);
+    setAssistantInventoryProvider(() => inventoryFixture());
+    let dispatched = 0;
+    setAssistantDispatchPort(async (request) => {
+      dispatched += 1;
+      return { ok: true, value: { ticketId: request.ticketId, sessionId: "x" } };
+    });
+    const manageRequests: AssistantManageExecutionRequest[] = [];
+    setAssistantManagePort(async (request) => {
+      manageRequests.push(request);
+      return { ok: true, outcome: "executed", detail: "已发 stop" };
+    });
+    // 台账行入口同款触发（MateSidePane.handleManageTarget 生成的文本+explicit+target
+    // +manageIntent——安全审查修复断言点：auto×explicit 原会 auto_notice→同事务建票→
+    // 派 worker（brief=管理意图原文），修复后必须降级 decision_card 走 manage 卡）。
+    const entryText = "请把会话 sess-manage-1「用户手开会话一」的当前回合停掉";
+    setAssistantRouterPort(async () => ({
+      ok: true,
+      output: JSON.stringify({
+        manage: {
+          targetKind: ASSISTANT_MANAGE_TARGET_KINDS.session,
+          targetRef: "sess-manage-1",
+          action: ASSISTANT_MANAGE_ACTIONS.stopTurn,
+          reason: "会话卡住无进展",
+        },
+        evidence: [{ quote: entryText }],
+      }),
+    }));
+    const recorded = await service.recordTrigger({
+      text: entryText,
+      simulated: ASSISTANT_STRENGTHS.explicit,
+      targetWorkspaceIdentity: "ws-manage",
+      manageIntent: true,
+    });
+    expect(recorded.ok).toBe(true);
+    // 直派计划被管理入口守卫降级：outcome=decision_card（非 auto_notice）。
+    expect(recorded.value.outcome).toBe(ASSISTANT_OUTCOMES.decisionCard);
+    let decisionId: number | undefined;
+    for (let i = 0; i < 20; i += 1) {
+      const decision = (await service.getSnapshot()).decisions.find(
+        (d) => recorded.ok && d.triggerId === recorded.value.triggerId,
+      );
+      if (decision?.routerState === "suggested") {
+        decisionId = decision.id;
+        break;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    }
+    expect(decisionId).toBeDefined();
+    // reason_code 诚实留痕（快照不投影，直查 admission_decision）。
+    const decisionRow = db.raw
+      .prepare("SELECT reason_code FROM admission_decision WHERE id = ?")
+      .get(decisionId) as { reason_code: string | null };
+    expect(decisionRow.reason_code).toBe("manage_requires_manual_approval");
+    await flushAsync(20);
+    // 零 worker 派发：无 ticket、dispatch 端口零调用、manage 卡留人工。
+    expect(dispatched).toBe(0);
+    const snapshot = await service.getSnapshot();
+    expect(snapshot.tickets).toHaveLength(0);
+    const decision = snapshot.decisions.find((d) => d.id === decisionId);
+    expect(decision?.outcome).toBe(ASSISTANT_OUTCOMES.decisionCard);
+    expect(decision?.routerSuggestion?.kind).toBe("manage");
+    // 人工 Y（唯一放行口）：approveManageDecision → manage 执行端口。
+    expect((await service.approveManageDecision({ decisionId: decisionId! })).ok).toBe(true);
+    await flushAsync();
+    expect(manageRequests).toEqual([
+      {
+        targetKind: "session",
+        targetRef: "sess-manage-1",
+        action: "stop_turn",
+        workspaceKey: "ws-manage",
+      },
+    ]);
+    expect(dispatched).toBe(0);
+  });
+
+  it("对照：auto 下同参数无 manageIntent 仍走 explicit 直派（既有矩阵语义不回归）", async () => {
+    const db = openAssistantDatabase(":memory:");
+    const service = createAssistantTicketsService({
+      databasePath: ":memory:",
+      localIdentity: LOCAL_IDENTITY,
+      database: db,
+    });
+    kvSet(db, "mode", ASSISTANT_MODES.auto);
+    let dispatched = 0;
+    setAssistantDispatchPort(async (request) => {
+      dispatched += 1;
+      return { ok: true, value: { ticketId: request.ticketId, sessionId: "x" } };
+    });
+    const recorded = await service.recordTrigger({
+      text: "请把会话 sess-manage-1「用户手开会话一」的当前回合停掉",
+      simulated: ASSISTANT_STRENGTHS.explicit,
+      targetWorkspaceIdentity: "ws-manage",
+    });
+    expect(recorded.ok).toBe(true);
+    expect(recorded.value.outcome).toBe(ASSISTANT_OUTCOMES.autoNotice);
+    await flushAsync(20);
+    expect(dispatched).toBe(1);
+    expect((await service.getSnapshot()).tickets).toHaveLength(1);
+  });
+
+  it("observe 模式 manageIntent：explicit 照旧 decision_card（守卫幂等，observe 行为零变化）", async () => {
+    const service = createAssistantTicketsService({
+      databasePath: ":memory:",
+      localIdentity: LOCAL_IDENTITY,
+      database: openAssistantDatabase(":memory:"),
+    });
+    const recorded = await service.recordTrigger({
+      text: "请取消闲时任务 task-manage-1「闲时索引重建」",
+      simulated: ASSISTANT_STRENGTHS.explicit,
+      targetWorkspaceIdentity: "ws-manage",
+      manageIntent: true,
+    });
+    expect(recorded.ok).toBe(true);
+    expect(recorded.value.outcome).toBe(ASSISTANT_OUTCOMES.decisionCard);
+  });
+});
+
+describe("approveDecision 对 manage 建议卡诚实拒绝（10 号详设 §3.1/§3.3 准入门唯一）", () => {
+  function createService() {
+    const db = openAssistantDatabase(":memory:");
+    const service = createAssistantTicketsService({
+      databasePath: ":memory:",
+      localIdentity: LOCAL_IDENTITY,
+      database: db,
+    });
+    setAssistantInventoryProvider(() => inventoryFixture());
+    return { service, db };
+  }
+
+  it("manage suggested 卡经 approveDecision → validationFailed、卡不消费、零建票、两端口零调用；拒绝后正确入口仍可达", async () => {
+    const { service } = createService();
+    let manageCalls = 0;
+    let dispatchCalls = 0;
+    setAssistantManagePort(async () => {
+      manageCalls += 1;
+      return { ok: true, outcome: "executed", detail: "已发 stop" };
+    });
+    setAssistantDispatchPort(async (request) => {
+      dispatchCalls += 1;
+      return { ok: true, value: { ticketId: request.ticketId, sessionId: "x" } };
+    });
+    const decisionId = await seedManageDecision(service);
+    // 旧放行口（桌宠速览 approve→approveDecision 的真实落点）对 manage verdict 拒绝。
+    const rejected = await service.approveDecision({ decisionId });
+    expect(rejected.ok).toBe(false);
+    if (rejected.ok) return;
+    expect(rejected.error.code).toBe(ASSISTANT_ERROR_CODES.validationFailed);
+    expect(rejected.error.reason).toContain("approveManageDecision");
+    // 卡不消费、零建票、零执行通道调用。
+    const decision = (await service.getSnapshot()).decisions.find((d) => d.id === decisionId);
+    expect(decision?.outcome).toBe(ASSISTANT_OUTCOMES.decisionCard);
+    expect((await service.getSnapshot()).tickets).toHaveLength(0);
+    expect(manageCalls).toBe(0);
+    expect(dispatchCalls).toBe(0);
+    // 拒绝是诚实失败不是消费：正确入口（approveManageDecision 人工 Y）仍可放行。
+    expect((await service.approveManageDecision({ decisionId })).ok).toBe(true);
+    await flushAsync();
+    expect(manageCalls).toBe(1);
+    expect(dispatchCalls).toBe(0);
+  });
+
+  it("对照：dispatch suggested 卡仍可 approveDecision 建票派发（拒绝只针对 manage verdict）", async () => {
+    const { service } = createService();
+    setAssistantRouterPort(async () => ({
+      ok: true,
+      output: JSON.stringify({
+        dispatch: {
+          targetWorkspaceIdentity: "ws-manage",
+          permissionTier: "build",
+          briefBase: "verbatim",
+        },
+        evidence: [{ quote: "修复登录白屏" }],
+      }),
+    }));
+    let dispatchCalls = 0;
+    setAssistantDispatchPort(async (request) => {
+      dispatchCalls += 1;
+      return { ok: true, value: { ticketId: request.ticketId, sessionId: "sess-d" } };
+    });
+    const recorded = await service.recordTrigger({
+      text: "修复登录白屏",
+      simulated: ASSISTANT_STRENGTHS.explicit,
+      targetWorkspaceIdentity: "ws-manage",
+    });
+    expect(recorded.ok).toBe(true);
+    let decisionId: number | undefined;
+    for (let i = 0; i < 20; i += 1) {
+      const decision = (await service.getSnapshot()).decisions.find(
+        (d) => recorded.ok && d.triggerId === recorded.value.triggerId,
+      );
+      if (decision?.routerState === "suggested") {
+        decisionId = decision.id;
+        break;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    }
+    expect(decisionId).toBeDefined();
+    const approved = await service.approveDecision({ decisionId: decisionId! });
+    expect(approved.ok).toBe(true);
+    expect(dispatchCalls).toBe(1);
+    expect((await service.getSnapshot()).tickets).toHaveLength(1);
   });
 });

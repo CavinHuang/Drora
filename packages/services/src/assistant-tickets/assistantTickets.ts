@@ -350,11 +350,18 @@ export interface IAssistantTicketService {
    * P1 仅 local Source：strength 由 UI 双按钮模拟（explicit=点名 / inferred=未指名），
    * P3 起由真实 Source 判定（mention && allowlist）。
    * off 模式：只记 trigger+decision（outcome=ignored），零执行。
+   * P10b（10 号详设 §0/§3.3 安全修复）：manageIntent=true 标记**管理入口**触发（台账行
+   * 「经大副停掉/取消」按钮）——auto 模式下 explicit 的直派计划（auto_notice→同事务
+   * 建票派 worker）被降级 decision_card 进候选卡评估循环（reason_code=
+   * manage_requires_manual_approval 留痕），管理动作永不 auto 放行，唯一放行口=
+   * approveManageDecision 人工 Y。缺省（undefined/false）行为与 P1 起完全一致。
    */
   recordTrigger(input: {
     text: string;
     simulated: AssistantStrength;
     targetWorkspaceIdentity?: string;
+    /** P10b 管理入口标记：auto×explicit 不直派，降级 decision_card 问人（§0 红线）。 */
+    manageIntent?: boolean;
   }): Promise<AssistantResult<{ triggerId: string; outcome: string }>>;
 
   /**

@@ -292,9 +292,12 @@ export const useMateStore = create<MateState>((set, get) => {
     },
 
     recordTrigger(service, workspaceKey, input) {
+      // P10b 安全修复：key 纳入 manageIntent——管理入口与对话面 composer 可能产出完全
+      // 相同的 text/simulated/target（如用户手输同一句管理指令），并发在途时若共享 key
+      // 会把管理入口的意图标记丢给 composer 的直派路径（auto 模式下被派给 worker）。
       const key = `ws:${workspaceKey}:trigger:${input.simulated}:${input.text}:${
         input.targetWorkspaceIdentity ?? ""
-      }`;
+      }:${input.manageIntent ? "manage" : ""}`;
       return runSingleFlight(key, () => service.recordTrigger(input));
     },
 

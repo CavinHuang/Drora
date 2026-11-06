@@ -207,8 +207,10 @@ expandedDecisionId / expandedWorkKeys` 四件 UI 局部态，按 workspace 分�
 - **MateWorkOverview 管理入口**（§3.3 入口多样、准入门唯一）：会话行/闲时行行尾
   「经大副停掉/取消」（MateWorkManageButton，与主行并列不嵌套；**行点击/禁用+title
   语义不变**——闲时行导航主体仍禁用，仅管理入口可发起）；点击经 MateSidePane
-  `handleManageTarget` → recordTrigger(explicit, target=行所属组键) 产管理意图 trigger
-  （文本含对象 id），与 composer//mate 拦截完全同链——**不建第二条执行路径**；off
+  `handleManageTarget` → recordTrigger(explicit, target=行所属组键, manageIntent=true)
+  产管理意图 trigger（文本含对象 id），与 composer//mate 拦截同一准入门——**不建第二
+  条执行路径**（manageIntent 使 auto 模式下服务侧降级 decision_card 出 manage 卡问人，
+  永不直派 worker——§0 红线；2026-11-07 安全审查修复）；off
   模式入口禁用（manageDisabled）。
 - 快照新消费字段：`AssistantDecisionView.manageExecution?`（服务 v8 列投影）与
   suggestion manage 三字段（manageTargetKind/manageTargetRef/manageAction）；i18n 键族

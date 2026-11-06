@@ -212,8 +212,11 @@ export const MateSidePane = memo(function MateSidePane({
     return <MateUnavailableState loading={loading && service !== null} error={error} />;
   }
 
-  // P10b（10 号详设 §3.3）：管理意图 trigger（explicit+target=对象所属 workspace 键）；
-  // 后续仍走决策卡 manage 臂+人工 Y（同一准入门）。off 模式入口禁用（off=零执行）。
+  // P10b（10 号详设 §3.3）：管理意图 trigger（explicit+target=对象所属 workspace 键
+  // +manageIntent 标记）。manageIntent 使 auto 模式下也不走 explicit 直派（服务侧
+  // 降级 decision_card，管理动作永不 auto 放行——§0 红线；安全审查修复：此前 auto×
+  // explicit+target 会同事务建票把管理意图原文派给 worker），后续仍走决策卡 manage
+  // 臂+人工 Y（同一准入门）。off 模式入口禁用（off=零执行）。
   const manageDisabled = snapshot.mode === ASSISTANT_MODES.off;
   const handleManageTarget = (target: MateWorkManageTarget): void => {
     const text =
@@ -224,6 +227,7 @@ export const MateSidePane = memo(function MateSidePane({
       text,
       simulated: ASSISTANT_STRENGTHS.explicit,
       targetWorkspaceIdentity: target.workspaceKey,
+      manageIntent: true,
     });
   };
 

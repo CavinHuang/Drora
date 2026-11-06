@@ -665,9 +665,10 @@ test(
       assert.equal(await offpeakManageOff.isDisabled(), true);
 
       // MSA19（P10b 管理动作面，10 号详设 §3.1/§3.3；真实评估/可见集预检/异步执行面在
-      // host 侧 manageActions+node.ts 装配——assistantManageActions.test.ts 17 项锁定；
-      // 夹具只造决策卡建议与执行结果投影事实，照 MSA15 先例标注。targetRef=MSA15 台账
-      // 注入的会话行 sess-inv-open，同构「台账可见集成员」）：
+      // host 侧 manageActions+node.ts 装配——assistantManageActions.test.ts 22 项锁定
+      // （修复轮 +5：auto 台账行入口 manageIntent 降级/approveDecision 对 manage 卡诚实
+      // 拒绝）；夹具只造决策卡建议与执行结果投影事实，照 MSA15 先例标注。targetRef=
+      // MSA15 台账注入的会话行 sess-inv-open，同构「台账可见集成员」）：
       // ①决策卡 manage 呈现——建议区「管理动作」+动作（停掉当前回合）+对象（会话·
       // sess-inv-open）+理由+证据；E 追加说明不渲染（manage 无 brief 可改）。
       await page.getByTestId("fixture-mode-observe").click();
@@ -717,14 +718,16 @@ test(
       );
       assert.match(await manageResult.textContent(), /已发 stop/);
       // ③台账行管理入口（§3.3 入口多样、准入门唯一）——会话行「经大副停掉」产管理意图
-      // trigger（explicit+target=组键，文本含对象 id：fixture-last-trigger 读点）；闲时行
-      // 入口可点（导航主体仍禁用+title 提示——本 pane 无任务中心导航面语义不变）。
+      // trigger（explicit+target=组键+manageIntent 标记（安全修复轮：auto 下服务侧降级
+      // decision_card 出 manage 卡，永不直派 worker），文本含对象 id：fixture-last-trigger
+      // 读点）；闲时行入口可点（导航主体仍禁用+title 提示——本 pane 无任务中心导航面语义
+      // 不变）。
       const sessionManage = page.getByTestId("mate-work-overview-session-manage");
       await sessionManage.first().waitFor();
       assert.ok((await sessionManage.count()) >= 1, "session rows expose manage entries");
       await sessionManage.first().click();
       await page.waitForFunction(() =>
-        /simulated=explicit target=fixture\/workspace text=请把会话 sess-/.test(
+        /simulated=explicit target=fixture\/workspace text=请把会话 sess-.+ manage=true/.test(
           document.querySelector('[data-testid="fixture-last-trigger"]')?.textContent ?? "",
         ),
       );

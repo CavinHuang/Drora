@@ -46,6 +46,28 @@ function fail<T>(
   return { ok: false, error: { code, reason } };
 }
 
+/**
+ * P10b 管理入口守卫（10 号详设 §0「管理动作永不 auto 放行」；2026-11-07 安全审查
+ * 修复）：manageIntent 触发（台账行「经大副停掉/取消」入口）在 auto 模式下的
+ * explicit 直派计划（auto_notice → 同事务建票 → dispatchCreatedTicket，brief=管理
+ * 意图原文）会把管理动作自动派发为 worker 任务——形成管理意图的第二条执行路径，
+ * 违反 §3.3「入口多样、准入门唯一」。守卫把 autoNotice 降级 decision_card（复用
+ * autoDispatch「降级问人」同款语义，reason_code=manage_requires_manual_approval 诚实
+ * 留痕），进候选卡评估循环出 manage 建议，唯一放行口=approveManageDecision 人工 Y。
+ * observe/off/inferred 触发原样透传（守卫只在 autoNotice 上改写，其余模式行为零变化）。
+ */
+function guardManageIntent(
+  manageIntent: boolean | undefined,
+  verdict: ReturnType<typeof evaluateAdmission>,
+): ReturnType<typeof evaluateAdmission> {
+  if (!manageIntent || verdict.outcome !== ASSISTANT_OUTCOMES.autoNotice) return verdict;
+  return {
+    strength: verdict.strength,
+    outcome: ASSISTANT_OUTCOMES.decisionCard,
+    reasonCode: "manage_requires_manual_approval",
+  };
+}
+
 export interface AssistantTriggerRecordDeps {
   readonly db: AssistantDatabase;
   readonly readConfig: (raw: AssistantDatabaseRaw) => AssistantConfigView;
@@ -79,6 +101,8 @@ export function createAssistantRecordTrigger(deps: AssistantTriggerRecordDeps): 
   text: string;
   simulated: AssistantStrength;
   targetWorkspaceIdentity?: string;
+  /** P10b 管理入口标记（IAssistantTicketService.recordTrigger 同名参；见 guardManageIntent）。 */
+  manageIntent?: boolean;
 }) => Promise<AssistantResult<{ triggerId: string; outcome: string }>> {
   const { db, readConfig, localIdentity, publish } = deps;
   return async function recordTrigger(input) {
@@ -86,10 +110,13 @@ export function createAssistantRecordTrigger(deps: AssistantTriggerRecordDeps): 
       // P4 auto 门预检（04 详设 §2；approveDecision 同口径）：探测是异步 IO，必须在
       // 事务外完成——探测失败降级 decision_card（问人），不消费、不建票。observe/
       // off/inferred 触发时 resolveAssistantAutoGateOutcome 原样透传（零开销）。
+      // P10b 管理入口守卫先于直派计划（guardManageIntent：auto×explicit 降级问人，
+      // 管理动作永不 auto 放行——降级后不进 resolveAssistantAutoGateOutcome 的直派
+      // 探测，autoTargetIdentity 恒 null=零建票）。
       const preConfig = readConfig(db.raw);
-      const preVerdict = evaluateAdmission(
-        { strength: input.simulated, identity: localIdentity },
-        preConfig,
+      const preVerdict = guardManageIntent(
+        input.manageIntent,
+        evaluateAdmission({ strength: input.simulated, identity: localIdentity }, preConfig),
       );
       const autoPlan = await resolveAssistantAutoGateOutcome({
         verdict: preVerdict,
@@ -98,9 +125,11 @@ export function createAssistantRecordTrigger(deps: AssistantTriggerRecordDeps): 
       });
       const outcome = db.transaction((raw) => {
         const config = readConfig(raw);
-        const verdict = evaluateAdmission(
-          { strength: input.simulated, identity: localIdentity },
-          config,
+        // 事务内重判 + 管理入口守卫（预检与事务之间 observe↔auto 翻转时，事务内
+        // verdict 可能变 autoNotice——守卫在此二次降级，管理意图无论翻转方向都不直派）。
+        const verdict = guardManageIntent(
+          input.manageIntent,
+          evaluateAdmission({ strength: input.simulated, identity: localIdentity }, config),
         );
         // 预检与事务之间模式翻转（罕见竞态）：以事务内 verdict 为准，auto 预检计划
         // 仅在 verdict 一致时采纳。翻转后的 auto 意图经 Router 建议钩子恢复，不猜测。

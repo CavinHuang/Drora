@@ -203,9 +203,17 @@ ticket.channel_ref）；Thread 直通 Tier1。
   SessionPane.handleStop 同一取帧语义，纯函数单测锁）→v4 stop（守卫原样适用）；
   offpeak=OffPeakTaskService.cancelTask（services 集合单例）。回写 executed/skipped
   （已无需执行）/failed+note（不自动重试；同卡二次放行幂等）。auto 永不放行：
-  autoDispatch.handleRouterSuggested 显式排除 manage 臂（先于白名单判定+info 审计）。
+  autoDispatch.handleRouterSuggested 显式排除 manage 臂（先于白名单判定+info 审计）+
+  准入侧双守卫（2026-11-07 安全审查修复）：recordTrigger 可选参 manageIntent（管理
+  入口标记——台账行「经大副停掉/取消」专用）在预检与事务内把 auto×explicit 的直派
+  计划降级 decision_card（reason_code=manage_requires_manual_approval 留痕），管理
+  意图在 auto 下也出 manage 卡人工 Y；缺省 false 既有矩阵语义零变化。旧放行口拒绝：
+  postApproval.runApprovalPrecheck 对 suggested manage verdict 诚实拒绝
+  （validationFailed、卡不消费、不建票）——manage 卡唯一放行口=approveManageDecision，
+  桌宠速览等臂无关消费方（pendingDecisions 投影不过滤建议臂）不再能把 manage 卡批准成
+  worker 派发。
   快照投影 manageExecution（防御式列值收窄）；mateThread 分页 SELECT 同步携带两列。
-  验收=assistantManageActions.test.ts（17 项，drora 清单）+MSA19。
+  验收=assistantManageActions.test.ts（22 项，drora 清单）+MSA19。
 - 端口纪律：本模块不 import drora-agent/git——v4 命令、会话索引、workspace 探测、
   git worktree、工件只读核验（P4 第二棒）、AppSettings 配额读（P4）、manage 执行
   （P10b）端口全在装配层

@@ -127,6 +127,108 @@ describe("Source kv 配置与映射（sourceConfig.ts）", () => {
   });
 });
 
+describe("P7 查询答复外发（08 §3.5；replyPort status=query 差分幂等）", () => {
+  const baseDecision = {
+    triggerId: "TR-q",
+    strength: "explicit",
+    mode: "observe",
+    outcome: "status_replied",
+    decidedBy: "gate",
+    decidedMs: 1_000,
+    triggerText: "进度怎样",
+    answer: "答复文本",
+  };
+  const baseTrigger = {
+    id: "TR-q",
+    sourceKind: "feishu",
+    strength: "explicit",
+    identity: "ext-1",
+    text: "进度怎样",
+    atMs: 1_000,
+    channelRef: "feishu:channel:1",
+    targetWorkspaceIdentity: "ws-a",
+  };
+  function snapshotWith(): AssistantSnapshot {
+    return {
+      version: 2,
+      mode: "observe",
+      allowlist: ["local-user"],
+      budget: { maxActivePerWorkspace: 3 },
+      worktreeDisabled: false,
+      trust: { wouldAcceptCount: 0, releaseCount: 0 },
+      triggers: [baseTrigger],
+      decisions: [{ id: 99, ...baseDecision }],
+      tickets: [],
+      updatedAtMs: 1_000,
+    };
+  }
+
+  it("status_replied 决策经 replyPort 外发原通道；重推不重发（decisionId 差分幂等）", async () => {
+    const replies: Array<{ channelRef: string; status: string; summary: string }> = [];
+    const registry = createMateSourceRegistry({
+      kvGet: () => undefined,
+      ingestSourceEvent: async () => undefined,
+      subscribeSnapshot: () => ({ dispose: () => undefined }),
+      replyPort: {
+        async reply(input) {
+          replies.push({ channelRef: input.channelRef, status: input.status, summary: input.summary });
+          return { ok: true };
+        },
+      },
+    });
+    registry.handleSnapshot(snapshotWith());
+    registry.handleSnapshot(snapshotWith());
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(replies).toHaveLength(1);
+    expect(replies[0]).toMatchObject({ channelRef: "feishu:channel:1", status: "query" });
+    expect(replies[0].summary).toContain("答复文本");
+  });
+
+  it("无 channelRef（未绑定通道）跳过外发但登记差分（不重扫）", async () => {
+    const replies: unknown[] = [];
+    const registry = createMateSourceRegistry({
+      kvGet: () => undefined,
+      ingestSourceEvent: async () => undefined,
+      subscribeSnapshot: () => ({ dispose: () => undefined }),
+      replyPort: {
+        async reply(input) {
+          replies.push(input);
+          return { ok: true };
+        },
+      },
+    });
+    const frame = snapshotWith();
+    (frame.decisions[0] as { triggerId: string }).triggerId = "TR-unbound";
+    registry.handleSnapshot(frame);
+    registry.handleSnapshot(frame);
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(replies).toHaveLength(0);
+  });
+
+  it("答复超 300 字截断（summary 有界）", async () => {
+    const replies: Array<{ summary: string }> = [];
+    const registry = createMateSourceRegistry({
+      kvGet: () => undefined,
+      ingestSourceEvent: async () => undefined,
+      subscribeSnapshot: () => ({ dispose: () => undefined }),
+      replyPort: {
+        async reply(input) {
+          replies.push({ summary: input.summary });
+          return { ok: true };
+        },
+      },
+    });
+    const frame = snapshotWith();
+    (frame.decisions[0] as { answer?: string }).answer = "长".repeat(400);
+    registry.handleSnapshot(frame);
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(replies[0]?.summary.length).toBeLessThanOrEqual(300);
+  });
+});
+
 describe("注册表（03 §1：kv enabled 惰性启停 + 事件放行门）", () => {
   function fakeSource(kind: MateSourceEvent["kind"]) {
     const calls: string[] = [];

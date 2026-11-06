@@ -392,7 +392,8 @@ export function buildAssistantSnapshot(
         : {}),
       ...(suggestion ? { routerSuggestion: suggestion } : {}),
       ...(row.router_error ? { routerError: row.router_error } : {}),
-      // P7（08 号详设 §3.4）：查询直答文本（仅 status_replied 行携带；界 replyTextMax）。
+      // P7（08 号详设 §3.4）：查询直答文本（query_status 评估行携带；dismiss 后
+      // outcome=ignored 但 answer 保留——消费方按 outcome 过滤呈现，见 MateQueryReply）。
       ...(row.router_answer ? { answer: row.router_answer } : {}),
     };
   });

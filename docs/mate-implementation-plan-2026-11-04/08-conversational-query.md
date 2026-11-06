@@ -1,4 +1,4 @@
-# 08 · 对话式查询与管理（2026-11-06 设计批，未实施）
+# 08 · 对话式查询与管理（2026-11-06 设计批；**批 1（B 路径）已实施**——feat/drora-mate 3c15fe5e2，见文末「批 1 实施对账注记」）
 
 ## 0. 背景与问题定义
 
@@ -62,7 +62,7 @@
     reason: string  // ≤80 字（判给依据，同既有臂）
   }
   ```
-- `ASSISTANT_OUTCOMES` 增 `statusReplied: "status_replied"`（查询直答的 decision 终态——不是决策卡、无人工动作、不进放行率/不进 decision 配额计数：用户主动问的直答不是打扰）。
+- `ASSISTANT_OUTCOMES` 增 `statusReplied: "status_replied"`（查询直答的 decision 终态——不是决策卡、无人工动作、不进放行率。**批 1 实施对账**：decision 配额计数在触发落卡事务已发生，翻转 outcome 不回冲——decision 类永不抑制，统计偏差 ≤1 有界（contracts/assistant.ts 注释即对账点，spec §11 同）；本行原写「不进 decision 配额计数」按实况修正）。
 - **迁移 v7**：`router_evaluation` 表加列 `answer_text`（nullable TEXT，query 臂专用；有界 replyTextMax=800）。四臂既有行为零改动。
 
 ### 3.2 应答器（服务纯函数 `queryReply.ts`，新文件）
@@ -89,7 +89,7 @@ Router 评估完成、verdict 过 schema 后：
 
 ### 3.4 快照投影与 UI
 
-- 快照：`decisions[]` 投影在 `outcome=status_replied` 时带 `answer`（answer_text 有界截断）+ `routerSuggestion.kind="query_status"`（投影字段可选追加）。
+- 快照：`decisions[]` 投影在 `outcome=status_replied` 时带 `answer`（answer_text 有界截断）。**批 1 实施对账**：`routerSuggestion.kind="query_status"` 未投影（parseRouterSuggestion 只认四臂，query verdict 的 suggestion 恒缺席）——答复由 `answer` 字段承载（MateQueryReply 渲染 answer 而非建议段），本偏差已按实况登记不回改。
 - UI（`MateQueryReply.tsx` 新组件，决策卡区渲染）：只读卡——问题原文首行+答案+数据时刻；无任何动作按钮（不建票不可放行）；dismiss 出清（同观察行语义，outcome 改 ignored）。i18n 双语（标题/空态/dismiss）。
 - 桌宠：**不出气泡**（非汇报，不打扰）；速览不加区（答复在面板，点卡直达详情链路不适用）。
 
@@ -163,6 +163,6 @@ S1 探查项：CLI 插件发现是否覆盖 mate-home；MCP SDK 依赖面。然�
 
 1. 观察模式面板问「xx 进度怎样」→ **秒级**状态答复卡（无 worker 派发、无工单、无决策卡）——MSA14 实跑锁定。
 2. 答案与面板事实**恒一致**（同一快照读点）——应答器单测+「零 LLM 加工」设计保证。
-3. 飞书问进度 → 答案回飞书（ReplyPort 单测）。
+3. 飞书问进度 → 答案回飞书（ReplyPort 单测）。**批 1 实施对账**：ReplyPort 单测已落（registry 三断言：外发/幂等/截断）；但飞书 replyPort 真机接线属 P3 遗留未通——批 1 实际仅 GitHub 通道可达，飞书随凭据批。
 4. auto 模式行为一致；off 仍全静默。
 5. 既有四臂/放行/信任门统计**零漂移**（全量回归）。

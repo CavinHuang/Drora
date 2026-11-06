@@ -70,12 +70,12 @@ export interface MateViewModel {
   readonly trust: AssistantTrustView;
 }
 
-/** 待决策卡：explicit×observe 且尚未被人工处置（decidedBy 仍为 gate）。 */
 /** P7（08 号详设 §3.4）：查询直答行 = outcome=status_replied（dismiss 后改 ignored 出清）。 */
 export function isMateQueryReply(decision: AssistantDecisionView): boolean {
   return decision.outcome === "status_replied";
 }
 
+/** 待决策卡：explicit×observe 且尚未被人工处置（decidedBy 仍为 gate）。 */
 export function isMatePendingDecision(decision: AssistantDecisionView): boolean {
   return decision.outcome === ASSISTANT_OUTCOMES.decisionCard && decision.decidedBy === "gate";
 }
@@ -291,7 +291,8 @@ export function mateRouterSuggestionKindMessageId(
       return "mate.router.suggested.hold";
     case "reject":
       return "mate.router.suggested.reject";
-    // P7 查询臂：建议段不渲染（答复由 answer 字段承载，见 MateQueryReply）——返回 null。
+    // P7 查询臂：建议段不渲染（答复由 answer 字段承载，见 MateQueryReply）——
+    // 返回词典键（mate.router.suggested.query_status）供详情/排查展示。
     case "query_status":
       return "mate.router.suggested.query_status";
   }

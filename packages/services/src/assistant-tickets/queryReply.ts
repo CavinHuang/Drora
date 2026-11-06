@@ -27,6 +27,7 @@ export interface ComposeQueryReplyInput {
   };
   readonly raw: AssistantDatabaseRaw;
   readonly localIdentity: string;
+  /** TODO(P7 批 2)：Source 事件原语言接线——当前答复恒中文（面板缺省），参数占位。 */
   readonly locale?: QueryReplyLocale;
   readonly nowMs?: () => number;
 }

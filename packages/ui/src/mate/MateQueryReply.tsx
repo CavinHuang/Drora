@@ -1,4 +1,4 @@
-import { memo } from "react";
+import { memo, useState } from "react";
 import type { AssistantDecisionView, IAssistantTicketService } from "@drora/services";
 import { useDroraIntl } from "@/i18n/IntlProvider.js";
 import { Button } from "@/components/ui/button.js";
@@ -20,13 +20,17 @@ export const MateQueryReply = memo(function MateQueryReply({
   decision: AssistantDecisionView;
 }) {
   const { intl } = useDroraIntl();
+  const format = (id: string) => intl.formatMessage({ id });
   const dismissQueryReply = useMateStore((state) => state.dismissQueryReply);
+  // dismiss 失败反馈（审查修复 F5，照 MateConfigSection run() 先例）：store 对传输异常
+  // 原样上抛，此处 catch 落 generic——静默失败会让卡不消失且无解释。
+  const [failure, setFailure] = useState<string | null>(null);
   const dismiss = (): void => {
-    void dismissQueryReply(service, workspaceKey, { decisionId: decision.id }).then((result) => {
-      if (!result.ok) {
-        void resolveMateErrorMessageId(result.error);
-      }
-    });
+    dismissQueryReply(service, workspaceKey, { decisionId: decision.id })
+      .then((result) => {
+        setFailure(result.ok ? null : resolveMateErrorMessageId(result.error));
+      })
+      .catch(() => setFailure("mate.error.generic"));
   };
   const question = decision.triggerText.split("\n", 1)[0] ?? "";
   return (
@@ -52,6 +56,11 @@ export const MateQueryReply = memo(function MateQueryReply({
       <p className="mt-1 text-ui-xs text-foreground-subtlest">
         {intl.formatMessage({ id: "mate.query.reply.hint" })}
       </p>
+      {failure ? (
+        <p role="alert" className="text-ui-xs text-foreground-destructive">
+          {format(failure)}
+        </p>
+      ) : null}
     </div>
   );
 });

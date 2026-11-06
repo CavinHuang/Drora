@@ -224,10 +224,12 @@ function Fixture() {
                   auto_notice×gate 决策+关联工单——真实 auto 直派判定在 host 侧，夹具只造
                   快照事实（告知卡呈现/工单号反查/档位归属验收）。 */}
               <button data-testid="fixture-inject-auto-notice" onClick={() => injectAutoNotice()}>
+                Inject auto notice
+              </button>
+              {/* P7（08 号详设 §3.4，MSA14 消费）：注入 status_replied 查询直答决策——
+                  答复卡呈现/只读无工单动作/dismiss 出清验收。 */}
               <button data-testid="fixture-inject-query-reply" onClick={() => injectQueryReply()}>
                 注入查询直答
-              </button>
-                Inject auto notice
               </button>
               <button data-testid="fixture-queue-next" onClick={queueNext}>
                 Queue next approve

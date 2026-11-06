@@ -202,7 +202,11 @@ export const MateSidePane = memo(function MateSidePane({
   }
 
   const isEmpty =
-    (!showDecisions || (pendingDecisions.length === 0 && autoNoticeDecisions.length === 0)) &&
+    (!showDecisions ||
+      (pendingDecisions.length === 0 &&
+        autoNoticeDecisions.length === 0 &&
+        // P7 查询答复计入决策档空态判定（08 §3.4：答复卡随决策档展示）。
+        queryReplies.length === 0)) &&
     (!showObserves || observeDecisions.length === 0) &&
     viewModel.groups.length === 0;
 
@@ -309,7 +313,7 @@ export const MateSidePane = memo(function MateSidePane({
                 ))}
               </div>
             ) : null}
-            {showObserves && queryReplies.length > 0 ? (
+            {showDecisions && queryReplies.length > 0 ? (
               <div className="flex flex-col gap-1.5">
                 {queryReplies.map((decision) => (
                   <MateQueryReply

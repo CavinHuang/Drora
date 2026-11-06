@@ -405,6 +405,22 @@ test(
       await overviewTicket.click();
       await page.getByTestId("mate-ticket-detail").waitFor();
       assert.match(await page.getByTestId("mate-detail-tab-timeline").textContent(), /时间线/);
+      // specs §11 能力审查修复批（MSA17）：非终态工单的「停止」按钮——stopMandate UI
+      // 消费（此前服务语义在、无入口）。确认框→failed/stopped_by_user（fixture 内存版
+      // 同构；真实服务另有 worktree 清理/排队 FIFO 释放）→终态后按钮消失+汇报页可见原因。
+      const stopButton = page.getByTestId("mate-detail-stop");
+      assert.equal(await stopButton.count(), 1);
+      await stopButton.click();
+      const stopDialog = page.getByTestId("mate-detail-stop-confirm");
+      await stopDialog.waitFor();
+      await stopDialog.getByTestId("confirm-dialog-confirm").click();
+      await page.waitForFunction(
+        () => document.querySelectorAll('[data-testid="mate-detail-stop"]').length === 0,
+        undefined,
+        { timeout: 15000 },
+      );
+      await page.getByTestId("mate-detail-tab-report").click();
+      assert.match(await page.getByTestId("mate-detail-report").textContent(), /stopped_by_user/);
       await page.getByTestId("mate-detail-back").click();
       await page.waitForFunction(
         () => document.querySelectorAll('[data-testid="mate-ticket-detail"]').length === 0,

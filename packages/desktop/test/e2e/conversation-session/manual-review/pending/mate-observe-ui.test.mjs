@@ -79,6 +79,14 @@ test(
       assert.match(await page.getByTestId("mate-trust-bar").textContent(), /未指名可接受 1 次/);
       assert.equal(await page.getByTestId("mate-decision-card").count(), 0);
       assert.equal(await page.getByTestId("mate-ticket-row").count(), 0);
+      // specs §11 能力审查修复批：观察行「忽略」按钮——dismissObservation UI 消费
+      // （outcome→ignored 出观察集；48h 否定记忆是 autonomy 卡专属，观察行无此语义）。
+      await page.getByTestId("mate-observe-dismiss").click();
+      await page.waitForFunction(
+        () => document.querySelectorAll('[data-testid="mate-observe-row"]').length === 0,
+        undefined,
+        { timeout: 15000 },
+      );
       // 后续场景切「全部」档：决策卡/工单组/观察行同屏可见。
       await page.getByTestId("mate-filter-all").click();
 

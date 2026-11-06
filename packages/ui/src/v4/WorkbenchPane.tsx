@@ -23,6 +23,7 @@ import type {
   OpenBackgroundBashSideTabRequest,
   OpenScopedSubagentDirectorySideTabRequest,
   OpenSelectionSideChatRequest,
+  OpenMateSideTabRequest,
   OpenScopedPlanDetailSideTabRequest,
   OpenScopedWorkflowActorSessionSideTabRequest,
   OpenScopedWorkflowArtifactSideTabRequest,
@@ -236,6 +237,8 @@ export interface WorkbenchShellBinding {
   onOpenSubagentDirectory?: (request: OpenScopedSubagentDirectorySideTabRequest) => void;
   onSyncSubagentSessionTabs?: (request: SyncSubagentSessionTabsRequest) => void;
   onOpenSelectionSideChat?: (request: OpenSelectionSideChatRequest) => void;
+  /** `/mate` 本地命令开面板（specs §11 能力审查修复批）；与 onOpenSelectionSideChat 同路径经 shell binding 下发到 SessionPane。 */
+  onOpenMateSidePane?: (request: OpenMateSideTabRequest) => void;
   onOpenPlanDetail?: (request: OpenScopedPlanDetailSideTabRequest) => void;
   /** 插件 UI 侧栏：与 onOpenPlanDetail 同路径经 shell binding 下发到 SessionPane。 */
   onOpenWorkflowRun?: (request: OpenScopedWorkflowRunSideTabRequest) => void;
@@ -464,6 +467,7 @@ export function WorkbenchLeafPane({
           onOpenSubagentDirectory={shell.onOpenSubagentDirectory}
           onSyncSubagentSessionTabs={shell.onSyncSubagentSessionTabs}
           onOpenSelectionSideChat={shell.onOpenSelectionSideChat}
+          onOpenMateSidePane={shell.onOpenMateSidePane}
           onOpenPlanDetail={shell.onOpenPlanDetail}
           onOpenWorkflowRun={shell.onOpenWorkflowRun}
           onOpenWorkflowArtifact={shell.onOpenWorkflowArtifact}

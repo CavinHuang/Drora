@@ -213,6 +213,7 @@
   "packages/ui/src/team/contract.test.ts",
   "packages/ui/src/v4/composer/composerTextAppend.test.ts",
   "packages/ui/src/v4/paneEscapeStopGeneration.test.ts",
+  "packages/ui/src/v4/slashCommands.test.ts",
   "packages/ui/src/v4/useComposerTextInsertApplied.test.ts",
   "packages/ui/src/voice/AnnouncementIndicator.test.tsx",
   "packages/ui/src/voice/V4ComposerVoiceEntry.test.tsx",

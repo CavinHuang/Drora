@@ -312,6 +312,20 @@ stale）；awaiting 滞留判据**已随 P4 第二棒激活**：工件核验失�
 数据经 `useAssistantTickets()` 订阅（getSnapshot 拉一次 + onDidChange 推送；实现为
 useModelCapabilities 同构形态，00 §8 二审 B2）。
 
+**能力审查修复批落地注记（2026-11-07，双路能力审计后）**：三处「通道在、消费方缺」
+  断链补齐——① `/mate` 命令真接线：App 层本地命令（照 `/side` 先例——slash 面板
+  选中即开面板 tab，不发送给模型；AppSlashCommand）+ Composer 提交拦截
+  （`/mate <原文>` 回车即按 explicit 点名走 recordTrigger 进准入门并开面板，verbatim
+  不改写；CLI catalog 同名命令优先让位，与 `/side` 同规则）；原 02 号详设的
+  mate-command.md 资产退役（prompt 型命令在无 mate_* 工具时只能诱导模型谎报「已
+  记录」，与诚实纪律冲突）。② stopMandate UI 消费：工单详情页（Surface C）对非终态
+  工单出「停止」按钮（确认框→服务 stopMandate：置 failed/stopped_by_user+worktree
+  清理+排队 FIFO 释放——服务语义既有，此前无 UI 入口；awaiting_output 的第三出口
+  04 §3 设计文字兑现）。③ dismissObservation UI 消费：观察行出「忽略」按钮
+  （outcome→ignored 出清；48h 否定记忆是 autonomy 卡专属语义，观察行维持无此记忆）。
+  维持不修（登记在案）：GitHub 终态回复外发不计 report 配额（随 P11 主动推送通道
+  批，quotaCenter 头注记）、queryReply 应答恒中文（locale 占位，双语模板成本另议）。
+
 **P7 落地注记（2026-11-06，08 号详设）**：对话式查询直答——Router 五臂扩 query_status
   （进度/状态/成本/摘要类查询意图），host 确定性应答器（queryReply.ts）按账本模板直答
   （**零 LLM 加工**，与面板事实恒一致；不建票/不派 worker/不过 Mandate）；outcome=

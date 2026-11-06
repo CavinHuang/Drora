@@ -571,7 +571,20 @@ export function createMateFixtureService(
       return { ok: true, value: { ok: true } };
     },
 
-    async stopMandate() {
+    // specs §11 能力审查修复批：详情页「停止」按钮的读点——内存版同构语义（非终态→
+    // failed+stopped_by_user+时刻推进；真实服务另有 worktree 清理/排队 FIFO 释放）。
+    async stopMandate(input) {
+      const ticket = tickets.find((item) => item.id === input.ticketId);
+      if (!ticket) return { ok: false, error: { code: "mate.ticket.not_found" } };
+      if (
+        ticket.status !== ASSISTANT_TICKET_STATUSES.done &&
+        ticket.status !== ASSISTANT_TICKET_STATUSES.failed
+      ) {
+        ticket.status = ASSISTANT_TICKET_STATUSES.failed;
+        ticket.failReason = "stopped_by_user";
+        ticket.updatedAtMs = Date.now();
+      }
+      publish();
       return { ok: true, value: { ok: true } };
     },
 

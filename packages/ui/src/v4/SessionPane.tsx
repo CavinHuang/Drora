@@ -169,6 +169,8 @@ import { decodeCustomModelValue, encodeCustomModelValue } from "@/lib/droraCusto
 import { parseModelPickerValue } from "@/lib/droraSessionProjection.js";
 import { prepareComposerRecentReceipt } from "@/lib/composerRecent.js";
 import { useComposerClientNamespace } from "@/hooks/useServices.js";
+import { useOptionalServices } from "@/hooks/useServices.js";
+import { useMateStore } from "@/store/mateStore.js";
 import {
   readPendingTaskDraft,
   resolveComposerScope,
@@ -320,6 +322,7 @@ import { useSessionOpenArmsTelemetry } from "@/v4/telemetry/useSessionOpenArmsTe
 import {
   parseV4VisibleSlashCommand,
   parseSelectionSideSlashCommand,
+  parseMateSlashCommand,
   v4QueuedCommandText,
   type V4VisibleSlashCommand,
 } from "@/v4/slashCommands.js";
@@ -358,6 +361,7 @@ import type {
   OpenBackgroundBashSideTabRequest,
   OpenScopedSubagentDirectorySideTabRequest,
   OpenSelectionSideChatRequest,
+  OpenMateSideTabRequest,
   SyncSubagentSessionTabsRequest,
   OpenSubagentSideTabRequest,
 } from "@/lib/workspaceSidePane.js";
@@ -452,6 +456,12 @@ export interface SessionPaneProps {
   onOpenSubagentDirectory?: (request: OpenScopedSubagentDirectorySideTabRequest) => void;
   onSyncSubagentSessionTabs?: (request: SyncSubagentSessionTabsRequest) => void;
   onOpenSelectionSideChat?: (request: OpenSelectionSideChatRequest) => void;
+  /**
+   * `/mate` 本地命令的 UI 行为（specs §11 能力审查修复批）：开（或聚焦）大副面板 tab。
+   * 与 onOpenSelectionSideChat 同为 App 层本地命令入口；缺席（Web/手机壳、远端）时
+   * /mate 不注册也不拦截——assistantTicketService 同为门控条件（桌面 renderer 专属）。
+   */
+  onOpenMateSidePane?: (request: OpenMateSideTabRequest) => void;
   onOpenPlanDetail?: (request: OpenScopedPlanDetailSideTabRequest) => void;
   onOpenWorkflowRun?: (request: OpenScopedWorkflowRunSideTabRequest) => void;
   /** 通知行的产物 chip → 全尺寸查看 tab。 */
@@ -700,6 +710,7 @@ export function SessionPane({
   onOpenSubagentDirectory,
   onSyncSubagentSessionTabs,
   onOpenSelectionSideChat,
+  onOpenMateSidePane,
   onOpenPlanDetail,
   onOpenWorkflowRun,
   onOpenWorkflowArtifact,
@@ -3001,6 +3012,14 @@ export function SessionPane({
     [cliSlashCommandNames],
   );
 
+  // /mate 本地命令门控（specs §11 能力审查修复批）：桌面 renderer 服务位 + App 开面板
+  // 回调双在场才注册；CLI catalog 同名命令让位（与 /side 同规则——用户手放的
+  // .drora/commands/mate.md 优先，App 不重复消费）。
+  const mateService = useOptionalServices()?.assistantTicketService ?? null;
+  const recordMateTrigger = useMateStore((state) => state.recordTrigger);
+  const mateSlashCommandAvailable =
+    !readOnly && mateService != null && onOpenMateSidePane != null && !cliSlashCommandNames.has("mate");
+
   // Plan 选中即开启标准 Composer 开关，不能等发送时解析文本；与 /side 共用本地操作入口。
   const appSlashCommands = useMemo<AppSlashCommand[] | undefined>(() => {
     if (readOnly) return undefined;
@@ -3021,6 +3040,24 @@ export function SessionPane({
       keywords: ["plan", "计划", "计划模式"],
       run: () => handleDraftSwitchMode("plan"),
     };
+    // /mate 面板入口（选中即开面板；带正文的提交拦截在 handleSubmit 消费）。
+    const mateAction: AppSlashCommand | null = mateSlashCommandAvailable
+      ? {
+          value: "mate",
+          description: intl.formatMessage({ id: "chat.slash.app.mate.description" }),
+          keywords: ["mate", "大副", "助理", "assistant", "工单"],
+          run: () =>
+            onOpenMateSidePane?.({
+              workspacePath,
+              ...(workspaceIdentity ? { workspaceIdentity } : {}),
+            }),
+        }
+      : null;
+    const baseActions = [
+      ...reloadActions,
+      planAction,
+      ...(mateAction ? [mateAction] : []),
+    ] as AppSlashCommand[];
     if (
       !sessionId ||
       !onOpenSelectionSideChat ||
@@ -3031,7 +3068,7 @@ export function SessionPane({
         isMobileViewport: isMobileTextInputViewport,
       })
     ) {
-      return [...reloadActions, planAction];
+      return baseActions;
     }
     const openNewSelectionSideChat = () => {
       void handleOpenSelectionSideConversation(undefined, true);
@@ -3041,8 +3078,7 @@ export function SessionPane({
     const sharedKeywords = ["side", "btw", "side chat", "auxiliary", "辅助对话", "辅助", "侧边"];
     const description = intl.formatMessage({ id: "chat.slash.app.side.description" });
     return [
-      ...reloadActions,
-      planAction,
+      ...baseActions,
       ...[
         { value: "side", description, keywords: sharedKeywords, run: openNewSelectionSideChat },
         { value: "btw", description, keywords: sharedKeywords, run: openNewSelectionSideChat },
@@ -3055,10 +3091,14 @@ export function SessionPane({
     handleOpenSelectionSideConversation,
     intl,
     isMobileTextInputViewport,
+    mateSlashCommandAvailable,
+    onOpenMateSidePane,
     onOpenSelectionSideChat,
     readOnly,
     selectionSideChat,
     sessionId,
+    workspaceIdentity,
+    workspacePath,
   ]);
 
   const chatLoadingBlockedByInteraction = hasChatLoadingBlockingInteraction(
@@ -3862,6 +3902,37 @@ export function SessionPane({
         return "blocked" as const;
       }
 
+      // /mate 提交消费（specs §11 能力审查修复批）：裸 `/mate` 仅开面板；带正文按
+      // explicit 点名走 recordTrigger 进准入门（verbatim 不改写；off 模式服务侧记
+      // trigger+ignored 零执行，仍是诚实结果）。触发失败保输入（blocked）——面板内
+      // 双按钮触发有错误反馈面，此处仅 warn 不造第二条提示通道。
+      const mateSlashCommand = mateSlashCommandAvailable
+        ? parseMateSlashCommand(text, readyAttachments, { contextAttachmentCount })
+        : null;
+      if (mateSlashCommand && mateService) {
+        const openMatePane = () =>
+          onOpenMateSidePane?.({
+            workspacePath,
+            ...(workspaceIdentity ? { workspaceIdentity } : {}),
+          });
+        if (mateSlashCommand.text === null) {
+          openMatePane();
+          return "sent" as const;
+        }
+        const triggered = await recordMateTrigger(mateService, workspaceKey, {
+          text: mateSlashCommand.text,
+          simulated: "explicit",
+          targetWorkspaceIdentity: workspaceKey,
+        });
+        if (!triggered.ok) {
+          logger.warn("[SessionPane] /mate 触发失败，保留输入", {
+            code: triggered.error.code,
+          });
+          return "blocked" as const;
+        }
+        openMatePane();
+        return "sent" as const;
+      }
       const selectionSideSlashCommand =
         sessionId &&
         appSlashCommands?.some((command) => command.value === "side" || command.value === "btw")

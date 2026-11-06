@@ -345,7 +345,7 @@ export const MateSidePane = memo(function MateSidePane({
             {showObserves && observeDecisions.length > 0 ? (
               <div className="flex flex-col gap-1.5">
                 {observeDecisions.map((decision) => (
-                  <MateObserveRow key={decision.id} decision={decision} />
+                  <MateObserveRow key={decision.id} decision={decision} service={service} workspaceKey={workspaceKey} />
                 ))}
               </div>
             ) : null}

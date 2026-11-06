@@ -102,6 +102,41 @@ export function parseSelectionSideSlashCommand(
   return { command, text, displayText };
 }
 
+/**
+ * 解析 `/mate` 本地命令（specs/drora-personal-assistant.md §11 能力审查修复批）。
+ *
+ * 与 `/side` 同规则的 App 层输入消费门：只接受整条文本、只在无附件时命中；正文只去
+ * 首尾空白保留内部换行（触发原文 verbatim 不改写）。CLI catalog 已注册同名 `mate`
+ * 命令时让位（enabledCommandNames——用户手放的 .drora/commands/mate.md 优先）。
+ * 与 `/side` 的差异：正文可缺省——裸 `/mate` 只开面板（AppSlashCommand 选中语义的
+ * 提交等价物），带正文则按 explicit 点名走 recordTrigger 进准入门。
+ */
+export interface MateSlashCommand {
+  command: "mate";
+  /** 触发原文（verbatim，仅去首尾空白）；裸 `/mate` 时为 null（仅开面板）。 */
+  text: string | null;
+  displayText: string;
+}
+
+export function parseMateSlashCommand(
+  content: string,
+  attachments: readonly unknown[] = [],
+  options: SelectionSideSlashCommandParseOptions = {},
+): MateSlashCommand | null {
+  if (attachments.length > 0 || (options.contextAttachmentCount ?? 0) > 0) return null;
+  const displayText = content.trim();
+  const match = /^\/mate(?:\s+([\s\S]*))?$/i.exec(displayText);
+  if (!match) return null;
+  const enabledNames = options.enabledCommandNames;
+  if (
+    enabledNames &&
+    !enabledNames.some((name) => name.trim().replace(/^\/+/, "").toLowerCase() === "mate")
+  ) {
+    return null;
+  }
+  return { command: "mate", text: match[1]?.trim() || null, displayText };
+}
+
 export function v4QueuedCommandText(kind: "sendText" | "sendGoalCommand", text: string): string {
   if (kind !== "sendGoalCommand") return text;
   const trimmed = text.trim();

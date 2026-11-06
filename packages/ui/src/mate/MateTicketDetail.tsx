@@ -1,11 +1,13 @@
-import { memo, useState } from "react";
+import { memo, useCallback, useState } from "react";
 import { ArrowLeftIcon, HourglassIcon } from "lucide-react";
+import { ASSISTANT_TICKET_STATUSES } from "@drora/shared";
 import type {
   AssistantResult,
   AssistantSnapshot,
   AssistantTicketView,
   IAssistantTicketService,
 } from "@drora/services";
+import { useConfirmDialogStore } from "@/store/confirmDialogStore.js";
 import { useDroraIntl } from "@/i18n/IntlProvider.js";
 import { formatTaskRelativeTime } from "@/lib/taskListItemPresentation.js";
 import { Button } from "@/components/ui/button.js";
@@ -76,8 +78,29 @@ export const MateTicketDetail = memo(function MateTicketDetail({
   const [tab, setTab] = useState<MateDetailTab>("timeline");
   const confirmOutput = useMateStore((state) => state.confirmTicketOutput);
   const confirmIncrements = useMateStore((state) => state.confirmTicketIncrements);
+  const stopMandate = useMateStore((state) => state.stopMandate);
+  const requestConfirmation = useConfirmDialogStore((state) => state.requestConfirmation);
   // 人工确认失败臂（role=alert；成功由快照推送收敛——awaiting 站/横幅随状态出清）。
   const [failure, setFailure] = useState<string | null>(null);
+  // 停止按钮（specs §11 能力审查修复批）：非终态工单可停（queued/dispatched/running/
+  // awaiting_output——后者即 04 §3 设计的第三出口）；终态无 mandate 可停。
+  const isStopAvailable =
+    ticket.status !== ASSISTANT_TICKET_STATUSES.done &&
+    ticket.status !== ASSISTANT_TICKET_STATUSES.failed;
+  const handleStop = useCallback(() => {
+    setFailure(null);
+    void (async () => {
+      const confirmed = await requestConfirmation({
+        title: intl.formatMessage({ id: "mate.detail.stop.title" }),
+        description: intl.formatMessage({ id: "mate.detail.stop.description" }),
+        confirmLabel: intl.formatMessage({ id: "mate.detail.stop.confirm" }),
+        testId: "mate-detail-stop-confirm",
+      });
+      if (!confirmed) return;
+      const result = await stopMandate(service, workspaceKey, ticket.id);
+      if (!result.ok) setFailure(resolveMateErrorMessageId(result.error));
+    })();
+  }, [intl, requestConfirmation, service, stopMandate, ticket.id, workspaceKey]);
   const generation = mateTicketGenerationNumber(ticket);
   const linkedDecision = findMateDecisionForTicket(snap, ticket);
   const suggestion = linkedDecision?.routerSuggestion;
@@ -129,6 +152,17 @@ export const MateTicketDetail = memo(function MateTicketDetail({
         <span className="ml-auto shrink-0 font-mono text-ui-xs text-foreground-subtle">
           {ticket.id}
         </span>
+        {isStopAvailable ? (
+          <Button
+            size="xs"
+            variant="outline"
+            onClick={handleStop}
+            data-testid="mate-detail-stop"
+            className="shrink-0"
+          >
+            {intl.formatMessage({ id: "mate.detail.stop" })}
+          </Button>
+        ) : null}
       </div>
       <div
         className="flex shrink-0 items-center gap-1 border-b border-border/50 px-3 py-1.5"

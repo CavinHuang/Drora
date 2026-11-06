@@ -3108,6 +3108,7 @@ const WorkspaceShellLayoutContent = memo(function WorkspaceShellLayoutComponent(
                                   onOpenSubagentDirectory={handleOpenSubagentDirectory}
                                   onSyncSubagentSessionTabs={handleSyncSubagentSessionTabs}
                                   onOpenSelectionSideChat={handleOpenSelectionSideChat}
+                                  onOpenMateSidePane={handleOpenMateSidePane}
                                   onOpenPlanDetail={handleOpenPlanDetail}
                                   onOpenWorkflowRun={handleOpenWorkflowRun}
                                   onOpenWorkflowArtifact={handleOpenWorkflowArtifact}

@@ -116,7 +116,12 @@ export function createAssistantConfigActions(deps: AssistantConfigActionsDeps): 
       // 部分更新：缺省侧不动 kv（保留既有自定义），仅写传入键——读写均以 kv 现值为准。
       const entries: Array<{ key: string; value: string }> = [];
       if (input.minRate !== undefined) {
-        if (input.minRate < rateLimits.min || input.minRate > rateLimits.max) {
+        // isFinite 守卫（审查修复 F8）：NaN 两比较均 false 可穿透落 kv，补显式拒绝。
+        if (
+          !Number.isFinite(input.minRate) ||
+          input.minRate < rateLimits.min ||
+          input.minRate > rateLimits.max
+        ) {
           return fail(
             ASSISTANT_ERROR_CODES.validationFailed,
             `放行率阈值须在 ${rateLimits.min}-${rateLimits.max} 之间`,

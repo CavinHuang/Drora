@@ -64,6 +64,11 @@ export const MateSourceSettings = memo(function MateSourceSettings({
   const setSourceIdentityMap = useMateStore((state) => state.setSourceIdentityMap);
 
   const [draft, setDraft] = useState<SourcesDraft>(() => draftFromConfig(sourcesConfig));
+  // 草稿 dirty 守卫（审查修复 F1，照 allowlist/advancedDirty 先例）：同面板任意动作都
+  // 会触发 publish（后台工单事件/watchdog 落账同理），无条件回填会把编辑到一半的
+  // 开关/repo/映射行静默清掉——dirty 期间不回填，保存成功后由服务确认值接管。
+  const [draftDirty, setDraftDirty] = useState(false);
+  const [mapDirty, setMapDirty] = useState(false);
   // 映射草稿按 kind 分组（MateSourceIdentityMap 嵌套形态；保存时整体替换）。
   const [mapDraft, setMapDraft] = useState<{
     feishu: ReadonlyArray<[string, string]>;
@@ -77,14 +82,16 @@ export const MateSourceSettings = memo(function MateSourceSettings({
 
   // 快照回填（未 dirty 时跟随服务事实源；照 MateConfigSection quotaDraft 纪律）。
   useEffect(() => {
+    if (draftDirty) return;
     setDraft(draftFromConfig(sourcesConfig));
-  }, [sourcesConfig]);
+  }, [draftDirty, sourcesConfig]);
   useEffect(() => {
+    if (mapDirty) return;
     setMapDraft({
       feishu: Object.entries(identityMap?.feishu ?? {}),
       github: Object.entries(identityMap?.github ?? {}),
     });
-  }, [identityMap]);
+  }, [mapDirty, identityMap]);
 
   const save = async (): Promise<void> => {
     setError(null);
@@ -127,6 +134,8 @@ export const MateSourceSettings = memo(function MateSourceSettings({
       return;
     }
     setSavedAt(Date.now());
+    setDraftDirty(false);
+    setMapDirty(false);
   };
 
   return (
@@ -137,7 +146,7 @@ export const MateSourceSettings = memo(function MateSourceSettings({
         </label>
         <span
           role="status"
-          className={savedAt > 0 ? "text-[11px] text-[var(--mate-fg-secondary)]" : "hidden"}
+          className={savedAt > 0 ? "text-[11px] text-foreground-subtlest" : "hidden"}
         >
           {format("mate.config.source.saved")}
         </span>
@@ -149,7 +158,10 @@ export const MateSourceSettings = memo(function MateSourceSettings({
         </span>
         <Switch
           checked={draft.feishuEnabled}
-          onCheckedChange={(checked) => setDraft((prev) => ({ ...prev, feishuEnabled: checked }))}
+          onCheckedChange={(checked) => {
+            setDraftDirty(true);
+            setDraft((prev) => ({ ...prev, feishuEnabled: checked }));
+          }}
         />
       </div>
       <div className="flex items-center justify-between gap-2">
@@ -158,7 +170,10 @@ export const MateSourceSettings = memo(function MateSourceSettings({
         </span>
         <Switch
           checked={draft.phoneEnabled}
-          onCheckedChange={(checked) => setDraft((prev) => ({ ...prev, phoneEnabled: checked }))}
+          onCheckedChange={(checked) => {
+            setDraftDirty(true);
+            setDraft((prev) => ({ ...prev, phoneEnabled: checked }));
+          }}
         />
       </div>
       <div className="flex items-center justify-between gap-2">
@@ -167,7 +182,10 @@ export const MateSourceSettings = memo(function MateSourceSettings({
         </span>
         <Switch
           checked={draft.githubEnabled}
-          onCheckedChange={(checked) => setDraft((prev) => ({ ...prev, githubEnabled: checked }))}
+          onCheckedChange={(checked) => {
+            setDraftDirty(true);
+            setDraft((prev) => ({ ...prev, githubEnabled: checked }));
+          }}
         />
       </div>
       {draft.githubEnabled ? (
@@ -177,18 +195,20 @@ export const MateSourceSettings = memo(function MateSourceSettings({
             placeholder={format("mate.config.source.githubRepo")}
             value={draft.githubRepo}
             aria-label={format("mate.config.source.githubRepo")}
-            onChange={(event) =>
-              setDraft((prev) => ({ ...prev, githubRepo: event.target.value }))
-            }
+            onChange={(event) => {
+                setDraftDirty(true);
+                setDraft((prev) => ({ ...prev, githubRepo: event.target.value }));
+              }}
           />
           <input
             className="rounded-lg border border-input-border bg-input px-2 py-1.5 font-mono text-ui-sm text-foreground placeholder:text-foreground-subtlest focus:border-input-border-focused focus:outline-none"
             placeholder={format("mate.config.source.githubMention")}
             value={draft.githubMentionName}
             aria-label={format("mate.config.source.githubMention")}
-            onChange={(event) =>
-              setDraft((prev) => ({ ...prev, githubMentionName: event.target.value }))
-            }
+            onChange={(event) => {
+                setDraftDirty(true);
+                setDraft((prev) => ({ ...prev, githubMentionName: event.target.value }));
+              }}
           />
           <p className="text-ui-xs text-foreground-subtlest">
             {format("mate.config.source.githubPatHint")}
@@ -212,14 +232,15 @@ export const MateSourceSettings = memo(function MateSourceSettings({
                   placeholder={format("mate.config.source.externalId")}
                   value={externalId}
                   aria-label={format("mate.config.source.externalId")}
-                  onChange={(event) =>
+                  onChange={(event) => {
+                    setMapDirty(true);
                     setMapDraft((prev) => ({
                       ...prev,
                       [kind]: prev[kind].map((row, i) =>
                         i === index ? [event.target.value, row[1]] : row,
                       ),
-                    }))
-                  }
+                    }));
+                  }}
                 />
                 <span className="text-ui-xs text-foreground-subtlest">→</span>
                 <input
@@ -227,25 +248,27 @@ export const MateSourceSettings = memo(function MateSourceSettings({
                   placeholder={format("mate.config.source.localIdentity")}
                   value={identity}
                   aria-label={format("mate.config.source.localIdentity")}
-                  onChange={(event) =>
+                  onChange={(event) => {
+                    setMapDirty(true);
                     setMapDraft((prev) => ({
                       ...prev,
                       [kind]: prev[kind].map((row, i) =>
                         i === index ? [row[0], event.target.value] : row,
                       ),
-                    }))
-                  }
+                    }));
+                  }}
                 />
                 <Button
                   variant="ghost"
                   size="sm"
                   aria-label={format("mate.config.source.removeRow")}
-                  onClick={() =>
+                  onClick={() => {
+                    setMapDirty(true);
                     setMapDraft((prev) => ({
                       ...prev,
                       [kind]: prev[kind].filter((_, i) => i !== index),
-                    }))
-                  }
+                    }));
+                  }}
                 >
                   ×
                 </Button>
@@ -255,9 +278,10 @@ export const MateSourceSettings = memo(function MateSourceSettings({
               variant="ghost"
               size="sm"
               className="self-start"
-              onClick={() =>
-                setMapDraft((prev) => ({ ...prev, [kind]: [...prev[kind], ["", ""]] }))
-              }
+              onClick={() => {
+                setMapDirty(true);
+                setMapDraft((prev) => ({ ...prev, [kind]: [...prev[kind], ["", ""]] }));
+              }}
             >
               + {format("mate.config.source.addRow")}
             </Button>

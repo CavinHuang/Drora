@@ -443,12 +443,23 @@ export function buildAssistantSnapshot(
     trustGateThresholds: config.trustGateThresholds,
     watchdogIntervalMinutes: config.watchdogIntervalMinutes,
     sourcesConfig: config.sourcesConfig,
-    identityMap: Object.fromEntries(
-      Object.entries(config.identityMap).slice(
-        0,
-        ASSISTANT_CONFIG_LIMITS.identityMapMaxEntries,
-      ),
-    ),
+    // 行级截断（审查修复 F3）：嵌套两子表按行合并计数截断（旧 slice 作用在外层
+    // 至多 2 个子表键上恒 no-op）；截断顺序 feishu 先于 github，超出界的历史手改
+    // 数据在投影侧有界（写入口已封 50）。
+    identityMap: (() => {
+      const capped: { feishu?: Record<string, string>; github?: Record<string, string> } = {};
+      let used = 0;
+      for (const kind of ["feishu", "github"] as const) {
+        const table = config.identityMap[kind];
+        if (table === undefined) continue;
+        const entries = Object.entries(table);
+        const take = Math.max(0, ASSISTANT_CONFIG_LIMITS.identityMapMaxEntries - used);
+        if (take === 0) break;
+        capped[kind] = Object.fromEntries(entries.slice(0, take));
+        used += Math.min(entries.length, take);
+      }
+      return capped;
+    })(),
     trust: {
       wouldAcceptCount,
       releaseCount,

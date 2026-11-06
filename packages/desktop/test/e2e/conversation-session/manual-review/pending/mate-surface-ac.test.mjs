@@ -320,11 +320,20 @@ test(
       const advanced = page.getByTestId("mate-config-advanced");
       await advanced.waitFor();
       const budgetInput = advanced.getByTestId("mate-budget-input");
+      // 断言强化（审查修复 F9）：合法值保存走通（budget=5）后，用越界值 99 保存——
+      // 断言本地预检拦截并出 role=alert 界值文案（fill 本身改值无区分度，错误文案
+      // 只能由「预检→setFailure→渲染」链产生；服务侧 publish 回显链由
+      // assistantConfigActions.test 的 publish 即时回显用例锁定，两层互补）。
       await budgetInput.fill("5");
       await advanced.getByTestId("mate-advanced-save").click();
       await page.waitForFunction(
         () => document.querySelector('[data-testid="mate-budget-input"]')?.value === "5",
       );
+      await budgetInput.fill("99");
+      await advanced.getByTestId("mate-advanced-save").click();
+      const advancedAlert = page.locator('[data-testid="mate-config"] p[role="alert"]').first();
+      await advancedAlert.waitFor();
+      assert.match(await advancedAlert.textContent(), /1-10/);
 
       // 开关序（mate-config 内 role=switch 集合）：worktree(0)/feishu(1)/phone(2)/github(3)。
       const githubSwitch = page
@@ -346,6 +355,8 @@ test(
 
       const modelSelect = page.locator('select[aria-label*="模型"], select[aria-label*="model"], select[aria-label*="大副模型"], select[aria-label*="Mate model"]').first();
       assert.equal(await modelSelect.count(), 1);
+      // fixture 无 registry：useModelSelectionView 走 unavailable → select 诚实禁用。
+      assert.equal(await modelSelect.isDisabled(), true);
 
       assert.deepEqual(errors, []);
       console.log(`Mate Surface evidence: ${output}`);

@@ -312,6 +312,12 @@ stale）；awaiting 滞留判据**已随 P4 第二棒激活**：工件核验失�
 数据经 `useAssistantTickets()` 订阅（getSnapshot 拉一次 + onDidChange 推送；实现为
 useModelCapabilities 同构形态，00 §8 二审 B2）。
 
+**P5 落地注记（2026-11-06，06 号详设）**：配置面（MateConfigSection）扩为设置中心——
+模型偏好（MateModelPreference，清单与 workflow 子代理模型选择同源）、高级区（软预算/
+信任门阈值/watchdog 间隔，bounds=ASSISTANT_CONFIG_LIMITS 单出处双闸）、Source 设置
+（三开关+GitHub 参数+身份映射嵌套两组，publish 即 reconcile 即时生效）；模型偏好作用
+于 Router 与 Mode A/B 新建会话（config.modelSelection），下一次建会话生效、在途不热切。
+
 1. **Surface A 大副对话**：状态条（模式徽标/打扰配额/活动工单数）+ 对话流内嵌决策卡
    （原文引用+预估+`Y/N/E` 键盘流+"已等待"只显示不超时）与汇报卡（结论+工件链接+实耗+
    代际徽标与未确认增量）。

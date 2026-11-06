@@ -103,6 +103,19 @@ expandedDecisionId` 三件 UI 局部态，按 workspace 分域（`byWorkspace`�
   （admitDisturbance 自身推快照会触发 effect 重跑——重跑即取消会让气泡永不出现，
   e2e 实测捕获）。兑现 P3「配额归配额中心同一计数」注记。
 
+## P5 增量（2026-11-06，设置中心 + 模型选择，06 号详设）
+
+- **MateModelPreference**（新组件）：模型偏好选择器——清单构建与 workflow 子代理模型
+  选择同源（useModelSelectionView+buildRegistryModelSelectGroups(DRORA_AGENT_PROVIDER)，
+  两参编码不带思考档）；选择/清除走 mateStore.setModelPreference → 服务 setter。
+- **MateConfigSection 高级区**：软预算/信任门两阈值/watchdog 间隔三输入一体保存
+  （本地预检+服务 fail-closed 双闸；quotaDraft 回填纪律同款 dirty 守卫）。
+- **MateSourceSettings**（新组件）：三 Source 开关+GitHub repo/点名词+身份映射行编辑
+  （feishu/github 嵌套两组）；保存走 setSourcesConfig/setSourceIdentityMap（publish 即
+  reconcile 即时生效）；PAT 只在提示文案（credentialService 域）。
+- 快照消费：modelPreference/trustGateThresholds/watchdogIntervalMinutes/sourcesConfig/
+  identityMap 五可选字段（旧 Host 缺席=高级区不渲染、Source 区空配置，诚实降级）。
+
 ## 审查修复批（2026-11-06，运行链可用性/交付完整性审查）
 
 - **放行/触发目标契约（F1）**：触发与放行的 `targetWorkspaceIdentity` **恒等于

@@ -1,4 +1,4 @@
-import { memo, useMemo } from "react";
+import { memo, useMemo, useState } from "react";
 import { DRORA_AGENT_PROVIDER } from "@drora/shared";
 import type { IAssistantTicketService } from "@drora/services";
 import { useDroraIntl } from "@/i18n/IntlProvider.js";
@@ -36,6 +36,9 @@ export const MateModelPreference = memo(function MateModelPreference({
   const { intl } = useDroraIntl();
   const format = (id: string) => intl.formatMessage({ id });
   const setModelPreference = useMateStore((state) => state.setModelPreference);
+  // 保存失败反馈（审查修复 F2，照 MateConfigSection run() 先例）：store 对传输异常
+  // 原样上抛（不吞不转义），此处须 catch 落 generic；错误码臂出 role=alert 行。
+  const [failure, setFailure] = useState<string | null>(null);
   const modelRead = useModelSelectionView(workspaceKey || undefined);
   const groups = useMemo(
     () =>
@@ -58,7 +61,7 @@ export const MateModelPreference = memo(function MateModelPreference({
         {format("mate.config.model.label")}
       </label>
       <select
-        className="rounded border border-[var(--mate-rule)] bg-transparent px-2 py-1.5 text-ui-sm text-foreground"
+        className="rounded border border-input-border bg-transparent px-2 py-1.5 text-ui-sm text-foreground"
         value={currentValue}
         disabled={loading}
         aria-label={format("mate.config.model.label")}
@@ -66,11 +69,11 @@ export const MateModelPreference = memo(function MateModelPreference({
           const value = event.target.value;
           // 空值=清除（回落 CLI 缺省）；清单项=decode 出 provider/model（含思考档）。
           if (!value) {
-            void setModelPreference(service, workspaceKey, null).then((result) => {
-              if (!result.ok) {
-                void resolveMateErrorMessageId(result.error);
-              }
-            });
+            setModelPreference(service, workspaceKey, null)
+              .then((result) => {
+                setFailure(result.ok ? null : resolveMateErrorMessageId(result.error));
+              })
+              .catch(() => setFailure("mate.error.generic"));
             return;
           }
           const decoded = decodeCustomModelValue(value);
@@ -78,11 +81,11 @@ export const MateModelPreference = memo(function MateModelPreference({
             void setModelPreference(service, workspaceKey, {
               providerId: decoded.providerId,
               modelId: decoded.modelName,
-            }).then((result) => {
-              if (!result.ok) {
-                void resolveMateErrorMessageId(result.error);
-              }
-            });
+            })
+              .then((result) => {
+                setFailure(result.ok ? null : resolveMateErrorMessageId(result.error));
+              })
+              .catch(() => setFailure("mate.error.generic"));
           }
         }}
       >
@@ -103,6 +106,11 @@ export const MateModelPreference = memo(function MateModelPreference({
       <p className="text-ui-xs text-foreground-subtlest">
         {format("mate.config.model.hint")}
       </p>
+      {failure ? (
+        <p role="alert" className="text-ui-xs text-foreground-destructive">
+          {format(failure)}
+        </p>
+      ) : null}
     </div>
   );
 });

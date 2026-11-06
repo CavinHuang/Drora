@@ -236,7 +236,8 @@ export const MateConfigSection = memo(function MateConfigSection({
 
   // P5 高级区保存（06 号详设 §5）：三输入一体提交——预算+信任门两阈值+watchdog 间隔。
   // 本地 bounds 预检（ASSISTANT_CONFIG_LIMITS 单出处同界），服务侧 fail-closed 双闸；
-  // 任一项校验失败整批不发（一体保存语义，避免半批落库的中间态）。
+  // 校验级一体（任一项预检失败整批不发）；写入级为三次独立事务可重试收敛（审查
+  // 修复 F5 措辞诚实化——sqlite busy 落中段时重试即可补齐，不构成中间态风险）。
   const handleSaveAdvanced = (): void => {
     const budget = Number(budgetDraft);
     const rate = Number(rateDraft);

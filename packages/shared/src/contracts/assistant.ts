@@ -158,6 +158,9 @@ export const ASSISTANT_AUTONOMY_DEFAULTS = {
  * 不伪称 explicit/inferred——autonomy 触发无「点名/未指名」语义，落
  * trigger.simulated_strength 与 admission_decision.strength 列）。仅作列值常量，
  * **不进 ASSISTANT_STRENGTHS 准入枚举**（准入矩阵的 strength 判定不接受 autonomous）。
+ * 快照投影视图类型域（services AssistantTriggerView/AssistantDecisionView 的
+ * AssistantStrengthColumn）已随列值域扩为本常量联合——2026-11-06 复审，类型如实
+ * 承载列值，不靠投影侧 as 强转。
  */
 export const ASSISTANT_AUTONOMY_STRENGTH = "autonomous" as const;
 

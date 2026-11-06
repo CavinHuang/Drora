@@ -9,6 +9,7 @@
 import { ServiceChannels } from "@drora/shared";
 import { createServiceDescriptor } from "../descriptors.js";
 import {
+  ASSISTANT_AUTONOMY_STRENGTH,
   ASSISTANT_MODES,
   ASSISTANT_PERMISSION_TIERS,
   type AssistantDisturbanceKind,
@@ -22,10 +23,18 @@ import {
 // 快照形状（onDidChange 推送；01 §1.2——zod schema 在 service 侧 parse，UI type-only）
 // ---------------------------------------------------------------------------
 
+/**
+ * 触发/决策强度列值域（2026-11-06 复审扩域）：P9 起 autonomy 建卡事务把
+ * `autonomous`（contracts ASSISTANT_AUTONOMY_STRENGTH，仅列值常量、不进准入枚举）
+ * 写进 trigger.simulated_strength / admission_decision.strength，快照投影如实携带
+ * ——视图类型与列值域一致，不再靠 `as` 强转掩盖运行时值在类型域外。
+ */
+type AssistantStrengthColumn = AssistantStrength | typeof ASSISTANT_AUTONOMY_STRENGTH;
+
 export interface AssistantTriggerView {
   readonly id: string;
   readonly sourceKind: string;
-  readonly strength: AssistantStrength;
+  readonly strength: AssistantStrengthColumn;
   readonly identity: string;
   readonly text: string;
   readonly atMs: number;
@@ -58,7 +67,7 @@ export interface AssistantRouterSuggestionView {
 export interface AssistantDecisionView {
   readonly id: number;
   readonly triggerId: string;
-  readonly strength: AssistantStrength;
+  readonly strength: AssistantStrengthColumn;
   readonly mode: AssistantMode;
   readonly outcome: string;
   readonly decidedBy: "gate" | "user";

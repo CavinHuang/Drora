@@ -7,6 +7,10 @@
  * 2026-11-06 二轮审查（F1 守卫）：approve 目标解析与真实链同构（入参 → Router 建议 →
  * trigger 落库值），tab.workspaceIdentity 兜底已移除——UI 忘传 target 的 F1 类回归在
  * 本验收面可红（validationFailed），不再被夹具恒兜底掩盖。
+ * 2026-11-06 三轮复审拆件（≤800 纪律兑现）：台账/自主节奏状态件在此前批已拆
+ * fixture-inventory/fixture-autonomy；本批再拆 fixture-quota（P4 配额中心/打扰闸/
+ * watchdog 通知区）、fixture-trust（信任门达标投影+auto-locked 开关）、
+ * fixture-snapshot（内存实体→快照视图行纯映射+实体类型）。
  */
 import {
   ASSISTANT_ERROR_CODES,
@@ -23,15 +27,26 @@ import {
   createAutonomyRhythmFixture,
   injectAutonomyCardFixture,
 } from "./mate-browser.fixture-autonomy.js";
+import { createQuotaFixture } from "./mate-browser.fixture-quota.js";
+import { createTrustGateFixture } from "./mate-browser.fixture-trust.js";
+import {
+  toFixtureDecisionViews,
+  toFixtureTicketViews,
+  type FixtureApproveInput,
+  type FixtureDecision,
+  type FixtureTicket,
+} from "./mate-browser.fixture-snapshot.js";
 import type {
-  AssistantDecisionView,
   AssistantRouterSuggestionView,
   AssistantSnapshot,
-  AssistantTicketView,
   AssistantTriggerView,
   IAssistantTicketService,
 } from "@drora/services";
 import type { MateSidePaneTab } from "../../src/lib/workspaceSidePane.js";
+
+// 实体形状类型随投影件落 fixture-snapshot（类型与映射不分居）；此处再导出维持
+// fixture-service 既有 import 路径稳定。
+export type { FixtureDecision, FixtureTicket, FixtureApproveInput };
 
 /** 夹具 workspace tab（注入事件 trigger 落库 target 归属——injectRouterDecision/手机
  * 入口同构真实链「trigger 携带发生处 workspace identity」；**不再作 approve 兜底**，
@@ -44,50 +59,6 @@ export const tab: MateSidePaneTab = {
   workspacePath: "/fixture/ws",
   workspaceIdentity: "fixture/workspace",
 };
-
-interface FixtureDecision {
-  id: number;
-  triggerId: string;
-  outcome: string;
-  decidedBy: "gate" | "user";
-  triggerText: string;
-  decidedMs: number;
-  sourceKind: string;
-  /** P9：autonomy 卡强度字面量（contracts ASSISTANT_AUTONOMY_STRENGTH=autonomous；缺席=explicit）。 */
-  strength?: string;
-  /** P7（08 号详设 §3.4）：query_status 臂的确定性答复文本。 */
-  answer?: string;
-  routerState?: "pending" | "suggested" | "failed";
-  routerSuggestion?: AssistantRouterSuggestionView;
-  routerError?: string;
-}
-
-export interface FixtureTicket {
-  id: string;
-  brief: string;
-  status: string;
-  targetWorkspaceIdentity: string;
-  sessionId: string | null;
-  outputSummary: string | null;
-  failReason: string | null;
-  usage: { inputTokens: number; outputTokens: number };
-  updatedAtMs: number;
-  dispatchMode?: "A" | "B" | "C";
-  decisionId?: number | null;
-  anchorCommandId?: string | null;
-  generationCount?: number;
-  queuedReason?: string | null;
-  channelRef?: string | null;
-  // P4 第二棒（04 详设 §3）：核验滞留/增量确认/按代成本投影（快照同形可选字段）。
-  awaitingSinceMs?: number | null;
-  incrementsConfirmedMs?: number | null;
-  usageByGeneration?: AssistantTicketView["usageByGeneration"];
-  briefFull?: string;
-}
-
-/** approveDecision 入参捕获（Surface A 预填传参断言读点）。 */
-/** approveDecision 入参捕获（Surface A 预填传参断言读点）。 */
-export type FixtureApproveInput = Parameters<IAssistantTicketService["approveDecision"]>[0];
 
 export function createMateFixtureService(
   onBrief?: (brief: string) => void,
@@ -119,23 +90,15 @@ export function createMateFixtureService(
   let rolloverNextApprove = false;
   // P4 第二棒：下一次终局进核验滞留（awaiting_output）开关。
   let awaitNextTicket = false;
-  // P4 修复轮（04 详设 §2 验收场景 2 UI 半段）：信任门达标投影开关 + setMode("auto")
-  // 服务侧复核失败（mate.auto.locked）一次开关。真实统计/复核在 host 侧（trustGate/
-  // setMode 判定，assistantP4Host.test.ts 锁定）——夹具只造「达标投影」，不伪造判定。
-  let trustGateOpen = false;
-  let autoLockedNext = false;
   // P3 接缝批：手机入口 ingest 结果读点（direct:<ticketId>:<text> / gate:<triggerId>:<outcome>）。
   let lastIngest = "";
   // P8b 台账注入状态件拆 mate-browser.fixture-inventory.ts（≤800 行纪律）；P9 自主
-  // 节奏状态件拆 mate-browser.fixture-autonomy.ts。缺席/就绪语义见各拆件文件头。
+  // 节奏状态件拆 mate-browser.fixture-autonomy.ts；P4 配额/打扰闸/watchdog 通知区
+  // 状态件拆 mate-browser.fixture-quota.ts；信任门投影/auto-locked 拆
+  // mate-browser.fixture-trust.ts。缺席/就绪语义见各拆件文件头。
   const autonomyRhythm = createAutonomyRhythmFixture(publish);
-  // P4 配额中心内存版（IAssistantTicketService 形状补齐；判定语义与服务 admitDisturbance
-  // 同构简化：decision 永不抑制仍计数、report/bubble 超配额聚合当日 digest）。
-  const quotaDay = { date: "", decision: 0, report: 0, bubble: 0, digest: [] as string[], digestDelivered: false };
-  let dailyQuota = 5;
-  // P4 第二棒：watchdog 通知区内存版（snapshot.watchdogNotices 投影源）+ 上次闸判定读点。
-  const watchdogNotices: Array<{ ticketId: string; kind: string; summary: string; atMs: number }> = [];
-  let lastAdmit = "";
+  const quotaFixture = createQuotaFixture({ publish, onAdmit });
+  const trustFixture = createTrustGateFixture(publish);
   const triggers: AssistantTriggerView[] = [];
   const decisions: FixtureDecision[] = [];
   const tickets: FixtureTicket[] = [];
@@ -149,46 +112,9 @@ export function createMateFixtureService(
   }
 
   function buildSnapshot(): AssistantSnapshot {
-    const ticketViews: AssistantTicketView[] = tickets.map((ticket) => ({
-      id: ticket.id,
-      brief: ticket.brief,
-      status: ticket.status,
-      permissionTier: ASSISTANT_PERMISSION_TIERS.build,
-      usage: { ...ticket.usage },
-      outputSummary: ticket.outputSummary,
-      failReason: ticket.failReason,
-      targetWorkspaceIdentity: ticket.targetWorkspaceIdentity,
-      sessionId: ticket.sessionId,
-      updatedAtMs: ticket.updatedAtMs,
-      ...(ticket.dispatchMode ? { dispatchMode: ticket.dispatchMode } : {}),
-      ...(ticket.decisionId !== undefined ? { decisionId: ticket.decisionId } : {}),
-      ...(ticket.anchorCommandId !== undefined ? { anchorCommandId: ticket.anchorCommandId } : {}),
-      ...(ticket.generationCount !== undefined ? { generationCount: ticket.generationCount } : {}),
-      ...(ticket.queuedReason !== undefined ? { queuedReason: ticket.queuedReason } : {}),
-      ...(ticket.channelRef !== undefined ? { channelRef: ticket.channelRef } : {}),
-      ...(ticket.awaitingSinceMs !== undefined ? { awaitingSinceMs: ticket.awaitingSinceMs } : {}),
-      ...(ticket.incrementsConfirmedMs !== undefined
-        ? { incrementsConfirmedMs: ticket.incrementsConfirmedMs }
-        : {}),
-      ...(ticket.usageByGeneration !== undefined
-        ? { usageByGeneration: ticket.usageByGeneration }
-        : {}),
-      ...(ticket.briefFull !== undefined ? { briefFull: ticket.briefFull } : {}),
-    }));
-    const decisionViews: AssistantDecisionView[] = decisions.map((decision) => ({
-      id: decision.id,
-      triggerId: decision.triggerId,
-      strength: (decision.strength ?? ASSISTANT_STRENGTHS.explicit) as AssistantDecisionView["strength"],
-      mode: ASSISTANT_MODES.observe,
-      outcome: decision.outcome,
-      decidedBy: decision.decidedBy,
-      decidedMs: decision.decidedMs,
-      triggerText: decision.triggerText,
-      sourceKind: decision.sourceKind,
-      ...(decision.routerState ? { routerState: decision.routerState } : {}),
-      ...(decision.routerSuggestion ? { routerSuggestion: decision.routerSuggestion } : {}),
-      ...(decision.routerError ? { routerError: decision.routerError } : {}),
-    }));
+    // 实体→视图行纯映射拆 mate-browser.fixture-snapshot.ts（≤800 行纪律）。
+    const ticketViews = toFixtureTicketViews(tickets);
+    const decisionViews = toFixtureDecisionViews(decisions);
     return {
       version: 2,
       mode,
@@ -208,39 +134,15 @@ export function createMateFixtureService(
           (item) => item.outcome === ASSISTANT_OUTCOMES.decisionCard && item.decidedBy === "user",
         ).length,
         // P4 修复轮：信任门达标投影（开关打开才携带——旧 Host 缺席=入口不渲染的诚实
-        // 降级语义保持可验）。rate/samples 与阈值取达标线等值（releaseRate=0.8 样本 15）。
-        ...(trustGateOpen
-          ? {
-              releaseRate: 0.8,
-              sampleCount: 15,
-              gateOpen: true,
-              gateThresholds: { minRate: 0.8, minSamples: 15 },
-            }
-          : {}),
+        // 降级语义保持可验）；投影件拆 mate-browser.fixture-trust.ts。
+        ...trustFixture.gateOpenProjection(),
       },
       triggers: [...triggers],
       decisions: decisionViews,
       tickets: ticketViews,
-      quota: (() => {
-        const today = new Date().toISOString().slice(0, 10);
-        if (quotaDay.date !== today) {
-          quotaDay.date = today;
-          quotaDay.decision = 0;
-          quotaDay.report = 0;
-          quotaDay.bubble = 0;
-          quotaDay.digest = [];
-        }
-        const total = quotaDay.decision + quotaDay.report + quotaDay.bubble;
-        return {
-          date: quotaDay.date,
-          quota: dailyQuota,
-          used: { decision: quotaDay.decision, report: quotaDay.report, bubble: quotaDay.bubble },
-          total,
-          remaining: Math.max(0, dailyQuota - total),
-          pendingDigest: quotaDay.digestDelivered ? [] : [{ date: quotaDay.date, items: [...quotaDay.digest] }],
-        };
-      })(),
-      watchdogNotices: watchdogNotices.slice(-5).map((notice) => ({ ...notice })),
+      // P4 配额中心投影（状态件拆 mate-browser.fixture-quota.ts；读取时日切结算）。
+      quota: quotaFixture.quotaView(),
+      watchdogNotices: quotaFixture.watchdogNoticesView(),
       ...(inventoryInject.ready ? { inventoryReady: true as const } : {}),
       ...(inventoryInject.view ? { inventory: inventoryInject.view } : {}),
       ...(autonomyRhythm.rhythm ? { rhythm: autonomyRhythm.rhythm } : {}),
@@ -280,9 +182,23 @@ export function createMateFixtureService(
         (ticket.generationCount ?? 0) > 0
           ? [
               { generation: 1, inputTokens: 64, outputTokens: 200, durationMs: 120_000 },
-              { generation: 2, inputTokens: 64, outputTokens: 256, durationMs: 30_000, current: true },
+              {
+                generation: 2,
+                inputTokens: 64,
+                outputTokens: 256,
+                durationMs: 30_000,
+                current: true,
+              },
             ]
-          : [{ generation: 1, inputTokens: 128, outputTokens: 456, durationMs: 150_000, current: true }];
+          : [
+              {
+                generation: 1,
+                inputTokens: 128,
+                outputTokens: 456,
+                durationMs: 150_000,
+                current: true,
+              },
+            ];
       ticket.outputSummary = "完成：fixture 汇报首行摘要";
       ticket.updatedAtMs = Date.now();
       publish();
@@ -324,16 +240,19 @@ export function createMateFixtureService(
 
   /** P9 自主节奏 suggest 卡注入（注入件拆 mate-browser.fixture-autonomy.ts；MSA16）。 */
   function injectAutonomyCard(text: string = AUTONOMY_FIXTURE_BRIEF): number {
-    return injectAutonomyCardFixture({
-      allocateId: () => {
-        seq += 1;
-        return seq;
+    return injectAutonomyCardFixture(
+      {
+        allocateId: () => {
+          seq += 1;
+          return seq;
+        },
+        pushTrigger: (trigger) => triggers.push(trigger),
+        pushDecision: (decision) => decisions.push(decision),
+        publish,
+        workspaceIdentity: tab.workspaceIdentity ?? undefined,
       },
-      pushTrigger: (trigger) => triggers.push(trigger),
-      pushDecision: (decision) => decisions.push(decision),
-      publish,
-      workspaceIdentity: tab.workspaceIdentity ?? undefined,
-    }, text);
+      text,
+    );
   }
 
   /**
@@ -478,8 +397,9 @@ export function createMateFixtureService(
       // 落库值 decision.workspace_identity），**移除夹具 tab.workspaceIdentity 兜底**——
       // 旧兜底让 UI 忘传 target 时 approve 恒命中、F1 类回归（UI 条件透传改回）在本
       // 验收面永不复现；现在 target 链断即 validationFailed「缺少派发目标」同码拒绝。
-      const triggerTarget = triggers.find((trigger) => trigger.id === decision.triggerId)
-        ?.targetWorkspaceIdentity;
+      const triggerTarget = triggers.find(
+        (trigger) => trigger.id === decision.triggerId,
+      )?.targetWorkspaceIdentity;
       const targetIdentity =
         input.targetWorkspaceIdentity ??
         decision.routerSuggestion?.targetWorkspaceIdentity ??
@@ -659,10 +579,7 @@ export function createMateFixtureService(
     // 拒绝（ticketNotFound）、awaiting→done+增量横幅仍在；增量确认=置确认时刻（幂等）。
     async confirmTicketOutput(input) {
       const ticket = tickets.find((item) => item.id === input.ticketId);
-      if (
-        !ticket ||
-        ticket.status !== (ASSISTANT_TICKET_STATUSES.awaitingOutput as string)
-      ) {
+      if (!ticket || ticket.status !== (ASSISTANT_TICKET_STATUSES.awaitingOutput as string)) {
         return { ok: false, error: { code: "mate.ticket.not_found" } };
       }
       ticket.status = ASSISTANT_TICKET_STATUSES.done;
@@ -685,18 +602,10 @@ export function createMateFixtureService(
 
     async setMode(next) {
       // P4 修复轮：fixture-auto-locked-next 开关 → 下一次 setMode("auto") 模拟服务侧
-      // 复核失败（mate.auto.locked——确认框到 setMode 之间信任回落，assistantP4Host
-      // 同码锁定真实判定）；验收 MateTrustBar 失败臂专属文案，开关一次性消费。
-      if (next === ASSISTANT_MODES.auto && autoLockedNext) {
-        autoLockedNext = false;
-        return {
-          ok: false as const,
-          error: {
-            code: ASSISTANT_ERROR_CODES.autoLocked,
-            reason: "信任门复核未达标（fixture 模拟）",
-          },
-        };
-      }
+      // 复核失败 mate.auto.locked（状态件拆 mate-browser.fixture-trust.ts——确认框到
+      // setMode 之间信任回落；assistantP4Host 同码锁定真实判定）。
+      const locked = trustFixture.consumeAutoLockedRejection(next);
+      if (locked) return locked;
       mode = next;
       publish();
       return { ok: true, value: { ok: true } };
@@ -781,48 +690,16 @@ export function createMateFixtureService(
       return buildSnapshot();
     },
 
-    async admitDisturbance(input) {
-      const today = new Date().toISOString().slice(0, 10);
-      if (quotaDay.date !== today) {
-        quotaDay.date = today;
-        quotaDay.decision = 0;
-        quotaDay.report = 0;
-        quotaDay.bubble = 0;
-        quotaDay.digest = [];
-        quotaDay.digestDelivered = false;
-      }
-      quotaDay[input.kind] += 1;
-      const total = quotaDay.decision + quotaDay.report + quotaDay.bubble;
-      const aggregated = input.kind !== "decision" && total > dailyQuota;
-      if (aggregated && input.summary) {
-        quotaDay.digest.push(input.summary.slice(0, 200));
-      }
-      // P4 第二棒：闸判定读点（气泡闸 e2e 实时断言 bubble admit 到达且带摘要）。
-      lastAdmit = `${input.kind}:${input.summary ?? ""}:${!aggregated}`;
-      onAdmit?.(lastAdmit);
-      publish();
-      return {
-        ok: true as const,
-        value: {
-          allowed: !aggregated,
-          date: today,
-          used: total,
-          quota: dailyQuota,
-          aggregated,
-        },
-      };
-    },
+    // P4 配额中心/打扰闸内存实现（状态件拆 mate-browser.fixture-quota.ts——判定语义
+    // 与服务 admitDisturbanceTx 同构简化：decision 永不抑制仍计数、report/bubble 超配
+    // 额聚合当日 digest；闸判定读点经 onAdmit 回调）。
+    admitDisturbance: (input) => quotaFixture.admitDisturbance(input),
 
     async getDisturbanceQuota() {
-      const snapshot = buildSnapshot();
-      return { ok: true as const, value: snapshot.quota! };
+      return { ok: true as const, value: quotaFixture.quotaView() };
     },
 
-    async markDailyDigestDelivered() {
-      quotaDay.digestDelivered = true;
-      publish();
-      return { ok: true as const, value: { ok: true as const } };
-    },
+    markDailyDigestDelivered: () => quotaFixture.markDailyDigestDelivered(),
 
     onDidChange(listener) {
       listeners.add(listener);
@@ -878,32 +755,27 @@ export function createMateFixtureService(
     awaitNext(): void {
       awaitNextTicket = true;
     },
-    /** 注入一条 watchdog 通知（快照 watchdogNotices ≤5 投影源）。 */
+    /** 注入一条 watchdog 通知（快照 watchdogNotices ≤5 投影源；状态件 fixture-quota）。 */
     injectNotice(ticketId: string, kind: string, summary: string): void {
-      watchdogNotices.push({ ticketId, kind, summary, atMs: Date.now() });
-      publish();
+      quotaFixture.injectNotice(ticketId, kind, summary);
     },
     /** 推送 N 条 report 类打扰（超额即聚合 digest；e2e 断言摘要卡与状态条配额行）。 */
     pushReports(count: number, summary: string): void {
-      for (let index = 0; index < count; index += 1) {
-        void service.admitDisturbance({ kind: "report", summary });
-      }
-      publish();
+      quotaFixture.pushReports(count, summary);
     },
     /** 气泡闸判定读点（kind:summary:allowed）。 */
     lastAdmit(): string {
-      return lastAdmit;
+      return quotaFixture.lastAdmit();
     },
     // ---- P4 修复轮验收控件（mate-trust-auto.test.mjs 消费；既有场景不点不触发） ----
     /** 信任门达标投影开关（快照 trust 携带 gateOpen/rate/samples/阈值——只造投影，
-     * 不伪造 host 侧统计与复核判定）。 */
+     * 不伪造 host 侧统计与复核判定；状态件 fixture-trust）。 */
     setTrustGateOpen(open: boolean): void {
-      trustGateOpen = open;
-      publish();
+      trustFixture.setTrustGateOpen(open);
     },
     /** 下一次 setMode("auto") 模拟服务侧复核失败 mate.auto.locked（一次性消费）。 */
     setAutoLockedNext(): void {
-      autoLockedNext = true;
+      trustFixture.setAutoLockedNext();
     },
     // ---- P8b 台账验收控件（mate-surface-ac MSA15 消费；既有场景不点不触发） ----
     /** 注入全域台账视图（含本组工单/双会话/闲时行+跨项目组；工单行 T-inv-1 落

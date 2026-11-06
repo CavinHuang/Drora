@@ -55,9 +55,33 @@ export const matePetActiveTicketSchema = z
     status: z.enum(["queued", "dispatched", "running", "awaiting"]),
     brief: boundedText,
     targetWorkspaceIdentity: z.string().max(160),
+    /**
+     * 最近活动时刻（07 号详设 §1：活动行「状态 · 目标 · HH:mm」静态文本呈现——
+     * 不做相对时长（纯 DOM 无 tick，绝对时刻零定时器）。可选：旧发布方帧缺席合法。
+     */
+    updatedAtMs: z.number().finite().nonnegative().optional(),
+    /** 派发模式徽标（A 缺省不显，仅 B/C 标注；可选：旧帧缺席合法）。 */
+    mode: z.enum(["A", "B", "C"]).optional(),
   })
   .strict();
 export type MatePetActiveTicket = z.infer<typeof matePetActiveTicketSchema>;
+
+/**
+ * 速览「最近完成」终态工单行（07 号详设 §1：done/failed 工作历史，TRAE宝 式工作
+ * 面板的第三区；点击直达工单详情）。summary 可选——done 无 output_summary 且非
+ * failed（无 fail_reason）时省略（诚实不伪造摘要）。
+ */
+export const matePetRecentTicketSchema = z
+  .object({
+    ticketId: z.string().min(1).max(160),
+    status: z.enum(["done", "failed"]),
+    brief: boundedText,
+    targetWorkspaceIdentity: z.string().max(160),
+    updatedAtMs: z.number().finite().nonnegative(),
+    summary: boundedText.optional(),
+  })
+  .strict();
+export type MatePetRecentTicket = z.infer<typeof matePetRecentTicketSchema>;
 
 /** 最新汇报一条（done/failed 终态；气泡与速览最新汇报行共用）。 */
 export const matePetLatestReportSchema = z
@@ -78,6 +102,11 @@ export const matePetProjectionSchema = z
   .object({
     pendingDecisions: z.array(matePetPendingDecisionSchema).max(MATE_PET_PROJECTION_LIMITS.pendingMax),
     activeTickets: z.array(matePetActiveTicketSchema).max(MATE_PET_PROJECTION_LIMITS.activeMax),
+    /** 最近完成/失败的工作历史（07 号详设；可选：旧发布方帧缺席=速览区隐藏）。 */
+    recentTickets: z
+      .array(matePetRecentTicketSchema)
+      .max(MATE_PET_PROJECTION_LIMITS.recentMax)
+      .optional(),
     latestReport: matePetLatestReportSchema.nullable(),
     /**
      * 本帧新汇报气泡（发布方 renderer 按上一登记键差分判定；判定纯函数在 ui
@@ -93,6 +122,7 @@ export type MatePetProjection = z.infer<typeof matePetProjectionSchema>;
 export const EMPTY_MATE_PET_PROJECTION: MatePetProjection = {
   pendingDecisions: [],
   activeTickets: [],
+  recentTickets: [],
   latestReport: null,
   bubble: null,
 };

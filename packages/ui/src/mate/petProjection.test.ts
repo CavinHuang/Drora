@@ -166,8 +166,71 @@ describe("projectMatePet（快照 → 桌宠有界投影）", () => {
       snapshot({ tickets: [ticket({ id: "T-q", status: ASSISTANT_TICKET_STATUSES.queued })] }),
     );
     expect(projection.activeTickets).toEqual([
-      { ticketId: "T-q", status: "queued", brief: "工单原文", targetWorkspaceIdentity: "ws-a" },
+      {
+        ticketId: "T-q",
+        status: "queued",
+        brief: "工单原文",
+        targetWorkspaceIdentity: "ws-a",
+        // 07 号详设 §1：活动行恒带最近活动时刻；dispatchMode 缺省（P1 旧行）不带 mode。
+        updatedAtMs: T0,
+      },
     ]);
+  });
+
+  it("活动行透传 updatedAtMs 与模式徽标（仅 B/C；A/缺省不带——07 号详设 §1）", () => {
+    const projection = projectMatePet(
+      snapshot({
+        tickets: [
+          ticket({ id: "T-b", status: ASSISTANT_TICKET_STATUSES.running, dispatchMode: "B", updatedAtMs: T0 + 3 }),
+          ticket({ id: "T-a", status: ASSISTANT_TICKET_STATUSES.running, dispatchMode: "A", updatedAtMs: T0 + 2 }),
+          ticket({ id: "T-none", status: ASSISTANT_TICKET_STATUSES.running, updatedAtMs: T0 + 1 }),
+        ],
+      }),
+    );
+    const byId = new Map(projection.activeTickets.map((row) => [row.ticketId, row]));
+    expect(byId.get("T-b")).toMatchObject({ mode: "B", updatedAtMs: T0 + 3 });
+    expect(byId.get("T-a")).toMatchObject({ updatedAtMs: T0 + 2 });
+    expect(byId.get("T-a")?.mode).toBeUndefined();
+    expect(byId.get("T-none")?.mode).toBeUndefined();
+  });
+
+  it("recentTickets=终态最近 recentMax 条倒序；failed 带 fail_reason 摘要、无摘要省略（07 号详设）", () => {
+    const doneTickets = Array.from({ length: MATE_PET_PROJECTION_LIMITS.recentMax + 2 }, (_, i) =>
+      ticket({
+        id: `T-d${i}`,
+        status: ASSISTANT_TICKET_STATUSES.done,
+        outputSummary: `完成摘要 ${i}`,
+        updatedAtMs: T0 + i,
+      }),
+    );
+    const projection = projectMatePet(
+      snapshot({
+        tickets: [
+          ...doneTickets,
+          ticket({
+            id: "T-fail",
+            status: ASSISTANT_TICKET_STATUSES.failed,
+            failReason: "assistant_row_failed",
+            updatedAtMs: T0 + 100,
+          }),
+          ticket({ id: "T-silent", status: ASSISTANT_TICKET_STATUSES.done, updatedAtMs: T0 - 1 }),
+        ],
+      }),
+    );
+    const recent = projection.recentTickets ?? [];
+    expect(recent).toHaveLength(MATE_PET_PROJECTION_LIMITS.recentMax);
+    // 最新终态（failed）排首并携带 fail_reason 摘要；done 无 output_summary 且非 failed
+    // → summary 省略（T-silent 落出 recentMax 界，另证：界内 done 均有摘要）。
+    expect(recent[0]).toMatchObject({
+      ticketId: "T-fail",
+      status: "failed",
+      summary: "assistant_row_failed",
+      updatedAtMs: T0 + 100,
+    });
+    expect(recent[1]?.ticketId).toBe(`T-d${MATE_PET_PROJECTION_LIMITS.recentMax + 1}`);
+    expect(recent.every((row) => row.summary !== undefined)).toBe(true);
+    // 首条与 latestReport 同源（同一最新终态工单）。
+    expect(projection.latestReport?.ticketId).toBe("T-fail");
   });
 
   it("最新汇报=更新时间最新的终态工单；done 取 output_summary、failed 回落 fail_reason", () => {
@@ -199,6 +262,7 @@ describe("projectMatePet（快照 → 桌宠有界投影）", () => {
     const projection = projectMatePet(snapshot({}));
     expect(projection.pendingDecisions).toEqual([]);
     expect(projection.activeTickets).toEqual([]);
+    expect(projection.recentTickets).toEqual([]);
     expect(projection.latestReport).toBeNull();
     expect(projection.bubble).toBeNull();
   });

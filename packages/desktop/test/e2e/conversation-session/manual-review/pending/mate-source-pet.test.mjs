@@ -150,6 +150,28 @@ test(
       const rebubbled = JSON.parse(await projectionBox.textContent());
       assert.notEqual(rebubbled.bubble.ticketId, firstBubble.bubble.ticketId);
 
+      // MSP07（P7 桌宠工作面板，07 号详设 §2）：第二张工单终态后投影含工作历史
+      // recentTickets（两条 done 倒序，最新在前且与 latestReport 同源）与活动行
+      // updatedAtMs/mode 增强字段（本帧活动已清空——增强断言归 seam/petProjection
+      // 单测，此处锁发布链端到端携带）。
+      await page.waitForFunction(
+        () => {
+          const raw = document.querySelector('[data-testid="fixture-mate-pet-projection"]')
+            ?.textContent;
+          if (!raw) return false;
+          const parsed = JSON.parse(raw);
+          return Array.isArray(parsed.recentTickets) && parsed.recentTickets.length >= 2;
+        },
+        { timeout: 15000 },
+      );
+      const withRecent = JSON.parse(await projectionBox.textContent());
+      assert.equal(withRecent.recentTickets[0].ticketId, withRecent.latestReport.ticketId);
+      assert.equal(withRecent.recentTickets[0].status, "done");
+      assert.ok(
+        withRecent.recentTickets[0].updatedAtMs >= withRecent.recentTickets[1].updatedAtMs,
+      );
+      assert.match(withRecent.recentTickets[0].summary, /fixture 汇报首行摘要|完成/);
+
       // MSP05（观察行来源徽标）：未指名本地触发 → would-accept 观察行带 local 徽标
       // （默认「待决策」档不渲染观察行——先切「观察中」档）。
       await page.getByTestId("mate-trigger-input").fill("帮我看看构建为什么红了");

@@ -31,7 +31,32 @@ const PROJECTION: MatePetProjection = {
     },
   ],
   activeTickets: [
-    { ticketId: "T-1", status: "running", brief: "修复登录", targetWorkspaceIdentity: "ws-a" },
+    {
+      ticketId: "T-1",
+      status: "running",
+      brief: "修复登录",
+      targetWorkspaceIdentity: "ws-a",
+      updatedAtMs: 1_000,
+      mode: "B",
+    },
+  ],
+  recentTickets: [
+    {
+      ticketId: "T-0",
+      status: "done",
+      brief: "修复登录",
+      targetWorkspaceIdentity: "ws-a",
+      updatedAtMs: 900,
+      summary: "完成：构建已修复",
+    },
+    {
+      ticketId: "T-9",
+      status: "failed",
+      brief: "跑一遍回归",
+      targetWorkspaceIdentity: "ws-b",
+      updatedAtMs: 800,
+      summary: "assistant_row_failed",
+    },
   ],
   latestReport: {
     ticketId: "T-0",
@@ -123,6 +148,8 @@ function buildTrayDocument(): Document {
       <div id="mate-decisions"></div>
       <p class="mate-section-label" id="mate-tickets-label">进行中</p>
       <div id="mate-tickets"></div>
+      <p class="mate-section-label" id="mate-recent-label" hidden>最近完成</p>
+      <div id="mate-recent"></div>
       <div class="mate-row" id="mate-report" hidden><button type="button" class="mate-open" id="mate-report-open"><span class="mate-title" id="mate-report-title"></span><span class="mate-meta" id="mate-report-meta"></span></button></div>
       <p id="mate-empty" class="mate-section-label" hidden>没有待处置条目</p>
     </section></section>`;
@@ -157,10 +184,22 @@ describe("createMatePetTrayDom（托盘速览 DOM）", () => {
       { decisionId: 7, choice: "approve" },
       { decisionId: 7, choice: "ignore" },
     ]);
+    // 进行中行 meta：状态 · 模式（仅 B/C）· 目标 · HH:mm（07 号详设 §1）。
+    const activeMeta = doc.getElementById("mate-tickets")!.querySelector(".mate-meta")!;
+    expect(activeMeta.textContent).toMatch(/进行中 · B · ws-a · \d{1,2}:\d{2}/);
     // 进行中点卡直达（回传投影内原始 identity，不重拼路径）。
     const openTicket = doc.getElementById("mate-tickets")!.querySelector<HTMLButtonElement>("button")!;
     openTicket.click();
     expect(opened).toEqual([{ ticketId: "T-1", targetWorkspaceIdentity: "ws-a" }]);
+    // 最近完成区（07 号详设）：两行渲染（done+failed），failed meta 红；点行直达。
+    const recentBox = doc.getElementById("mate-recent")!;
+    expect(doc.getElementById("mate-recent-label")!.hidden).toBe(false);
+    expect(recentBox.querySelectorAll("button")).toHaveLength(2);
+    const failedMeta = recentBox.querySelectorAll(".mate-meta")[1]!;
+    expect(failedMeta.textContent).toMatch(/已失败 · ws-b · \d{1,2}:\d{2} · assistant_row_failed/);
+    expect(failedMeta.style.color).toBe("var(--color-destructive)");
+    recentBox.querySelector<HTMLButtonElement>("button")!.click();
+    expect(opened.at(-1)).toEqual({ ticketId: "T-0", targetWorkspaceIdentity: "ws-a" });
     // 最新汇报行：一次绑定，点击直达当前帧汇报。
     doc.getElementById("mate-report-open")!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     expect(opened.at(-1)).toEqual({ ticketId: "T-0", targetWorkspaceIdentity: "ws-a" });
@@ -170,6 +209,8 @@ describe("createMatePetTrayDom（托盘速览 DOM）", () => {
     dom.render({ pendingDecisions: [], activeTickets: [], latestReport: null, bubble: null });
     expect(root.hidden).toBe(true);
     expect(doc.getElementById("mate-empty")!.hidden).toBe(false);
+    // recentTickets 可选缺席（旧发布方帧）=区隐藏，不炸渲染。
+    expect(doc.getElementById("mate-recent-label")!.hidden).toBe(true);
   });
 
   it("模板节点缺失（宠物窗文档）→ 渲染句柄安全 no-op", () => {

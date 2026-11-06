@@ -116,6 +116,13 @@ expandedDecisionId` 三件 UI 局部态，按 workspace 分域（`byWorkspace`�
 - 快照消费：modelPreference/trustGateThresholds/watchdogIntervalMinutes/sourcesConfig/
   identityMap 五可选字段（旧 Host 缺席=高级区不渲染、Source 区空配置，诚实降级）。
 
+## P6 增量（2026-11-06，桌宠工作面板，07 号详设）
+
+- **projectMatePet 扩展**：活动行携带可选 `updatedAtMs`/`mode`（仅 B/C）；新增
+  `recentTickets`（终态 ≤4 倒序，与 latestReport 同源首条；无摘要省略）——schema
+  可选字段，旧帧缺席合法。
+- 速览渲染（desktop 层）三区结构详见 07 号详设；发布链/防注入纪律不变。
+
 ## 审查修复批（2026-11-06，运行链可用性/交付完整性审查）
 
 - **放行/触发目标契约（F1）**：触发与放行的 `targetWorkspaceIdentity` **恒等于

@@ -75,6 +75,9 @@ export function createMatePetTrayDom(
   const decisionsLabel = document.getElementById("mate-decisions-label");
   const ticketsBox = document.getElementById("mate-tickets");
   const ticketsLabel = document.getElementById("mate-tickets-label");
+  // 07 号详设 §1：「最近完成」工作历史区（done/failed；TRAE宝 式工作面板第三区）。
+  const recentBox = document.getElementById("mate-recent");
+  const recentLabel = document.getElementById("mate-recent-label");
   const reportRow = document.getElementById("mate-report");
   const reportOpen = document.getElementById("mate-report-open");
   const reportTitle = document.getElementById("mate-report-title");
@@ -88,6 +91,8 @@ export function createMatePetTrayDom(
       decisionsLabel &&
       ticketsBox &&
       ticketsLabel &&
+      recentBox &&
+      recentLabel &&
       reportRow &&
       reportOpen &&
       reportTitle &&
@@ -102,6 +107,13 @@ export function createMatePetTrayDom(
   reportOpen.addEventListener("click", () => {
     if (latest) callbacks.onOpenTicket(latest.ticketId, latest.targetWorkspaceIdentity);
   });
+
+  /** 最近活动/终态时刻（HH:mm 静态文本——纯 DOM 无 tick，不做相对时长）。 */
+  const clock = (ms: number): string =>
+    new Date(ms).toLocaleTimeString(zh ? "zh-CN" : "en-US", {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
 
   const metaSpan = (text: string, danger = false): HTMLElement => {
     const span = document.createElement("span");
@@ -159,13 +171,43 @@ export function createMatePetTrayDom(
         const title = document.createElement("span");
         title.className = "mate-title";
         title.textContent = ticket.brief;
-        button.append(title, metaSpan(`${matePetStatusLabel(ticket.status, zh)} · ${ticket.targetWorkspaceIdentity}`));
+        // 07 号详设 §1：meta=状态 · [模式（仅 B/C）] · 目标 · HH:mm（updatedAtMs 可选
+        // ——旧发布方帧缺席只少时刻段，不缺行）。
+        const modePrefix =
+          ticket.mode === "B" || ticket.mode === "C" ? `${ticket.mode} · ` : "";
+        button.append(
+          title,
+          metaSpan(
+            `${matePetStatusLabel(ticket.status, zh)} · ${modePrefix}${ticket.targetWorkspaceIdentity}${ticket.updatedAtMs !== undefined ? ` · ${clock(ticket.updatedAtMs)}` : ""}`,
+          ),
+        );
         button.addEventListener("click", () =>
           callbacks.onOpenTicket(ticket.ticketId, ticket.targetWorkspaceIdentity),
         );
         row.append(button);
         ticketsBox.append(row);
       }
+      // 最近完成/失败的工作历史（07 号详设 §1）：整行可点直达详情；failed 行 meta 红。
+      const recent = projection.recentTickets ?? [];
+      recentBox.replaceChildren();
+      for (const ticket of recent) {
+        const row = document.createElement("div");
+        row.className = "mate-row";
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "mate-open";
+        const title = document.createElement("span");
+        title.className = "mate-title";
+        title.textContent = ticket.brief;
+        const metaText = `${matePetStatusLabel(ticket.status, zh)} · ${ticket.targetWorkspaceIdentity} · ${clock(ticket.updatedAtMs)}${ticket.summary ? ` · ${ticket.summary}` : ""}`;
+        button.append(title, metaSpan(metaText, ticket.status === "failed"));
+        button.addEventListener("click", () =>
+          callbacks.onOpenTicket(ticket.ticketId, ticket.targetWorkspaceIdentity),
+        );
+        row.append(button);
+        recentBox.append(row);
+      }
+      recentLabel.hidden = recent.length === 0;
       if (latest) {
         reportTitle.textContent = latest.summary;
         reportMeta.textContent = `${matePetStatusLabel(latest.status, zh)} · ${latest.targetWorkspaceIdentity}`;
@@ -177,6 +219,7 @@ export function createMatePetTrayDom(
       const hasAny =
         projection.pendingDecisions.length > 0 ||
         projection.activeTickets.length > 0 ||
+        recent.length > 0 ||
         latest !== null;
       root.hidden = !hasAny;
       count.textContent = hasAny ? String(projection.pendingDecisions.length) : "";

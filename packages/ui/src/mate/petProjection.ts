@@ -21,6 +21,7 @@ import {
   type MatePetLatestReport,
   type MatePetPendingDecision,
   type MatePetProjection,
+  type MatePetRecentTicket,
 } from "@drora/shared";
 import type { AssistantSnapshot } from "@drora/services";
 
@@ -81,15 +82,23 @@ export function projectMatePet(snapshot: AssistantSnapshot): MatePetProjection {
               : "dispatched",
       brief: firstLine(ticket.brief, MATE_PET_PROJECTION_LIMITS.textMax),
       targetWorkspaceIdentity: ticket.targetWorkspaceIdentity ?? "",
+      // 07 号详设 §1：活动行携带最近活动时刻（速览「状态 · 目标 · HH:mm」静态文本）
+      // 与派发模式徽标（A 缺省不显，仅 B/C 标注）——只加不破（旧消费者可忽略）。
+      updatedAtMs: ticket.updatedAtMs,
+      ...(ticket.dispatchMode === "B" || ticket.dispatchMode === "C"
+        ? { mode: ticket.dispatchMode }
+        : {}),
     }));
-  // 最新汇报：终态工单按更新时间取最新一条（done/failed；queued/dispatched/running 无汇报）。
-  const terminal = snapshot.tickets
+  // 终态工单按更新时间倒序（07 号详设 §1）：首条=最新汇报（既有语义），前 recentMax
+  // 条=「最近完成」工作历史（done/failed 都入列——失败也是工作内容，诚实呈现）。
+  const terminalTickets = snapshot.tickets
     .filter(
       (ticket) =>
         ticket.status === ASSISTANT_TICKET_STATUSES.done ||
         ticket.status === ASSISTANT_TICKET_STATUSES.failed,
     )
-    .sort((a, b) => b.updatedAtMs - a.updatedAtMs)[0];
+    .sort((a, b) => b.updatedAtMs - a.updatedAtMs);
+  const terminal = terminalTickets[0];
   const latestReport: MatePetLatestReport | null = terminal
     ? {
         ticketId: terminal.id,
@@ -99,8 +108,22 @@ export function projectMatePet(snapshot: AssistantSnapshot): MatePetProjection {
         updatedAtMs: terminal.updatedAtMs,
       }
     : null;
+  const recentTickets: MatePetRecentTicket[] = terminalTickets
+    .slice(0, MATE_PET_PROJECTION_LIMITS.recentMax)
+    .map((ticket) => {
+      const summary = matePetReportSummary(ticket);
+      return {
+        ticketId: ticket.id,
+        status: ticket.status === ASSISTANT_TICKET_STATUSES.done ? "done" : "failed",
+        brief: firstLine(ticket.brief, MATE_PET_PROJECTION_LIMITS.textMax),
+        targetWorkspaceIdentity: ticket.targetWorkspaceIdentity ?? "",
+        updatedAtMs: ticket.updatedAtMs,
+        // done 无 output_summary 且非 failed（无 fail_reason）时省略——诚实不伪造。
+        ...(summary ? { summary } : {}),
+      };
+    });
   // bubble 由发布方以 deriveMatePetBubble 差分后并集（本函数保持纯投影，不持时序状态）。
-  return { pendingDecisions, activeTickets, latestReport, bubble: null };
+  return { pendingDecisions, activeTickets, recentTickets, latestReport, bubble: null };
 }
 
 /** 决策卡触发起始身份（速览元数据展示用；trigger 被快照容量裁剪时回空串）。 */

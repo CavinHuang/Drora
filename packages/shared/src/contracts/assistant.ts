@@ -363,6 +363,8 @@ export const MATE_PET_PROJECTION_LIMITS = {
   pendingMax: 5,
   /** 速览进行中工单条数上界。 */
   activeMax: 5,
+  /** 速览「最近完成」终态工单条数上界（07 号详设 §1：TRAE宝 式工作历史区）。 */
+  recentMax: 4,
   /** 单条文本（原文/汇报摘要）截断长度（code point，对齐 desktopPet preview 上限）。 */
   textMax: 120,
 } as const;

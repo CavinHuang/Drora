@@ -12,7 +12,7 @@ P1 范围：observe 模式 + 本地双测试按钮 + 决策卡人工放行（Mod
 - **只消费快照投影**：唯一数据入口是 `useAssistantTickets()`（getSnapshot 拉一次 +
   onDidChange 推送订阅）；快照类型经 services index type-only 引用，UI 不做二次运行时
   校验。快照本体不复制进 zustand——`mateStore` 只存 `filter / selectedTicketId /
-expandedDecisionId` 三件 UI 局部态，按 workspace 分域（`byWorkspace`，键=
+expandedDecisionId / expandedWorkKeys` 四件 UI 局部态，按 workspace 分域（`byWorkspace`，键=
   `tab.workspaceKey` 即 `workspaceIdentity?.trim() || workspacePath` 的身份键规则；
   mate tab 每 workspace 一个且 side pane 对全部 tab 常挂载，单例会跨区串扰），动作
   single-flight key 同域隔离（无快照副本、无 error/operationId 第二状态）。
@@ -153,6 +153,24 @@ expandedDecisionId` 三件 UI 局部态，按 workspace 分域（`byWorkspace`�
   补 `dispatchRejected → mate.error.dispatchRejected`——远程形态 probe 诚实拒绝（卡未消费，
   改选目标或等待建议后重放）是本契约确立的正常设计路径，不再落 generic「操作失败」
   （那会让远程 tab 反复重试恒败且零指引）。
+
+## P8b 增量（2026-11-06，全域工作总览卡，09 号详设 §1.7）
+
+- **MateWorkOverview（新组件）**：面板顶部状态条下的全域工作总览卡，数据=snapshot
+  `inventory`（host 三源投影只读）+ `inventoryReady` 就绪信号，**三态区分**（缺席不是
+  空态，不猜不超时兜底）：inventoryReady 缺席（旧 Host/旧装配，无台账能力）→ 卡不渲染；
+  ready 且 inventory 缺席 → 「投影就绪中」（冷启动/某源缺席，provider null 合法语义）；
+  workspaces 空 → 「无工作」（真实空集）；有行 → 每项目行（kind 徽标计数/teams 注记/
+  最近活动相对时刻/停滞警示徽标=staleSinceMs 投影/managed 标记=managed 会话计数）+
+  点击展开行列表。展开键集=`expandedWorkKeys`（mateStore 按 workspace 分域第四件
+  局部态，`toggleWorkWorkspace` toggle 写）；i18n 键族 `mate.work.*` 入守卫清单。
+- **行点击=既有导航面，不发明新面**：工单行 → `selectTicket`（Surface C 详情下钻，
+  工单不在快照工单集时面板诚实回落列表）；会话行 → `onOpenMateSession` 既有导航
+  （本组带完整 tab 坐标；跨组只有组键=AGENTS 身份键——本地项目组键即路径，与
+  automations 运行历史同一条跨项目本地导航路径；远程 identity 键的落位路径不在此
+  pane 契约内，按组键作路径传，沿用既有导航面兜底）；闲时行 → 禁用+title 提示
+  （本 pane 无任务中心导航通道）。会话行导航门槛与汇报卡同形（onOpenSession 注入即可
+  点，不另设 sessionEnded 门）。
 
 ## 与其它模块的交集
 

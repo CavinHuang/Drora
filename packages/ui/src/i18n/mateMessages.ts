@@ -216,6 +216,21 @@ export const mateMessagesEn = {
   "mate.detail.cost.duration.seconds": "{count}s",
   "mate.detail.cost.duration.minutes": "{count}m",
   "mate.detail.cost.duration.hours": "{count}h",
+
+  // ---- P8b 全域工作总览卡（09 详设 §1.7；三态区分/行点击语义在组件 docstring） ----
+  "mate.work.title": "All work",
+  "mate.work.pending": "Work projection starting…",
+  "mate.work.empty": "No active work across projects",
+  "mate.work.kind.ticket": "{count} tickets",
+  "mate.work.kind.session": "{count} sessions",
+  "mate.work.kind.session.teams": "{count} sessions · {teams} teams",
+  "mate.work.kind.offpeak": "{count} off-peak",
+  "mate.work.stale": "{count} stalled",
+  "mate.work.stale.hint": "{count} ticket(s) flagged stalled by the watchdog",
+  "mate.work.managed": "{count} managed",
+  "mate.work.managed.hint": "Session is the running executor of a Mate ticket",
+  "mate.work.session.managed": "managed",
+  "mate.work.offpeak.disabled": "Off-peak task — view it in the task center",
 };
 
 export const mateMessagesZh = {
@@ -422,4 +437,19 @@ export const mateMessagesZh = {
   "mate.detail.cost.duration.seconds": "{count} 秒",
   "mate.detail.cost.duration.minutes": "{count} 分钟",
   "mate.detail.cost.duration.hours": "{count} 小时",
+
+  // ---- P8b 全域工作总览卡（09 详设 §1.7；三态区分/行点击语义在组件 docstring） ----
+  "mate.work.title": "全域工作",
+  "mate.work.pending": "全域投影就绪中…",
+  "mate.work.empty": "各项目当前没有进行中的工作",
+  "mate.work.kind.ticket": "工单 {count}",
+  "mate.work.kind.session": "会话 {count}",
+  "mate.work.kind.session.teams": "会话 {count}（teams {teams}）",
+  "mate.work.kind.offpeak": "闲时 {count}",
+  "mate.work.stale": "停滞 {count}",
+  "mate.work.stale.hint": "{count} 个工单被看护判为停滞",
+  "mate.work.managed": "代管 {count}",
+  "mate.work.managed.hint": "该会话是大副工单的当代执行体",
+  "mate.work.session.managed": "代管",
+  "mate.work.offpeak.disabled": "闲时任务——在任务中心查看",
 };

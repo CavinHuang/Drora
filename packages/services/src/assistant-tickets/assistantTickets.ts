@@ -259,6 +259,13 @@ export interface AssistantSnapshot {
    * 时整个字段缺席；provider 抛错同缺席（publish 不失败）。UI 三态消费归 P8b。
    */
   readonly inventory?: import("@drora/shared").MateWorkInventoryView;
+  /**
+   * P8b（09 详设 §1.7 三态区分的结构性信号）：true=本 host 装配层已注入台账 provider。
+   * 携带时 inventory 缺席=「投影就绪中」（冷启动首拉未 ready/某源缺席——workInventory
+   * Bootstrap provider null 的合法语义）；**字段缺席（旧 Host/旧装配）=台账能力不存在**
+   * ——UI 总览卡据此「卡不渲染」，不猜不超时兜底（AGENTS：不用超时掩盖同步问题）。
+   */
+  readonly inventoryReady?: boolean;
   readonly updatedAtMs: number;
 }
 

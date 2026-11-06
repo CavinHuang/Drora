@@ -364,6 +364,36 @@ describe("快照 inventory 投影/缺席语义（09 §1.2：全有或全无）",
       db.close();
     }
   });
+
+  // P8b（09 §1.7 三态区分的结构性信号）：provider 装配即携带 inventoryReady=true——
+  // UI 据此区分「投影就绪中」（true+inventory 缺席）与「旧 Host」（字段缺席→卡不渲染）。
+  it("快照 inventoryReady 信号：provider 装配即 true（含 null 视图）；未装配不携带", async () => {
+    const db = openAssistantDatabase(":memory:");
+    const service = createAssistantTicketsService({
+      databasePath: ":memory:",
+      localIdentity: "local-user",
+      database: db,
+    });
+    try {
+      const snapshots: Array<{ inventoryReady?: boolean }> = [];
+      service.onDidChange((snapshot) => snapshots.push(snapshot));
+      // 未装配 provider：信号不携带（旧装配语义，UI 卡不渲染）。
+      await service.setMode("observe");
+      expect(snapshots.at(-1)?.inventoryReady).toBeUndefined();
+
+      // 装配 provider（即便仍返回 null=就绪中）：信号恒 true。
+      setAssistantInventoryProvider(() => null);
+      await service.setMode("off");
+      expect(snapshots.at(-1)?.inventoryReady).toBe(true);
+
+      setAssistantInventoryProvider(null);
+      await service.setMode("observe");
+      expect(snapshots.at(-1)?.inventoryReady).toBeUndefined();
+    } finally {
+      service.dispose();
+      db.close();
+    }
+  });
 });
 
 describe("refreshInventory 刷新环路节流（09 §1.2：前沿节流+尾沿补一拍）", () => {

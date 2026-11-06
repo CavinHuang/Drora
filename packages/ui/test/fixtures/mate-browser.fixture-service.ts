@@ -16,7 +16,12 @@ import {
   ASSISTANT_STRENGTHS,
   ASSISTANT_TICKET_STATUSES,
 } from "@drora/shared";
-import type { AssistantMode } from "@drora/shared";
+import type { AssistantMode, MateWorkInventoryView } from "@drora/shared";
+import {
+  buildMateInventoryFixtureView,
+  INVENTORY_FIXTURE_TICKET_BRIEF,
+  INVENTORY_FIXTURE_TICKET_ID,
+} from "./mate-browser.fixture-inventory.js";
 import type {
   AssistantDecisionView,
   AssistantRouterSuggestionView,
@@ -54,7 +59,7 @@ interface FixtureDecision {
   routerError?: string;
 }
 
-interface FixtureTicket {
+export interface FixtureTicket {
   id: string;
   brief: string;
   status: string;
@@ -118,6 +123,11 @@ export function createMateFixtureService(
   let autoLockedNext = false;
   // P3 接缝批：手机入口 ingest 结果读点（direct:<ticketId>:<text> / gate:<triggerId>:<outcome>）。
   let lastIngest = "";
+  // P8b 台账注入（MSA15 消费；真实三源组装在 host 侧 workInventoryBootstrap，夹具只造
+  // 快照事实）：inventoryView=null + ready=false =旧 Host 缺席（卡不渲染）；ready=true
+  // + view=null =「投影就绪中」；view.workspaces 空 =「无工作」。
+  let inventoryView: MateWorkInventoryView | null = null;
+  let inventoryReady = false;
   // P4 配额中心内存版（IAssistantTicketService 形状补齐；判定语义与服务 admitDisturbance
   // 同构简化：decision 永不抑制仍计数、report/bubble 超配额聚合当日 digest）。
   const quotaDay = { date: "", decision: 0, report: 0, bubble: 0, digest: [] as string[], digestDelivered: false };
@@ -230,6 +240,8 @@ export function createMateFixtureService(
         };
       })(),
       watchdogNotices: watchdogNotices.slice(-5).map((notice) => ({ ...notice })),
+      ...(inventoryReady ? { inventoryReady: true as const } : {}),
+      ...(inventoryView ? { inventory: inventoryView } : {}),
       updatedAtMs,
     };
   }
@@ -380,6 +392,48 @@ export function createMateFixtureService(
     });
     publish();
     return seq;
+  }
+
+  /**
+   * P8b 台账注入（MSA15 验收消费；真实三源组装在 host 侧，夹具只造快照事实——
+   * 视图形状在 mate-browser.fixture-inventory.ts 拆件）。
+   * 同点重复注入幂等（T-inv-1 已在即只刷视图引用）：工单行必须在 snapshot.tickets
+   * 有实体（总览卡工单行点击=selectTicket，详情视图按快照工单集渲染——诚实降级）。
+   */
+  function injectInventory(): void {
+    if (!tickets.some((ticket) => ticket.id === INVENTORY_FIXTURE_TICKET_ID)) {
+      tickets.push({
+        id: INVENTORY_FIXTURE_TICKET_ID,
+        brief: INVENTORY_FIXTURE_TICKET_BRIEF,
+        briefFull: INVENTORY_FIXTURE_TICKET_BRIEF,
+        status: ASSISTANT_TICKET_STATUSES.queued,
+        targetWorkspaceIdentity: tab.workspaceIdentity ?? tab.workspaceKey,
+        sessionId: "sess-inv-managed",
+        outputSummary: null,
+        failReason: null,
+        usage: { inputTokens: 0, outputTokens: 0 },
+        updatedAtMs: Date.now() - 60_000,
+        queuedReason: "MSA15 台账验收排队",
+        generationCount: 0,
+      });
+    }
+    inventoryView = buildMateInventoryFixtureView(tab.workspaceIdentity ?? tab.workspaceKey);
+    inventoryReady = true;
+    publish();
+  }
+
+  /** P8b：清空台账视图（ready 保持 true）——总览卡「投影就绪中」态验收。 */
+  function clearInventory(): void {
+    inventoryView = null;
+    inventoryReady = true;
+    publish();
+  }
+
+  /** P8b：空台账视图（ready=true + workspaces 空）——总览卡「无工作」空态验收。 */
+  function emptyInventory(): void {
+    inventoryView = { workspaces: [] };
+    inventoryReady = true;
+    publish();
   }
 
   const service: IAssistantTicketService = {
@@ -849,5 +903,13 @@ export function createMateFixtureService(
     setAutoLockedNext(): void {
       autoLockedNext = true;
     },
+    // ---- P8b 台账验收控件（mate-surface-ac MSA15 消费；既有场景不点不触发） ----
+    /** 注入全域台账视图（含本组工单/双会话/闲时行+跨项目组；工单行 T-inv-1 落
+     * snapshot.tickets 支撑下钻断言）。 */
+    injectInventory,
+    /** 清空台账视图（ready 保持 true）→「投影就绪中」态。 */
+    clearInventory,
+    /** 空台账视图（workspaces 空）→「无工作」空态。 */
+    emptyInventory,
   };
 }

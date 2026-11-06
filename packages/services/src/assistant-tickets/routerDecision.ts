@@ -52,13 +52,14 @@ const rejectArmSchema = z.object({ reason: z.string().trim().min(1).max(500) }).
  * P7 查询直答臂（08 号详设 §3.1）：进度/状态/成本/摘要类意图 → host 确定性应答器
  * 直答（不建票、不派 worker、不过 Mandate）。Router 只判意图与 scope；答案由 host
  * 从账本模板生成（零 LLM 加工——与账本结构性恒一致）。写意图（停止/切换）不在此臂
- * （约言引导 reject+面板指引）。
+ * （约言引导 reject+面板指引）。P8b（09 详设 §1.6）：新增 "work" scope——全域工作
+ * 台账视角（应答器读快照 inventory；缺席回落工单账并注明「仅工单视角」）。
  */
 const queryStatusArmSchema = z
   .object({
     scope: z
       .object({
-        kind: z.enum(["status", "ticket", "usage", "digest"]),
+        kind: z.enum(["status", "ticket", "usage", "digest", "work"]),
         workspaceIdentity: z.string().trim().max(200).optional(),
         ticketId: z.string().trim().max(200).optional(),
       })
@@ -119,7 +120,7 @@ export type RouterDecision =
     };
 export interface RouterQueryStatusArm {
   readonly scope: {
-    readonly kind: "status" | "ticket" | "usage" | "digest";
+    readonly kind: "status" | "ticket" | "usage" | "digest" | "work";
     readonly workspaceIdentity?: string;
     readonly ticketId?: string;
   };

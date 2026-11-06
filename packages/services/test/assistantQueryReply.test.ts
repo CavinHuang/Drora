@@ -1,23 +1,34 @@
 /**
  * P7 查询确定性应答器单测（08 号详设 §3.2/§6）：四 scope×空态矩阵、有界、与快照
- * 投影同读点（答案与面板事实恒一致的结构性保证）。
+ * 投影同读点（答案与面板事实恒一致的结构性保证）。P8b（09 详设 §1.6/§1.8）：
+ * work scope 全域答案/回落/空态矩阵 + 台账速览升级（inventory 消费/双界）。
  */
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
-import { ASSISTANT_REPLY_LIMITS, ASSISTANT_TICKET_STATUSES } from "@drora/shared";
+import {
+  ASSISTANT_REPLY_LIMITS,
+  ASSISTANT_SNAPSHOT_LIMITS,
+  ASSISTANT_TICKET_STATUSES,
+  type MateWorkInventoryView,
+} from "@drora/shared";
 import { openAssistantDatabase } from "../src/assistant-tickets/assistantDatabase.js";
-import { composeQueryReply } from "../src/assistant-tickets/queryReply.js";
+import { composeLedgerDigest, composeQueryReply } from "../src/assistant-tickets/queryReply.js";
 
 const LOCAL_IDENTITY = "local-user";
 const NOW = 1_000_000;
 
 function setup() {
   const db = openAssistantDatabase(":memory:");
-  const reply = (scope: Parameters<typeof composeQueryReply>[0]["scope"]) =>
+  const reply = (
+    scope: Parameters<typeof composeQueryReply>[0]["scope"],
+    /** P8b：work scope 的台账视图（缺席=回落臂矩阵）。 */
+    inventory?: MateWorkInventoryView | null,
+  ) =>
     composeQueryReply({
       scope,
       raw: db.raw,
       localIdentity: LOCAL_IDENTITY,
+      ...(inventory !== undefined ? { inventory } : {}),
       nowMs: () => NOW,
     });
   return { db, reply };
@@ -207,5 +218,160 @@ describe("P7 应答器：digest scope 与有界", () => {
     // 各成分（brief 首行 40/摘要 120/逐条 ≤6）预截断后全文远小于界；断言性质恒成立
     // ——若未来放宽行级截断导致全文超界，此断言即红（cap 截断兜底）。
     expect(replyLong.text.length).toBeLessThanOrEqual(ASSISTANT_REPLY_LIMITS.replyTextMax);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P8b（09 详设 §1.6/§1.8）：work scope——全域工作台账视角的确定性应答。
+// ---------------------------------------------------------------------------
+
+/** 台账 canned 视图（两项目：ws-a 工单+会话+teams+闲时+停滞；ws-b 纯会话）。 */
+function seedInventory(): MateWorkInventoryView {
+  return {
+    workspaces: [
+      {
+        key: "ws-a",
+        rows: [
+          {
+            kind: "ticket",
+            ticketId: "T-inv",
+            title: "台账工单",
+            status: ASSISTANT_TICKET_STATUSES.running,
+            updatedAtMs: NOW - 100,
+            staleSinceMs: NOW - 50,
+          },
+          {
+            kind: "session",
+            sessionId: "sess-inv",
+            title: "当代执行会话",
+            phase: "running",
+            sessionEnded: false,
+            updatedAtMs: NOW - 90,
+            managed: true,
+          },
+          {
+            kind: "session",
+            sessionId: "sess-open",
+            title: "用户手开会话",
+            phase: "idle",
+            sessionEnded: false,
+            updatedAtMs: NOW - 80,
+            teamStatus: "team-1 running",
+          },
+          {
+            kind: "offpeak",
+            taskId: "task-inv",
+            title: "闲时任务",
+            updatedAtMs: NOW - 70,
+          },
+        ],
+      },
+      {
+        key: "ws-b",
+        rows: [
+          {
+            kind: "session",
+            sessionId: "sess-b",
+            title: "跨项目会话",
+            phase: "idle",
+            sessionEnded: false,
+            updatedAtMs: NOW - 60,
+          },
+        ],
+      },
+    ],
+  };
+}
+
+describe("P8b 应答器：work scope（09 §1.6）", () => {
+  it("全域答案：每项目一行（kind 计数/teams 注记/最近活动/停滞点）", () => {
+    const { reply } = setup();
+    const result = reply({ kind: "work" }, seedInventory());
+    expect(result.text).toContain("全域台账 2 个项目");
+    expect(result.text).toContain("- ws-a：工单 1 · 会话 2（teams 1） · 闲时任务 1");
+    expect(result.text).toContain("停滞 1");
+    expect(result.text).toContain("- ws-b：会话 1");
+    // matchedTickets=台账工单行数（ws-a 一行；ws-b 无工单）。
+    expect(result.matchedTickets).toBe(1);
+    expect(result.text.length).toBeLessThanOrEqual(ASSISTANT_REPLY_LIMITS.replyTextMax + 1);
+  });
+
+  it("±workspaceIdentity：scoped 只答该域；未收录域如实注记视图有界（不臆测无工作）", () => {
+    const { reply } = setup();
+    const scoped = reply({ kind: "work", workspaceIdentity: "ws-b" }, seedInventory());
+    expect(scoped.text).toContain("ws-b（全域台账）");
+    expect(scoped.text).not.toContain("ws-a");
+    expect(scoped.matchedTickets).toBe(0);
+    const unknown = reply({ kind: "work", workspaceIdentity: "ws-none" }, seedInventory());
+    expect(unknown.matchedTickets).toBe(0);
+    expect(unknown.text).toContain("没有 ws-none 的条目");
+    expect(unknown.text).toContain("台账视图有界");
+  });
+
+  it("空态：inventory.workspaces 空=全域无活动（与「投影就绪中」回落区分）", () => {
+    const { reply } = setup();
+    const empty = reply({ kind: "work" }, { workspaces: [] });
+    expect(empty.text).toContain("全域台账当前没有活动条目");
+    expect(empty.matchedTickets).toBe(0);
+  });
+
+  it("回落：inventory 缺席 → 工单账答案并注明「仅工单视角」（不拼半张账）", () => {
+    const { db, reply } = setup();
+    seedTicket(db, {
+      id: "T-fb",
+      status: ASSISTANT_TICKET_STATUSES.running,
+      target: "ws-a",
+      brief: "修复登录",
+      updatedAtMs: NOW - 500,
+    });
+    const fallback = reply({ kind: "work", workspaceIdentity: "ws-a" });
+    expect(fallback.text).toContain("全域台账暂不可用");
+    expect(fallback.text).toContain("仅工单视角");
+    expect(fallback.text).toContain("修复登录：进行中");
+    expect(fallback.matchedTickets).toBe(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P8b（09 详设 §1.6）：台账速览升级——composeLedgerDigest 消费 inventory。
+// ---------------------------------------------------------------------------
+
+describe("P8b 台账速览：composeLedgerDigest 消费 inventory（09 §1.6）", () => {
+  it("inventory 传入 → 追加全域行（会话/teams/闲时；工单事实不重复计数）且全文 ≤600 界", () => {
+    const { db } = setup();
+    seedTicket(db, {
+      id: "T-d",
+      status: ASSISTANT_TICKET_STATUSES.running,
+      target: "ws-a",
+      brief: "速览工单",
+      updatedAtMs: NOW - 500,
+    });
+    const withoutInventory = composeLedgerDigest(db.raw, LOCAL_IDENTITY, () => NOW);
+    expect(withoutInventory).toContain("活动 1 / 待决策 0");
+    expect(withoutInventory).not.toContain("全域");
+
+    const withInventory = composeLedgerDigest(db.raw, LOCAL_IDENTITY, () => NOW, undefined, seedInventory());
+    expect(withInventory).toContain("活动 1 / 待决策 0");
+    expect(withInventory).toContain("- 全域 ws-a：会话 2（teams 1） · 闲时 1");
+    expect(withInventory).toContain("- 全域 ws-b：会话 1");
+    // 全域事实段的界升为 ledgerDigestInventoryMax=600。
+    expect([...(withInventory ?? "")].length).toBeLessThanOrEqual(
+      ASSISTANT_SNAPSHOT_LIMITS.ledgerDigestInventoryMax,
+    );
+  });
+
+  it("工单账空但 inventory 有会话 → 速览段仍出现（attach 佐证扩为全域）；全空仍缺席", () => {
+    const { db } = setup();
+    const globalOnly = composeLedgerDigest(db.raw, LOCAL_IDENTITY, () => NOW, undefined, seedInventory());
+    expect(globalOnly).toBeDefined();
+    expect(globalOnly).toContain("全域 ws-a");
+    const trulyEmpty = composeLedgerDigest(
+      db.raw,
+      LOCAL_IDENTITY,
+      () => NOW,
+      undefined,
+      { workspaces: [] },
+    );
+    expect(trulyEmpty).toBeUndefined();
   });
 });

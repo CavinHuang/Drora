@@ -68,6 +68,15 @@ import "../../src/styles.css";
  *   validationFailed 拒绝。
  * - fixture-inject-auto-notice：注入 auto_notice×gate 决策+同 decisionId 的 done 工单
  *   （F4 告知卡呈现/工单号反查验收；真实 auto 直派判定在 host 侧，夹具只造快照事实）。
+ *
+ * P8b 台账扩展（mate-surface-ac.test.mjs MSA15 消费；既有场景不点不触发）：
+ * - fixture-inject-inventory：注入全域台账视图（本组：工单 T-inv-1+代管会话+teams 会话+
+ *   闲时行；跨项目组 fixture/workspace-b：一条会话行）+ 快照 inventoryReady 信号——
+ *   工单行同步落 snapshot.tickets（总览卡工单行点击=selectTicket，详情按快照工单集
+ *   渲染）。真实三源组装在 host 侧 workInventoryBootstrap，夹具只造投影事实。
+ * - fixture-inventory-clear / fixture-inventory-empty：「投影就绪中」（view 清空、ready
+ *   保持）/「无工作」（workspaces 空）两态——三态区分验收（旧 Host 缺席=不注入即卡
+ *   不渲染）。
  */
 
 function Fixture() {
@@ -97,6 +106,9 @@ function Fixture() {
     pushReports,
     setTrustGateOpen,
     setAutoLockedNext,
+    injectInventory,
+    clearInventory,
+    emptyInventory,
   } = useMemo(
     () =>
       createMateFixtureService(
@@ -230,6 +242,17 @@ function Fixture() {
                   答复卡呈现/只读无工单动作/dismiss 出清验收。 */}
               <button data-testid="fixture-inject-query-reply" onClick={() => injectQueryReply()}>
                 注入查询直答
+              </button>
+              {/* P8b 台账验收（MSA15 消费；真实三源组装在 host 侧 workInventoryBootstrap，
+                  夹具只造快照事实：注入视图/就绪中/无工作三态）。 */}
+              <button data-testid="fixture-inject-inventory" onClick={() => injectInventory()}>
+                注入全域台账
+              </button>
+              <button data-testid="fixture-inventory-clear" onClick={() => clearInventory()}>
+                台账就绪中
+              </button>
+              <button data-testid="fixture-inventory-empty" onClick={() => emptyInventory()}>
+                台账无工作
               </button>
               <button data-testid="fixture-queue-next" onClick={queueNext}>
                 Queue next approve

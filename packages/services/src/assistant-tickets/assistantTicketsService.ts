@@ -233,6 +233,9 @@ export function createAssistantTicketsService(
     const snapshot = buildAssistantSnapshot(db.raw, readConfig(db.raw), {
       dailyQuota: quotaService.cachedQuota(),
       ...(inventory ? { inventory } : {}),
+      // P8b（09 §1.7 三态区分）：provider 已装配即携带就绪信号（此时 inventory 缺席=
+      // 「投影就绪中」）；未装配（旧装配/测试直建服务）不携带 → UI 总览卡不渲染。
+      ...(inventoryProvider ? { inventoryReady: true } : {}),
     });
     for (const emit of emitters) {
       try {

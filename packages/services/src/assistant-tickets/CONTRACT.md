@@ -113,6 +113,20 @@ ticket.channel_ref）；Thread 直通 Tier1。
   workspacePath 查全部（repo 支持），**装配层缓存**（provider 同步读缓存，
   refreshOffPeakCache 在途去重）。纯函数测试落点 workInventory.ts 矩阵 →
   services/test/assistantWorkInventory.test.ts（登记 drora-isolated 清单）。
+- **P8 台账消费侧（P8b，09 号详设 §1.6/§1.7；feat/drora-mate）**：查询直答第六 scope
+  kind `"work"`（±workspaceIdentity）——`composeQueryReply` 读调用方传入的台账视图
+  （routerEvaluation 评估链内读 provider 一次、候选卡速览与应答共用同视图）：
+  inventory 有值=每项目一行（kind 计数/teams 注记/最近活动/停滞点），缺席=回落工单账
+  并注明「仅工单视角」（不拼半张账）；scoped 未命中注记「台账视图有界」不臆测无工作。
+  `composeLedgerDigest` 消费 inventory：速览段追加「全域 …」行（会话/teams/闲时计数，
+  工单事实不重复），工单账空但全域有会话时速览段仍出现（attach 佐证扩为全域，约言
+  routerShell 同步）；全文界两界并存——纯工单 400（本地 LEDGER_DIGEST_MAX）、携全域
+  `ledgerDigestInventoryMax=600`（contracts 单出处）。快照 `inventoryReady?` 就绪信号
+  （publish 读端口后携带：provider 装配即 true，含视图 null；未装配不携带）——UI 三态
+  区分的结构性依据（true+inventory 缺席=「投影就绪中」/字段缺席=旧 Host 卡不渲染，
+  不用超时兜底）。UI 落点=MateWorkOverview（ui/mate，面板顶部状态条下；行点击=
+  selectTicket / onOpenMateSession 既有导航 / 闲时禁用提示），验收=MSA15+服务单测
+  （assistantQueryReply work scope 矩阵、assistantWorkInventory inventoryReady 投影）。
 - 端口纪律：本模块不 import drora-agent/git——v4 命令、会话索引、workspace 探测、
   git worktree、工件只读核验（P4 第二棒）、AppSettings 配额读（P4）八端口全在装配层
   （services/node.ts set*，assistantPorts.ts 唯一形状）；

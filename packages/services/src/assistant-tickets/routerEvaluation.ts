@@ -27,6 +27,22 @@ function nowMs(): number {
 }
 
 /**
+ * P8b（09 详设 §1.6）：读装配层台账 provider（同端口纪律：未注入/抛错 → null=缺席，
+ * 消费侧回落语义同 publish）。评估链内读一次、候选卡速览与 query 应答共用同一视图
+ * ——同轮评估内的账本口径一致（30s 节流的新鲜度由刷新环路保证）。
+ */
+function readInventoryView(): import("@drora/shared").MateWorkInventoryView | null {
+  const provider = getAssistantPorts().inventory;
+  if (!provider) return null;
+  try {
+    return provider();
+  } catch (error) {
+    logger.warn("assistant-tickets 台账 provider 读取失败（评估链缺席台账）", error);
+    return null;
+  }
+}
+
+/**
  * Tier2 候选集生成（02 §2；P2 审查修复接线——此前 listSessions 端口零调用方、候选卡
  * 无候选清单，Router 的 attach 臂 sessionId 无真实来源，真实链路不可达）：
  * 目标 workspace 的 sessions-index 快照 → filterAttachCandidates 硬过滤纯函数产出
@@ -103,7 +119,9 @@ export function createRouterEvaluation(deps: RouterEvaluationDeps): {
       const attachCandidates = await collectAttachCandidates(input.trigger.workspaceIdentity);
       // P7 批 2（08 号详设 §4 方案乙）：候选卡附带有界台账速览——Router 无工具即可
       // 感知账本（查询意图判定/attach 佐证）；空台账缺席（不出现速览段）。
-      const ledgerDigest = composeLedgerDigest(db.raw, deps.localIdentity, nowMs, input.decisionId);
+      // P8b（09 §1.6）：传入全域台账视图——速览段追加速览段全域会话/teams/闲时事实。
+      const inventory = readInventoryView();
+      const ledgerDigest = composeLedgerDigest(db.raw, deps.localIdentity, nowMs, input.decisionId, inventory);
       const card = composeCandidateCard({
         triggerId: input.trigger.id,
         text: input.trigger.text,
@@ -129,6 +147,8 @@ export function createRouterEvaluation(deps: RouterEvaluationDeps): {
                   scope: parsed.decision.arm.scope,
                   raw: db.raw,
                   localIdentity: deps.localIdentity,
+                  // P8b（09 §1.6）：work scope 读全域台账（与候选卡速览同视图）。
+                  inventory,
                   ...(deps.replyLocale ? { locale: deps.replyLocale } : {}),
                 });
                 queryReplyText = reply.text.slice(0, ASSISTANT_REPLY_LIMITS.replyTextMax);

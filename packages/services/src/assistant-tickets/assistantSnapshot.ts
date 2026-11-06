@@ -344,6 +344,9 @@ export function buildAssistantSnapshot(
     /** P8（09 详设 §1.2）：台账投影由装配层 provider 闭包提供；null/缺席=快照不携带
      * inventory 字段（部分源缺席=整体缺席，provider 端口注释即对账点）。 */
     inventory?: import("@drora/shared").MateWorkInventoryView | null;
+    /** P8b（09 §1.7 三态区分的结构性信号）：true=装配层已注入台账 provider（inventory
+     * 缺席此时=「投影就绪中」）；缺席=旧 Host/旧装配（无台账能力，UI 卡不渲染）。 */
+    inventoryReady?: boolean;
   } = {},
 ): AssistantSnapshot {
   const triggers = (
@@ -513,6 +516,8 @@ export function buildAssistantSnapshot(
     // P8（09 详设 §1.2）：台账投影整体缺席语义——provider 给 null（或未注入）时
     // 快照不携带 inventory 字段；给视图时原样挂载（形状由 mateWorkInventorySchema 权威）。
     ...(extras.inventory ? { inventory: extras.inventory } : {}),
+    // P8b：台账能力就绪信号（服务 publish 读端口后传入；旧装配不携带 → UI 卡不渲染）。
+    ...(extras.inventoryReady ? { inventoryReady: true } : {}),
     updatedAtMs: nowMs,
   };
 }

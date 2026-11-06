@@ -352,6 +352,10 @@ export const ASSISTANT_SNAPSHOT_LIMITS = {
   inventoryWorkspaceSetMax: 16,
   /** 台账行标题（brief/会话标题/任务标题）截断长度（code point）。 */
   inventoryTitleMax: 120,
+  // ---- P8b（09 详设 §1.6）：候选卡【台账速览】段的容量界（两界并存） ----
+  /** 台账速览全文截断长度（速览消费 inventory 全域事实时的界；工单速览界 400
+   * 仍在 services queryReply 本地——v1 写死的 400 是工单速览界，两界并存）。 */
+  ledgerDigestInventoryMax: 600,
 } as const;
 
 /**

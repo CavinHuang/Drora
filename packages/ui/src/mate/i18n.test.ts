@@ -213,6 +213,20 @@ const MATE_CONSUMED_KEYS: readonly string[] = [
   // F4（2026-11-06 审查）：auto 告知卡（MateAutoNoticeRow；spec §6「执行（出告知卡）」）。
   "mate.autoNotice.label",
   "mate.autoNotice.ticket",
+  // P8b 全域工作总览卡（09 详设 §1.7；MateWorkOverview formatMessage 全量键）。
+  "mate.work.title",
+  "mate.work.pending",
+  "mate.work.empty",
+  "mate.work.kind.ticket",
+  "mate.work.kind.session",
+  "mate.work.kind.session.teams",
+  "mate.work.kind.offpeak",
+  "mate.work.stale",
+  "mate.work.stale.hint",
+  "mate.work.managed",
+  "mate.work.managed.hint",
+  "mate.work.session.managed",
+  "mate.work.offpeak.disabled",
 ];
 
 /** tab 条与 launcher 消费（sidePaneTabPresentation / AnimatedSidePanePanel launcher）。 */

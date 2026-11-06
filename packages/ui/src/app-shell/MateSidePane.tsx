@@ -17,6 +17,7 @@ import {
   MateTicketDetail,
   MateTicketRow,
   MateTrustBar,
+  MateWorkOverview,
   MateWorkspaceGroup,
   deriveMateStatusLine,
   deriveMateViewModel,
@@ -42,6 +43,7 @@ import { EMPTY_MATE_WORKSPACE_STATE } from "@/store/mateStore.js";
  * 自动关 tab（无 GC 的东西）。
  *
  * 组成：MateStatusStrip（大副会话状态条：mode/活动/排队/待决策，02 §1.4）→
+ * MateWorkOverview（全域工作总览卡，P8b/09 §1.7：三态区分，旧 Host 缺席=卡不渲染）→
  * MatePaneHeader（过滤 pills+软预算）→ MateTrustBar → 滚动区（决策卡｜workspace
  * 分组的工单行/汇报卡｜观察行）→ MateConfigSection（模式/名单/W1 worktree 开关/双测试触发按钮）。
  * Surface C：工单行/汇报卡选中后整面板切 MateTicketDetail 二级视图（返回按钮回列表，
@@ -115,7 +117,8 @@ export const MateSidePane = memo(function MateSidePane({
   const setFilter = useMateStore((state) => state.setFilter);
   const selectTicket = useMateStore((state) => state.selectTicket);
   const expandDecision = useMateStore((state) => state.expandDecision);
-  const { filter, selectedTicketId, expandedDecisionId } = workspaceState;
+  const toggleWorkWorkspace = useMateStore((state) => state.toggleWorkWorkspace);
+  const { filter, selectedTicketId, expandedDecisionId, expandedWorkKeys } = workspaceState;
 
   const viewModel = useMemo(
     () => (snapshot === null ? null : deriveMateViewModel(snapshot, filter)),
@@ -179,6 +182,29 @@ export const MateSidePane = memo(function MateSidePane({
     [onOpenMateSession, tab.remoteSessionId, tab.workspaceIdentity, tab.workspacePath],
   );
 
+  // P8b（09 详设 §1.7）：总览卡会话行 → onOpenMateSession 既有导航（不发明新导航面）。
+  // 组键=AGENTS 身份键：本 pane 自己的组带完整 tab 坐标（identity/remoteSessionId 同
+  // handleOpenSession）；跨组只有组键——本地项目组键即路径（直接激活/补开 tab，与
+  // automations 运行历史同一条跨项目本地导航路径），远程 identity 键的落位路径不在此
+  // pane 的契约内，按组键作路径传（沿用既有导航面的诚实兜底，不加第二路由）。
+  const handleOpenWorkSession = useCallback(
+    (sessionId: string, groupKey: string) => {
+      if (!onOpenMateSession) return;
+      const ownKey = tab.workspaceIdentity?.trim() || tab.workspacePath;
+      if (groupKey === ownKey) {
+        onOpenMateSession({
+          sessionId,
+          workspacePath: tab.workspacePath,
+          ...(tab.workspaceIdentity ? { workspaceIdentity: tab.workspaceIdentity } : {}),
+          ...(tab.remoteSessionId ? { remoteSessionId: tab.remoteSessionId } : {}),
+        });
+        return;
+      }
+      onOpenMateSession({ sessionId, workspacePath: groupKey });
+    },
+    [onOpenMateSession, tab.remoteSessionId, tab.workspaceIdentity, tab.workspacePath],
+  );
+
   if (service === null || snapshot === null || viewModel === null || statusLine === null) {
     return <MateUnavailableState loading={loading && service !== null} error={error} />;
   }
@@ -213,6 +239,16 @@ export const MateSidePane = memo(function MateSidePane({
   return (
     <div className="flex h-full min-h-0 flex-col" data-testid="mate-side-pane">
       <MateStatusStrip status={statusLine} quota={quotaLine} />
+      {/* P8b（09 详设 §1.7）：全域工作总览卡——面板顶部状态条下；三态区分在组件内
+          （旧 Host 缺席=卡不渲染），MateSidePane 只透传快照事实与既有导航通道。 */}
+      <MateWorkOverview
+        inventory={snapshot.inventory}
+        inventoryReady={snapshot.inventoryReady === true}
+        expandedKeys={expandedWorkKeys}
+        onToggleWorkspace={(groupKey) => toggleWorkWorkspace(workspaceKey, groupKey)}
+        onSelectTicket={(ticketId) => selectTicket(workspaceKey, ticketId)}
+        {...(onOpenMateSession ? { onOpenSession: handleOpenWorkSession } : {})}
+      />
       <MatePaneHeader
         filter={filter}
         counts={viewModel.counts}

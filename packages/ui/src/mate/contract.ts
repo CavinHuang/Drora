@@ -14,9 +14,9 @@ import type { MateFilter } from "./view-model.js";
 
 /**
  * mateStore 持有的全部状态——快照不是其中之一（唯一事实在 service 的 onDidChange 推送）。
- * 除这三件 UI 局部态外，store 不保存任何 Mate 业务字段（无 error/operationId/快照副本，
+ * 除这四件 UI 局部态外，store 不保存任何 Mate 业务字段（无 error/operationId/快照副本，
  * 动作结果经 Promise 返回给调用方消费）。
- * 三件态按 workspace 分域存放（store.byWorkspace，键=tab.workspaceKey，即
+ * 四件态按 workspace 分域存放（store.byWorkspace，键=tab.workspaceKey，即
  * workspaceIdentity?.trim() || workspacePath 的 AGENTS 身份键规则）——mate tab 每
  * workspace 一个且 side pane 对全部 tab 常挂载，单例会跨区串扰（PR-1B 二审发现 6）。
  */
@@ -24,4 +24,6 @@ export interface MateLocalUiState {
   filter: MateFilter;
   selectedTicketId: string | null;
   expandedDecisionId: number | null;
+  /** P8b（09 详设 §1.7）：全域工作总览卡展开的 workspace 组键集（MateWorkOverview）。 */
+  expandedWorkKeys: readonly string[];
 }

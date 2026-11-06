@@ -22,8 +22,8 @@ const { default: tailwindcss } = await import(
 );
 
 test(
-  "MSA01–14: Surface A status strip, Router suggestion prefill (dispatch/attach/failed/hold), team action, queued notice, Surface C tabs, generation badge, session-line, W1 worktree toggle, F1 bare-approve chain guard + F2 trigger feedback, F4 auto-notice card",
-  { timeout: 180000 },
+  "MSA01–15: Surface A status strip, Router suggestion prefill (dispatch/attach/failed/hold), team action, queued notice, Surface C tabs, generation badge, session-line, W1 worktree toggle, F1 bare-approve chain guard + F2 trigger feedback, F4 auto-notice card, P7 query reply, P8 work overview card",
+  { timeout: 240000 },
   async () => {
     const output = await mkdtemp(join(tmpdir(), "mate-surface-ac-"));
     const server = await createServer({
@@ -370,6 +370,85 @@ test(
       await page.waitForFunction(
         () => document.querySelectorAll('[data-testid="mate-query-reply-row"]').length === 0,
       );
+
+      // MSA15（P8 全域工作台账 UI，09 号详设 §1.7；fixture 只造投影事实，真实三源组装
+      // 在 host 侧 workInventoryBootstrap）：三态区分——旧 Host（未注入 inventoryReady）
+      // =卡不渲染 → 注入 → 总览卡（分组/每项目行 kind 徽标计数/停滞点/managed 标记/
+      // teams 徽标）→ 展开行列表（工单行点击下钻详情、会话行点击既有导航读点、闲时行
+      // 禁用+提示）→「投影就绪中」与「无工作」两态区分。
+      assert.equal(await page.getByTestId("mate-work-overview").count(), 0);
+      await page.getByTestId("fixture-inject-inventory").click();
+      const overview = page.getByTestId("mate-work-overview");
+      await overview.waitFor();
+      // 分组：两项目（组序=最近活动 desc，本组在前）。
+      const groups = page.getByTestId("mate-work-overview-group");
+      assert.equal(await groups.count(), 2);
+      const ownGroup = groups.filter({ hasText: "工单 1" });
+      assert.equal(await ownGroup.count(), 1);
+      assert.match(await ownGroup.textContent(), /fixture\/workspace/);
+      // 每项目行徽标：kind 计数（工单/会话·teams/闲时）+ 停滞警示 + managed 标记。
+      assert.match(await ownGroup.textContent(), /工单 1/);
+      assert.match(await ownGroup.textContent(), /会话 2（teams 1）/);
+      assert.match(await ownGroup.textContent(), /闲时 1/);
+      assert.match(await ownGroup.textContent(), /停滞 1/);
+      assert.match(await ownGroup.textContent(), /代管 1/);
+      const crossGroup = groups.filter({ hasText: "fixture/workspace-b" });
+      assert.equal(await crossGroup.count(), 1);
+      assert.match(await crossGroup.textContent(), /会话 1/);
+      assert.equal(await crossGroup.getByTestId("mate-work-overview-stall").count(), 0);
+      // 展开：工单行=既有工单行形态（灯+标题+停滞徽标+相对时刻）→ 点击下钻详情。
+      await ownGroup.getByTestId("mate-work-overview-group-toggle").click();
+      const overviewTicket = ownGroup.getByTestId("mate-work-overview-ticket-row");
+      await overviewTicket.waitFor();
+      assert.match(await overviewTicket.textContent(), /台账验收工单/);
+      assert.equal(await overviewTicket.getByTestId("mate-work-overview-ticket-stale").count(), 1);
+      await overviewTicket.click();
+      await page.getByTestId("mate-ticket-detail").waitFor();
+      assert.match(await page.getByTestId("mate-detail-tab-timeline").textContent(), /时间线/);
+      await page.getByTestId("mate-detail-back").click();
+      await page.waitForFunction(
+        () => document.querySelectorAll('[data-testid="mate-ticket-detail"]').length === 0,
+      );
+      // 会话行两枚：代管徽标（managed=true）+ teams 徽标（teamStatus 投影）；点击=既有导航读点。
+      const sessionRows = ownGroup.getByTestId("mate-work-overview-session-row");
+      assert.equal(await sessionRows.count(), 2);
+      const managedSession = sessionRows.filter({ hasText: "代管" });
+      assert.equal(await managedSession.count(), 1);
+      assert.equal(await managedSession.getByTestId("mate-work-overview-session-managed").count(), 1);
+      const teamSession = sessionRows.filter({ hasText: "team-1 running" });
+      assert.equal(await teamSession.count(), 1);
+      assert.equal(await teamSession.getByTestId("mate-work-overview-session-team").count(), 1);
+      await teamSession.click();
+      await page.waitForFunction(
+        () =>
+          /sess-inv-open/.test(
+            document.querySelector('[data-testid="fixture-open-session"]')?.textContent ?? "",
+          ),
+      );
+      // 闲时行：本 pane 无任务中心导航面 → 禁用+title 提示（不发明新导航面）。
+      const offpeakRow = ownGroup.getByTestId("mate-work-overview-offpeak-row");
+      await offpeakRow.waitFor();
+      assert.equal(await offpeakRow.isDisabled(), true);
+      assert.match(await offpeakRow.getAttribute("title"), /任务中心/);
+      // 跨项目组：展开→会话行点击=既有导航（组键作路径的既有通道，读点同锚）。
+      await crossGroup.getByTestId("mate-work-overview-group-toggle").click();
+      const crossSession = crossGroup.getByTestId("mate-work-overview-session-row");
+      await crossSession.waitFor();
+      await crossSession.click();
+      await page.waitForFunction(
+        () =>
+          /sess-inv-cross/.test(
+            document.querySelector('[data-testid="fixture-open-session"]')?.textContent ?? "",
+          ),
+      );
+      // 三态区分：清视图（ready 保持）→「投影就绪中」；空视图 →「无工作」；均非缺席。
+      await page.getByTestId("fixture-inventory-clear").click();
+      await page.getByTestId("mate-work-overview-pending").waitFor();
+      await page.getByTestId("fixture-inventory-empty").click();
+      await page.getByTestId("mate-work-overview-empty").waitFor();
+      assert.equal(await page.getByTestId("mate-work-overview-pending").count(), 0);
+      await page.getByTestId("fixture-inject-inventory").click();
+      await overview.waitFor();
 
       assert.deepEqual(errors, []);
       console.log(`Mate Surface evidence: ${output}`);

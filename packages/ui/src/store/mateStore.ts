@@ -32,6 +32,7 @@ export const EMPTY_MATE_WORKSPACE_STATE: MateLocalUiState = {
   filter: "decision",
   selectedTicketId: null,
   expandedDecisionId: null,
+  expandedWorkKeys: [],
 };
 
 interface MateState {
@@ -41,6 +42,8 @@ interface MateState {
   setFilter(workspaceKey: string, filter: MateFilter): void;
   selectTicket(workspaceKey: string, ticketId: string | null): void;
   expandDecision(workspaceKey: string, decisionId: number | null): void;
+  /** P8b（09 详设 §1.7）：总览卡 workspace 组展开/收起（幂等 toggle）。 */
+  toggleWorkWorkspace(workspaceKey: string, groupKey: string): void;
 
   /** 本地触发（双测试按钮）；动作经 service，结果由调用方消费（toast 等）。 */
   recordTrigger(
@@ -245,6 +248,23 @@ export const useMateStore = create<MateState>((set, get) => {
           },
         },
       }));
+    },
+
+    // P8b（09 详设 §1.7）：总览卡组展开 toggle——组键集替换写（不复制快照，只存键集）。
+    toggleWorkWorkspace(workspaceKey, groupKey) {
+      set((state) => {
+        const current =
+          state.byWorkspace[workspaceKey] ?? EMPTY_MATE_WORKSPACE_STATE;
+        const expanded = current.expandedWorkKeys.includes(groupKey)
+          ? current.expandedWorkKeys.filter((key) => key !== groupKey)
+          : [...current.expandedWorkKeys, groupKey];
+        return {
+          byWorkspace: {
+            ...state.byWorkspace,
+            [workspaceKey]: { ...current, expandedWorkKeys: expanded },
+          },
+        };
+      });
     },
 
     recordTrigger(service, workspaceKey, input) {

@@ -17,6 +17,7 @@ import test from "node:test";
 import { createRequire } from "node:module";
 import { join } from "node:path";
 import { mkdtemp } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
 import { pathToFileURL } from "node:url";
 import { createServer } from "vite";
@@ -35,7 +36,17 @@ test(
       configFile: false,
       root: process.cwd(),
       // 独立缓存避免并行 worktree 共用 node_modules 时复用其他版本的图标预构建。
-      cacheDir: join(output, "vite-cache"),
+      // P10a-2 门禁轮（2026-11-07）：浏览器资产以单条 node --test <多资产> 并行执行，
+      // 每跑一次的 mkdtemp 冷缓存在 N 路并行下首次依赖预构建互相挤兑（goto 60s
+      // 全员撞线，实测复现）。缓存目录改稳定键=<资产名>-<仓库路径哈希>：跨
+      // worktree 仍隔离（原 mkdtemp 缓存的隔离目的不变——不同 worktree 的
+      // node_modules 版本不互染）、跨资产分目录（并行无写竞争）、重复运行复用
+      // 热缓存（依赖变化由 vite 自身指纹失效，不需人工清理）。
+      cacheDir: join(
+        tmpdir(),
+        "mate-ui-vite-cache",
+        `surface-ac-${createHash("sha256").update(process.cwd()).digest("hex").slice(0, 16)}`,
+      ),
       // 只扫描本用例入口，避免 legacy 手机壳 HTML 抢先选择它自己的旧版 lucide-react。
       optimizeDeps: { entries: ["packages/ui/test/fixtures/mate-browser.fixture.tsx"] },
       plugins: [
@@ -70,7 +81,9 @@ test(
         waitUntil: "domcontentloaded",
         // P4 修复轮放宽：fixture 增挂 ConfirmDialogHost（CodeBlock/shiki）后冷优化依赖图变重，
         // 30s 默认在冷机首跑会撞线（mate-trust-auto.test.mjs 同因由）。
-        timeout: 60_000,
+        // P10a-2 门禁轮再放宽：单条 node --test 多资产并行执行时 N 路冷优化互相挤兑
+        // （60s 全员撞线，2026-11-07 实测）；配合上方稳定热缓存目录，120s 覆盖首冷+并行。
+        timeout: 120_000,
       });
       await page.getByTestId("mate-side-pane").waitFor();
       // P10a-2：待决策卡/告知卡在对话流与收件箱同卡双视图——卡片断言统一按收件箱容器

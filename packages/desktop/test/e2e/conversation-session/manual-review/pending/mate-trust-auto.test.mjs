@@ -9,8 +9,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createRequire } from "node:module";
+import { createHash } from "node:crypto";
 import { join } from "node:path";
-import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { pathToFileURL } from "node:url";
 import { createServer } from "vite";
@@ -24,11 +24,20 @@ test(
   "MTA01–03: trust gate closed hides entry, confirm dialog lists allowlist+budget, setMode success arm converges to auto, mate.auto.locked failure arm",
   { timeout: 240000 },
   async () => {
-    const output = await mkdtemp(join(tmpdir(), "mate-trust-auto-"));
     const server = await createServer({
       configFile: false,
       root: process.cwd(),
-      cacheDir: join(output, "vite-cache"),
+      // P10a-2 门禁轮（2026-11-07）：浏览器资产以单条 node --test <多资产> 并行执行，
+      // 每跑一次的 mkdtemp 冷缓存在 N 路并行下首次依赖预构建互相挤兑（goto 60s
+      // 全员撞线，实测复现）。缓存目录改稳定键=<资产名>-<仓库路径哈希>：跨
+      // worktree 仍隔离（原 mkdtemp 缓存的隔离目的不变——不同 worktree 的
+      // node_modules 版本不互染）、跨资产分目录（并行无写竞争）、重复运行复用
+      // 热缓存（依赖变化由 vite 自身指纹失效，不需人工清理）。
+      cacheDir: join(
+        tmpdir(),
+        "mate-ui-vite-cache",
+        `trust-auto-${createHash("sha256").update(process.cwd()).digest("hex").slice(0, 16)}`,
+      ),
       optimizeDeps: { entries: ["packages/ui/test/fixtures/mate-browser.fixture.tsx"] },
       plugins: [
         tailwindcss(),
@@ -62,7 +71,9 @@ test(
       // 变大，30s 默认在本机冷启动下会撞线（实测一次 30s 超时，二跑 55s 内完成）。
       await page.goto(`http://127.0.0.1:${address.port}/mate-ui-test`, {
         waitUntil: "domcontentloaded",
-        timeout: 60_000,
+        // P10a-2 门禁轮再放宽到 120s：多资产单条 node --test 并行冷优化挤兑
+        // （60s 全员撞线，2026-11-07 实测）；配合上方稳定热缓存目录覆盖首冷+并行。
+        timeout: 120_000,
       });
       await page.getByTestId("mate-side-pane").waitFor();
 

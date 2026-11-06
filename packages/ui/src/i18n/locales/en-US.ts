@@ -9527,6 +9527,14 @@ const enUS: Record<string, string> = {
   "voice.settings.dictation.lang.label": "Dictation language",
   "voice.settings.dictation.lang.zh": "中文（普通话）",
   "voice.settings.dictation.lang.en": "English (US)",
+  "voice.settings.dictation.holdKey.label": "Hold-to-talk key",
+  "voice.settings.dictation.holdKey.description":
+    "Hold the selected key to talk and release to transcribe (works alongside the mic button). For Fn, set System Settings → Keyboard → “Press 🌐 key to” to “Do Nothing”, otherwise the system intercepts it.",
+  "voice.settings.dictation.holdKey.off": "Off",
+  "voice.settings.dictation.holdKey.fn": "Fn (🌐)",
+  "voice.settings.dictation.hybridPreview.label": "Live transcription preview",
+  "voice.settings.dictation.hybridPreview.description":
+    "While holding with a cloud ASR engine, show live preview via system speech recognition; the final text written on release comes from the cloud engine.",
   "voice.settings.dictation.lang.auto": "Follow interface language",
   "voice.settings.announcement.enable.label": "Turn-end announcement",
   "voice.settings.announcement.enable.description":

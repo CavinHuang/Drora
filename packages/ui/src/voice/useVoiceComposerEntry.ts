@@ -45,6 +45,8 @@ export interface VoiceComposerEntryController {
   privacyDialogOpen: boolean;
   dictation: ReturnType<typeof useVoiceDictation>;
   dictationLang: string;
+  /** §5.5.1 长按听写持键（appSettings；"off" = 组件不挂 window 监听）。 */
+  dictationHoldKey: "off" | "fn";
   /** 可见时的 hover 提示（不可见为空串；组件按 view.visible 决定是否渲染）。 */
   tooltip: string;
 }
@@ -195,6 +197,9 @@ export function useVoiceComposerEntry({
     () => Promise.resolve(vendorConnectionRef.current?.apiKey ?? null),
     [],
   );
+  // §5.5：长按听写两设置键（appSettings 行为偏好；schema 默认 off/true）。
+  const dictationHoldKey = settings?.voiceDictationHoldKey ?? "off";
+  const dictationHybridPreview = settings?.voiceDictationHybridPreview ?? true;
   const dictation = useVoiceDictation({
     sessionId,
     workspacePath,
@@ -207,6 +212,8 @@ export function useVoiceComposerEntry({
       model: asrCapability?.modelId ?? "",
     },
     getVendorApiKey,
+    // §5.5.2：混合流式预览开关。
+    hybridPreview: dictationHybridPreview,
     // §9.9.3-M9：入口可见性（voiceComposerEntryState 纯函数收口的唯一判定源）——
     // 录音中设置隐藏入口 = 持有者定向停止，不留下无入口的继续拾音。
     entryVisible: view.visible,
@@ -220,6 +227,7 @@ export function useVoiceComposerEntry({
     privacyDialogOpen,
     dictation,
     dictationLang,
+    dictationHoldKey,
     tooltip: view.visible ? intl.formatMessage({ id: view.tooltipMessageId }) : "",
   };
 }

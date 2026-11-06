@@ -37,6 +37,11 @@ export const VOICE_SETTINGS_KEYS = {
   personaId: "voicePersonaId",
   toolBriefEnabled: "voiceToolBriefEnabled",
   privacyDisclosureAcknowledged: "voicePrivacyDisclosureAcknowledged",
+  // §5.5.1：长按听写持键（"off" | "fn"；Fn 可达性依赖系统设置「按下 🌐=无操作」，
+  // 默认 off）。
+  dictationHoldKey: "voiceDictationHoldKey",
+  // §5.5.2：remote 腿长按期间 webSpeech 实时预览（混合流式）。
+  dictationHybridPreview: "voiceDictationHybridPreview",
 } as const;
 
 /** 跨窗口 claim 键（经既有 BroadcastHub 通用 claim 通道，Main 不解析语义）。 */

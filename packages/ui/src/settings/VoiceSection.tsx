@@ -230,6 +230,50 @@ export function VoiceSection() {
             </Select>
           }
         />
+        <SettingsRow
+          label={intl.formatMessage({ id: "voice.settings.dictation.holdKey.label" })}
+          description={intl.formatMessage({ id: "voice.settings.dictation.holdKey.description" })}
+          control={
+            <Select
+              value={settings?.voiceDictationHoldKey ?? "off"}
+              onValueChange={(value) => {
+                void updateSettings({ voiceDictationHoldKey: value as "off" | "fn" });
+              }}
+            >
+              <SelectTrigger
+                className="w-32"
+                aria-label={intl.formatMessage({ id: "voice.settings.dictation.holdKey.label" })}
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="off">
+                  {intl.formatMessage({ id: "voice.settings.dictation.holdKey.off" })}
+                </SelectItem>
+                <SelectItem value="fn">
+                  {intl.formatMessage({ id: "voice.settings.dictation.holdKey.fn" })}
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          }
+        />
+        <SettingsRow
+          label={intl.formatMessage({ id: "voice.settings.dictation.hybridPreview.label" })}
+          description={intl.formatMessage({
+            id: "voice.settings.dictation.hybridPreview.description",
+          })}
+          control={
+            <Switch
+              aria-label={intl.formatMessage({
+                id: "voice.settings.dictation.hybridPreview.label",
+              })}
+              checked={settings?.voiceDictationHybridPreview !== false}
+              onCheckedChange={(checked) =>
+                void updateSettings({ voiceDictationHybridPreview: checked })
+              }
+            />
+          }
+        />
       </SettingsGroupCard>
       <SettingsGroupCard>
         <SettingsRow

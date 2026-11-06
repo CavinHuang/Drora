@@ -545,6 +545,10 @@ const appSettingsObjectSchema = z.object({
   voicePersonaId: z.string().default(""),
   voiceToolBriefEnabled: z.boolean().default(false),
   voicePrivacyDisclosureAcknowledged: z.boolean().default(false),
+  // §5.5.1 长按听写持键（specs/voice-agent-integration.md §6.1 行 10）。
+  voiceDictationHoldKey: z.enum(["off", "fn"]).default("off"),
+  // §5.5.2 混合流式预览（§6.1 行 11）。
+  voiceDictationHybridPreview: z.boolean().default(true),
   taskAutoArchiveEnabled: z.boolean().default(false),
   taskAutoArchiveResetVersion: z.literal(1).default(1),
   taskAutoArchiveOlderThanDays: z.number().int().positive().max(365).default(30),
@@ -666,6 +670,8 @@ export const appSettingsPatchSchema = z.object({
   voicePersonaId: z.string().optional(),
   voiceToolBriefEnabled: z.boolean().optional(),
   voicePrivacyDisclosureAcknowledged: z.boolean().optional(),
+  voiceDictationHoldKey: z.enum(["off", "fn"]).optional(),
+  voiceDictationHybridPreview: z.boolean().optional(),
   taskAutoArchiveEnabled: z.boolean().optional(),
   taskAutoArchiveOlderThanDays: z.number().int().positive().max(365).optional(),
   closeToTrayOnWindows: z.boolean().optional(),

@@ -233,6 +233,7 @@
   "packages/ui/src/voice/voiceAnnouncementClaim.test.ts",
   "packages/ui/src/voice/voiceCommandBus.test.ts",
   "packages/ui/src/voice/voiceComposerEntryState.test.ts",
+  "packages/ui/src/voice/voiceHoldTalk.test.ts",
   "packages/ui/src/voice/voiceI18n.test.ts",
   "packages/ui/src/voice/voiceMp3FrameBuffer.test.ts",
   "packages/ui/src/voice/voicePersonas.test.ts",

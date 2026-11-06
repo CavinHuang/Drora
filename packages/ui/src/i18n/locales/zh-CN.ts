@@ -8972,6 +8972,14 @@ const zhCN: Record<string, string> = {
   "voice.settings.dictation.lang.label": "听写语言",
   "voice.settings.dictation.lang.zh": "中文（普通话）",
   "voice.settings.dictation.lang.en": "English (US)",
+  "voice.settings.dictation.holdKey.label": "长按听写",
+  "voice.settings.dictation.holdKey.description":
+    "按住所选键说话、松开转写（与点按 mic 并存）。选 Fn 前需在系统设置 → 键盘 →「按下 🌐 键时」选「无操作」，否则按键被系统拦截。",
+  "voice.settings.dictation.holdKey.off": "关闭",
+  "voice.settings.dictation.holdKey.fn": "Fn（🌐）",
+  "voice.settings.dictation.hybridPreview.label": "实时预览转写",
+  "voice.settings.dictation.hybridPreview.description":
+    "云端识别长按期间用系统语音识别在预览条实时显示听写内容，松开后以云端识别结果为准写入。",
   "voice.settings.dictation.lang.auto": "跟随界面语言",
   "voice.settings.announcement.enable.label": "轮尾播报",
   "voice.settings.announcement.enable.description":

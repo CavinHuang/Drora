@@ -22,6 +22,10 @@ import { useOptionalServices } from "@/hooks/useServices.js";
 import { useDroraIntl } from "@/i18n/IntlProvider.js";
 import { useDroraSessionStore } from "@/store/droraSessionStore.js";
 import { isVoiceLastDictationFresh, useVoiceSessionStore } from "@/store/voiceSessionStore.js";
+import {
+  attachHoldTalkKeyListeners,
+  createHoldTalkKeyHandler,
+} from "./voiceHoldTalk.js";
 import { VOICE_LAST_DICTATION_TTL_MS, VOICE_NOTICE_VISIBLE_TTL_MS } from "./voiceTuning.js";
 import { DictationPreviewOverlay } from "./DictationPreviewOverlay.js";
 import { VoicePrivacyDisclosureDialog } from "./VoicePrivacyDisclosureDialog.js";
@@ -68,9 +72,25 @@ function V4ComposerVoiceEntryMounted({
     cancelPrivacyAcknowledgement,
     privacyDialogOpen,
     dictation,
+    dictationHoldKey,
     tooltip,
   } = useVoiceComposerEntry({ sessionId, workspacePath, workspaceIdentity, isWebRemoteControl });
   const snapshot = useVoiceDictationSnapshot();
+  // §5.5.1 长按听写：window 级捕获（capture 阶段；不要求 composer 聚焦）。
+  // "off" 不挂监听；blur 兜底 = 松手语义（转写已说内容）。
+  const pressStartRef = useRef(dictation.pressStart);
+  pressStartRef.current = dictation.pressStart;
+  const pressStopRef = useRef(dictation.pressStop);
+  pressStopRef.current = dictation.pressStop;
+  useEffect(() => {
+    if (dictationHoldKey === "off") return;
+    const handler = createHoldTalkKeyHandler({
+      holdKey: dictationHoldKey,
+      onPressStart: () => pressStartRef.current(),
+      onPressStop: () => pressStopRef.current(),
+    });
+    return attachHoldTalkKeyListeners(handler, window);
+  }, [dictationHoldKey]);
   const [pulseHighlighted, setPulseHighlighted] = useState(false);
   const [lastDictationExpired, setLastDictationExpired] = useState(false);
   const lastPulseSeqRef = useRef(snapshot.recordingPulseSeq);

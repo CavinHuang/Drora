@@ -35,7 +35,8 @@ describe("voice contract constants", () => {
   it("exposes exactly the behavior-preference appSettings keys（§6.1 + §9.7.5/§9.7.8 additive；厂商档六键随模型能力收敛迁出）", () => {
     // 模型能力收敛（specs/model-capabilities.md §3.3 批次二）：asrEngine/vendorBaseUrl/
     // asrVendorModel/ttsEngine/ttsVendorModel/ttsVendorVoice 六键迁入模型能力档案，
-    // voice 契约收窄为纯行为偏好 9 键（引擎选择在档案 asr/tts 条目）。
+    // voice 契约收窄为纯行为偏好键（引擎选择在档案 asr/tts 条目）。
+    // §5.5（2026-11-06）：+dictationHoldKey/dictationHybridPreview 两键（长按听写）。
     expect(Object.keys(VOICE_SETTINGS_KEYS).sort()).toEqual(
       [
         "announcementEnabled",
@@ -43,6 +44,8 @@ describe("voice contract constants", () => {
         "announcementRate",
         "announcementVoice",
         "composerEntryHidden",
+        "dictationHoldKey",
+        "dictationHybridPreview",
         "dictationLang",
         "personaId",
         "privacyDisclosureAcknowledged",

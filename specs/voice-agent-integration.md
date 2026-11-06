@@ -448,6 +448,30 @@ export const VOICE_INTERRUPT_FALLBACK = "en-US";   // 第三语言回退
 
 composerTextInsertRequest 无回执类型；注入后乐观回 Idle，final 文本暂存 `lastDictation`（TTL 300s），覆盖两条失败路径：消费门不匹配（§3.2 输入腿 Injecting→Idle 暂存出边）与绑定会话消失（§3.3 生命周期规则）。**「恢复上次转写」入口（FD-4）挂在 mic 按钮上**：lastDictation 非空且未过 TTL 时，mic 按钮右键（桌面）/长按（触屏）弹出单项菜单；左键点按仍是开始听写，不受影响。恢复以**新 requestId** 重试，目标 = 触发恢复的 mic 入口所在会话（原绑定会话已消失或消费门不匹配，重试不指向旧目标）；恢复成功即清空暂存。TTL 300s 过期后菜单项不再渲染（直接消失，不置灰）。乐观模型无法区分注入成败，菜单对两条失败路径同样可用，重复恢复产生重复文本属用户显式动作（语义同再次粘贴）。残余风险（记档不解决）：重试窗口内用户若已手动编辑正文，append 规则保证不覆盖，但文本顺序可能与口述顺序交错。
 
+### 5.5 长按 Fn 听写与混合流式预览（2026-11-06 立项，用户裁定「全套（1+混合 B）」）
+
+#### 5.5.1 形态与触发
+
+- **长按 Fn（🌐）键 = 按住说话，松开 = 停止并转写**；与既有「点按 mic 按钮切换」**并存**（同一状态机两条触发面，长按是新增入口不是替换）。
+- **键捕获层**（ui/voice/voiceHoldTalk.ts，纯逻辑核心可 fake 事件单测）：window 级 keydown/keyup 捕获（不要求 composer 聚焦——长按肌肉记忆是窗口全局的）。识别 `event.key === "Fn"`；守卫：`event.repeat` 忽略；`isComposing` 忽略。
+- **平台现实与降级**：macOS 的 Fn/🌐 受系统设置「按下 🌐 键时」抢占（非「无操作」时系统消费，应用收不到——CDP 实测探针已备，事件可达性以实测为准）；因此**持键可配置**（§6.1 行 10：`voiceDictationHoldKey`，枚举 `"off" | "fn"`，v1 两值；Fn 实测不可达时用户可关，未来可扩右 ⌘ 等）。设置行文案注明系统设置前置条件。
+- **状态机接线**（useVoiceDictation 增两段显式 API，复用 §3.2 全部状态与守卫）：
+  - `pressStart()`：idle → 走既有起录链（RequestingMic 隐私门/授权 → Recording）；非 idle 持有者 → no-op（已在录）。
+  - `pressStop()`：recording 持有者 → 走既有停止链（session.stop → final → 注入 → stopRecording）；requestingMic 持有者 → 持有者取消（abortEpisode，语义=松手放弃本次）；idle → no-op。
+  - 点按 mic 按钮路径零变化（§9.9.4-L1 取消语义原样）。
+- **失焦兜底**：窗口 blur 时若正处于长按录音 → 视同松开（pressStop——转写已说内容而非丢弃，比 abort 更符合长按直觉；keyup 可能被系统吞的场景由此兜住）。既有录音时长上限继续作为最终兜底。
+- **作用域 v1**：单窗口内全局（window 级监听随入口组件挂载/卸载）；跨窗口全局（任一窗口长按、绑定窗录制）需启用预留 mic claim（FD-7/EG-7，§2.1），**开放点记档不做**。
+- 多入口仲裁复用现状：每个已挂载入口各自挂监听，pressStart 经 store 的 owner 守卫自然幂等（非持有者/已在录 no-op），不新增第二仲裁源。
+
+#### 5.5.2 混合流式预览（方案 B：webSpeech 实时预览 + remote 云端终稿）
+
+- **动机**：remote 腿（SiliconFlow 等 /audio/transcriptions）是批量协议（整段上传→整段返回），长按期间无实时反馈；webSpeech 腿本就流式（§5.1 partial 进预览条）。混合 = 长按期间并行跑 webSpeech **只供预览**，松开后 remote 终稿替换注入——「边说边见字」的体感 + 云端转写质量，零新协议。
+- **接线**：选型结果为 remote 且 webSpeech `isSupported()` 且设置开启（§6.1 行 11 `voiceDictationHybridPreview`，默认开）时：remote 为主引擎照旧（onFinal→§5.1 注入链、stop 返回 final）；并行 `webSpeechAdapter.start()` 为**预览引擎**——只订阅 `onPartial` → store.setPartial（预览条），**不订阅 onFinal**（预览引擎的 final 永不注入正文、不参与打断词判定——打断词只认主引擎 final，防两引擎文本分歧导致误触发）。
+- **生命周期**：预览引擎随主 episode 同代（generation 同守卫）；停止/取消/超时/错误任何出腿路径统一 abort 预览引擎（abortEpisode 与 stop 链都收口）；webSpeech 自身 onError → **静默降级**（只丢预览、不动主引擎，remote final 不受影响——预览是增强不是依赖）。
+- **终稿替换语义**：松开后 remote final 经 §5.1 既有链注入（append）；预览 partial 随 stopRecording 清空（既有行为）——用户看到的是「预览字被终稿替换进正文」，无重复文本（partial 从不落正文）。
+- **取舍记档**：两引擎并行 = 双端音频消费（webSpeech 走系统听写服务、remote 走麦克风流），macOS 上 SpeechRecognition 与 getUserMedia/MediaRecorder 可共存（现状引擎切换也依赖此能力）；预览与终稿的文本差异（同音词/标点）属预期，预览条定位是「进度反馈」非「终稿预演」。
+- **明确不做**：真流式云端 ASR（SiliconFlow 无流式端点；火山 ASR 流式是另一条产品线协议 specs/model-capabilities.md §15.2 已排除；OpenAI Realtime WS 另立项）——本节是 renderer 侧混合方案，不碰协议层。
+
 ---
 
 ## 6. 设置面设计
@@ -466,6 +490,8 @@ composerTextInsertRequest 无回执类型；注入后乐观回 Idle，final 文�
 | 6 | ASR 引擎 | `voiceAsrEngine` | `"webSpeech"` | 是 |
 | 7 | 工具简报 | `voiceToolBriefEnabled` | `false`（Phase 2 生效） | 是 |
 | 8 | 隐私披露已确认 | `voicePrivacyDisclosureAcknowledged` | `false`；**首次开启任一语音能力时必须先展示三条披露并显式确认**（FD-5：确认门覆盖两个开启入口——设置页任一语音开关的开启动作，以及入口可见但 `acknowledged=false` 时点按 mic 的兜底门，两入口共用同一 reader 守卫；确认后**中止本次动作**，再次显式点按才开始——与披露 3「仅点按后开启」一致，不做「确认即连续开录」；取消则开关回落 / 回 Idle） | 是 |
+| 10 | 长按听写持键 | `voiceDictationHoldKey` | `"off"`（**关**——Fn 可达性依赖系统设置「按下 🌐 键时=无操作」，不默认开启防「设了没反应」；用户开启即按住说话松开转写，§5.5.1） | 是 |
+| 11 | 混合流式预览 | `voiceDictationHybridPreview` | `true`（remote 腿长按期间 webSpeech 实时预览；webSpeech 不可用时自然无效，§5.5.2） | 是 |
 
 消费读取一律经 reader 函数收口（照 `isTaskNotificationSoundEnabled` taskNotificationPreferences.ts:33 先例：播放/入口消费点不直接读 store，保证设置关闭后运行时行为一致）。权限引导走 IPlatformService optional 方法；权限结果是一次性生产事件经同通道回报 renderer；Web/手机缺席即不出入口（能力探测，不写 UA 分支）。
 

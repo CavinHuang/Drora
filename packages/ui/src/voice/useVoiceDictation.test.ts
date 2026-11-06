@@ -52,20 +52,24 @@ const { fakeAdapter, createFakeSession } = vi.hoisted(() => {
 
   const sessions: FakeSession[] = [];
   let startReject: { code: string } | null = null;
+  // start 实现（_reset 重建 vi.fn 用）：mockClear 不清 mockImplementationOnce 队列
+  //（vitest 语义：仅 mockReset 清）——FD-6 no-op 用例排的永挂 Once 若未消费会毒化
+  // 后续首个真实调用方，_reset 必须整体重建 start mock。
+  const createStartImpl = () => {
+    if (startReject) {
+      const error = Object.assign(new Error("asr"), startReject);
+      return Promise.reject(error);
+    }
+    const session = new FakeSession();
+    sessions.push(session);
+    return Promise.resolve(session);
+  };
   const fakeAdapter = {
     isSupported: () => true,
     emitPartial: (text: string) => {
       for (const cb of Array.from(partialSubscribers)) cb(text);
     },
-    start: vi.fn(() => {
-      if (startReject) {
-        const error = Object.assign(new Error("asr"), startReject);
-        return Promise.reject(error);
-      }
-      const session = new FakeSession();
-      sessions.push(session);
-      return Promise.resolve(session);
-    }),
+    start: vi.fn(() => createStartImpl()),
     onPartial: (cb: (text: string) => void) => {
       partialSubscribers.add(cb);
       return () => partialSubscribers.delete(cb);
@@ -77,7 +81,8 @@ const { fakeAdapter, createFakeSession } = vi.hoisted(() => {
     _reset: () => {
       sessions.length = 0;
       startReject = null;
-      fakeAdapter.start.mockClear();
+      // 重建（非 mockClear）：清掉可能残留的 mockImplementationOnce 队列（见上）。
+      fakeAdapter.start = vi.fn(() => createStartImpl());
       partialSubscribers.clear();
     },
   };
@@ -531,6 +536,7 @@ describe("引擎选型与回退树（§9.6.6 / §9.6.8-S3）", () => {
     asrEngine?: "webSpeech" | "remote";
     vendor?: { baseUrl: string; model: string };
     getVendorApiKey?: () => Promise<string | null>;
+    hybridPreview?: boolean;
   }) {
     return renderHook(() =>
       useVoiceDictation({
@@ -558,6 +564,9 @@ describe("引擎选型与回退树（§9.6.6 / §9.6.8-S3）", () => {
       asrEngine: "remote",
       vendor: { baseUrl: "https://api.siliconflow.cn/v1", model: "FunAudioLLM/SenseVoiceSmall" },
       getVendorApiKey: async () => "sk-test-key",
+      // §5.5.2 混合预览默认开（会并行起 webSpeech 预览）；本用例钉「选型」，
+      // 关闭以保持「remote 起录 webSpeech 零调用」的原断言意图。
+      hybridPreview: false,
     });
     harness.result.current.toggleMic();
     await vi.advanceTimersByTimeAsync(0);
@@ -586,6 +595,9 @@ describe("引擎选型与回退树（§9.6.6 / §9.6.8-S3）", () => {
       asrEngine: "remote",
       vendor: { baseUrl: "https://api.siliconflow.cn/v1", model: "FunAudioLLM/SenseVoiceSmall" },
       getVendorApiKey: async () => "sk-test-key",
+      // §5.5.2 混合预览默认开（会并行起 webSpeech 预览）；本用例钉「选型」，
+      // 关闭以保持「remote 起录 webSpeech 零调用」的原断言意图。
+      hybridPreview: false,
     });
     harness.result.current.toggleMic();
     await vi.advanceTimersByTimeAsync(0);
@@ -871,5 +883,133 @@ describe("§9.9.4-L10/L1 起录链失败处置与用户取消出边", () => {
     expect(useVoiceSessionStore.getState().inputLeg).toBe("idle");
     // idle 态不消费（既有语义回归）。
     expect(consumeVoiceRecordingEscape()).toBe(false);
+  });
+});
+
+describe("useVoiceDictation 长按两段 API 与混合预览（specs/voice-agent-integration.md §5.5）", () => {
+  it("pressStart 起 recording、pressStop 停止并注入 final（长按主链）", async () => {
+    const harness = renderHook(() =>
+      useVoiceDictation({
+        sessionId: "sess-1",
+        workspacePath: wsPath,
+        lang: "zh-CN",
+        requestStart: () => true,
+      }),
+    );
+    harness.result.current.pressStart();
+    await vi.waitFor(() => {
+      expect(useVoiceSessionStore.getState().inputLeg).toBe("recording");
+    });
+    // 长按期间 final 逐句注入照旧（§5.1 不变）。
+    fakeAdapter._sessions[0]?.emitFinal("第一句");
+    await vi.advanceTimersByTimeAsync(0);
+    expect(lastInsertRequest()).toMatchObject({ text: "第一句", mode: "append" });
+    harness.result.current.pressStop();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(useVoiceSessionStore.getState().inputLeg).toBe("idle");
+    expect(fakeAdapter._sessions[0]?.stopCalls).toBe(1);
+  });
+
+  it("pressStart 在 recording 中 no-op（不二次起录）；pressStop 在 idle no-op", async () => {
+    const harness = await mountStartedDictation();
+    const sessionsBefore = fakeAdapter._sessions.length;
+    harness.result.current.pressStart();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fakeAdapter._sessions.length).toBe(sessionsBefore); // 不另起 session
+    harness.result.current.pressStop();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(useVoiceSessionStore.getState().inputLeg).toBe("idle");
+    harness.result.current.pressStop(); // idle → no-op 不抛错
+    expect(useVoiceSessionStore.getState().inputLeg).toBe("idle");
+  });
+
+  it("pressStop 在 requestingMic 持有者位 → 取消回 idle（松手放弃）", async () => {
+    // ref 对象形态：闭包内赋值不被 TS 控制流窄化为 null。
+    const grantMicRef: { fn: (() => void) | null } = { fn: null };
+    const harness = renderHook(() =>
+      useVoiceDictation({
+        sessionId: "sess-1",
+        workspacePath: wsPath,
+        lang: "zh-CN",
+        requestStart: () => true,
+        asrEngine: "remote",
+        vendor: { baseUrl: "https://api.siliconflow.cn/v1", model: "FunAudioLLM/SenseVoiceSmall" },
+        hybridPreview: false,
+        // 阻在授权：requestingMic 态挂起（engine=remote 才会等 getVendorApiKey）。
+        getVendorApiKey: () =>
+          new Promise<null>((resolve) => {
+            grantMicRef.fn = () => resolve(null);
+          }),
+      }),
+    );
+    harness.result.current.pressStart();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(useVoiceSessionStore.getState().inputLeg).toBe("requestingMic");
+    harness.result.current.pressStop();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(useVoiceSessionStore.getState().inputLeg).toBe("idle");
+    grantMicRef.fn?.(); // 迟到授权：generation 已失效，不复活。
+    await vi.advanceTimersByTimeAsync(0);
+    expect(useVoiceSessionStore.getState().inputLeg).toBe("idle");
+  });
+
+  it("混合预览：remote 主引擎 + webSpeech 并行——partial 只进预览、webSpeech final 不注入、停止时预览 abort", async () => {
+    const harness = renderHook(() =>
+      useVoiceDictation({
+        sessionId: "sess-1",
+        workspacePath: wsPath,
+        lang: "zh-CN",
+        requestStart: () => true,
+        asrEngine: "remote",
+        vendor: { baseUrl: "https://api.siliconflow.cn/v1", model: "FunAudioLLM/SenseVoiceSmall" },
+        getVendorApiKey: () => Promise.resolve("sk-test"),
+        hybridPreview: true,
+      }),
+    );
+    harness.result.current.pressStart();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(useVoiceSessionStore.getState().inputLeg).toBe("recording");
+    // 双引擎都起了：remote 主 session + webSpeech 预览 session。
+    expect(remoteAdapterState.sessions.length).toBe(1);
+    expect(fakeAdapter._sessions.length).toBe(1);
+    const previewSession = fakeAdapter._sessions[0]!;
+    // 预览引擎 partial → 预览条（store.partialText）。
+    fakeAdapter.emitPartial("实时预览文本");
+    expect(useVoiceSessionStore.getState().partialText).toBe("实时预览文本");
+    // 预览引擎 final：永不注入正文（§5.5.2 只认主引擎 final）。
+    previewSession.emitFinal("预览引擎的final");
+    await vi.advanceTimersByTimeAsync(0);
+    expect(lastInsertRequest()).toBeNull();
+    // 停止：主引擎 stop 返回 final（批量转写）→ 注入；预览引擎被 abort。
+    const remoteSession = remoteAdapterState.sessions[0]!;
+    remoteSession.stop = async () => {
+      remoteSession.stopCalls += 1;
+      return { final: "云端终稿" };
+    };
+    harness.result.current.pressStop();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(lastInsertRequest()).toMatchObject({ text: "云端终稿", mode: "append", targetSessionId: "sess-1" });
+    expect(previewSession.abortCalls).toBeGreaterThanOrEqual(1);
+    expect(useVoiceSessionStore.getState().inputLeg).toBe("idle");
+  });
+
+  it("混合预览关闭（hybridPreview=false）：仅主引擎，webSpeech 不并行", async () => {
+    const harness = renderHook(() =>
+      useVoiceDictation({
+        sessionId: "sess-1",
+        workspacePath: wsPath,
+        lang: "zh-CN",
+        requestStart: () => true,
+        asrEngine: "remote",
+        vendor: { baseUrl: "https://api.siliconflow.cn/v1", model: "FunAudioLLM/SenseVoiceSmall" },
+        getVendorApiKey: () => Promise.resolve("sk-test"),
+        hybridPreview: false,
+      }),
+    );
+    harness.result.current.pressStart();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(useVoiceSessionStore.getState().inputLeg).toBe("recording");
+    expect(remoteAdapterState.sessions.length).toBe(1);
+    expect(fakeAdapter._sessions.length).toBe(0); // 无预览引擎
   });
 });

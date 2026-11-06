@@ -35,10 +35,19 @@ export interface UseVoiceDictationParams {
    * 本条接入同一清理序列（abortEpisode），不建第二条卸载路径。
    */
   entryVisible?: boolean;
+  /**
+   * §5.5.2 混合流式预览：remote 主引擎时并行 webSpeech 只供预览条（默认开；
+   * 缺省 true 与 appSettings 默认一致）。webSpeech 不可用时自然无效。
+   */
+  hybridPreview?: boolean;
 }
 export interface VoiceDictationController {
   /** 点按 mic：idle→RequestingMic（经隐私门）/ 录音中→手动停止 / requestingMic 中→持有者取消。 */
   toggleMic: () => void;
+  /** §5.5.1 长按按下：idle→起录链；非 idle → no-op（已持有或他人持有）。 */
+  pressStart: () => void;
+  /** §5.5.1 长按松开：recording 持有者→停止转写；requestingMic 持有者→取消；其余 no-op。 */
+  pressStop: () => void;
   /**
    * §9.9.4-L6：本入口实例标识（FD-6 owner 判定输入）——Entry 以
    * `recordingOwnerEntryId === dictation.entryId` 区分「持有者的点按=停止/取消」与
@@ -57,6 +66,8 @@ export function useVoiceDictation(params: UseVoiceDictationParams): VoiceDictati
   const entryId = entryIdRef.current;
   const generationRef = useRef(0);
   const sessionRef = useRef<VoiceAsrSession | null>(null);
+  /** §5.5.2 混合预览引擎 session（webSpeech 只供预览条；随主 episode 同代，任何出腿 abort）。 */
+  const previewSessionRef = useRef<VoiceAsrSession | null>(null);
   const unsubscribersRef = useRef<(() => void)[]>([]);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const stoppingRef = useRef(false);
@@ -68,6 +79,9 @@ export function useVoiceDictation(params: UseVoiceDictationParams): VoiceDictati
     for (const unsubscribe of unsubscribersRef.current) unsubscribe();
     unsubscribersRef.current = [];
     sessionRef.current = null;
+    // §5.5.2：预览引擎随主 episode 清理一并 abort（abortEpisode/stop 链都收口到这）。
+    previewSessionRef.current?.abort();
+    previewSessionRef.current = null;
     stoppingRef.current = false;
   }, []);
 
@@ -163,6 +177,35 @@ export function useVoiceDictation(params: UseVoiceDictationParams): VoiceDictati
     [entryId],
   );
 
+  // §5.5.1 停止链（点按停止与长按松开共用）：recording 持有者 → session.stop →
+  // final 注入 → stopRecording；保留订阅到结算（remote final 走 onFinal，Web Speech
+  // flush 走返回值）；§5.5.2 预览引擎（若有）随停 abort（其 partial 随 stopRecording 清空）。
+  const finishDictation = useCallback(() => {
+    if (stoppingRef.current) return;
+    const session = sessionRef.current;
+    if (!session) {
+      abortEpisode();
+      return;
+    }
+    stoppingRef.current = true;
+    const generation = generationRef.current;
+    previewSessionRef.current?.abort();
+    previewSessionRef.current = null;
+    void session
+      .stop()
+      .then(({ final }) => {
+        if (generation !== generationRef.current) return;
+        if (final.trim()) handleFinal(final, false);
+        cleanupSession();
+        targetRef.current = null;
+        const latest = useVoiceSessionStore.getState();
+        if (latest.recordingOwnerEntryId === entryId) latest.stopRecording();
+      })
+      .catch(() => {
+        if (generation === generationRef.current) abortEpisode("network");
+      });
+  }, [abortEpisode, cleanupSession, entryId, handleFinal]);
+
   const toggleMic = useCallback(() => {
     const state = useVoiceSessionStore.getState();
     const current = paramsRef.current;
@@ -181,28 +224,7 @@ export function useVoiceDictation(params: UseVoiceDictationParams): VoiceDictati
         state.startMicRequest(current.sessionId, entryId);
         return;
       }
-      if (stoppingRef.current) return;
-      const session = sessionRef.current;
-      if (!session) {
-        abortEpisode();
-        return;
-      }
-      stoppingRef.current = true;
-      const generation = generationRef.current;
-      // 点按停止保留订阅到结算：remote final 走 onFinal，Web Speech flush 走返回值。
-      void session
-        .stop()
-        .then(({ final }) => {
-          if (generation !== generationRef.current) return;
-          if (final.trim()) handleFinal(final, false);
-          cleanupSession();
-          targetRef.current = null;
-          const latest = useVoiceSessionStore.getState();
-          if (latest.recordingOwnerEntryId === entryId) latest.stopRecording();
-        })
-        .catch(() => {
-          if (generation === generationRef.current) abortEpisode("network");
-        });
+      finishDictation();
       return;
     }
     if (!current.requestStart() || !state.startMicRequest(current.sessionId, entryId)) return;
@@ -289,16 +311,46 @@ export function useVoiceDictation(params: UseVoiceDictationParams): VoiceDictati
           return;
         }
         sessionRef.current = session;
+        // §5.5.2 混合流式预览：remote 主引擎 + webSpeech 可用 + 设置开启 → 并行起
+        // webSpeech 只供预览条。失败静默降级（预览是增强不是依赖）；不订阅其
+        // onFinal（预览引擎 final 永不注入正文、不参与打断词判定——只认主引擎 final）。
+        let previewPartialUnsubscribe: (() => void) | null = null;
+        if (
+          adapter !== webSpeechAdapter &&
+          webSpeechAdapter.isSupported() &&
+          (current.hybridPreview ?? true)
+        ) {
+          try {
+            const previewSession = await webSpeechAdapter.start({ lang: target.lang });
+            if (generation !== generationRef.current) {
+              previewSession.abort();
+            } else {
+              previewSessionRef.current = previewSession;
+              previewPartialUnsubscribe = webSpeechAdapter.onPartial((text) => {
+                if (generation === generationRef.current)
+                  useVoiceSessionStore.getState().setPartial(text);
+              });
+            }
+          } catch {
+            // 静默降级：预览缺席不影响主引擎（§5.5.2）。
+          }
+        }
         if (timerRef.current !== null) clearTimeout(timerRef.current);
         timerRef.current = null;
+        const mainPartialUnsubscribe =
+          previewPartialUnsubscribe == null
+            ? adapter.onPartial((text) => {
+                if (generation === generationRef.current)
+                  useVoiceSessionStore.getState().setPartial(text);
+              })
+            : null;
         unsubscribersRef.current = [
           session.onFinal((text) => {
             if (generation === generationRef.current) handleFinal(text);
           }),
-          adapter.onPartial((text) => {
-            if (generation === generationRef.current)
-              useVoiceSessionStore.getState().setPartial(text);
-          }),
+          ...(previewPartialUnsubscribe ?? mainPartialUnsubscribe
+            ? [previewPartialUnsubscribe ?? mainPartialUnsubscribe!]
+            : []),
           session.onError((error) => {
             if (generation !== generationRef.current) return;
             abortEpisode(
@@ -331,6 +383,30 @@ export function useVoiceDictation(params: UseVoiceDictationParams): VoiceDictati
         logger.warn("voice.asr", `asr start failed: ${code ?? "unknown"}`);
       }
     })();
-  }, [abortEpisode, cleanupSession, entryId, handleFinal, webSpeechAdapter]);
-  return { toggleMic, entryId };
+  }, [abortEpisode, cleanupSession, entryId, finishDictation, handleFinal, webSpeechAdapter]);
+
+  // §5.5.1 长按两段 API（与 toggleMic 并存，共用同一 episode 与守卫）：
+  // pressStart：idle → 起录链；非 idle（本入口持有=已按住/请求中；他人持有）→ no-op。
+  const pressStart = useCallback(() => {
+    const state = useVoiceSessionStore.getState();
+    if (state.inputLeg !== "idle") return;
+    toggleMic();
+  }, [toggleMic]);
+
+  // pressStop：recording 持有者 → 停止链（转写已说内容）；requestingMic 持有者 →
+  // 持有者取消（松手放弃，§9.9.4-L1 同款）；idle/他人持有 → no-op。
+  const pressStop = useCallback(() => {
+    const state = useVoiceSessionStore.getState();
+    if (state.recordingOwnerEntryId !== entryId) return;
+    if (state.inputLeg === "recording") {
+      finishDictation();
+      return;
+    }
+    if (state.inputLeg === "requestingMic") {
+      abortEpisode();
+      logger.info("voice.entry", "mic request cancelled by hold release");
+    }
+  }, [abortEpisode, entryId, finishDictation]);
+
+  return { toggleMic, pressStart, pressStop, entryId };
 }

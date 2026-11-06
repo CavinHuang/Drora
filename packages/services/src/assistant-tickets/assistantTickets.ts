@@ -163,6 +163,20 @@ export interface AssistantConfigView {
   readonly budgetMaxActivePerWorkspace: number;
   /** P2：W1 worktree 用户开关（spec §9：关闭 → W2 声明域；kv worktree_disabled，缺省 false）。 */
   readonly worktreeDisabled: boolean;
+  /** P5：信任门生效阈值（kv 可调；缺省回落 ASSISTANT_TRUST_GATE_DEFAULTS）。 */
+  readonly trustGateThresholds: { readonly minRate: number; readonly minSamples: number };
+  /** P5：watchdog 轮询间隔（分钟；kv watchdog_interval_ms 换算投影）。 */
+  readonly watchdogIntervalMinutes: number;
+  /** P5：大副模型偏好（扁平 view 形态；null=未设置→CLI 缺省）。 */
+  readonly modelPreference: {
+    readonly providerId: string;
+    readonly modelId: string;
+    readonly reasoningLevel?: string;
+  } | null;
+  /** P5：Source 开关配置投影（缺省空=三 Source 全关）。 */
+  readonly sourcesConfig: import("./sources/contract.js").MateSourcesConfig;
+  /** P5：Source 身份映射投影（≤ASSISTANT_CONFIG_LIMITS.identityMapMaxEntries 条）。 */
+  readonly identityMap: import("./sources/contract.js").MateSourceIdentityMap;
 }
 
 export interface AssistantTrustView {
@@ -224,6 +238,16 @@ export interface AssistantSnapshot {
   readonly tickets: readonly AssistantTicketView[];
   /** P4（04 详设 §4）：配额中心投影（服务闭包缓存配额值；判定以 admitDisturbance 实时读为准）。 */
   readonly quota?: AssistantQuotaView;
+  /** P5（06 号详设 §3）设置中心投影（可选追加，只加不破）：模型偏好（null=未设置）。 */
+  readonly modelPreference?: AssistantConfigView["modelPreference"];
+  /** P5：信任门生效阈值（与 trust.gateThresholds 同值；顶层直读免解构）。 */
+  readonly trustGateThresholds?: { readonly minRate: number; readonly minSamples: number };
+  /** P5：watchdog 轮询间隔（分钟）。 */
+  readonly watchdogIntervalMinutes?: number;
+  /** P5：Source 开关配置投影（缺省空=全关）。 */
+  readonly sourcesConfig?: import("./sources/contract.js").MateSourcesConfig;
+  /** P5：Source 身份映射投影（≤identityMapMaxEntries 条）。 */
+  readonly identityMap?: import("./sources/contract.js").MateSourceIdentityMap;
   /** P4（04 详设 §1）：watchdog 配额内通知（有界 ≤5；新→旧）。 */
   readonly watchdogNotices?: readonly AssistantWatchdogNoticeView[];
   readonly updatedAtMs: number;
@@ -372,6 +396,31 @@ export interface IAssistantTicketService {
    * 已建工单的写域。
    */
   setWorktreeDisabled(disabled: boolean): Promise<AssistantResult<{ ok: true }>>;
+  /** P5 设置中心（06 号详设 §2）：软预算写入（bounds=ASSISTANT_CONFIG_LIMITS，fail-closed）。 */
+  setBudget(input: { maxActivePerWorkspace: number }): Promise<AssistantResult<{ ok: true }>>;
+  /** P5：信任门阈值部分更新（只写传入键；越界拒绝）。 */
+  setTrustGateThresholds(input: {
+    minRate?: number;
+    minSamples?: number;
+  }): Promise<AssistantResult<{ ok: true }>>;
+  /** P5：watchdog 轮询间隔（分钟；服务内换算 ms 落 kv，读侧语义不变）。 */
+  setWatchdogIntervalMinutes(input: {
+    minutes: number;
+  }): Promise<AssistantResult<{ ok: true }>>;
+  /** P5：Source 开关配置整体替换（github 启用须合法 repo+点名词；publish 即 reconcile）。 */
+  setSourcesConfig(
+    input: import("./sources/contract.js").MateSourcesConfig,
+  ): Promise<AssistantResult<{ ok: true }>>;
+  /** P5：Source 身份映射整体替换（≤identityMapMaxEntries 条，键值非空）。 */
+  setSourceIdentityMap(
+    input: import("./sources/contract.js").MateSourceIdentityMap,
+  ): Promise<AssistantResult<{ ok: true }>>;
+  /** P5：大副模型偏好（null=清除回落 CLI 缺省；作用于下一次建会话）。 */
+  setModelPreference(input: {
+    providerId: string;
+    modelId: string;
+    reasoningLevel?: string;
+  } | null): Promise<AssistantResult<{ ok: true }>>;
   getConfig(): Promise<AssistantResult<AssistantConfigView>>;
 
   /** 全量快照（拉取一次；后续经 onDidChange 推送）。 */

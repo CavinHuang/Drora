@@ -15,6 +15,9 @@ import {
 import { useMateStore } from "@/store/mateStore.js";
 import { useOptionalServices } from "@/hooks/useServices.jsx";
 import { useSettings } from "@/hooks/useSettingService.js";
+import { ASSISTANT_CONFIG_LIMITS } from "@drora/shared";
+import { MateModelPreference } from "./MateModelPreference.js";
+import { MateSourceSettings } from "./MateSourceSettings.js";
 
 /**
  * 配置区（01 §5 MateConfigSection）：模式（observe 锁定展示；auto 恒禁用+达标 tooltip，
@@ -41,6 +44,12 @@ export const MateConfigSection = memo(function MateConfigSection({
   allowlist,
   worktreeDisabled,
   dailyQuota,
+  budgetMaxActivePerWorkspace,
+  modelPreference,
+  trustGateThresholds,
+  watchdogIntervalMinutes,
+  sourcesConfig,
+  identityMap,
 }: {
   service: IAssistantTicketService;
   /** 本 workspace 分域键（store 动作 single-flight 按 workspace 隔离；兼触发 target）。 */
@@ -51,10 +60,33 @@ export const MateConfigSection = memo(function MateConfigSection({
   worktreeDisabled: boolean;
   /** P4 第二棒（04 详设 §4）：生效每日配额（快照 quota.quota 投影；缺席=旧 Host 不渲染）。 */
   dailyQuota?: number;
+  /** P5：软预算当前值（快照 budget 投影；缺席=旧 Host 不渲染高级区）。 */
+  budgetMaxActivePerWorkspace?: number;
+  /** P5：大副模型偏好（快照投影；null=未设置→CLI 缺省）。 */
+  modelPreference: { providerId: string; modelId: string; reasoningLevel?: string } | null;
+  /** P5：信任门生效阈值（快照投影；缺席=旧 Host 用缺省草稿）。 */
+  trustGateThresholds?: { minRate: number; minSamples: number };
+  /** P5：watchdog 轮询间隔（分钟；快照投影）。 */
+  watchdogIntervalMinutes?: number;
+  /** P5：Source 开关配置（快照投影；undefined=旧 Host 空配置）。 */
+  sourcesConfig?: {
+    feishu?: { enabled?: boolean };
+    phone?: { enabled?: boolean };
+    github?: { enabled?: boolean; repo?: string; mentionName?: string };
+  };
+  /** P5：Source 身份映射（快照投影；feishu/github 嵌套形态）。 */
+  identityMap?: {
+    feishu?: Readonly<Record<string, string>>;
+    github?: Readonly<Record<string, string>>;
+  };
 }) {
   const { intl } = useDroraIntl();
   const setAllowlist = useMateStore((state) => state.setAllowlist);
   const setWorktreeDisabled = useMateStore((state) => state.setWorktreeDisabled);
+  // P5 设置中心动作（06 号详设；模型/Source 区在子组件内各自取用）。
+  const setBudget = useMateStore((state) => state.setBudget);
+  const setTrustGateThresholds = useMateStore((state) => state.setTrustGateThresholds);
+  const setWatchdogIntervalMinutes = useMateStore((state) => state.setWatchdogIntervalMinutes);
   const recordTrigger = useMateStore((state) => state.recordTrigger);
   // P4 第二棒：每日配额调整走 AppSettings（useSettings 写 droraMateDailyQuota，键字面量
   // contracts ASSISTANT_SETTINGS_KEYS 单出处）。settings 服务缺席（本仓夹具/远端降级形态）
@@ -65,6 +97,36 @@ export const MateConfigSection = memo(function MateConfigSection({
   // 配额草稿：生效值=快照投影（服务闭包缓存）；AppSettings 原始值缺席（缺省 5）时也以
   // 生效值回填草稿——保存即把当前生效值固化进 AppSettings（语义等价，判定本就实时读）。
   const [quotaDraft, setQuotaDraft] = useState(() => `${dailyQuota ?? ""}`);
+  // P5 高级区草稿（06 号详设 §5）：预算/信任门两阈值/watchdog 间隔，三输入一体保存
+  // （dirty 纪律照 quota；bounds=ASSISTANT_CONFIG_LIMITS 单出处，本地预检+服务 fail-closed 双闸）。
+  const [budgetDraft, setBudgetDraft] = useState(() =>
+    budgetMaxActivePerWorkspace !== undefined ? `${budgetMaxActivePerWorkspace}` : "",
+  );
+  const [rateDraft, setRateDraft] = useState(() =>
+    trustGateThresholds ? `${trustGateThresholds.minRate}` : "",
+  );
+  const [samplesDraft, setSamplesDraft] = useState(() =>
+    trustGateThresholds ? `${trustGateThresholds.minSamples}` : "",
+  );
+  const [intervalDraft, setIntervalDraft] = useState(() =>
+    watchdogIntervalMinutes ? `${watchdogIntervalMinutes}` : "",
+  );
+  const [advancedDirty, setAdvancedDirty] = useState(false);
+  // 快照回填（quotaDraft 同款纪律）：未 dirty 时跟随服务事实源；保存成功清 dirty 后
+  // 下一次快照推送把服务确认值写回草稿框。
+  useEffect(() => {
+    if (advancedDirty || budgetMaxActivePerWorkspace === undefined) return;
+    setBudgetDraft(`${budgetMaxActivePerWorkspace}`);
+  }, [advancedDirty, budgetMaxActivePerWorkspace]);
+  useEffect(() => {
+    if (advancedDirty || trustGateThresholds === undefined) return;
+    setRateDraft(`${trustGateThresholds.minRate}`);
+    setSamplesDraft(`${trustGateThresholds.minSamples}`);
+  }, [advancedDirty, trustGateThresholds]);
+  useEffect(() => {
+    if (advancedDirty || watchdogIntervalMinutes === undefined) return;
+    setIntervalDraft(`${watchdogIntervalMinutes}`);
+  }, [advancedDirty, watchdogIntervalMinutes]);
   const [quotaDirty, setQuotaDirty] = useState(false);
   useEffect(() => {
     if (quotaDirty || dailyQuota === undefined) return;
@@ -172,6 +234,70 @@ export const MateConfigSection = memo(function MateConfigSection({
       .catch(() => setFailure("mate.error.generic"));
   };
 
+  // P5 高级区保存（06 号详设 §5）：三输入一体提交——预算+信任门两阈值+watchdog 间隔。
+  // 本地 bounds 预检（ASSISTANT_CONFIG_LIMITS 单出处同界），服务侧 fail-closed 双闸；
+  // 任一项校验失败整批不发（一体保存语义，避免半批落库的中间态）。
+  const handleSaveAdvanced = (): void => {
+    const budget = Number(budgetDraft);
+    const rate = Number(rateDraft);
+    const samples = Number(samplesDraft);
+    const interval = Number(intervalDraft);
+    const limits = ASSISTANT_CONFIG_LIMITS;
+    if (
+      !Number.isInteger(budget) ||
+      budget < limits.budgetMaxActivePerWorkspace.min ||
+      budget > limits.budgetMaxActivePerWorkspace.max
+    ) {
+      setFailure("mate.config.advanced.budgetInvalid");
+      return;
+    }
+    if (
+      !Number.isFinite(rate) ||
+      rate < limits.trustGateMinRate.min ||
+      rate > limits.trustGateMinRate.max
+    ) {
+      setFailure("mate.config.advanced.rateInvalid");
+      return;
+    }
+    if (
+      !Number.isInteger(samples) ||
+      samples < limits.trustGateMinSamples.min ||
+      samples > limits.trustGateMinSamples.max
+    ) {
+      setFailure("mate.config.advanced.samplesInvalid");
+      return;
+    }
+    if (
+      !Number.isInteger(interval) ||
+      interval < limits.watchdogIntervalMinutes.min ||
+      interval > limits.watchdogIntervalMinutes.max
+    ) {
+      setFailure("mate.config.advanced.intervalInvalid");
+      return;
+    }
+    void setBudget(service, workspaceKey, budget).then(async (budgetResult) => {
+      if (!budgetResult.ok) {
+        setFailure(resolveMateErrorMessageId(budgetResult.error));
+        return;
+      }
+      const trustResult = await setTrustGateThresholds(service, workspaceKey, {
+        minRate: rate,
+        minSamples: samples,
+      });
+      if (!trustResult.ok) {
+        setFailure(resolveMateErrorMessageId(trustResult.error));
+        return;
+      }
+      const intervalResult = await setWatchdogIntervalMinutes(service, workspaceKey, interval);
+      if (!intervalResult.ok) {
+        setFailure(resolveMateErrorMessageId(intervalResult.error));
+        return;
+      }
+      setFailure(null);
+      setAdvancedDirty(false);
+    });
+  };
+
   return (
     <div
       className="flex shrink-0 flex-col gap-3 border-t border-border/50 px-3 py-3"
@@ -265,6 +391,128 @@ export const MateConfigSection = memo(function MateConfigSection({
           </span>
         </ControlHintTooltip>
       </div>
+
+      {/* P5 设置中心（06 号详设 §5）：模型偏好——Router 与 Mode A/B 新建会话的模型，
+          下一次建会话生效（在途会话不热切）；清除回落 CLI 缺省。 */}
+      <MateModelPreference
+        service={service}
+        workspaceKey={workspaceKey}
+        preference={modelPreference}
+      />
+
+      {/* P5 高级区：软预算/信任门阈值/watchdog 间隔（三输入一体保存；旧 Host 快照字段
+          缺席时不渲染，诚实降级不猜测）。 */}
+      {budgetMaxActivePerWorkspace !== undefined &&
+      trustGateThresholds !== undefined &&
+      watchdogIntervalMinutes !== undefined ? (
+        <div className="flex flex-col gap-1.5" data-testid="mate-config-advanced">
+          <span className="text-ui-xs text-foreground-subtlest">
+            {intl.formatMessage({ id: "mate.config.advanced.title" })}
+          </span>
+          <div className="flex items-center gap-1.5">
+            <label
+              htmlFor="mate-budget-input"
+              className="w-20 shrink-0 text-ui-xs text-foreground-subtlest"
+            >
+              {intl.formatMessage({ id: "mate.config.advanced.budget" })}
+            </label>
+            <input
+              id="mate-budget-input"
+              type="number"
+              min={ASSISTANT_CONFIG_LIMITS.budgetMaxActivePerWorkspace.min}
+              max={ASSISTANT_CONFIG_LIMITS.budgetMaxActivePerWorkspace.max}
+              step={1}
+              value={budgetDraft}
+              onChange={(event) => {
+                setBudgetDraft(event.target.value);
+                setAdvancedDirty(true);
+              }}
+              className="w-20 rounded-lg border border-input-border bg-input px-2 py-1.5 font-mono text-ui-sm text-foreground focus:border-input-border-focused focus:outline-none"
+              data-testid="mate-budget-input"
+            />
+            <label
+              htmlFor="mate-rate-input"
+              className="w-20 shrink-0 text-ui-xs text-foreground-subtlest"
+            >
+              {intl.formatMessage({ id: "mate.config.advanced.minRate" })}
+            </label>
+            <input
+              id="mate-rate-input"
+              type="number"
+              min={ASSISTANT_CONFIG_LIMITS.trustGateMinRate.min}
+              max={ASSISTANT_CONFIG_LIMITS.trustGateMinRate.max}
+              step={0.05}
+              value={rateDraft}
+              onChange={(event) => {
+                setRateDraft(event.target.value);
+                setAdvancedDirty(true);
+              }}
+              className="w-20 rounded-lg border border-input-border bg-input px-2 py-1.5 font-mono text-ui-sm text-foreground focus:border-input-border-focused focus:outline-none"
+              data-testid="mate-rate-input"
+            />
+          </div>
+          <div className="flex items-center gap-1.5">
+            <label
+              htmlFor="mate-samples-input"
+              className="w-20 shrink-0 text-ui-xs text-foreground-subtlest"
+            >
+              {intl.formatMessage({ id: "mate.config.advanced.minSamples" })}
+            </label>
+            <input
+              id="mate-samples-input"
+              type="number"
+              min={ASSISTANT_CONFIG_LIMITS.trustGateMinSamples.min}
+              max={ASSISTANT_CONFIG_LIMITS.trustGateMinSamples.max}
+              step={1}
+              value={samplesDraft}
+              onChange={(event) => {
+                setSamplesDraft(event.target.value);
+                setAdvancedDirty(true);
+              }}
+              className="w-20 rounded-lg border border-input-border bg-input px-2 py-1.5 font-mono text-ui-sm text-foreground focus:border-input-border-focused focus:outline-none"
+              data-testid="mate-samples-input"
+            />
+            <label
+              htmlFor="mate-interval-input"
+              className="w-20 shrink-0 text-ui-xs text-foreground-subtlest"
+            >
+              {intl.formatMessage({ id: "mate.config.advanced.interval" })}
+            </label>
+            <input
+              id="mate-interval-input"
+              type="number"
+              min={ASSISTANT_CONFIG_LIMITS.watchdogIntervalMinutes.min}
+              max={ASSISTANT_CONFIG_LIMITS.watchdogIntervalMinutes.max}
+              step={1}
+              value={intervalDraft}
+              onChange={(event) => {
+                setIntervalDraft(event.target.value);
+                setAdvancedDirty(true);
+              }}
+              className="w-20 rounded-lg border border-input-border bg-input px-2 py-1.5 font-mono text-ui-sm text-foreground focus:border-input-border-focused focus:outline-none"
+              data-testid="mate-interval-input"
+            />
+          </div>
+          <div>
+            <Button
+              size="xs"
+              variant="outline"
+              onClick={handleSaveAdvanced}
+              data-testid="mate-advanced-save"
+            >
+              {intl.formatMessage({ id: "common.save" })}
+            </Button>
+          </div>
+        </div>
+      ) : null}
+
+      {/* P5 Source 设置区：三开关+GitHub 参数+身份映射（保存即 reconcile，启停即时生效）。 */}
+      <MateSourceSettings
+        service={service}
+        workspaceKey={workspaceKey}
+        sourcesConfig={sourcesConfig}
+        identityMap={identityMap}
+      />
 
       {/* P4 第二棒（04 详设 §4 调整入口）：每日打扰配额（条/日；0=非决策类全静音聚合，
           决策类不受限）。settings 服务缺席时输入禁用（诚实降级，不建第二条写路径）。 */}

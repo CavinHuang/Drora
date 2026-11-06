@@ -92,6 +92,17 @@ export function createMateFixtureService(
   let lastApproveInput: FixtureApproveInput | null = null;
   // P2 软预算默认回 3（contracts ASSISTANT_DEFAULTS；P1 fixture 曾用 1）。
   let budgetMax = 3;
+  // P5 设置中心（06 号详设）：fixture 内存态（高级区/Source/模型偏好回显用）。
+  let trustThresholds = { minRate: 0.8, minSamples: 15 };
+  let watchdogIntervalMinutes = 15;
+  let modelPreference: { providerId: string; modelId: string; reasoningLevel?: string } | null =
+    null;
+  let sourcesConfig: {
+    feishu?: { enabled?: boolean };
+    phone?: { enabled?: boolean };
+    github?: { enabled?: boolean; repo?: string; mentionName?: string };
+  } = {};
+  let identityMap: { feishu?: Record<string, string>; github?: Record<string, string> } = {};
   // W1 worktree 用户开关（P2 审查修复补交互入口；setWorktreeDisabled 唯一写路径）。
   let worktreeDisabled = false;
   let queueNextApprove = false;
@@ -170,6 +181,11 @@ export function createMateFixtureService(
       mode,
       allowlist: [...allowlist],
       budget: { maxActivePerWorkspace: budgetMax },
+      modelPreference,
+      trustGateThresholds: trustThresholds,
+      watchdogIntervalMinutes,
+      sourcesConfig,
+      identityMap,
       worktreeDisabled,
       trust: {
         wouldAcceptCount: decisions.filter(
@@ -619,6 +635,41 @@ export function createMateFixtureService(
       return { ok: true, value: { ok: true } };
     },
 
+    // P5 设置中心：六 setter 内存实现（快照回显；MSA13 验收消费）。
+    async setBudget(input) {
+      budgetMax = input.maxActivePerWorkspace;
+      publish();
+      return { ok: true, value: { ok: true } };
+    },
+    async setTrustGateThresholds(input) {
+      trustThresholds = {
+        minRate: input.minRate ?? trustThresholds.minRate,
+        minSamples: input.minSamples ?? trustThresholds.minSamples,
+      };
+      publish();
+      return { ok: true, value: { ok: true } };
+    },
+    async setWatchdogIntervalMinutes(input) {
+      watchdogIntervalMinutes = input.minutes;
+      publish();
+      return { ok: true, value: { ok: true } };
+    },
+    async setSourcesConfig(input) {
+      sourcesConfig = input;
+      publish();
+      return { ok: true, value: { ok: true } };
+    },
+    async setSourceIdentityMap(input) {
+      identityMap = { ...input };
+      publish();
+      return { ok: true, value: { ok: true } };
+    },
+    async setModelPreference(input) {
+      modelPreference = input;
+      publish();
+      return { ok: true, value: { ok: true } };
+    },
+
     async getConfig() {
       return {
         ok: true as const,
@@ -627,6 +678,11 @@ export function createMateFixtureService(
           allowlist: [...allowlist],
           budgetMaxActivePerWorkspace: budgetMax,
           worktreeDisabled: false,
+          trustGateThresholds: trustThresholds,
+          watchdogIntervalMinutes,
+          modelPreference,
+          sourcesConfig,
+          identityMap,
         },
       };
     },

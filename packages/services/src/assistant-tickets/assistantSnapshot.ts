@@ -15,6 +15,7 @@ import {
   ASSISTANT_PERMISSION_TIERS,
   ASSISTANT_SNAPSHOT_LIMITS,
   type AssistantPermissionTier,
+  ASSISTANT_CONFIG_LIMITS,
 } from "@drora/shared";
 import type { AssistantDatabaseRaw } from "./assistantDatabase.js";
 import type {
@@ -437,6 +438,17 @@ export function buildAssistantSnapshot(
     allowlist: config.allowlist,
     budget: { maxActivePerWorkspace: config.budgetMaxActivePerWorkspace },
     worktreeDisabled: config.worktreeDisabled,
+    // P5 设置中心投影（06 号详设 §3；可选追加字段——旧 fixture 缺席合法）。
+    modelPreference: config.modelPreference,
+    trustGateThresholds: config.trustGateThresholds,
+    watchdogIntervalMinutes: config.watchdogIntervalMinutes,
+    sourcesConfig: config.sourcesConfig,
+    identityMap: Object.fromEntries(
+      Object.entries(config.identityMap).slice(
+        0,
+        ASSISTANT_CONFIG_LIMITS.identityMapMaxEntries,
+      ),
+    ),
     trust: {
       wouldAcceptCount,
       releaseCount,

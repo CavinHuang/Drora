@@ -421,7 +421,12 @@ export type MateErrorMessageId =
   | "mate.error.generic"
   // P4 第二棒（04 详设 §4）：每日配额草稿本地校验失败（0-上界整数界，上界=contracts
   // ASSISTANT_DISTURBANCE_DEFAULTS.dailyQuotaMax 单出处）。
-  | "mate.config.quota.invalid";
+  | "mate.config.quota.invalid"
+  // P5 高级区本地校验失败（06 号详设 §5；界=ASSISTANT_CONFIG_LIMITS 单出处）。
+  | "mate.config.advanced.budgetInvalid"
+  | "mate.config.advanced.rateInvalid"
+  | "mate.config.advanced.samplesInvalid"
+  | "mate.config.advanced.intervalInvalid";
 
 /** 服务失败臂 → 文案键；未知码一律落 generic，不把原始错误文本直接展示给用户。 */
 export function resolveMateErrorMessageId(

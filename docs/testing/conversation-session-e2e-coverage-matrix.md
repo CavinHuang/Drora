@@ -6260,6 +6260,7 @@ MSA10（P2 审查修复批 740e2f567 追加，specs §9 W2 兜底；同文件同
 W1 worktree 开关——初始开（快照投影为唯一事实）→ 点击关，`setWorktreeDisabled`
 事务落库、快照回填状态行「关——声明写域」→ 再点回开恢复；开关只发动作、无本地副本。
 MSA11–12（2026-11-06 二轮审查批追加，同文件同 fixture；本批前 F2 反馈行/F4 告知卡两个
+MSA13（2026-11-06 P5 设置中心批，同文件同 fixture）：高级区三输入（软预算/信任门两阈值/watchdog 间隔）一体保存→快照回填回显；Source 区 GitHub 开关+repo/点名词+身份映射行编辑→保存→已保存回执；模型 select 存在（fixture 无 registry 诚实禁用——真实清单链属真机验收域；fixture 补挂 TabStoreProvider）。
 新呈现面（3c1af2f15）无验收登记——本行即缺口收口）：MSA11 F1 链守卫+F2 触发反馈行——
 配置区点名触发（UI 恒传 workspaceKey 落库；`mate-trigger-feedback` role=status 行
 decision_card 臂文案）→ `fixture-approve-bare` 不带 target 直放行命中 trigger 落库

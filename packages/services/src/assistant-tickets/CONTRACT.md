@@ -42,6 +42,13 @@ ticket.channel_ref）；Thread 直通 Tier1。
   记账不改写。
 - 写域（02 §4）：W1=本地 git 根 worktree `.drora/mate/<ticketId>` + 分支 `mate/<id>`
   （终态清理保留分支，清理失败追加 fail_reason 附属日志；换代续用不重复 add；
+- **P5 设置中心（06 号详设 §2）**：configActions.ts 六 setter（setBudget/
+  setTrustGateThresholds/setWatchdogIntervalMinutes/setSourcesConfig/
+  setSourceIdentityMap/setModelPreference）为 kv 可调参数的**唯一生产写入口**
+  （bounds=ASSISTANT_CONFIG_LIMITS fail-closed；publish 即 sourceRegistry reconcile——
+  Source 启停/映射改动即时生效）。模型偏好（model_preference，modelSelection JSON）
+  由 node.ts 在 dispatch/Router 两处 createSession config.modelSelection 消费——
+  「下一次建会话生效」，在途会话不热切。
   **「用户关闭 W1」开关已补交互入口**——setWorktreeDisabled（kv worktree_disabled
   唯一写路径，快照 worktreeDisabled 投影，UI=MateConfigSection 开关；P2 审查修复），
   只影响之后的派发规划，已建工单写域不回改）；

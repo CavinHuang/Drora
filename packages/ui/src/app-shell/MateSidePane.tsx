@@ -315,6 +315,12 @@ export const MateSidePane = memo(function MateSidePane({
         allowlist={snapshot.allowlist}
         worktreeDisabled={snapshot.worktreeDisabled}
         dailyQuota={snapshot.quota?.quota}
+        budgetMaxActivePerWorkspace={snapshot.budget?.maxActivePerWorkspace}
+        modelPreference={snapshot.modelPreference ?? null}
+        trustGateThresholds={snapshot.trustGateThresholds}
+        watchdogIntervalMinutes={snapshot.watchdogIntervalMinutes}
+        sourcesConfig={snapshot.sourcesConfig}
+        identityMap={snapshot.identityMap}
       />
     </div>
   );

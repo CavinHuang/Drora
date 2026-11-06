@@ -675,6 +675,7 @@ import { createGitCommandProvider } from "./git/providers/gitCommandProvider.js"
 import { isAbsolute } from "node:path";
 import { mkdir, stat } from "node:fs/promises";
 import { createAssistantTicketsService } from "./assistant-tickets/assistantTicketsService.js";
+import { readAssistantModelSelectionNested } from "./assistant-tickets/assistantConfig.js";
 import { IAssistantTicketService } from "./assistant-tickets/assistantTickets.js";
 // Drora Mate Source 注册表（03 详设 §1-§5，P3）：注册表/三 Source/配置映射——
 // 事件源（bots 回调出口/手机桥/GitHub HTTP/凭证）全部由装配层注入。
@@ -3465,7 +3466,15 @@ export function createLocalServices(options: {
           sessionId: null,
           payload: {
             workspaceId: request.targetWorkspaceIdentity || assistantHostPathFor(request.hostPath),
-            config: { mode: request.permissionTier },
+            // P5 模型偏好（06 号详设 §4）：大副选择的模型作用于新建 worker 会话——
+            // 「下一次建会话生效」，在途会话不热切（避免第二条模型写路径）；缺省不带
+            // 字段=CLI 缺省模型（现行为不变）。
+            config: {
+              mode: request.permissionTier,
+              ...(assistantModelSelection()
+                ? { modelSelection: assistantModelSelection() }
+                : {}),
+            },
           },
         }),
       });
@@ -3536,6 +3545,11 @@ export function createLocalServices(options: {
   const assistantRouterEvaluations = {
     chain: Promise.resolve() as Promise<unknown>,
   };
+  // P5 模型偏好（06 号详设 §4）：kv 单键读取兜底——readAssistantModelSelectionNested
+  // 携 zod 校验（坏值→undefined=不带字段），dispatch/Router 两处 createSession 消费。
+  function assistantModelSelection(): import("@drora/shared").ModelSelection | undefined {
+    return readAssistantModelSelectionNested(assistantDatabase.raw);
+  }
   function assistantKvGet(key: string): string | undefined {
     const row = assistantDatabase.raw.prepare("SELECT value FROM kv WHERE key = ?").get(key) as
       | { value: string }
@@ -3556,7 +3570,15 @@ export function createLocalServices(options: {
       envelope: createHostCommandEnvelope({
         type: "createSession",
         sessionId: null,
-        payload: { workspaceId: ASSISTANT_IDENTITY, config: { mode: "build" } },
+        payload: {
+          workspaceId: ASSISTANT_IDENTITY,
+          config: {
+            mode: "build",
+            ...(assistantModelSelection()
+              ? { modelSelection: assistantModelSelection() }
+              : {}),
+          },
+        },
       }),
     });
     if (ack.result?.type !== "createSession" || !ack.result.sessionId) {

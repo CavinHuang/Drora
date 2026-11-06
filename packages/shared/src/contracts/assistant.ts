@@ -105,6 +105,24 @@ export const ASSISTANT_TRUST_GATE_DEFAULTS = {
 } as const;
 
 /**
+ * P5 设置中心写入边界（06 号详设 §1；bounds 单出处——服务 setter 校验与 UI 输入
+ * 约束同源，越界 fail-closed 不猜测收敛）。读侧坏/缺值逐键回落缺省（readAssistantConfig
+ * 纪律）；界限只约束写入口，不影响既有读点的回落语义。
+ */
+export const ASSISTANT_CONFIG_LIMITS = {
+  /** 软预算：同 workspace 并行活动工单上限。 */
+  budgetMaxActivePerWorkspace: { min: 1, max: 10 },
+  /** 信任门放行率开放线。 */
+  trustGateMinRate: { min: 0.5, max: 1 },
+  /** 信任门样本数开放线。 */
+  trustGateMinSamples: { min: 5, max: 100 },
+  /** watchdog 轮询间隔（分钟；服务内换算 ms 落 kv `watchdog_interval_ms`）。 */
+  watchdogIntervalMinutes: { min: 5, max: 1440 },
+  /** Source 身份映射条目上限（快照投影与写入口同界）。 */
+  identityMapMaxEntries: 50,
+} as const;
+
+/**
  * P4 watchdog 缺省参数（04 详设 §1 判据表；轮询间隔 kv `watchdog_interval_ms` 可调，
  * 判据阈值为常量——判据语义钉死在判据表，避免「kv 手滑改判据」破坏不自动终止不变式）。
  */

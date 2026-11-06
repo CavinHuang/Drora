@@ -6,6 +6,7 @@ import type { IServiceAccessor } from "@drora/services";
 import { DroraIntlProvider } from "../../src/i18n/IntlProvider.js";
 import { ServiceProvider } from "../../src/hooks/useServices.js";
 import { PlatformProvider } from "../../src/hooks/usePlatform.js";
+import { TabStoreProvider } from "../../src/store/TabStoreProvider.js";
 import { TooltipProvider } from "../../src/components/ui/tooltip.js";
 import { ConfirmDialogHost } from "../../src/ConfirmDialog.js";
 import { MateSidePane } from "../../src/app-shell/MateSidePane.js";
@@ -153,6 +154,11 @@ function Fixture() {
     // publishMatePet 读点，useSettings 的 platform.* 皆为可选调用（stub 安全）。
     <DroraIntlProvider key={locale} initialLocale={locale}>
       <TooltipProvider>
+        {/* P5（06 号详设 §5）：MateModelPreference 的 useModelSelectionView 经
+            useWorkspaceServicesResolution 消费 useTabStore——缺 TabStoreProvider 整树
+            抛错（MSA13 探针实证）；照 Root.tsx 根层挂法补齐（无 tab 形态下 hook 走
+            unavailable，模型 select 诚实禁用——registry 清单链属真机验收域）。 */}
+        <TabStoreProvider>
         <PlatformProvider platform={petPlatform}>
         <ServiceProvider services={accessor}>
           <div className="bg-background text-foreground">
@@ -294,6 +300,7 @@ function Fixture() {
           </div>
         </ServiceProvider>
         </PlatformProvider>
+        </TabStoreProvider>
       </TooltipProvider>
     </DroraIntlProvider>
   );

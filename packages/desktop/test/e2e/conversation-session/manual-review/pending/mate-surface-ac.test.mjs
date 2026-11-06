@@ -22,7 +22,7 @@ const { default: tailwindcss } = await import(
 );
 
 test(
-  "MSA01–12: Surface A status strip, Router suggestion prefill (dispatch/attach/failed/hold), team action, queued notice, Surface C tabs, generation badge, session-line, W1 worktree toggle, F1 bare-approve chain guard + F2 trigger feedback, F4 auto-notice card",
+  "MSA01–13: Surface A status strip, Router suggestion prefill (dispatch/attach/failed/hold), team action, queued notice, Surface C tabs, generation badge, session-line, W1 worktree toggle, F1 bare-approve chain guard + F2 trigger feedback, F4 auto-notice card",
   { timeout: 180000 },
   async () => {
     const output = await mkdtemp(join(tmpdir(), "mate-surface-ac-"));
@@ -313,6 +313,39 @@ test(
       await page.waitForFunction(
         () => document.querySelectorAll('[data-testid="mate-auto-notice-row"]').length === 1,
       );
+
+      // MSA13（P5 设置中心，06 号详设 §6）：高级区三输入一体保存→快照回显；Source
+      // 开关+GitHub 参数+身份映射行编辑→保存→已保存回执；模型 select 在无 registry 的
+      // fixture 形态下诚实禁用（真实清单链在真机验收域）。
+      const advanced = page.getByTestId("mate-config-advanced");
+      await advanced.waitFor();
+      const budgetInput = advanced.getByTestId("mate-budget-input");
+      await budgetInput.fill("5");
+      await advanced.getByTestId("mate-advanced-save").click();
+      await page.waitForFunction(
+        () => document.querySelector('[data-testid="mate-budget-input"]')?.value === "5",
+      );
+
+      // 开关序（mate-config 内 role=switch 集合）：worktree(0)/feishu(1)/phone(2)/github(3)。
+      const githubSwitch = page
+        .locator('[data-testid="mate-config"] [role="switch"]')
+        .nth(3);
+      await githubSwitch.click();
+      const githubFields = page.getByTestId("mate-github-fields");
+      await githubFields.waitFor();
+      await githubFields.locator("input").nth(0).fill("o/r");
+      await githubFields.locator("input").nth(1).fill("大副");
+      const githubMap = page.getByTestId("mate-identity-map-github");
+      await githubMap.getByRole("button", { name: /\+/ }).click();
+      await githubMap.locator("input").nth(0).fill("gh-reviewer");
+      await githubMap.locator("input").nth(1).fill("local-user");
+      await page.getByTestId("mate-config").getByRole("button", { name: /保存 Source|Save sources/ }).click();
+      await page.waitForFunction(() =>
+        document.querySelector('[data-testid="mate-config"] [role="status"]')?.textContent?.length > 0,
+      );
+
+      const modelSelect = page.locator('select[aria-label*="模型"], select[aria-label*="model"], select[aria-label*="大副模型"], select[aria-label*="Mate model"]').first();
+      assert.equal(await modelSelect.count(), 1);
 
       assert.deepEqual(errors, []);
       console.log(`Mate Surface evidence: ${output}`);

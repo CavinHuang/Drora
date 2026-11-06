@@ -90,6 +90,42 @@ interface MateState {
     workspaceKey: string,
     disabled: boolean,
   ): Promise<AssistantResult<{ ok: true }>>;
+  /** P5 设置中心（06 号详设）：软预算写入（bounds 校验在服务侧 fail-closed）。 */
+  setBudget(
+    service: IAssistantTicketService,
+    workspaceKey: string,
+    maxActivePerWorkspace: number,
+  ): Promise<AssistantResult<{ ok: true }>>;
+  /** P5：信任门阈值部分更新（只写传入键）。 */
+  setTrustGateThresholds(
+    service: IAssistantTicketService,
+    workspaceKey: string,
+    input: { minRate?: number; minSamples?: number },
+  ): Promise<AssistantResult<{ ok: true }>>;
+  /** P5：watchdog 轮询间隔（分钟）。 */
+  setWatchdogIntervalMinutes(
+    service: IAssistantTicketService,
+    workspaceKey: string,
+    minutes: number,
+  ): Promise<AssistantResult<{ ok: true }>>;
+  /** P5：Source 开关配置整体替换（publish 即 reconcile 即时生效）。 */
+  setSourcesConfig(
+    service: IAssistantTicketService,
+    workspaceKey: string,
+    config: { feishu?: { enabled: boolean }; phone?: { enabled: boolean }; github?: { enabled: boolean; repo?: string; mentionName?: string } },
+  ): Promise<AssistantResult<{ ok: true }>>;
+  /** P5：Source 身份映射整体替换（feishu/github 两子表，合并 ≤50 条）。 */
+  setSourceIdentityMap(
+    service: IAssistantTicketService,
+    workspaceKey: string,
+    map: { feishu?: Record<string, string>; github?: Record<string, string> },
+  ): Promise<AssistantResult<{ ok: true }>>;
+  /** P5：大副模型偏好（null=清除回落 CLI 缺省；下一次建会话生效）。 */
+  setModelPreference(
+    service: IAssistantTicketService,
+    workspaceKey: string,
+    preference: { providerId: string; modelId: string; reasoningLevel?: string } | null,
+  ): Promise<AssistantResult<{ ok: true }>>;
   /** P4 第二棒（04 详设 §3）：工件核验人工确认（awaiting_output → done+终态钩子）。 */
   confirmTicketOutput(
     service: IAssistantTicketService,
@@ -255,6 +291,38 @@ export const useMateStore = create<MateState>((set, get) => {
     setWorktreeDisabled(service, workspaceKey, disabled) {
       const key = `ws:${workspaceKey}:worktreeDisabled:${disabled ? "1" : "0"}`;
       return runSingleFlight(key, () => service.setWorktreeDisabled(disabled));
+    },
+
+    // P5 设置中心（06 号详设 §2）：六 setter 薄封装——single-flight 同款纪律，
+    // key 含参数摘要防并发重复提交；失败按 AssistantResult 透传（UI 出 role=alert）。
+    setBudget(service, workspaceKey, maxActivePerWorkspace) {
+      const key = `ws:${workspaceKey}:budget:${maxActivePerWorkspace}`;
+      return runSingleFlight(key, () => service.setBudget({ maxActivePerWorkspace }));
+    },
+
+    setTrustGateThresholds(service, workspaceKey, input) {
+      const key = `ws:${workspaceKey}:trustThresholds:${input.minRate ?? ""}:${input.minSamples ?? ""}`;
+      return runSingleFlight(key, () => service.setTrustGateThresholds(input));
+    },
+
+    setWatchdogIntervalMinutes(service, workspaceKey, minutes) {
+      const key = `ws:${workspaceKey}:watchdogInterval:${minutes}`;
+      return runSingleFlight(key, () => service.setWatchdogIntervalMinutes({ minutes }));
+    },
+
+    setSourcesConfig(service, workspaceKey, config) {
+      const key = `ws:${workspaceKey}:sourcesConfig:${JSON.stringify(config)}`;
+      return runSingleFlight(key, () => service.setSourcesConfig(config));
+    },
+
+    setSourceIdentityMap(service, workspaceKey, map) {
+      const key = `ws:${workspaceKey}:identityMap:${JSON.stringify(map)}`;
+      return runSingleFlight(key, () => service.setSourceIdentityMap(map));
+    },
+
+    setModelPreference(service, workspaceKey, preference) {
+      const key = `ws:${workspaceKey}:modelPreference:${preference ? `${preference.providerId}/${preference.modelId}/${preference.reasoningLevel ?? ""}` : "clear"}`;
+      return runSingleFlight(key, () => service.setModelPreference(preference));
     },
 
     // P4 第二棒（04 详设 §3/§4）：人工确认/摘要回执动作——single-flight 同款纪律，

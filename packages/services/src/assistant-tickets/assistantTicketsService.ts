@@ -48,6 +48,7 @@ import { createAssistantAutoDispatch } from "./autoDispatch.js";
 import { createAssistantQuotaService } from "./quotaCenterService.js";
 import { resolveAssistantDailyQuota } from "./quotaCenter.js";
 import { createAssistantRecordTrigger } from "./triggerRecord.js";
+import { createAssistantConfigActions } from "./configActions.js";
 import { createAssistantSourceIngest } from "./sources/sourceIngest.js";
 import type { AssistantSourceIngestValue } from "./sources/sourceIngest.js";
 import type { MateSourceEvent } from "./sources/contract.js";
@@ -164,6 +165,8 @@ export function createAssistantTicketsService(
   // ------------------------------------------------------------------
   const quotaService = createAssistantQuotaService({ db, publish });
 
+  // P5 设置中心（06 号详设）：六 setter 纯模块件（写 kv+publish；见 configActions.ts）。
+  const configActions = createAssistantConfigActions({ db, publish });
   function publish(): void {
     const snapshot = buildAssistantSnapshot(db.raw, readConfig(db.raw), {
       dailyQuota: quotaService.cachedQuota(),
@@ -590,6 +593,9 @@ export function createAssistantTicketsService(
       }
     },
 
+    // P5 设置中心（06 号详设 §2）：六 setter 委托 configActions（bounds fail-closed+
+    // publish 即 reconcile 的公共纪律收在纯模块；服务仍是 kv 唯一生产写者）。
+    ...configActions,
     async setWorktreeDisabled(disabled) {
       // W1 用户开关（spec §9 W2 兜底；P2 审查修复补交互入口）：kv worktree_disabled
       // 唯一写路径（readConfig 既有读取）；只影响之后的派发规划（planWriteDomain），

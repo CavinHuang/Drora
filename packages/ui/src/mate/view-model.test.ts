@@ -10,14 +10,17 @@ import type {
   AssistantDecisionView,
   AssistantSnapshot,
   AssistantTicketView,
+  AssistantTriggerView,
 } from "@drora/services";
 
 import {
   MATE_UNTARGETED_WORKSPACE_KEY,
   deriveMateStatusLine,
+  deriveMateThreadRows,
   deriveMateViewModel,
   findMateDecisionForTicket,
   findMateTicketIdForDecision,
+  formatMateThreadClock,
   isMateActiveTicket,
   isMateAutoNoticeDecision,
   isMateAutoSwitchAvailable,
@@ -25,12 +28,14 @@ import {
   isMatePendingDecision,
   isMateQueuedTicket,
   isMateAwaitingVerification,
+  isMateThreadTicketNavigable,
   matePermissionTierMessageId,
   mateRouterSuggestionKindMessageId,
   mateStaleBadgeKind,
   mateTicketGenerationNumber,
   mateTriggerOutcomeFeedbackMessageId,
   mateUnconfirmedIncrement,
+  mergeMateThreadRows,
   resolveMateBudgetActive,
   resolveMateErrorMessageId,
   resolveMateQuotaLine,
@@ -84,6 +89,18 @@ function snapshot(overrides: Partial<Omit<AssistantSnapshot, "version">> = {}): 
     decisions: [],
     tickets: [],
     updatedAtMs: T0,
+    ...overrides,
+  };
+}
+
+/** P10a-2：trigger 视图行 helper（对话流首屏投影用）。 */
+function trigger(overrides: Partial<AssistantTriggerView> & { id: string }): AssistantTriggerView {
+  return {
+    sourceKind: "local",
+    strength: ASSISTANT_STRENGTHS.explicit,
+    identity: "user-a",
+    text: `触发原文 ${overrides.id}`,
+    atMs: T0,
     ...overrides,
   };
 }
@@ -538,5 +555,125 @@ describe("F2 mateTriggerOutcomeFeedbackMessageId（触发反馈封闭映射）",
     // auto_notice 呈现面是告知卡（isMateAutoNoticeDecision），配置区不出第二处文案。
     expect(mateTriggerOutcomeFeedbackMessageId(ASSISTANT_OUTCOMES.autoNotice)).toBeNull();
     expect(mateTriggerOutcomeFeedbackMessageId("anything-else")).toBeNull();
+  });
+});
+
+describe("P10a-2 deriveMateThreadRows（对话流首屏投影）", () => {
+  it("三源合并升序；同刻并列组按 trigger→decision→ticket 呈现序；非终态工单不进流", () => {
+    const snap = snapshot({
+      triggers: [
+        trigger({ id: "TR-2", atMs: T0 + 10 }),
+        trigger({ id: "TR-1", atMs: T0 }),
+      ],
+      decisions: [
+        // 与 TR-1 同事务同刻：并列组内 trigger 在 decision 前。
+        decision({ id: 2, triggerId: "TR-2", decidedMs: T0 + 10 }),
+        decision({ id: 1, triggerId: "TR-1", decidedMs: T0 }),
+        // 与 trigger 同刻的 done 工单行：kind 序在 decision 后。
+      ],
+      tickets: [
+        ticket({
+          id: "T-done",
+          status: ASSISTANT_TICKET_STATUSES.done,
+          updatedAtMs: T0,
+          outputSummary: "完成：首行摘要",
+        }),
+        ticket({ id: "T-run", status: ASSISTANT_TICKET_STATUSES.running, updatedAtMs: T0 + 99 }),
+        ticket({
+          id: "T-fail",
+          status: ASSISTANT_TICKET_STATUSES.failed,
+          updatedAtMs: T0 - 5,
+          failReason: "boom",
+        }),
+      ],
+    });
+    const rows = deriveMateThreadRows(snap);
+    expect(rows.map((row) => row.kind)).toEqual([
+      "ticket", // T-fail @T0-5（最早的终态行）
+      "trigger", // TR-1 @T0
+      "decision", // d1 @T0（同刻并列组：trigger→decision）
+      "ticket", // T-done @T0（同刻并列组：ticket 最后）
+      "trigger", // TR-2 @T0+10
+      "decision", // d2 @T0+10
+    ]);
+    // 非终态（running）工单不进流——活动态走工单区既有面。
+    expect(rows.some((row) => row.kind === "ticket" && row.ticket.ticketId === "T-run")).toBe(
+      false,
+    );
+  });
+
+  it("工单摘要行携带预览口径字段与换代标注（generationCount 透传）", () => {
+    const snap = snapshot({
+      tickets: [
+        ticket({
+          id: "T-gen",
+          status: ASSISTANT_TICKET_STATUSES.done,
+          updatedAtMs: T0,
+          generationCount: 2,
+          outputSummary: null,
+          failReason: null,
+        }),
+      ],
+    });
+    const [row] = deriveMateThreadRows(snap);
+    expect(row?.kind).toBe("ticket");
+    if (row?.kind === "ticket") {
+      expect(row.ticket.ticketId).toBe("T-gen");
+      expect(row.ticket.brief).toBe("工单首行\n第二行");
+      expect(row.ticket.generationCount).toBe(2);
+      expect(mateTicketGenerationNumber(row.ticket)).toBe(3);
+      expect(row.ticket.targetWorkspaceIdentity).toBe("ws-a");
+    }
+  });
+});
+
+describe("P10a-2 mergeMateThreadRows（旧页合并去重）", () => {
+  it("kind+id 去重、升序输出；旧页与首屏并列时保留首个出现（旧页历史不可改写）", () => {
+    const older = [
+      { kind: "trigger", atMs: T0, trigger: trigger({ id: "TR-1", atMs: T0 }) },
+      { kind: "decision", atMs: T0 + 1, decision: decision({ id: 1, decidedMs: T0 + 1 }) },
+    ] as const;
+    const firstScreen = [
+      // 同 id 重复出现（并列组边界安全网场景）——去重后只一行。
+      { kind: "trigger", atMs: T0, trigger: trigger({ id: "TR-1", atMs: T0 }) },
+      { kind: "trigger", atMs: T0 + 5, trigger: trigger({ id: "TR-2", atMs: T0 + 5 }) },
+    ] as const;
+    const merged = mergeMateThreadRows(older, firstScreen);
+    expect(
+      merged.map((row) =>
+        row.kind === "trigger" ? row.trigger.id : row.kind === "decision" ? `d${row.decision.id}` : row.ticket.ticketId,
+      ),
+    ).toEqual(["TR-1", "d1", "TR-2"]);
+  });
+
+  it("空组与乱序输入仍收敛为升序", () => {
+    const merged = mergeMateThreadRows(
+      [],
+      [{ kind: "trigger", atMs: T0 + 9, trigger: trigger({ id: "TR-9", atMs: T0 + 9 }) }],
+      [{ kind: "trigger", atMs: T0 + 1, trigger: trigger({ id: "TR-1", atMs: T0 + 1 }) }],
+    );
+    expect(merged.map((row) => (row.kind === "trigger" ? row.trigger.id : null))).toEqual([
+      "TR-1",
+      "TR-9",
+    ]);
+  });
+});
+
+describe("P10a-2 formatMateThreadClock / isMateThreadTicketNavigable", () => {
+  it("绝对时刻：同本地日 HH:MM、跨日 MM-DD HH:MM（不做相对时长、零定时器）", () => {
+    const now = new Date(2026, 10, 7, 18, 0).getTime();
+    const sameDay = new Date(2026, 10, 7, 9, 5).getTime();
+    const prevDay = new Date(2026, 10, 6, 23, 59).getTime();
+    expect(formatMateThreadClock(sameDay, now)).toBe("09:05");
+    expect(formatMateThreadClock(prevDay, now)).toBe("11-06 23:59");
+    // 跨年旧行同取 MM-DD（年份省略是一期登记取舍——对话流翻页史，完整时刻在台账/详情）。
+    const prevYear = new Date(2025, 10, 7, 8, 1).getTime();
+    expect(formatMateThreadClock(prevYear, now)).toBe("11-07 08:01");
+  });
+
+  it("摘要行下钻判定：快照工单集内 true；LRU 裁剪后 false（详情不可达，诚实降级）", () => {
+    const snap = snapshot({ tickets: [ticket({ id: "T-in" })] });
+    expect(isMateThreadTicketNavigable(snap, "T-in")).toBe(true);
+    expect(isMateThreadTicketNavigable(snap, "T-truncated")).toBe(false);
   });
 });

@@ -30,6 +30,7 @@ import type {
   AssistantSnapshot,
   AssistantTicketView,
   AssistantTrustView,
+  MateThreadRow,
 } from "@drora/services";
 
 /** Side Pane 过滤 pills（01 §5：待决策/进行中/观察中/全部）。 */
@@ -124,9 +125,10 @@ export function isMateQueuedTicket(status: AssistantTicketView["status"]): boole
 
 /**
  * 工单当前代序号（specs §8）：快照 generationCount=已归档代数，当前代=归档数+1；
- * 未派发（无字段）返回 1（首代）。纯函数供工单行/详情页共用，不各自 +1。
+ * 未派发（无字段）返回 1（首代）。纯函数供工单行/详情页/对话流摘要行共用，不各自 +1。
+ * P10a-2 起入参泛化为结构类型（AssistantTicketView 与 MateThreadTicketRow 同形消费）。
  */
-export function mateTicketGenerationNumber(ticket: AssistantTicketView): number {
+export function mateTicketGenerationNumber(ticket: { readonly generationCount?: number }): number {
   return (ticket.generationCount ?? 0) + 1;
 }
 
@@ -255,6 +257,133 @@ export function resolveMateUsageGenerations(
 ): NonNullable<AssistantTicketView["usageByGeneration"]> | null {
   if (!ticket.usageByGeneration) return null;
   return [...ticket.usageByGeneration].sort((a, b) => a.generation - b.generation);
+}
+
+// ---------------------------------------------------------------------------
+// P10a-2（10 号详设 §2.1/§2.4 v2.1）：对话管理台首屏投影——快照 → MateThreadRow 升序。
+// 排序语义单一出处在服务 mateThread.ts（升序呈现序=atMs 升、kind 序 trigger→decision→
+// ticket、同源 id 升）；此处是快照截断首屏的同构镜像，不建第二排序语义。
+// ---------------------------------------------------------------------------
+
+/** 对话流行 kind 序（升序呈现序；同刻并列组 trigger 在其 decision 前）。 */
+const MATE_THREAD_ROW_RANK: Record<MateThreadRow["kind"], 0 | 1 | 2> = {
+  trigger: 0,
+  decision: 1,
+  ticket: 2,
+};
+
+/** 行内稳定 id（trigger.id / decision.id / ticketId——去重与并列组次序共用）。 */
+function mateThreadRowId(row: MateThreadRow): string {
+  switch (row.kind) {
+    case "trigger":
+      return row.trigger.id;
+    case "decision":
+      return String(row.decision.id);
+    case "ticket":
+      return row.ticket.ticketId;
+  }
+}
+
+/** 升序呈现序比较器（atMs 升 → kind 序升 → 同源 id 升；与服务倒序取正序回等价）。 */
+function compareMateThreadRowsAsc(a: MateThreadRow, b: MateThreadRow): number {
+  if (a.atMs !== b.atMs) return a.atMs - b.atMs;
+  const rankDelta = MATE_THREAD_ROW_RANK[a.kind] - MATE_THREAD_ROW_RANK[b.kind];
+  if (rankDelta !== 0) return rankDelta;
+  const aId = mateThreadRowId(a);
+  const bId = mateThreadRowId(b);
+  return aId < bId ? -1 : aId > bId ? 1 : 0;
+}
+
+/** 快照终态工单 → 对话流摘要行（brief 已是快照预览口径 ≤120，与服务行同界）。 */
+function mateThreadTicketRowFromSnapshot(
+  ticket: AssistantTicketView,
+): MateThreadRow & { readonly kind: "ticket" } {
+  return {
+    kind: "ticket",
+    atMs: ticket.updatedAtMs,
+    ticket: {
+      ticketId: ticket.id,
+      brief: ticket.brief,
+      status: ticket.status,
+      targetWorkspaceIdentity: ticket.targetWorkspaceIdentity,
+      outputSummary: ticket.outputSummary,
+      failReason: ticket.failReason,
+      ...(ticket.generationCount !== undefined ? { generationCount: ticket.generationCount } : {}),
+    },
+  };
+}
+
+/**
+ * 对话流首屏（P10a-2，10 号详设 §2.4）：快照截断版投影为 MateThreadRow 升序——
+ * trigger 全量（用户消息气泡源）/decision 全量（渲染侧按 outcome 分流：待决策卡内嵌/
+ * 答复气泡/auto 告知卡；其余 outcome 不出消息——其后果由工单摘要行/观察区承接）/
+ * ticket 仅终态（非终态走工单区既有面）。更早历史经 readMateThread 分页（缺省全流——
+ * 与快照首屏同口径；workspaceKey 过滤参数留给按域消费方，本面不传）。
+ */
+export function deriveMateThreadRows(snap: AssistantSnapshot): readonly MateThreadRow[] {
+  const rows: MateThreadRow[] = [
+    ...snap.triggers.map(
+      (trigger): MateThreadRow => ({ kind: "trigger", atMs: trigger.atMs, trigger }),
+    ),
+    ...snap.decisions.map(
+      (decision): MateThreadRow => ({ kind: "decision", atMs: decision.decidedMs, decision }),
+    ),
+  ];
+  for (const ticket of snap.tickets) {
+    // 终态行才进对话流（done/failed；服务 readMateThread 同口径）。
+    if (
+      ticket.status === ASSISTANT_TICKET_STATUSES.done ||
+      ticket.status === ASSISTANT_TICKET_STATUSES.failed
+    ) {
+      rows.push(mateThreadTicketRowFromSnapshot(ticket));
+    }
+  }
+  return rows.sort(compareMateThreadRowsAsc);
+}
+
+/**
+ * 合并首屏与已加载的更早页（升序；kind+id 去重）。分页游标 beforeMs 严格 <，旧页与
+ * 快照窗在语义上不重叠——去重是同刻并列组边界的安全网，不是第二份语义。
+ */
+export function mergeMateThreadRows(
+  ...groups: readonly (readonly MateThreadRow[])[]
+): readonly MateThreadRow[] {
+  const seen = new Set<string>();
+  const merged: MateThreadRow[] = [];
+  for (const group of groups) {
+    for (const row of group) {
+      const key = `${row.kind}:${mateThreadRowId(row)}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      merged.push(row);
+    }
+  }
+  return merged.sort(compareMateThreadRowsAsc);
+}
+
+/**
+ * 摘要行能否下钻详情：详情按快照工单集渲染——readMateThread 取回的旧工单可能已被
+ * 快照容量（ticketsMax LRU）裁剪，此时行仍在流（台账事实）但详情不可达，诚实降级为
+ * 不可点行，不猜不造空详情。
+ */
+export function isMateThreadTicketNavigable(snap: AssistantSnapshot, ticketId: string): boolean {
+  return snap.tickets.some((ticket) => ticket.id === ticketId);
+}
+
+/**
+ * 对话流绝对时刻（桌宠纪律：绝对时刻不做相对时长，纯 DOM 零定时器——渲染时一次成型
+ * 不随时间刷新）：同本地日 HH:MM，跨日 MM-DD HH:MM（code-unit 稳定，不依赖 locale）。
+ */
+export function formatMateThreadClock(atMs: number, nowMs: number): string {
+  const at = new Date(atMs);
+  const now = new Date(nowMs);
+  const pad = (value: number): string => String(value).padStart(2, "0");
+  const hhmm = `${pad(at.getHours())}:${pad(at.getMinutes())}`;
+  const sameDay =
+    at.getFullYear() === now.getFullYear() &&
+    at.getMonth() === now.getMonth() &&
+    at.getDate() === now.getDate();
+  return sameDay ? hhmm : `${pad(at.getMonth() + 1)}-${pad(at.getDate())} ${hhmm}`;
 }
 
 // ---------------------------------------------------------------------------

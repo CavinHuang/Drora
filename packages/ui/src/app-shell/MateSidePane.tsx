@@ -11,9 +11,9 @@ import {
   MateDigestCard,
   MateObserveRow,
   MatePaneHeader,
-  MateQueryReply,
   MateReportCard,
   MateStatusStrip,
+  MateThreadSection,
   MateTicketDetail,
   MateTicketRow,
   MateTrustBar,
@@ -25,7 +25,6 @@ import {
   isMateAutoNoticeDecision,
   isMateAwaitingVerification,
   isMateObserveDecision,
-  isMateQueryReply,
   isMatePendingDecision,
   isMateQueuedTicket,
   resolveMateBudgetActive,
@@ -43,9 +42,11 @@ import { EMPTY_MATE_WORKSPACE_STATE } from "@/store/mateStore.js";
  * 自动关 tab（无 GC 的东西）。
  *
  * 组成：MateStatusStrip（大副会话状态条：mode/活动/排队/待决策，02 §1.4）→
- * MateWorkOverview（全域工作总览卡，P8b/09 §1.7：三态区分，旧 Host 缺席=卡不渲染）→
- * MatePaneHeader（过滤 pills+软预算）→ MateTrustBar → 滚动区（决策卡｜workspace
- * 分组的工单行/汇报卡｜观察行）→ MateConfigSection（模式/名单/W1 worktree 开关/双测试触发按钮）。
+ * MateThreadSection（对话管理台，P10a-2/10 号详设 §2.1：四类消息投影+composer 同链触发
+ * +readMateThread 分页；status_replied 答复气泡唯一呈现面）→ MateWorkOverview（全域工作
+ * 总览卡，P8b/09 §1.7：三态区分，旧 Host 缺席=卡不渲染）→ MatePaneHeader（过滤
+ * pills+软预算）→ MateTrustBar → 滚动区（决策卡｜workspace 分组的工单行/汇报卡｜观察行）
+ * → MateConfigSection（模式/名单/W1 worktree 开关/双测试触发按钮）。
  * Surface C：工单行/汇报卡选中后整面板切 MateTicketDetail 二级视图（返回按钮回列表，
  * 选中态=mateStore.selectedTicketId 分域复用）。
  * 过滤/选中/展开三件局部态在 mateStore（zustand），快照本体不进 store。
@@ -138,11 +139,6 @@ export const MateSidePane = memo(function MateSidePane({
     () => snapshot?.decisions.filter(isMateAutoNoticeDecision) ?? [],
     [snapshot],
   );
-  // P7（08 号详设 §3.4）：查询直答卡——status_replied 决策，只读，随决策档展示。
-  const queryReplies = useMemo(
-    () => snapshot?.decisions.filter(isMateQueryReply) ?? [],
-    [snapshot],
-  );
   const showDecisions = filter === "decision" || filter === "all";
   const showObserves = filter === "observe" || filter === "all";
 
@@ -229,16 +225,24 @@ export const MateSidePane = memo(function MateSidePane({
 
   const isEmpty =
     (!showDecisions ||
-      (pendingDecisions.length === 0 &&
-        autoNoticeDecisions.length === 0 &&
-        // P7 查询答复计入决策档空态判定（08 §3.4：答复卡随决策档展示）。
-        queryReplies.length === 0)) &&
+      (pendingDecisions.length === 0 && autoNoticeDecisions.length === 0)) &&
     (!showObserves || observeDecisions.length === 0) &&
     viewModel.groups.length === 0;
 
   return (
     <div className="flex h-full min-h-0 flex-col" data-testid="mate-side-pane">
       <MateStatusStrip status={statusLine} quota={quotaLine} />
+      {/* P10a-2（10 号详设 §2.1/§2.3）：对话管理台——台账的消息投影（四类消息+composer
+          同链触发+readMateThread 分页）；status_replied 的答复气泡在此呈现，下方卡区
+          不再重复渲染。 */}
+      <MateThreadSection
+        snapshot={snapshot}
+        service={service}
+        workspaceKey={workspaceKey}
+        expandedDecisionId={expandedDecisionId}
+        onToggleExpanded={(id) => expandDecision(workspaceKey, id)}
+        onSelectTicket={(ticketId) => selectTicket(workspaceKey, ticketId)}
+      />
       {/* P8b（09 详设 §1.7）：全域工作总览卡——面板顶部状态条下；三态区分在组件内
           （旧 Host 缺席=卡不渲染），MateSidePane 只透传快照事实与既有导航通道。 */}
       <MateWorkOverview
@@ -264,7 +268,9 @@ export const MateSidePane = memo(function MateSidePane({
         allowlist={snapshot.allowlist}
         budgetMax={snapshot.budget.maxActivePerWorkspace}
       />
-      <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
+      {/* P10a-2：收件箱视角容器标记（mate-inbox-list）——对话流内嵌同一张待决策卡后，
+          验收资产按容器收敛 locator（同源同卡不双写的两视图各自定位）。 */}
+      <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3" data-testid="mate-inbox-list">
         {isEmpty ? (
           <div
             className="flex h-full flex-col items-center justify-center px-6 text-center"
@@ -346,18 +352,6 @@ export const MateSidePane = memo(function MateSidePane({
               <div className="flex flex-col gap-1.5">
                 {observeDecisions.map((decision) => (
                   <MateObserveRow key={decision.id} decision={decision} service={service} workspaceKey={workspaceKey} />
-                ))}
-              </div>
-            ) : null}
-            {showDecisions && queryReplies.length > 0 ? (
-              <div className="flex flex-col gap-1.5">
-                {queryReplies.map((decision) => (
-                  <MateQueryReply
-                    key={decision.id}
-                    decision={decision}
-                    service={service}
-                    workspaceKey={workspaceKey}
-                  />
                 ))}
               </div>
             ) : null}

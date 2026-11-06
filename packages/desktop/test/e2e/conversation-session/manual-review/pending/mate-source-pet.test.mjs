@@ -64,13 +64,17 @@ test(
         timeout: 60_000,
       });
       await page.getByTestId("mate-side-pane").waitFor();
+      // P10a-2（对话管理台批）：待决策卡在对话流与收件箱同卡双视图——卡片断言按收件箱
+      // 容器（mate-inbox-list）收敛，断言语义不变。
+      const inbox = page.getByTestId("mate-inbox-list");
+      await inbox.waitFor();
 
       // MSP01（spec §11 落地注记）：手机点名 → 决策卡渲染来源徽标（phone）+ 触发者身份；
       // 观察行（未指名 local 触发）同样带来源徽标。
       await page.getByTestId("fixture-inject-phone").click();
-      const card = page.getByTestId("mate-decision-card");
+      const card = inbox.getByTestId("mate-decision-card");
       await card.waitFor();
-      const badge = page.getByTestId("mate-source-badge");
+      const badge = inbox.getByTestId("mate-source-badge");
       await badge.waitFor();
       assert.equal(await badge.getAttribute("data-source-kind"), "phone");
       assert.match(await badge.textContent(), /手机/);
@@ -80,7 +84,7 @@ test(
       // direct:<ticketId>:<原文>，不产生新决策卡）；详情时间线「通道绑定（直通）」站
       // 显示串接值本身。
       await page.getByTestId("mate-filter-all").click();
-      await page.getByTestId("mate-decision-approve").click();
+      await inbox.getByTestId("mate-decision-approve").click();
       await page.getByTestId("mate-ticket-row").waitFor();
       await page.getByTestId("fixture-phone-followup").click();
       await page.waitForFunction(
@@ -130,8 +134,8 @@ test(
       assert.equal(firstBubble.latestReport.status, "done");
       assert.match(firstBubble.latestReport.summary, /fixture 汇报首行摘要/);
       await page.getByTestId("fixture-inject-dispatch").click();
-      await page.getByTestId("mate-decision-card").waitFor();
-      await page.getByTestId("mate-decision-approve").click();
+      await inbox.getByTestId("mate-decision-card").waitFor();
+      await inbox.getByTestId("mate-decision-approve").click();
       await page.waitForFunction(
         (previousTicketId) => {
           const raw = document.querySelector('[data-testid="fixture-mate-pet-projection"]')

@@ -250,6 +250,18 @@ export const mateMessagesEn = {
   "mate.work.managed.hint": "Session is the running executor of a Mate ticket",
   "mate.work.session.managed": "managed",
   "mate.work.offpeak.disabled": "Off-peak task — view it in the task center",
+
+  // ---- P10a-2 对话管理台（10 号详设 §2.1/§2.3 v2.1；四类消息投影+composer+分页） ----
+  "mate.thread.title": "Conversation",
+  "mate.thread.empty":
+    "No messages yet; what you send and the Mate's replies appear here in order.",
+  "mate.thread.loadEarlier": "Load earlier",
+  "mate.thread.loadFailed": "Failed to load earlier messages; try again.",
+  "mate.thread.composer.placeholder":
+    "Message the Mate (named trigger via the admission gate)",
+  "mate.thread.composer.send": "Send",
+  "mate.thread.composer.off":
+    "The Mate is off: the conversation is read-only and input is disabled (reads execute nothing either).",
 };
 
 export const mateMessagesZh = {
@@ -490,4 +502,14 @@ export const mateMessagesZh = {
   "mate.work.managed.hint": "该会话是大副工单的当代执行体",
   "mate.work.session.managed": "代管",
   "mate.work.offpeak.disabled": "闲时任务——在任务中心查看",
+
+  // ---- P10a-2 对话管理台（10 号详设 §2.1/§2.3 v2.1；四类消息投影+composer+分页） ----
+  "mate.thread.title": "对话",
+  "mate.thread.empty": "尚无对话记录；发出的消息与大副的答复会按时间线出现在这里。",
+  "mate.thread.loadEarlier": "加载更早",
+  "mate.thread.loadFailed": "更早消息加载失败，可重试。",
+  "mate.thread.composer.placeholder": "给大副发消息（点名触发，经准入门）",
+  "mate.thread.composer.send": "发送",
+  "mate.thread.composer.off":
+    "大副处于 off 模式：对话只读、输入停用（读意图也零执行）。",
 };

@@ -1,6 +1,6 @@
 import { createRoot } from "react-dom/client";
-import { useCallback, useMemo, useState } from "react";
-import { ASSISTANT_PERMISSION_TIERS } from "@drora/shared";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { ASSISTANT_MODES, ASSISTANT_PERMISSION_TIERS } from "@drora/shared";
 import type { IPlatformService } from "@drora/shared";
 import type { IServiceAccessor } from "@drora/services";
 import { DroraIntlProvider } from "../../src/i18n/IntlProvider.js";
@@ -77,6 +77,16 @@ import "../../src/styles.css";
  * - fixture-inventory-clear / fixture-inventory-empty：「投影就绪中」（view 清空、ready
  *   保持）/「无工作」（workspaces 空）两态——三态区分验收（旧 Host 缺席=不注入即卡
  *   不渲染）。
+ *
+ * P10a-2 对话台扩展（mate-surface-ac.test.mjs MSA18 消费；既有场景不点不触发）：
+ * - MateSidePane 顶部新增 MateThreadSection（对话流=台账消息投影：四类消息+composer+
+ *   readMateThread 分页）——待决策卡/告知卡在对话流与收件箱**同卡双视图**呈现（设计
+ *   语义：同源同卡不双写），既有资产的卡片 locator 需按 mate-inbox-list 容器收敛。
+ * - fixture-thread-truncate / fixture-thread-seed：快照截断窗开关+旧史注入（状态件拆
+ *   mate-browser.fixture-thread.ts）——「截断首屏+加载更早读台账」的分页验收面。
+ * - fixture-mode-off：mode 切 off（§2.3 mode 矩阵：composer 禁用+提示）。
+ * - fixture-last-trigger：recordTrigger 入参摘要读点（composer 发送=explicit+target=
+ *   workspaceKey 与 /mate 拦截同链断言）。
  */
 
 function Fixture() {
@@ -87,6 +97,9 @@ function Fixture() {
   const [lastIngest, setLastIngest] = useState("");
   // P4 第二棒验收读点：气泡闸判定（fixture-last-admit）。
   const [lastAdmit, setLastAdmit] = useState("");
+  // P10a-2 对话台验收读点：recordTrigger 入参摘要（快照推送随动更新——composer 同链
+  // 断言锚 simulated/target/text）。
+  const [lastTrigger, setLastTrigger] = useState("");
   // P3 桌宠接缝发布方验收：捕获 MatePetSync 经 platform.publishMatePet 发布的最新投影
   // （真实 Main 转发/宠物窗渲染在 desktop matePetBridge/tray DOM 单测与真机链路覆盖）。
   const [lastProjection, setLastProjection] = useState("");
@@ -111,6 +124,9 @@ function Fixture() {
     emptyInventory,
     injectAutonomyCard,
     injectRhythm,
+    toggleThreadTruncation,
+    seedThreadHistory,
+    lastTriggerInput: readLastTrigger,
   } = useMemo(
     () =>
       createMateFixtureService(
@@ -160,6 +176,11 @@ function Fixture() {
       channelRef: "phone:session:rs-phone-1",
     }).then(() => setLastIngest(readLastIngest()));
   }, [readLastIngest, submitSource]);
+  // P10a-2：recordTrigger 入参读点随快照推送更新（captureTriggerInput 先于 publish）。
+  useEffect(() => {
+    const subscription = service.onDidChange(() => setLastTrigger(readLastTrigger()));
+    return () => subscription.dispose();
+  }, [service, readLastTrigger]);
   return (
     // TooltipProvider 照 Root.tsx 根层共享一次：MateConfigSection 的 auto 禁用钮经
     // ControlHintTooltip 消费 Radix 上下文，缺 Provider 会整树抛错（PR-1B 审查发现 1）。
@@ -264,6 +285,21 @@ function Fixture() {
               <button data-testid="fixture-inject-rhythm" onClick={() => injectRhythm()}>
                 注入节奏投影
               </button>
+              {/* P10a-2 对话台验收控件（MSA18 消费；既有场景不点不触发）：快照截断窗
+                  （模拟真实快照容量截断——首屏=截断窗、台账全量走 readMateThread）/
+                  旧史注入（早于现有全部行的分页史）/mode 切 off（composer 禁用断言）。 */}
+              <button data-testid="fixture-thread-truncate" onClick={toggleThreadTruncation}>
+                对话台快照截断窗
+              </button>
+              <button data-testid="fixture-thread-seed" onClick={() => seedThreadHistory()}>
+                对话台注入旧史
+              </button>
+              <button
+                data-testid="fixture-mode-off"
+                onClick={() => void service.setMode(ASSISTANT_MODES.off)}
+              >
+                Mode off
+              </button>
               <button data-testid="fixture-queue-next" onClick={queueNext}>
                 Queue next approve
               </button>
@@ -327,6 +363,7 @@ function Fixture() {
               <output data-testid="fixture-last-ingest">{lastIngest}</output>
               <output data-testid="fixture-mate-pet-projection">{lastProjection}</output>
               <output data-testid="fixture-last-admit">{lastAdmit}</output>
+              <output data-testid="fixture-last-trigger">{lastTrigger}</output>
             </div>
             <div className="mx-auto" style={{ width: 480, height: 780 }}>
               <MateSidePane

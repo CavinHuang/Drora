@@ -125,8 +125,9 @@ expandedDecisionId / expandedWorkKeys` 四件 UI 局部态，按 workspace 分�
 
 ## P7 增量（2026-11-06，对话式查询直答，08 号详设）
 
-- **MateQueryReply**（新组件）：状态答复卡（问题首行+answer+dismiss）——只读无工单
-  动作；status_replied 决策随决策档（decision/all）展示，dismiss 后 ignored 出清。
+- ~~**MateQueryReply**（原状态答复卡）~~：P10a-2 起 status_replied 的呈现面迁入对话流
+  答复气泡（`MateThread.tsx` 的 `MateThreadReplyBubble`——answer+dismiss 语义不变），
+  原卡区组件删除（同源同卡不双写）；dismiss 后 ignored 出清语义保持。
 - 快照消费：decisions[].answer（可选，仅 status_replied 行）；routerSuggestion
   kind 联合扩 query_status（建议段不渲染，答复由 answer 承载）。
 
@@ -171,6 +172,26 @@ expandedDecisionId / expandedWorkKeys` 四件 UI 局部态，按 workspace 分�
   pane 契约内，按组键作路径传，沿用既有导航面兜底）；闲时行 → 禁用+title 提示
   （本 pane 无任务中心导航通道）。会话行导航门槛与汇报卡同形（onOpenSession 注入即可
   点，不另设 sessionEnded 门）。
+
+## P10a-2 增量（2026-11-07，对话管理台，10 号详设 §2.1/§2.3 v2.1）
+
+- **MateThreadSection**（新组件，`MateThread.tsx`）：MateSidePane 状态条下「对话」区。
+  对话流=台账的消息投影（零新状态所有者）：首屏=快照截断版（`deriveMateThreadRows`
+  纯投影，升序=服务 mateThread.ts 排序语义的同构镜像）；「加载更早」走
+  `readMateThread({beforeMs})`（缺省全流与首屏同口径；**不传 workspaceKey**——该参数
+  留给按域消费方；已取回旧页存组件局部态不进 store）。四类消息：用户消息=trigger
+  verbatim+绝对时刻（`formatMateThreadClock`：不做相对时长、纯 DOM 零定时器）+来源
+  徽标；决策卡内嵌=复用 MateDecisionCard（收件箱视角同卡共存）；答复气泡=
+  status_replied（含 chat_replied——视图层同 outcome，reason_code 区分是服务侧审计
+  语义）消费 answer；工单摘要行=终态+换代标注，快照容量内可点进详情
+  （`isMateThreadTicketNavigable`——LRU 裁剪后的旧行降级不可点，不造空详情）。
+  其余 decision outcome 不出独立消息（观察区/收件箱/摘要行承接）；auto_notice
+  告知卡内嵌（§2.3 mode 矩阵）。
+- **composer**：单行输入（一期纯文本无附件；IME isComposing 的 Enter 不发送）；
+  发送=`mateStore.recordTrigger(explicit, target=workspaceKey)`——与 /mate 命令拦截、
+  配置区触发完全同链（F1 恒传 target）；off 模式输入/发送禁用+提示（对话面只读，
+  分页读不受限）。
+- 快照消费不变（无新快照字段）；i18n 键族 `mate.thread.*` 入守卫清单。
 
 ## 与其它模块的交集
 

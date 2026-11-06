@@ -84,7 +84,8 @@ export function toFixtureTicketViews(tickets: readonly FixtureTicket[]): Assista
   }));
 }
 
-/** 内存决策实体 → 快照决策视图行（autonomy 卡 strength 字面量如实透传）。 */
+/** 内存决策实体 → 快照决策视图行（autonomy 卡 strength 字面量如实透传；P10a-2 起
+ * answer 随行——与服务 assistantSnapshot 单投影口径对齐，快照首屏的答复气泡消费）。 */
 export function toFixtureDecisionViews(
   decisions: readonly FixtureDecision[],
 ): AssistantDecisionView[] {
@@ -99,6 +100,7 @@ export function toFixtureDecisionViews(
     decidedMs: decision.decidedMs,
     triggerText: decision.triggerText,
     sourceKind: decision.sourceKind,
+    ...(decision.answer !== undefined ? { answer: decision.answer } : {}),
     ...(decision.routerState ? { routerState: decision.routerState } : {}),
     ...(decision.routerSuggestion ? { routerSuggestion: decision.routerSuggestion } : {}),
     ...(decision.routerError ? { routerError: decision.routerError } : {}),

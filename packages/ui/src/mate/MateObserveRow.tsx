@@ -15,7 +15,7 @@ import { useMateStore } from "@/store/mateStore.js";
  *
  * 「忽略」按钮（specs §11 能力审查修复批）：dismissObservation 通道的 UI 消费——
  * outcome→ignored 即出观察集（快照推送收敛）；48h 否定记忆是 autonomy 卡专属语义，
- * 观察行维持无记忆。失败反馈照 MateQueryReply 先例（role=alert；传输异常落 generic）。
+ * 观察行维持无记忆。失败反馈照配置区先例（role=alert；传输异常落 generic）。
  */
 export const MateObserveRow = memo(function MateObserveRow({
   decision,

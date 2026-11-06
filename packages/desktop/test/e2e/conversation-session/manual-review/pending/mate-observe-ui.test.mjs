@@ -64,6 +64,10 @@ test(
         timeout: 60_000,
       });
       await page.getByTestId("mate-side-pane").waitFor();
+      // P10a-2（对话管理台批）：待决策卡在对话流与收件箱同卡双视图——卡片断言按收件箱
+      // 容器（mate-inbox-list）收敛，断言语义不变。
+      const inbox = page.getByTestId("mate-inbox-list");
+      await inbox.waitFor();
 
       // MOUI01（01 §6 场景 1）：未指名触发 → MateObserveRow would-accept，零执行、trust 积累。
       // 默认过滤档是「待决策」（观察行不在此档渲染）——先断言不出现，再切「观察中」档断言出现。
@@ -94,12 +98,12 @@ test(
       // dispatched/running 状态灯 → done 汇报卡（实耗 + output_summary）→ 打开会话落点。
       await page.getByTestId("mate-trigger-input").fill("点名：修复登录页样式回归");
       await page.getByTestId("mate-trigger-explicit").click();
-      const card = page.getByTestId("mate-decision-card");
+      const card = inbox.getByTestId("mate-decision-card");
       await card.waitFor();
       assert.match(await card.textContent(), /点名：修复登录页样式回归/);
       assert.match(await card.textContent(), /P1 未隔离/);
       assert.match(await card.textContent(), /build 档/);
-      await page.getByTestId("mate-decision-approve").click();
+      await inbox.getByTestId("mate-decision-approve").click();
       // 放行即出卡（decided_by=user 契约语义），工单行（dispatched/running 灯）顶上。
       await page.getByTestId("mate-ticket-row").waitFor();
       assert.equal(await page.getByTestId("mate-decision-card").count(), 0);
@@ -122,10 +126,10 @@ test(
       // MOUI04（01 §6 场景 3）：E 追加说明后放行 → brief=原文+追加段两段（原文不改写）。
       await page.getByTestId("mate-trigger-input").fill("点名：E 改单场景");
       await page.getByTestId("mate-trigger-explicit").click();
-      await page.getByTestId("mate-decision-card").waitFor();
-      await page.getByTestId("mate-decision-edit").click();
-      await page.getByTestId("mate-decision-appendix").fill("追加：移动端优先");
-      await page.getByTestId("mate-decision-approve-appendix").click();
+      await inbox.getByTestId("mate-decision-card").waitFor();
+      await inbox.getByTestId("mate-decision-edit").click();
+      await inbox.getByTestId("mate-decision-appendix").fill("追加：移动端优先");
+      await inbox.getByTestId("mate-decision-approve-appendix").click();
       await page.getByTestId("mate-report-done").nth(1).waitFor({ timeout: 10000 });
       const appendedBrief = await page.getByTestId("fixture-last-brief").textContent();
       assert.match(appendedBrief, /点名：E 改单场景/);
@@ -134,9 +138,9 @@ test(
       // MOUI05（01 §6 场景 2 的 N 分支）：忽略决策卡 → 记 rejected，不派发不建票。
       await page.getByTestId("mate-trigger-input").fill("点名：忽略分支场景");
       await page.getByTestId("mate-trigger-explicit").click();
-      await page.getByTestId("mate-decision-card").waitFor();
+      await inbox.getByTestId("mate-decision-card").waitFor();
       const reportsBeforeIgnore = await page.getByTestId("mate-report-done").count();
-      await page.getByTestId("mate-decision-ignore").click();
+      await inbox.getByTestId("mate-decision-ignore").click();
       await page.waitForFunction(
         () => document.querySelectorAll('[data-testid="mate-decision-card"]').length === 0,
       );

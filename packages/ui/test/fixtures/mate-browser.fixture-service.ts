@@ -25,6 +25,7 @@ import { createInventoryInjectFixture } from "./mate-browser.fixture-inventory.j
 import {
   createMateThreadFixture,
   createQueryReplyInjectFixture,
+  createThreadHistoryFixture,
 } from "./mate-browser.fixture-thread.js";
 import {
   AUTONOMY_FIXTURE_BRIEF,
@@ -109,6 +110,18 @@ export function createMateFixtureService(
   const tickets: FixtureTicket[] = [];
   const ticketByDecision = new Map<number, { ticketId: string; sessionId: string }>();
   const listeners = new Set<(snapshot: AssistantSnapshot) => void>();
+  // P10a-2 对话台验收状态件（快照截断窗/旧史注入/recordTrigger 入参读点；MSA18 消费）。
+  const threadHistory = createThreadHistoryFixture({
+    pushTrigger: (trigger) => triggers.push(trigger),
+    pushDecision: (decision) => decisions.push(decision),
+    pushTicket: (ticket) => tickets.push(ticket),
+    publish,
+    workspaceIdentity: tab.workspaceIdentity,
+    allocateSeq: () => {
+      seq += 1;
+      return seq;
+    },
+  });
 
   function publish(): void {
     updatedAtMs += 1;
@@ -118,8 +131,11 @@ export function createMateFixtureService(
 
   function buildSnapshot(): AssistantSnapshot {
     // 实体→视图行纯映射拆 mate-browser.fixture-snapshot.ts（≤800 行纪律）。
-    const ticketViews = toFixtureTicketViews(tickets);
-    const decisionViews = toFixtureDecisionViews(decisions);
+    // P10a-2：截断窗开启时快照只携带各源最新 N 行（模拟真实快照容量截断——对话流
+    // 首屏=截断窗、台账全量走 readMateThread 的分页语义可验）。
+    const scoped = threadHistory.scopeEntities({ triggers, decisions, tickets });
+    const ticketViews = toFixtureTicketViews(scoped.tickets);
+    const decisionViews = toFixtureDecisionViews(scoped.decisions);
     return {
       version: 2,
       mode,
@@ -142,7 +158,7 @@ export function createMateFixtureService(
         // 降级语义保持可验）；投影件拆 mate-browser.fixture-trust.ts。
         ...trustFixture.gateOpenProjection(),
       },
-      triggers: [...triggers],
+      triggers: [...scoped.triggers],
       decisions: decisionViews,
       tickets: ticketViews,
       // P4 配额中心投影（状态件拆 mate-browser.fixture-quota.ts；读取时日切结算）。
@@ -343,6 +359,8 @@ export function createMateFixtureService(
 
   const service: IAssistantTicketService = {
     async recordTrigger(input) {
+      // P10a-2：入参捕获（composer 同链断言读点——fixture-last-trigger 输出）。
+      threadHistory.captureTriggerInput(input);
       seq += 1;
       const triggerId = `TR-${seq}`;
       triggers.push({
@@ -793,5 +811,18 @@ export function createMateFixtureService(
     clearInventory,
     /** 空台账视图（workspaces 空）→「无工作」空态。 */
     emptyInventory,
+    // ---- P10a-2 对话台验收控件（mate-surface-ac MSA18 消费；既有场景不点不触发） ----
+    /** 快照截断窗开关（各源最新 5 行进快照；readMateThread 仍读全量实体=台账）。 */
+    toggleThreadTruncation(): void {
+      threadHistory.toggleTruncation();
+    },
+    /** 注入一批早于现有全部行的旧史（trigger+decision 对+两张 done 工单，带换代）。 */
+    seedThreadHistory(): void {
+      threadHistory.seedHistory();
+    },
+    /** 最近一次 recordTrigger 入参摘要（`simulated=<s> target=<t> text=<text>`）。 */
+    lastTriggerInput(): string {
+      return threadHistory.lastTriggerInput();
+    },
   };
 }

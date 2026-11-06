@@ -7,6 +7,11 @@
 // MSA10 为 P2 审查修复批追加（specs §9 W2 兜底：W1 worktree 配置区开关）。
 // MSA11–12 为 2026-11-06 二轮审查批追加（F1 链守卫/F2 触发反馈行/F4 auto 告知卡——
 // coverage matrix Mate P2 节同批登记）。
+// MSA18 为 P10a-2 对话管理台批追加（10 号详设 §2.1/§2.3 v2.1：四类消息投影+composer
+// 同链触发+off 禁用+readMateThread 分页）。**本批起待决策卡/告知卡在对话流与收件箱
+// 同卡双视图**（设计语义：同源同卡不双写）——既有卡片 locator 按 mate-inbox-list 容器
+// 收敛（断言语义不变：仍指向收件箱视角的同一张卡）；MSA14 答复呈现随 P10a-2 迁入
+// 对话流答复气泡。
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createRequire } from "node:module";
@@ -22,8 +27,8 @@ const { default: tailwindcss } = await import(
 );
 
 test(
-  "MSA01–16: Surface A status strip, Router suggestion prefill (dispatch/attach/failed/hold), team action, queued notice, Surface C tabs, generation badge, session-line, W1 worktree toggle, F1 bare-approve chain guard + F2 trigger feedback, F4 auto-notice card, P7 query reply, P8 work overview card, P9 autonomy card badge + rhythm section echo",
-  { timeout: 240000 },
+  "MSA01–18: Surface A status strip, Router suggestion prefill (dispatch/attach/failed/hold), team action, queued notice, Surface C tabs, generation badge, session-line, W1 worktree toggle, F1 bare-approve chain guard + F2 trigger feedback, F4 auto-notice card, P7 query reply, P8 work overview card, P9 autonomy card badge + rhythm section echo, P10a-2 conversation surface (four message kinds + composer + off matrix + thread pagination)",
+  { timeout: 300000 },
   async () => {
     const output = await mkdtemp(join(tmpdir(), "mate-surface-ac-"));
     const server = await createServer({
@@ -68,6 +73,10 @@ test(
         timeout: 60_000,
       });
       await page.getByTestId("mate-side-pane").waitFor();
+      // P10a-2：待决策卡/告知卡在对话流与收件箱同卡双视图——卡片断言统一按收件箱容器
+      // （mate-inbox-list）收敛，断言语义不变（仍指向与 MSA01-17 相同的那张卡）。
+      const inbox = page.getByTestId("mate-inbox-list");
+      await inbox.waitFor();
 
       // MSA01（02 §1.4）：大副会话状态条——mode 徽标（观察）+ 活动/排队/待决策计数；
       // 打扰配额 P2 无事实源不渲染（specs §11.1 落地注记）。
@@ -80,17 +89,17 @@ test(
       // MSA02（02 §1.3 预填）：dispatch 建议 → 建议区（建议/目标/理由/证据 verbatim）→
       // 放行携带预填参（target=建议目标、mode=A、tier=build）。
       await page.getByTestId("fixture-inject-dispatch").click();
-      const card = page.getByTestId("mate-decision-card");
+      const card = inbox.getByTestId("mate-decision-card");
       await card.waitFor();
-      const suggestion = page.getByTestId("mate-decision-router-suggestion");
+      const suggestion = inbox.getByTestId("mate-decision-router-suggestion");
       await suggestion.waitFor();
       assert.match(await suggestion.textContent(), /建议：独立工单/);
       assert.match(await suggestion.textContent(), /fixture\/workspace-b/);
       assert.match(await suggestion.textContent(), /原文提到『修一下构建』/);
-      assert.equal(await page.getByTestId("mate-decision-router-evidence").count(), 1);
+      assert.equal(await inbox.getByTestId("mate-decision-router-evidence").count(), 1);
       // 切「全部」档：放行后的工单行需要工单入组渲染（decision 档无工单，P1 同款前置）。
       await page.getByTestId("mate-filter-all").click();
-      await page.getByTestId("mate-decision-approve").click();
+      await inbox.getByTestId("mate-decision-approve").click();
       await page.waitForFunction(
         () =>
           (document.querySelector('[data-testid="fixture-approve-input"]')?.textContent ?? "")
@@ -106,12 +115,12 @@ test(
 
       // MSA03（02 §2 Tier 预填）：attach 建议 → 建议区含会话 id → 放行携带 attachToSessionId。
       await page.getByTestId("fixture-inject-attach").click();
-      const attachCard = page.getByTestId("mate-decision-card");
+      const attachCard = inbox.getByTestId("mate-decision-card");
       await attachCard.waitFor();
-      const attachSuggestion = page.getByTestId("mate-decision-router-suggestion");
+      const attachSuggestion = inbox.getByTestId("mate-decision-router-suggestion");
       assert.match(await attachSuggestion.textContent(), /建议：附着既有会话/);
       assert.match(await attachSuggestion.textContent(), /sess-attach-9/);
-      await page.getByTestId("mate-decision-approve").click();
+      await inbox.getByTestId("mate-decision-approve").click();
       await page.waitForFunction(
         () => /attach=sess-attach-9/.test(
           document.querySelector('[data-testid="fixture-approve-input"]')?.textContent ?? "",
@@ -123,12 +132,12 @@ test(
       // MSA04（02 §1.2 降级）：failed Router → 降级行诚实展示（不重试模型），建队捷径
       // 不渲染（hold/reject/failed 不提供建队），普通放行仍可用（人工终审）。
       await page.getByTestId("fixture-inject-failed").click();
-      await page.getByTestId("mate-decision-card").waitFor();
-      const failedLine = page.getByTestId("mate-decision-router-failed");
+      await inbox.getByTestId("mate-decision-card").waitFor();
+      const failedLine = inbox.getByTestId("mate-decision-router-failed");
       assert.match(await failedLine.textContent(), /大副评估失败，已转人工决策/);
       assert.match(await failedLine.textContent(), /router evaluation schema mismatch/);
-      assert.equal(await page.getByTestId("mate-decision-approve-team").count(), 0);
-      await page.getByTestId("mate-decision-approve").click();
+      assert.equal(await inbox.getByTestId("mate-decision-approve-team").count(), 0);
+      await inbox.getByTestId("mate-decision-approve").click();
       await page.waitForFunction(
         () =>
           document.querySelectorAll('[data-testid="mate-decision-card"]').length === 0,
@@ -136,8 +145,8 @@ test(
 
       // MSA05（specs §7 Mode B）：dispatch 建议卡第二放行动作=建队 → mode=B 传参。
       await page.getByTestId("fixture-inject-dispatch").click();
-      await page.getByTestId("mate-decision-card").waitFor();
-      await page.getByTestId("mate-decision-approve-team").click();
+      await inbox.getByTestId("mate-decision-card").waitFor();
+      await inbox.getByTestId("mate-decision-approve-team").click();
       await page.waitForFunction(
         () => /mode=B/.test(
           document.querySelector('[data-testid="fixture-approve-input"]')?.textContent ?? "",
@@ -148,8 +157,8 @@ test(
       // 卡片折叠，瞬态不可靠），持续告知断言按稳定事实：工单行排队灯档 + 状态条计数。
       await page.getByTestId("fixture-queue-next").click();
       await page.getByTestId("fixture-inject-dispatch").click();
-      await page.getByTestId("mate-decision-card").waitFor();
-      await page.getByTestId("mate-decision-approve").click();
+      await inbox.getByTestId("mate-decision-card").waitFor();
+      await inbox.getByTestId("mate-decision-approve").click();
       await page.getByTestId("mate-ticket-queued").waitFor();
       assert.match(await page.getByTestId("mate-ticket-queued").textContent(), /排队/);
       assert.match(await page.getByTestId("mate-status-line").textContent(), /排队 1/);
@@ -218,8 +227,8 @@ test(
       // 详情时间线当前代站=第 2 代（mate-trace 轨渲染）。
       await page.getByTestId("fixture-rollover-next").click();
       await page.getByTestId("fixture-inject-dispatch").click();
-      await page.getByTestId("mate-decision-card").waitFor();
-      await page.getByTestId("mate-decision-approve").click();
+      await inbox.getByTestId("mate-decision-card").waitFor();
+      await inbox.getByTestId("mate-decision-approve").click();
       const generationBadge = page.getByTestId("mate-ticket-generation").first();
       await generationBadge.waitFor();
       assert.match(await generationBadge.textContent(), /第 2 代/);
@@ -297,9 +306,10 @@ test(
       // MSA12（2026-11-06 二轮审查，F4 auto 告知卡）：auto_notice×gate 决策 + 关联工单
       // 注入 → 决策档只读行卡（「已按 auto 规则自动执行」标签+原文首行+ticket.decisionId
       // 反查工单号）；无放行/忽略动作（decided_by=gate 不计放行率）；observe 档不渲染
-      // （随决策档展示）。
+      // （随决策档展示）。P10a-2 起告知卡在对话流内嵌同款行（双视图）——断言按收件箱
+      // 容器收敛，档位语义不变。
       await page.getByTestId("fixture-inject-auto-notice").click();
-      const autoNotice = page.getByTestId("mate-auto-notice-row");
+      const autoNotice = inbox.getByTestId("mate-auto-notice-row");
       await autoNotice.waitFor();
       assert.match(await autoNotice.textContent(), /已按 auto 规则自动执行/);
       assert.match(await autoNotice.textContent(), /自动执行：点名任务（auto 直派）/);
@@ -307,11 +317,17 @@ test(
       assert.equal(await autoNotice.getByTestId("mate-decision-approve").count(), 0);
       await page.getByTestId("mate-filter-observe").click();
       await page.waitForFunction(
-        () => document.querySelectorAll('[data-testid="mate-auto-notice-row"]').length === 0,
+        () =>
+          document
+            .querySelector('[data-testid="mate-inbox-list"]')
+            ?.querySelectorAll('[data-testid="mate-auto-notice-row"]').length === 0,
       );
       await page.getByTestId("mate-filter-all").click();
       await page.waitForFunction(
-        () => document.querySelectorAll('[data-testid="mate-auto-notice-row"]').length === 1,
+        () =>
+          document
+            .querySelector('[data-testid="mate-inbox-list"]')
+            ?.querySelectorAll('[data-testid="mate-auto-notice-row"]').length === 1,
       );
 
       // MSA13（P5 设置中心，06 号详设 §6）：高级区三输入一体保存→快照回显；Source
@@ -358,17 +374,33 @@ test(
       // fixture 无 registry：useModelSelectionView 走 unavailable → select 诚实禁用。
       assert.equal(await modelSelect.isDisabled(), true);
 
-      // MSA14（P7 对话式查询直答，08 号详设 §3.4）：注入 status_replied 决策 →
-      // 状态答复卡（问题原文+answer+dismiss）→ dismiss 出清；无任何工单动作按钮。
+      // MSA14（P7 对话式查询直答，08 号详设 §3.4；P10a-2 对话化）：注入 status_replied
+      // 决策 → 对话流答复气泡（answer verbatim+「大副答复」标签+账本来源提示+知道了）
+      // → dismiss 出清；无任何工单动作按钮。原收件箱卡区已撤（status_replied 的唯一
+      // 呈现面=对话流；mate-query-reply-row 全页零残留即卡区撤除断言）。同刻并列组
+      // 呈现序：用户消息气泡（问题原文）在答复气泡之前（trigger→decision）。
       await page.getByTestId("fixture-inject-query-reply").click();
-      const queryReplyRow = page.getByTestId("mate-query-reply-row");
-      await queryReplyRow.waitFor();
-      assert.match(await queryReplyRow.textContent(), /查询直答 fixture 答复/);
-      assert.match(await queryReplyRow.textContent(), /答复由大副账本生成/);
-      assert.equal(await queryReplyRow.getByTestId("mate-decision-approve").count(), 0);
-      await queryReplyRow.getByRole("button", { name: /知道了|Dismiss/ }).click();
+      const thread = page.getByTestId("mate-thread");
+      const replyBubble = thread.getByTestId("mate-thread-reply");
+      await replyBubble.waitFor();
+      assert.match(await replyBubble.textContent(), /大副答复/);
+      assert.match(await replyBubble.textContent(), /答复：ws-a 进行中 1（修复登录）/);
+      assert.match(await replyBubble.textContent(), /答复由大副账本生成/);
+      assert.equal(await replyBubble.getByTestId("mate-decision-approve").count(), 0);
+      assert.equal(await page.getByTestId("mate-query-reply-row").count(), 0);
+      const queryUserBubble = thread.getByTestId("mate-thread-user").filter({
+        hasText: "查询直答 fixture 答复",
+      });
+      await queryUserBubble.waitFor();
+      const userBox = await queryUserBubble.boundingBox();
+      const replyBox = await replyBubble.boundingBox();
+      assert.ok(
+        (userBox?.y ?? 0) < (replyBox?.y ?? 0),
+        "user message renders before the reply bubble (trigger→decision parallel order)",
+      );
+      await replyBubble.getByRole("button", { name: /知道了|Dismiss/ }).click();
       await page.waitForFunction(
-        () => document.querySelectorAll('[data-testid="mate-query-reply-row"]').length === 0,
+        () => document.querySelectorAll('[data-testid="mate-thread-reply"]').length === 0,
       );
 
       // MSA15（P8 全域工作台账 UI，09 号详设 §1.7；fixture 只造投影事实，真实三源组装
@@ -510,9 +542,10 @@ test(
       await rhythmAlert.waitFor();
       // autonomy 决策卡：来源徽标=自主（data-source-kind=autonomy）；无建议区（不进
       // 候选卡评估循环——09 §2.2.1：scheduleRouterEvaluation 零调用，routerState 缺席
-      // =无建议区）；brief verbatim 首行呈现；放行/忽略动作照常（人工终审）。
+      // =无建议区）；brief verbatim 首行呈现；放行/忽略动作照常（人工终审）。P10a-2 起
+      // 同卡在对话流内嵌（双视图）——断言按收件箱容器收敛。
       await page.getByTestId("fixture-inject-autonomy").click();
-      const autonomyCard = page.getByTestId("mate-decision-card");
+      const autonomyCard = inbox.getByTestId("mate-decision-card");
       await autonomyCard.waitFor();
       const autonomyBadge = autonomyCard.getByTestId("mate-source-badge");
       await autonomyBadge.waitFor();
@@ -525,6 +558,90 @@ test(
       );
       assert.equal(await autonomyCard.getByTestId("mate-decision-approve").count(), 1);
       assert.equal(await autonomyCard.getByTestId("mate-decision-ignore").count(), 1);
+
+      // MSA18（P10a-2 对话管理台，10 号详设 §2.1/§2.3 v2.1）：对话流=台账的消息投影
+      // （零新状态所有者）；绝对时刻不做相对时长（纯 DOM 零定时器）。①四类消息——
+      // 用户消息气泡（MSA11 触发原文 verbatim+绝对时刻 HH:MM+来源徽标）/决策卡内嵌
+      // （MSA16 自主卡仍在待决——Y/N 就在对话现场）/答复气泡（MSA14 已验）/工单摘要行
+      // （终态灯+换代标注，点行进详情）。②composer 发送=recordTrigger(explicit, target=
+      // workspaceKey) 与 /mate 拦截同链（fixture-last-trigger 读点）。③分页——快照截断
+      // 窗首屏+「加载更早」readMateThread(beforeMs) 补齐旧史（升序、界行不重复、耗尽
+      // 按钮收起）。④off 矩阵——composer 禁用+提示（对话面只读）。
+      const threadUser = thread.getByTestId("mate-thread-user");
+      const threadTicket = thread.getByTestId("mate-thread-ticket-row");
+      const msa18User = threadUser.filter({ hasText: "触发链守卫：验证 UI 恒传 target" });
+      await msa18User.waitFor();
+      assert.match(await msa18User.textContent(), /\d{2}:\d{2}/);
+      assert.equal(await msa18User.getByTestId("mate-source-badge").count(), 1);
+      assert.equal(await thread.getByTestId("mate-decision-card").count(), 1);
+      await threadTicket.first().waitFor();
+      assert.ok(
+        (await thread.getByTestId("mate-thread-ticket-generation").count()) >= 1,
+        "terminal ticket rows carry generation badges",
+      );
+      await threadTicket.first().click();
+      await page.getByTestId("mate-ticket-detail").waitFor();
+      await page.getByTestId("mate-detail-back").click();
+      await page.waitForFunction(
+        () => document.querySelectorAll('[data-testid="mate-ticket-detail"]').length === 0,
+      );
+      // ②composer 同链：explicit+target=workspaceKey 落库（fixture-last-trigger）→ 新
+      // 用户气泡+内嵌待决策卡（observe 写意图=卡）。
+      await page.getByTestId("mate-thread-composer-input").fill("MSA18：从对话台发送点名触发");
+      await page.getByTestId("mate-thread-composer-send").click();
+      await page.waitForFunction(
+        () =>
+          /simulated=explicit target=fixture-ws text=MSA18：从对话台发送点名触发/.test(
+            document.querySelector('[data-testid="fixture-last-trigger"]')?.textContent ?? "",
+          ),
+      );
+      await threadUser.filter({ hasText: "MSA18：从对话台发送点名触发" }).waitFor();
+      assert.equal(await thread.getByTestId("mate-decision-card").count(), 2);
+      // ③分页：截断窗开（快照=各源最新 5 行）+旧史注入（8 对 trigger/decision+2 张 done
+      // 工单，全部早于截断窗）→ 首屏旧史不可见 → 加载更早（beforeMs=最旧可见行时刻）
+      // 一次取尽（<50 行 nextBeforeMs=null）→ 旧史 1..8 升序补齐、无重复（恰 8 枚），
+      // 窗内行不重渲染（composer 触发仍恰 1 枚），按钮收起。诚实边界：分页游标=最旧
+      // 可见行（任意 kind）——比游标新但被各自源窗截出的行（如 MSA11 首条触发）不在
+      // 本次游标恢复集内，属快照 LRU 窗与游标语义的既有边界（真实快照 50/50/100 窗
+      // 同形），台账完整事实在工单详情/台账区。
+      await page.getByTestId("fixture-thread-truncate").click();
+      await page.getByTestId("fixture-thread-seed").click();
+      await page.waitForFunction(
+        () =>
+          document.querySelector('[data-testid="mate-thread-list"]')?.textContent?.includes(
+            "MSA18 旧史",
+          ) !== true,
+      );
+      assert.equal(await threadUser.filter({ hasText: "MSA18 旧史" }).count(), 0);
+      await page.getByTestId("mate-thread-load-earlier").click();
+      await threadUser.filter({ hasText: "MSA18 旧史 1：" }).waitFor();
+      const seededBubbles = await threadUser.filter({ hasText: "MSA18 旧史" }).allTextContents();
+      assert.equal(seededBubbles.length, 8);
+      assert.deepEqual(
+        seededBubbles.map((text) => /MSA18 旧史 (\d)：/.exec(text)?.[1]),
+        ["1", "2", "3", "4", "5", "6", "7", "8"],
+      );
+      // 窗内行恰一枚（fetch 游标严格 < 不回捞窗内行；merge 去重安全网在单测锁定）。
+      assert.equal(
+        await threadUser.filter({ hasText: "MSA18：从对话台发送点名触发" }).count(),
+        1,
+      );
+      assert.equal(await thread.getByTestId("mate-thread-reply").filter({ hasText: "旧史答复" }).count(), 2);
+      assert.equal(await threadTicket.filter({ hasText: "MSA18 旧史工单" }).count(), 2);
+      await page.waitForFunction(
+        () => document.querySelectorAll('[data-testid="mate-thread-load-earlier"]').length === 0,
+      );
+      // ④off 矩阵（§2.3）：mode 切 off → 输入/发送禁用+提示文案（读零执行）。
+      await page.getByTestId("fixture-mode-off").click();
+      await page.waitForFunction(
+        () =>
+          document.querySelector('[data-testid="mate-thread-composer-input"]')?.disabled === true,
+      );
+      assert.equal(await page.getByTestId("mate-thread-composer-send").isDisabled(), true);
+      assert.match(
+        await page.getByTestId("mate-thread-composer-off-hint").textContent(),
+        /off 模式/,
+      );
 
       assert.deepEqual(errors, []);
       console.log(`Mate Surface evidence: ${output}`);

@@ -12,7 +12,6 @@ export {
   isMateAutoSwitchAvailable,
   isMateAwaitingVerification,
   isMateObserveDecision,
-  isMateQueryReply,
   isMatePendingDecision,
   isMateQueuedTicket,
   matePermissionTierMessageId,
@@ -27,6 +26,9 @@ export {
   resolveMateTrustGateProgress,
   resolveMateUsageGenerations,
 } from "./view-model.js";
+// P10a-2（G3 收敛先例）：对话流投影（deriveMateThreadRows/mergeMateThreadRows/
+// formatMateThreadClock/isMateThreadTicketNavigable/isMateQueryReply）目前仅模块内
+// MateThread.tsx 与 view-model.test 直连消费——不出 barrel，宿主消费方出现时再外泄。
 export type {
   MateErrorMessageId,
   MateFilter,
@@ -55,7 +57,9 @@ export { MateSourceBadge } from "./MateSourceBadge.js";
 export { MateTicketRow, firstPreviewLine } from "./MateTicketRow.js";
 export { MateReportCard } from "./MateReportCard.js";
 export { MateObserveRow } from "./MateObserveRow.js";
-export { MateQueryReply } from "./MateQueryReply.js";
+// P10a-2：status_replied 的呈现面迁入对话流答复气泡（MateThread.tsx）——原查询直答
+// 卡（MateQueryReply.tsx）随卡区撤除删除（同源同卡不双写）。
+export { MateThreadSection } from "./MateThread.js";
 export { MateWorkOverview } from "./MateWorkOverview.js";
 export { MateConfigSection } from "./MateConfigSection.js";
 export { MateTicketDetail } from "./MateTicketDetail.js";

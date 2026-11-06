@@ -130,7 +130,7 @@ launcher、桌宠直达三入口。
 | 批 | 内容 | 预估 |
 | --- | --- | --- |
 | P10a-1 服务面 | chat scope kind+router port chat 轮+readMateThread+单测（**已实施 2026-11-07**——落地注记见 spec §2「P10a-1 落地注记」；验收=assistantMateChat/assistantMateThread 两件登记 drora 清单） | 1 天 |
-| P10a-2 UI 面 | 对话管理台组件（四类消息+composer）+MSA18 | 1-1.5 天 |
+| P10a-2 UI 面 | 对话管理台组件（四类消息+composer）+MSA18（**已实施 2026-11-07**——落地注记见 spec §2「P10a-2 落地注记」；MateThreadSection 新组件+原 MateQueryReply 卡区撤除+兄弟资产 locator 按 mate-inbox-list 收敛） | 1-1.5 天 |
 | P10b | manage 臂 schema+执行面接线（stop/cancelTask）+台账行管理入口+决策卡 manage 呈现+单测+MSA19 | 1-1.5 天 |
 
 依赖：P10a-1→P10a-2；P10b 独立可并行（manage 臂不依赖对话面——面板按钮即可触发）。

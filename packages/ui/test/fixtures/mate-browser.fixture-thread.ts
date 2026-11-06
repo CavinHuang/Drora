@@ -5,9 +5,15 @@
  * beforeMs 严格小于/limit 上界/同刻并列组 trigger→decision→ticket 呈现序/界刻补齐），
  * 供 P10a-2 对话管理台浏览器验收消费；真实 SQL 读作在服务侧（assistantMateThread.test.ts 锁定）。
  * 本文件同时承载 P7 查询直答注入件（createQueryReplyInjectFixture——对话面状态件归拢：
- * fixture-service ≤800 行纪律，语义不变）。
+ * fixture-service ≤800 行纪律，语义不变）与 P10a-2 对话台验收状态件
+ * （createThreadHistoryFixture：快照截断窗+旧史注入+recordTrigger 入参读点）。
  */
-import { ASSISTANT_TICKET_STATUSES, ASSISTANT_STRENGTHS, MATE_THREAD_LIMITS } from "@drora/shared";
+import {
+  ASSISTANT_OUTCOMES,
+  ASSISTANT_TICKET_STATUSES,
+  ASSISTANT_STRENGTHS,
+  MATE_THREAD_LIMITS,
+} from "@drora/shared";
 import type { AssistantTriggerView, IAssistantTicketService, MateThreadRow } from "@drora/services";
 import {
   toFixtureDecisionViews,
@@ -176,5 +182,136 @@ export function createQueryReplyInjectFixture(deps: {
     });
     deps.publish();
     return seq;
+  };
+}
+
+// ---------------------------------------------------------------------------
+// P10a-2 对话台验收状态件（mate-surface-ac MSA18 消费；真实语义在服务/产品侧）：
+// - 快照截断窗：toggleTruncation 开启后 buildSnapshot 只携带各源**最新 N 行**（模拟
+//   真实快照 triggersMax/decisionsMax/ticketsMax 的 LRU 截断——夹具取小窗 N=5 便于分页
+//   验收；readMateThread 读全量实体=台账，与真实「快照截断首屏+分页读台账」同构）。
+// - 旧史注入：seedHistory 向实体压入一批**早于**现有全部行的 trigger+decision 对（含
+//   2 条 status_replied）与 2 张 done 工单（1 张带换代）——「加载更早」分页的可断言史。
+// - recordTrigger 入参读点：captureTriggerInput 捕获触发原文（MSA18 断言 composer 发送
+//   =explicit+target=workspaceKey 与 /mate 拦截同链；fixture-last-trigger 输出读点）。
+// ---------------------------------------------------------------------------
+
+/** 夹具截断窗（真实=ASSISTANT_SNAPSHOT_LIMITS.triggersMax=50 等；夹具取小窗便于分页验收）。 */
+const FIXTURE_THREAD_TRUNCATION_WINDOW = 5;
+/** 旧史注入的 trigger+decision 对数（升序编号 1..8；其中 1/2 为 status_replied 直答）。 */
+const FIXTURE_THREAD_SEED_PAIRS = 8;
+
+type FixtureTriggerInput = Parameters<IAssistantTicketService["recordTrigger"]>[0];
+
+export function createThreadHistoryFixture(deps: {
+  readonly pushTrigger: (trigger: AssistantTriggerView) => void;
+  readonly pushDecision: (decision: FixtureDecision) => void;
+  readonly pushTicket: (ticket: FixtureTicket) => void;
+  readonly publish: () => void;
+  readonly workspaceIdentity: string | undefined;
+  /** 序号分配（闭包持有 seq 的自增读点——保持 fixture-service 既有单一序号源）。 */
+  readonly allocateSeq: () => number;
+}): {
+  /** 快照截断开关（toggle；开启后 publish 生效）。 */
+  toggleTruncation(): void;
+  /** 注入旧史（一次注入一批；重复点击再注一批——时基递减保持「更早」语义）。 */
+  seedHistory(): void;
+  /** recordTrigger 入参捕获（composer 同链断言读点）。 */
+  captureTriggerInput(input: FixtureTriggerInput): void;
+  /** 最近一次 recordTrigger 入参摘要（`simulated=<s> target=<t> text=<text>`）。 */
+  lastTriggerInput(): string;
+  /** 快照实体裁剪：截断关闭=原引用直通；开启=各源最新 N 行（不改动实体本体）。 */
+  scopeEntities(entities: {
+    readonly triggers: readonly AssistantTriggerView[];
+    readonly decisions: readonly FixtureDecision[];
+    readonly tickets: readonly FixtureTicket[];
+  }): {
+    triggers: readonly AssistantTriggerView[];
+    decisions: readonly FixtureDecision[];
+    tickets: readonly FixtureTicket[];
+  };
+} {
+  let truncated = false;
+  let seededBatches = 0;
+  let lastTrigger = "";
+
+  function newest<T>(rows: readonly T[], at: (row: T) => number): T[] {
+    return [...rows].sort((a, b) => at(b) - at(a)).slice(0, FIXTURE_THREAD_TRUNCATION_WINDOW);
+  }
+
+  return {
+    toggleTruncation() {
+      truncated = !truncated;
+      deps.publish();
+    },
+    seedHistory() {
+      seededBatches += 1;
+      // 时基：每批比上一批再早 100h，批内间隔 1 分钟升序（旧史 1 最旧——升序呈现断言锚）。
+      const base = Date.now() - seededBatches * 100 * 60 * 60 * 1000 - 10 * 60 * 60 * 1000;
+      for (let index = 1; index <= FIXTURE_THREAD_SEED_PAIRS; index += 1) {
+        const seq = deps.allocateSeq();
+        const atMs = base + index * 60_000;
+        const reply = index <= 2;
+        const text = `MSA18 旧史 ${index}：${reply ? "点名问询" : "未指名观察"}`;
+        deps.pushTrigger({
+          id: `TR-${seq}`,
+          sourceKind: "local",
+          strength: reply ? ASSISTANT_STRENGTHS.explicit : ASSISTANT_STRENGTHS.inferred,
+          identity: "fixture/user-a",
+          text,
+          atMs,
+          targetWorkspaceIdentity: deps.workspaceIdentity,
+        });
+        deps.pushDecision({
+          id: seq,
+          triggerId: `TR-${seq}`,
+          outcome: reply ? ASSISTANT_OUTCOMES.statusReplied : ASSISTANT_OUTCOMES.wouldAccept,
+          decidedBy: "gate",
+          triggerText: text,
+          decidedMs: atMs,
+          sourceKind: "local",
+          ...(reply ? { answer: `旧史答复 ${index}：ws 旧史窗口内进行中 0，最近完成 1` } : {}),
+        });
+      }
+      // 旧史工单两张（done；第二张带换代=第 2 代标注断言锚）。
+      const ticketBase = base + FIXTURE_THREAD_SEED_PAIRS * 60_000 + 60_000;
+      for (const [offset, brief, generationCount] of [
+        [0, "MSA18 旧史工单 1", 0],
+        [60_000, "MSA18 旧史工单 2", 1],
+      ] as const) {
+        const seq = deps.allocateSeq();
+        deps.pushTicket({
+          id: `T-${seq}`,
+          brief,
+          briefFull: brief,
+          status: ASSISTANT_TICKET_STATUSES.done,
+          targetWorkspaceIdentity: deps.workspaceIdentity ?? "",
+          sessionId: `sess-thread-${seq}`,
+          outputSummary: `完成：${brief} 摘要`,
+          failReason: null,
+          usage: { inputTokens: 32, outputTokens: 64 },
+          updatedAtMs: ticketBase + offset,
+          dispatchMode: "A",
+          decisionId: null,
+          anchorCommandId: null,
+          generationCount,
+        });
+      }
+      deps.publish();
+    },
+    captureTriggerInput(input) {
+      lastTrigger = `simulated=${input.simulated} target=${input.targetWorkspaceIdentity ?? "-"} text=${input.text}`;
+    },
+    lastTriggerInput() {
+      return lastTrigger;
+    },
+    scopeEntities(entities) {
+      if (!truncated) return entities;
+      return {
+        triggers: newest(entities.triggers, (row) => row.atMs),
+        decisions: newest(entities.decisions, (row) => row.decidedMs),
+        tickets: newest(entities.tickets, (row) => row.updatedAtMs),
+      };
+    },
   };
 }

@@ -69,6 +69,10 @@ test(
         timeout: 60_000,
       });
       await page.getByTestId("mate-side-pane").waitFor();
+      // P10a-2（对话管理台批）：待决策卡在对话流与收件箱同卡双视图——卡片断言按收件箱
+      // 容器（mate-inbox-list）收敛，断言语义不变。
+      const inbox = page.getByTestId("mate-inbox-list");
+      await inbox.waitFor();
 
       // MRP01（04 §4 状态条配额行）：mode 徽标+计数之外补配额行（当日累计/生效配额/余量；
       // 手机宽 480 单列下 flex-wrap 折行呈现）。
@@ -83,8 +87,8 @@ test(
       await page.getByTestId("mate-filter-all").click();
       await page.getByTestId("fixture-await-next").click();
       await page.getByTestId("fixture-inject-dispatch").click();
-      await page.getByTestId("mate-decision-card").waitFor();
-      await page.getByTestId("mate-decision-approve").click();
+      await inbox.getByTestId("mate-decision-card").waitFor();
+      await inbox.getByTestId("mate-decision-approve").click();
       const awaitingCard = page.getByTestId("mate-report-awaiting");
       await awaitingCard.waitFor({ timeout: 15000 });
       assert.match(await awaitingCard.textContent(), /产出待核验/);
@@ -103,8 +107,8 @@ test(
       // 未确认」横幅常驻 → 确认增量 → 横幅出清（列置位后不再出现）。
       await page.getByTestId("fixture-rollover-next").click();
       await page.getByTestId("fixture-inject-dispatch").click();
-      await page.getByTestId("mate-decision-card").waitFor();
-      await page.getByTestId("mate-decision-approve").click();
+      await inbox.getByTestId("mate-decision-card").waitFor();
+      await inbox.getByTestId("mate-decision-approve").click();
       const genCard = page.locator('[data-testid="mate-report-done"]', {
         has: page.getByTestId("mate-report-increment"),
       });
@@ -166,8 +170,8 @@ test(
       // admitDisturbance 未放行 → 投影 bubble=null（fail-closed；汇报仍在速览行）。
       // 判定读点实时回填，等待 bubble admit 出现即闸确实判定过。
       await page.getByTestId("fixture-inject-dispatch").click();
-      await page.getByTestId("mate-decision-card").waitFor();
-      await page.getByTestId("mate-decision-approve").click();
+      await inbox.getByTestId("mate-decision-card").waitFor();
+      await inbox.getByTestId("mate-decision-approve").click();
       await page.waitForFunction(
         () => /^bubble:.+:false$/.test(
           document.querySelector('[data-testid="fixture-last-admit"]')?.textContent ?? "",

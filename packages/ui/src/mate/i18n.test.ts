@@ -14,7 +14,7 @@ import zhCN from "../i18n/locales/zh-CN.js";
 
 /** Mate 面板组件消费的全部 mate.* 键（MatePaneHeader/MateTrustBar/MateDecisionCard/
  *  MateTicketRow/MateReportCard/MateObserveRow/MateAutoNoticeRow/MateConfigSection/
- *  MateSidePane）。 */
+ *  MateSidePane/MateThread[P10a-2 对话管理台]）。 */
 const MATE_CONSUMED_KEYS: readonly string[] = [
   // 独立 mate.title 键经两轮核真（2026-11-05/06）确认零组件消费（面板标题由
   // sidePane.mate/sidePane.launcher.mate 承载，见 MATE_TAB_KEYS）——键清理专项
@@ -227,6 +227,16 @@ const MATE_CONSUMED_KEYS: readonly string[] = [
   "mate.work.managed.hint",
   "mate.work.session.managed",
   "mate.work.offpeak.disabled",
+  // P10a-2 对话管理台（10 号详设 §2.1/§2.3）：MateThreadSection（标题/空态/分页/
+  // composer 三键+off 禁用提示；答复气泡与工单摘要行复用 mate.query.reply.*/mate.report.*/
+  // mate.ticket.generation 既有键）。
+  "mate.thread.title",
+  "mate.thread.empty",
+  "mate.thread.loadEarlier",
+  "mate.thread.loadFailed",
+  "mate.thread.composer.placeholder",
+  "mate.thread.composer.send",
+  "mate.thread.composer.off",
   // P9 自主节奏（09 详设 §2）：来源徽标（mateSourceKindMessageId 第五枚举）、自主
   // 通知区 kind（MateDigestCard kind 徽标映射）、节奏区（MateConfigSection 节奏两键
   // +状态/提示/间隔校验——快照 rhythm? 缺席=区不渲染，键仍在词典守护）。

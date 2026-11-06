@@ -70,49 +70,70 @@ WorkspaceWorkRow =
 - UI：MSA15 资产（fixture 注入 inventory → 总览卡渲染/分组/停滞点/managed 徽标/行点击导航）。
 - 语义回归：既有 query scope/台账速览断言不红（work 缺席时行为不变）。
 
-## 2. P9 · 节奏层
+## 2. P9 · 自主节奏层（Autonomy Loop）
 
-### 2.1 每日晨报（Morning Digest）
+> **设计修订（2026-11-06，用户裁定）**：不做固定晨报与硬判据表——规则引擎是闹钟不是助理。
+> 大副**自己观察、自己判断**要不要汇报/要不要建任务；代码只提供心跳、全域速览与
+> 受控出口，「要不要行动、行动是什么」由 Router 会话（LLM）评估决定。汇报与跟进
+> 建议本身可以是**大副自主创建的任务**（决策卡），用户确认后走既有派发链。
 
-- **产出**（`morningDigest.ts` 新纯函数）：输入=快照（含 inventory）→ 输出结构化晨报文本（有界 1200）：
-  ```
-  【大副晨报 · 11-07 周五】
-  昨日完成：2（修复登录✅/回归跑批✅）；失败：1（部署脚本❌ assistant_row_failed）
-  当前在动：ws-a 工单 1 + 会话 2；ws-b team 1
-  待决策：1（面板放行）；停滞预警：ws-c 会话 3h 无输出
-  花费：输入 88k / 输出 30k tokens
-  ```
-- **触发**：复用 watchdog cron tick（host 已有 60s tick）——tick 时读 kv `morning_digest_time`（"HH:mm"缺省 09:00，设置页可调）判定跨日触发点，触发即：产出 → `admitAssistantDisturbance(kind=report)` 过闸（**晨报=1 次 report**；超额 → 进 pendingDigest 明日补投，既有语义）→ 推送面。
-- **推送面**（多通道并行，各通道独立 try/catch）：桌面系统通知（Electron Notification，host 侧）+ 桌宠气泡（bubble 帧既有链）+ Source 回复（对配置了"晨报订阅"的通道——kv source_config 扩可选 `morningDigest: true`）。投递成功任一通道 → `markDailyDigestDelivered()`（既有方法，回执防重投）。
-- **幂等**：kv `morning_digest_last_date`（yyyy-mm-dd）当日已投不重投。
+### 2.1 自主评估循环
 
-### 2.2 定期巡检（Patrol）
+```
+心跳（watchdog cron tick 节流，kv autonomy_interval_ms 缺省 30min，可关）
+  → 组装全域速览（composeLedgerDigest 升级版：含 inventory）
+  → 发给 Router 会话做「自主评估」轮
+  → autonomyVerdict（zod 三臂）:
+      quiet    —— 没什么值得说的（预期绝大多数心跳；零打扰零成本）
+      report   —— 值得汇报 → 文本经 digest 闸推送（可抑制聚合）
+      suggest  —— 值得跟进 → 大副自主创建决策卡（用户确认才行动）
+```
 
-- **挂点**：watchdog cron 同 tick（不建新定时器）；节流 kv `patrol_interval_ms` 缺省 60min。
-- **判据**（全域，数据=快照含 inventory）：
-  | 判据 | 数据源 | 动作 |
-  |---|---|---|
-  | 大副工单停滞 | 既有 watchdog 三判据（不动） | 既有 stale 标记+通知 |
-  | **自发会话长时间无输出** | inventory session 行（phase=running 且 updatedAtMs 距今 >120min） | 巡检提醒（决策卡形态："ws-a 的会话『修复部署』2 小时无输出——要大副接管跟进吗？"→ attach 决策卡；**不做任何自动动作**） |
-  | **项目有活动无工单** | workspace 有 session 行但 0 工单行且持续 >1 天 | 巡检提醒（"ws-b 你自己在干活，没有大副工单——需要大副帮忙盯着吗？"） |
-- **打扰边界**：巡检提醒=decision 类（永不被抑制但计数）？**否**——巡检是建议不是必答，归 **report 类**（过闸可被抑制聚合进 digest）；每判据×每对象 24h 内至多一次（`patrol_seen:<hash>` kv 去重）。
-- **决策卡出口**："接管跟进"→ 走 attach 建议臂的既有决策卡链（人工确认后才动会话——红线守住）；"不用"→ 忽略并 48h 内不再就该对象提醒（kv 记忆）。
+- **心跳只是唤醒机制**，不是节奏本身——大副会话没有持续推理循环，tick 唤醒后
+  做什么由 LLM 判断；没有"每天 09:00"概念（连续无变化的日子大副安静，事情多的
+  日子它自己会多说）。
+- **评估 schema**（`autonomyVerdictSchema`，routerDecision.ts 邻域）：
+  `{ quiet: {} } | { report: { text ≤800, reason } } | { suggest: { brief, kind:
+  "attach"|dispatch 建议参数, reason } }` 三臂恰现其一；解析失败=quiet（自主层
+  失败永不打扰——fail-silent 对打扰语义是正确方向）。
+- **Router 会话复用**：自主评估输入（速览+自主约言段）走既有 Router 会话追加轮
+  （不建第二个 LLM 进程；轮转/换代语义照旧）。
 
-### 2.3 contracts 与设置
+### 2.2 三个受控出口（全部复用既有面，零新动作面）
 
-- kv 新键（ASSISTANT_KV_KEYS 扩）：`morningDigestTime`（"HH:mm"）、`patrolEnabled`（bool 缺省 true）、`patrolIntervalMinutes`。
-- 设置页（MateConfigSection 节奏区）：晨报时间输入+开关、巡检开关；bounds（时间格式校验/间隔 30-1440 分）。
-- 快照投影：`rhythm?: { morningDigestTime: string; patrolEnabled: boolean }`（可选）。
+| 臂 | 出口 | 打扰语义 |
+|---|---|---|
+| quiet | 无动作 | 零 |
+| report | `admitAssistantDisturbance(kind=report)` 过闸 → 推送面（桌面通知/桌宠气泡/Source 晨报订阅——三通道独立降级）| 可抑制（超额聚合进 pendingDigest 次日补） |
+| suggest | **大副自建决策卡**：落 admission_decision（outcome=decision_card, decided_by=gate, trigger 来源=`autonomy`）——用户 Y 放行走既有派发链（attach/dispatch），N 忽略 | decision 类必答但计数（永不被抑制） |
 
-### 2.4 "接管"语义（本批唯一的跨所有权动作，严格限定）
+**「大副自己创建任务」的边界**：suggest 臂创建的是**待确认建议**（决策卡），不是
+已派发任务——创建本身零执行，行动权永远在用户的 Y/N。这同时是 P10 记忆的观察
+输入源（大副何时选择说话/建任务，沉淀为它的节奏感）。
 
-巡检/总览卡的"接管跟进"永远只是**建议**：产出一张 attach 决策卡（既有链），用户确认后大副才对该会话建立工单关联（watchTicket 订阅归账——只读观察，不改会话内容）。**永不**自动 attach、永不向用户会话发消息（除非用户此后在该工单上明确下指令）。
+### 2.3 防打扰四闸（自主层专用）
+
+1. 配额闸（report 可抑制/suggest 计数）；
+2. **去重记忆**：`autonomy_seen:<速览hash>` kv——同一速览指纹 24h 内不重复评估
+   输出（quiet 不记忆，report/suggest 记忆）；
+3. **否定记忆**：用户对某 suggest 忽略 → `autonomy_muted:<对象hash>` 48h 内对该
+   对象不再 suggest；
+4. 设置页总闸：自主观察开关（kv `autonomy_enabled` 缺省 true）+频率（30-1440min）。
+
+### 2.4 contracts 与设置
+
+- kv 新键：`autonomy_enabled`/`autonomy_interval_ms`/`autonomy_seen`*/`autonomy_muted`*；
+- 设置页节奏区收敛为两项（开关+间隔）——无晨报时间（无固定晨报）；
+- 快照投影 `rhythm?: { autonomyEnabled: boolean }`（可选）。
 
 ### 2.5 P9 验收
 
-- 服务：morningDigest 产出单测（空日/有完成/停滞段/有界）；cron 触发判定单测（跨日/幂等/缺省时间）；巡检判据单测（两新判据矩阵/去重/48h 记忆）；推送面 fake port 单测（三通道独立失败不互相阻断+回执）。
-- UI：MSA16 资产（节奏设置区写入+回显；巡检决策卡呈现——fixture 注入）。
-- 桌宠：气泡链复用（MRP 既有断言覆盖形态）。
+- 服务：autonomyVerdict 三臂 schema 单测（恰现其一/失败=quiet）；自主评估循环单测
+  （心跳节流/速览组装喂入/quiet 零动作/report 过闸推送回执/suggest 落决策卡且
+  decided_by=gate/去重与否定记忆矩阵）；Router 会话追加轮 mock 单测。
+- UI：MSA16 资产（自主设置区+autonomy 来源决策卡呈现——sourceKind 扩 `autonomy`
+  徽标）。
+- 语义：自主层关闭时行为与 P8 完全一致（增量=纯可选）。
 
 ## 3. 分批与工作量
 
@@ -120,21 +141,22 @@ WorkspaceWorkRow =
 |---|---|---|
 | P8a | contracts+workInventory 组装+快照投影+单测 | 0.5 天 |
 | P8b | query work scope+台账速览升级+MateWorkOverview UI+MSA15 | 0.5 天 |
-| P9a | morningDigest 产出+cron 触发+推送面+设置区 | 0.5 天 |
-| P9b | 巡检两判据+决策卡出口+去重记忆+MSA16 | 0.5 天 |
+| P9 | 自主评估循环（心跳/三臂 schema/三出口/四闸/设置区）+MSA16 | 1 天 |
 
-依赖：P8a→P8b→（P9a ∥ P9b 可并行）。全部完成后：晨报打开电脑即见全域战况、巡检让大副主动盯着你自己都没盯的事——"看见全部 + 主动节奏"闭环。
+依赖：P8a→P8b→P9（自主层消费全域速览）。完成后：大副自己决定何时汇报、何时建
+任务——"看见全部 + 自主节奏"闭环，且一切行动权在用户。
 
 ## 4. 风险与对策
 
 | 风险 | 对策 |
 |---|---|
 | sessions-index 内存投影在多 workspace 下体积 | 台账组装即有界截断（6×20）；快照投影照界 |
-| 晨报推送在无桌面通知权限环境 | 通道独立降级（通知失败→气泡兜底→Source 兜底，全败则 pendingDigest 次日补） |
-| 巡检判据误报（用户午休=会话 2h 无输出） | 判据阈值 kv 可调+24h 去重+report 类可抑制+决策卡出口永不自动——四重泄压 |
+| 自主层变话痨（LLM 倾向于"说点什么"） | 自主约言明确"默认 quiet，只有用户不回应就会损失什么时才开口"；report 可抑制聚合；去重+否定记忆；总闸一键关 |
+| 推送通道在无桌面通知权限环境 | 通道独立降级（通知失败→气泡兜底→Source 兜底，全败则 pendingDigest 次日补） |
+| 自主评估的 LLM 成本（每心跳一次调用） | 心跳缺省 30min+速览有界 400；quiet 预期占绝大多数；关闭即零成本 |
 | "接管"被理解为接管会话控制权 | spec 措辞钉死"只读观察+人工确认"；MSA16 断言无任何自动 attach 路径 |
 
 ## 5. 登记与不做
 
 - spec §12 新节（全域台账）+§13（节奏层）+§14 P8/P9 行；CONTRACT ×2；matrix MSA15/16。
-- **不做**：项目注册表 UI（自举集合，排除清单留 P10）；日历/邮件 Source（P11 插件形态）；git 信号采集（P8 可选件独立小批，本轮不做避免摊宽）；手机推送（P11）。
+- **不做**：固定晨报/日报模板与定时（用户裁定：节奏由大副自主判断）；项目注册表 UI（自举集合，排除清单留 P10）；日历/邮件 Source（P11 插件形态）；git 信号采集（P8 可选件独立小批，本轮不做避免摊宽）；手机推送（P11）。

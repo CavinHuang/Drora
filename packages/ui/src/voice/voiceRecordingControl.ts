@@ -14,3 +14,8 @@ export function registerVoiceRecordingAbort(entryId: string, abort: () => void):
 export function requestVoiceRecordingAbort(entryId: string | null): void {
   if (entryId !== null) abortByEntry.get(entryId)?.();
 }
+
+/** 注册者存在性查询（Esc-requestingMic 修复：缺席时调用方回落 store-only 出腿）。 */
+export function isVoiceRecordingAbortRegistered(entryId: string | null): boolean {
+  return entryId !== null && abortByEntry.has(entryId);
+}

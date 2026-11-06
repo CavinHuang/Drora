@@ -877,11 +877,42 @@ describe("§9.9.4-L10/L1 起录链失败处置与用户取消出边", () => {
     expect(useVoiceSessionStore.getState().recordingOwnerEntryId).toBe("entry-other");
   });
 
-  it("requestingMic 期 Esc = 取消请求（consumeVoiceRecordingEscape 两段扩展，§9.9.4-L1）", () => {
-    expect(useVoiceSessionStore.getState().startMicRequest("sess-1", "entry-x")).toBe(true);
+  it("requestingMic 期 Esc = 取消请求且终止资源——迟到授权丢弃式 abort（§9.9.4-L1；全域审查修复回归钉）", async () => {
+    // 起录链挂起在 start（requestingMic 态），Esc 后迟到 resolve 必须被丢弃式 abort
+    // ——修复前 Esc 只翻 store：迟到授权落地时 generation 未失效，引擎 session 存活、
+    // mic 无主拾音（voiceSessionStore consumeVoiceRecordingEscape 注释所述反模式）。
+    let resolveStart!: (value: unknown) => void;
+    fakeAdapter.start.mockImplementationOnce(
+      () => new Promise<InstanceType<typeof createFakeSession>>((resolve) => {
+        resolveStart = resolve as unknown as (value: unknown) => void;
+      }),
+    );
+    const harness = renderHook(() =>
+      useVoiceDictation({
+        sessionId: "sess-1",
+        workspacePath: wsPath,
+        lang: "zh-CN",
+        requestStart: () => true,
+      }),
+    );
+    harness.result.current.toggleMic();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(useVoiceSessionStore.getState().inputLeg).toBe("requestingMic");
+    // Esc 取消：定向终止（generation 失效 + timer 回收），不只翻 store。
     expect(consumeVoiceRecordingEscape()).toBe(true);
     expect(useVoiceSessionStore.getState().inputLeg).toBe("idle");
-    // idle 态不消费（既有语义回归）。
+    // 迟到授权：start resolve 后丢弃式 abort，绝不进入录音态、引擎被 abort。
+    const abortSpy = vi.fn();
+    resolveStart({
+      onFinal: () => () => undefined,
+      onError: () => () => undefined,
+      abort: abortSpy,
+      stop: () => Promise.resolve({ final: "" }),
+    });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(useVoiceSessionStore.getState().inputLeg).toBe("idle");
+    expect(abortSpy).toHaveBeenCalledTimes(1);
+    // idle 态 Esc 不消费（既有语义回归）。
     expect(consumeVoiceRecordingEscape()).toBe(false);
   });
 });

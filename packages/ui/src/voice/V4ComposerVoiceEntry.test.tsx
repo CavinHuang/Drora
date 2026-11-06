@@ -32,6 +32,9 @@ const {
       voiceDictationLang: "",
       voiceToolBriefEnabled: false,
       voicePrivacyDisclosureAcknowledged: true,
+      // §5.5 两新键（默认与 schema 一致：off / true）。
+      voiceDictationHoldKey: "off" as "off" | "fn",
+      voiceDictationHybridPreview: true,
     },
   };
   // §13 v2 形态（providerRef 路由表；原 v1 残留形态陈旧）。
@@ -610,5 +613,66 @@ describe("§15 ASR 连接重解析（onDidChange 订阅，specs/model-capabiliti
     } finally {
       viewGate.current = null;
     }
+  });
+});
+
+describe("§5.5 长按听写 window 监听装配（组件级端到端，全域审查缺口补）", () => {
+  function pressKey(key: string, type: "keydown" | "keyup") {
+    window.dispatchEvent(new KeyboardEvent(type, { key, bubbles: true }));
+  }
+
+  it("默认 off：Fn keydown 零动作（inputLeg 保持 idle）", () => {
+    renderEntry();
+    pressKey("Fn", "keydown");
+    expect(useVoiceSessionStore.getState().inputLeg).toBe("idle");
+  });
+
+  it("holdKey=fn：keydown 起录（→recording）、keyup 停止转写（→idle）", async () => {
+    setSettings({ voiceDictationHoldKey: "fn" });
+    renderEntry();
+    pressKey("Fn", "keydown");
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(useVoiceSessionStore.getState().inputLeg).toBe("recording");
+    pressKey("Fn", "keyup");
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(useVoiceSessionStore.getState().inputLeg).toBe("idle");
+  });
+
+  it("holdKey=fn：blur 兜底视同松开（recording → idle）", async () => {
+    setSettings({ voiceDictationHoldKey: "fn" });
+    renderEntry();
+    pressKey("Fn", "keydown");
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(useVoiceSessionStore.getState().inputLeg).toBe("recording");
+    window.dispatchEvent(new Event("blur"));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(useVoiceSessionStore.getState().inputLeg).toBe("idle");
+  });
+
+  it("非 Fn 键零动作；repeat 的 Fn keydown 不重复起录", async () => {
+    setSettings({ voiceDictationHoldKey: "fn" });
+    renderEntry();
+    pressKey("a", "keydown");
+    expect(useVoiceSessionStore.getState().inputLeg).toBe("idle");
+    pressKey("Fn", "keydown");
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(useVoiceSessionStore.getState().inputLeg).toBe("recording");
+    // repeat 按下不重触发（守卫）；随后正常 keyup 停止。
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "Fn", repeat: true, bubbles: true }));
+    pressKey("Fn", "keyup");
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(useVoiceSessionStore.getState().inputLeg).toBe("idle");
   });
 });

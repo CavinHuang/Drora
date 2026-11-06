@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { VOICE_LAST_DICTATION_TTL_MS } from "@/voice/voiceTuning.js";
-import { requestVoiceRecordingAbort } from "@/voice/voiceRecordingControl.js";
+import { isVoiceRecordingAbortRegistered, requestVoiceRecordingAbort } from "@/voice/voiceRecordingControl.js";
 
 /**
  * 语音会话两条腿状态机（specs/voice-agent-integration.md §3.1 / §3.2 / §3.3）。
@@ -219,9 +219,17 @@ export function isVoiceLastDictationFresh(
 export function consumeVoiceRecordingEscape(): boolean {
   const state = useVoiceSessionStore.getState();
   if (state.inputLeg === "requestingMic") {
-    // §9.9.4-L1：请求麦克风中 Esc = 用户取消（迟到授权由 useVoiceDictation 的
-    // generation/inputLeg 守卫丢弃式 abort）。
-    state.cancelMicRequest();
+    // §9.9.4-L1：请求麦克风中 Esc = 用户取消。全域审查修复（2026-11-06）：此前只翻
+    // store（cancelMicRequest）不终止资源——迟到授权落地后 inputLeg 已非 requestingMic，
+    // 起录链仅查 generation 而 Esc 未 bump generation，引擎 session 存活、mic 无主拾音
+    // （正是本文件头部自述反对的反模式）。改走定向 abort 通道（abortEpisode：generation
+    // 失效 + 10s timer 回收 + 迟到授权丢弃式 abort + cancelMicRequest 出腿）；注册者
+    // 缺席（无入口 hook 挂载，如纯 store 驱动的旁路测试/异常卸载序）回落 store-only 出腿。
+    if (isVoiceRecordingAbortRegistered(state.recordingOwnerEntryId)) {
+      requestVoiceRecordingAbort(state.recordingOwnerEntryId);
+    } else {
+      state.cancelMicRequest();
+    }
     return true;
   }
   if (state.inputLeg === "recording") {

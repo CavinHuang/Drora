@@ -6,5 +6,14 @@ export const voiceModule = {
   id: "voice",
   requires: ["services", "shared", "ui"],
   provides: ["voice"],
-  publicEntrypoints: ["contract.ts", "voiceTuning.ts"],
+  // 与 architecture-policy.yaml voice.publicEntrypoints 同步维护（policy 为权威；
+  // 全域审查修复：此前漂移 4 项——跨模块消费面集中在 settings/model-capabilities）。
+  publicEntrypoints: [
+    "contract.ts",
+    "voiceTuning.ts",
+    "voiceRecordingControl.ts",
+    "voiceVendorBaseUrl.ts",
+    "ttsPreview.ts",
+    "voiceVendorFetch.ts",
+  ],
 } as const;

@@ -21,6 +21,13 @@ Web Speech/remote ASR、system/cloud TTS、播报规划器、音色/角色预设
 - 隐私边界：日志只记事件类型/文本长度/错误码，不落转写原文与音频数据（spec §7.1）。
 - 播报白名单闭集：只有 spec §4.1 分级表「播」级内容可进 TTS；轮尾正文与 assistantCopyText
   同源聚合（buildTurnSpeechText，join("\n\n") 链）。
+- 长按听写（spec §5.5）：Fn 按下/松开沿只经 voiceHoldTalk 捕获层 → pressStart/pressStop
+  两段 API，与点按共用同一 episode 与守卫；混合预览的 webSpeech final 永不注入正文、
+  不参与打断词（只认主引擎 final）；入口隐藏时 Fn 监听保留（spec 记档有意）。
+- 厂商出站与流式（specs/model-capabilities.md §15.8/§16）：白名单厂商（火山）出站一律
+  经 desktop main 代理（voiceVendorFetch 整段 / streamPort 三通道流式），直连仅为
+  非白名单与非桌面保留；流式播放（voiceStreamingPlayback）失败语义与整段路径等价
+  （未播 error / 已播宽容 end / 断号恒硬失败不归零回落计数）。
 
 与其它模块的交集：
 

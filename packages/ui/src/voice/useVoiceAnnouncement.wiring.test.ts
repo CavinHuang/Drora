@@ -117,6 +117,8 @@ const {
   let cloudFailuresBeforeEnd = 0;
   const cloudTtsState = {
     spoken: cloudSpoken,
+    /** §16 wiring 缺口补：记录 createCloudTtsAdapter 收到的 deps（断言 stream 注入）。 */
+    lastDeps: null as unknown,
     fireConsecutiveFailures: () => undefined as void,
     failNext: (count: number) => {
       cloudFailuresBeforeEnd = count;
@@ -126,6 +128,7 @@ const {
       cloudLastHandle = null;
       cloudDoneCb = null;
       cloudFailuresBeforeEnd = 0;
+      cloudTtsState.lastDeps = null;
     },
     createAdapter: () => ({
       speak: (u: { text: string }) => {
@@ -300,7 +303,22 @@ vi.mock("./cloudTtsAdapter.js", async (importOriginal) => {
       return () => undefined;
     },
   };
-  return { ...actual, createCloudTtsAdapter: () => adapter };
+  return {
+    ...actual,
+    createCloudTtsAdapter: (deps: unknown) => {
+      cloudTtsState.lastDeps = deps;
+      return adapter;
+    },
+  };
+});
+
+const platformState: { current: unknown } = { current: null };
+vi.mock("@/hooks/usePlatform.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/hooks/usePlatform.js")>();
+  return {
+    ...actual,
+    useOptionalPlatform: () => platformState.current,
+  };
 });
 
 vi.mock("@/hooks/useServices.js", () => ({
@@ -901,4 +919,35 @@ it("§9.8 regression: remote ASR entry must work without SpeechRecognition", asy
   h.unmount();
   vi.unstubAllGlobals();
   expect(visible).toBe(true);
+});
+
+describe("§16 wiring：streamPort 聚合注入（全域审查缺口补）", () => {
+  it("platform 三流式方法在场 → deps.stream 聚合注入（start/onChunk/abort 转发 platform）", async () => {
+    platformState.current = {
+      voiceVendorProxyStreamStart: vi.fn(async () => ({ streamId: "s-1" })),
+      onVoiceVendorProxyStreamChunk: vi.fn(() => () => undefined),
+      voiceVendorProxyStreamAbort: vi.fn(async () => undefined),
+    };
+    try {
+      await mountAnnouncement();
+      const deps = cloudTtsState.lastDeps as { stream?: { start: unknown; onChunk: unknown; abort: unknown } };
+      expect(deps.stream).toBeTruthy();
+      expect(typeof deps.stream?.start).toBe("function");
+      expect(typeof deps.stream?.onChunk).toBe("function");
+      expect(typeof deps.stream?.abort).toBe("function");
+    } finally {
+      platformState.current = null;
+    }
+  });
+
+  it("platform 缺席（Web/手机）或方法不全 → deps.stream undefined（火山回退整段路径）", async () => {
+    platformState.current = {}; // 方法缺席
+    try {
+      await mountAnnouncement();
+      const deps = cloudTtsState.lastDeps as { stream?: unknown };
+      expect(deps.stream).toBeUndefined();
+    } finally {
+      platformState.current = null;
+    }
+  });
 });

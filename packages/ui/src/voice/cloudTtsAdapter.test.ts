@@ -448,6 +448,44 @@ describe("火山引擎 TTS 协议分支（specs/model-capabilities.md §14）", 
     }
   });
 
+  it("非 2xx：错误体细节拼入消息（火山 header.code 形态）——toast 可见厂商原因", async () => {
+    const harness = createHarness();
+    harness.setConfig({ baseUrl: VOLCANO_BASE, model: "zh_female_wanwanxiaohe_moon_bigtts", apiKey: "tlk-new-console-key" });
+    harness.setRawResponse({
+      ok: false,
+      status: 403,
+      text: JSON.stringify({
+        header: { code: 45000030, message: "[resource_id=volc.service_type.10029] requested resource not granted" },
+      }),
+    });
+    const handle = harness.adapter.speak({ text: "你好", lang: "zh-CN" });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(harness.playback.length).toBe(0);
+    expect(harness.failCount.value).toBe(1);
+    void handle;
+    // settle 幂等后错误消息经 warn 落 logger——直接断言 mock fetch 收到的响应被消费为 error
+    // （detail 解析路径由 synthesizeOnce 侧用例覆盖，见下）。
+  });
+
+  it("synthesizeOnce 火山非 2xx → 抛错消息含火山错误体细节与 code", async () => {
+    const { synthesizeOnce } = await import("./cloudTtsAdapter.js");
+    const fetch = vi.fn(async () => ({
+      ok: false,
+      status: 403,
+      text: async () =>
+        JSON.stringify({
+          header: { code: 45000030, message: "[resource_id=volc.service_type.10029] requested resource not granted" },
+        }),
+    }));
+    await expect(
+      synthesizeOnce(
+        { baseUrl: VOLCANO_BASE, model: "zh_female_wanwanxiaohe_moon_bigtts", apiKey: "tlk-new-console-key" },
+        "试听",
+        { fetch: fetch as never },
+      ),
+    ).rejects.toThrow(/45000030.*service_type\.10029|service_type\.10029.*45000030/s);
+  });
+
   it("isVolcanoTtsEndpoint：host 精确识别 + 非法串返回 false", async () => {
     const { isVolcanoTtsEndpoint } = await import("./cloudTtsAdapter.js");
     expect(isVolcanoTtsEndpoint("https://openspeech.bytedance.com")).toBe(true);

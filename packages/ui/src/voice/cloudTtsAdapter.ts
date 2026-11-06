@@ -269,6 +269,43 @@ function speakVolcanoStreaming(
   };
 }
 
+/**
+ * 厂商错误体细节提取（§15.7 OpenAI 分支同款逻辑抽公共——§16 后记补：火山分支此前
+ * 漏接导致 401/403 时 toast 只见 status 不见厂商原因）。text 为可选方法（火山分支
+ * 约定），先判存在再 await；截 500 字符防超长体；JSON 解析失败回退纯 status。
+ * 隐私边界不变：零日志，消息只含厂商响应体细节，不拼 apiKey/Authorization。
+ */
+async function extractVendorErrorDetail(response: ResponseLike): Promise<string> {
+  if (!response.text) {
+    return "";
+  }
+  try {
+    const raw = (await response.text()).slice(0, 500);
+    const parsed = JSON.parse(raw) as {
+      error?: { message?: unknown } | string;
+      message?: unknown;
+      header?: { message?: unknown; code?: unknown };
+    };
+    const errorMessage =
+      typeof parsed.error === "object" && parsed.error !== null
+        ? parsed.error.message
+        : undefined;
+    const headerMessage = typeof parsed.header?.message === "string" ? parsed.header.message : undefined;
+    const headerCode = parsed.header?.code;
+    const detail =
+      (typeof errorMessage === "string" ? errorMessage : undefined) ??
+      headerMessage ??
+      (typeof parsed.message === "string" ? parsed.message : undefined) ??
+      (typeof parsed.error === "string" ? parsed.error : undefined) ??
+      "";
+    // 火山错误体形如 {header:{code,message}}——code 有诊断价值（如 45000030 服务未授权）一并带上。
+    const codeSuffix = typeof headerCode === "number" ? ` (code ${headerCode})` : "";
+    return detail || codeSuffix ? `${detail}${codeSuffix}` : "";
+  } catch {
+    return ""; // 解析/读文本失败：忽略细节，保留纯 status 消息。
+  }
+}
+
 async function synthesizeVolcano(
   config: RemoteTtsVendorConfig,
   text: string,
@@ -289,7 +326,10 @@ async function synthesizeVolcano(
     },
   );
   if (!response.ok) {
-    throw new Error(`volcano tts request rejected: ${response.status}`);
+    // §16 后记补：火山分支此前漏接错误体解析（§15.7 只补了 OpenAI 分支）——
+    // 401/403 时 toast 只见 status 不见厂商原因（如 45000030 服务未授权）。
+    const detail = await extractVendorErrorDetail(response);
+    throw new Error(`volcano tts request rejected: ${response.status}${detail ? `: ${detail}` : ""}`);
   }
   if (!response.text) {
     throw new Error("volcano tts fetch impl lacks text()");

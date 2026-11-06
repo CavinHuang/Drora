@@ -544,16 +544,20 @@ describe("P7 查询直答（08 §3.3；观察模式 query_status 全链）", () 
       dispatched += 1;
       return { ok: true, value: { ticketId: request.ticketId, sessionId: "sess-q" } };
     });
-    setAssistantRouterPort(async () => ({
-      ok: true,
-      output: JSON.stringify({
-        query_status: {
-          scope: { kind: "status", workspaceIdentity: "ws-a" },
-          reason: "进度查询，无需执行",
-        },
-        evidence: [{ quote: "进度怎样" }],
-      }),
-    }));
+    const seenCards: string[] = [];
+    setAssistantRouterPort(async (input: { card: string }) => {
+      seenCards.push(input.card);
+      return {
+        ok: true,
+        output: JSON.stringify({
+          query_status: {
+            scope: { kind: "status", workspaceIdentity: "ws-a" },
+            reason: "进度查询，无需执行",
+          },
+          evidence: [{ quote: "进度怎样" }],
+        }),
+      };
+    });
     setAssistantFrameSource({ subscribe() { return { dispose: () => undefined }; } });
     const recorded = await service.recordTrigger({
       text: "ws-a 进度怎样",
@@ -574,6 +578,43 @@ describe("P7 查询直答（08 §3.3；观察模式 query_status 全链）", () 
     expect(dismissed.ok).toBe(true);
     const after = await service.getSnapshot();
     expect(after.decisions[0]?.outcome).toBe("ignored");
+  }, 20_000);
+
+  it("候选卡附【台账速览】段（P7 批 2 方案乙：Router 零进程感知账本；空台账缺席）", async () => {
+    const { service } = createService();
+    const seenCards: string[] = [];
+    setAssistantRouterPort(async (input: { card: string }) => {
+      seenCards.push(input.card);
+      return { ok: false, reason: "router off" };
+    });
+    // 空台账 → 速览段缺席（诚实缺省）。
+    await service.recordTrigger({
+      text: "空台账触发",
+      simulated: ASSISTANT_STRENGTHS.explicit,
+      targetWorkspaceIdentity: "ws-a",
+    });
+    // 空台账 → 速览段缺席（断言锚=段体行「活动 0 / 待决策 0」；约言概念词用【】不误伤）。
+    expect(seenCards.at(-1)).not.toContain("活动 0 / 待决策");
+    // 造一台活动工单（放行直派）→ 下一张候选卡携带速览段。
+    setAssistantDispatchPort(async (request) => ({
+      ok: true,
+      value: { ticketId: request.ticketId, sessionId: "sess-d" },
+    }));
+    const recorded = await service.recordTrigger({
+      text: "修复登录白屏",
+      simulated: ASSISTANT_STRENGTHS.explicit,
+      targetWorkspaceIdentity: "ws-a",
+    });
+    expect(recorded.ok).toBe(true);
+    const decision = (await service.getSnapshot()).decisions.at(-1);
+    await service.approveDecision({ decisionId: decision?.id ?? 0, targetWorkspaceIdentity: "ws-a" });
+    await service.recordTrigger({
+      text: "再看看",
+      simulated: ASSISTANT_STRENGTHS.explicit,
+      targetWorkspaceIdentity: "ws-a",
+    });
+    expect(seenCards.at(-1)).toContain("【台账速览】");
+    expect(seenCards.at(-1)).toContain("活动 1 / 待决策");
   }, 20_000);
 });
 

@@ -213,3 +213,70 @@ export function composeQueryReply(input: ComposeQueryReplyInput): ComposeQueryRe
   }
   return { text: cap(lines.join("\n")), matchedTickets: inDomain.length };
 }
+
+
+/** 台账速览界（候选卡附加段用；比答复更紧——Router 上下文预算敏感）。 */
+const LEDGER_DIGEST_MAX = 400;
+
+/**
+ * 账本速览（08 号详设 §4 方案乙）：候选卡附带的有界台账事实——Router 无工具即可
+ * 感知账本（查询意图判定/attach 目标佐证），零新进程。空台账返回 undefined
+ * （候选卡不出现速览段，与 attachCandidates 缺席同语义）。
+ */
+export function composeLedgerDigest(
+  raw: AssistantDatabaseRaw,
+  localIdentity: string,
+  nowMs: () => number = () => Date.now(),
+  /** 评估中的决策 id（排除自身——正在评估的这张卡不该计入「待决策」速览）。 */
+  excludeDecisionId?: number,
+): string | undefined {
+  const snapshot = buildAssistantSnapshot(raw, {
+    mode: "observe",
+    allowlist: [localIdentity],
+    budgetMaxActivePerWorkspace: 3,
+    worktreeDisabled: false,
+    trustGateThresholds: {
+      minRate: ASSISTANT_TRUST_GATE_DEFAULTS.minReleaseRate,
+      minSamples: ASSISTANT_TRUST_GATE_DEFAULTS.minSamples,
+    },
+    watchdogIntervalMinutes: 15,
+    modelPreference: null,
+    sourcesConfig: {},
+    identityMap: {},
+  }, { dailyQuota: undefined });
+  const activeStatuses: readonly string[] = [
+    ASSISTANT_TICKET_STATUSES.queued,
+    ASSISTANT_TICKET_STATUSES.dispatched,
+    ASSISTANT_TICKET_STATUSES.running,
+    ASSISTANT_TICKET_STATUSES.awaitingOutput,
+  ];
+  const active = snapshot.tickets.filter((t) => activeStatuses.includes(t.status));
+  const pending = snapshot.decisions.filter(
+    (d) =>
+      d.outcome === "decision_card" &&
+      d.decidedBy === "gate" &&
+      d.id !== excludeDecisionId,
+  );
+  const latest = snapshot.tickets
+    .filter(
+      (t) => t.status === ASSISTANT_TICKET_STATUSES.done || t.status === ASSISTANT_TICKET_STATUSES.failed,
+    )
+    .sort((a, b) => b.updatedAtMs - a.updatedAtMs)[0];
+  if (active.length === 0 && pending.length === 0 && !latest) return undefined;
+  const lines: string[] = [`活动 ${active.length} / 待决策 ${pending.length}`];
+  for (const ticket of active.slice(0, 3)) {
+    lines.push(
+      `- ${ticket.targetWorkspaceIdentity}：${firstLine(ticket.brief, 30)}（${ticketStatusLabel(ticket.status)}）`,
+    );
+  }
+  if (latest) {
+    lines.push(
+      `- 最近${latest.status === ASSISTANT_TICKET_STATUSES.done ? "完成" : "失败"}：${firstLine(latest.targetWorkspaceIdentity ?? "", 20)}（${firstLine(latest.outputSummary ?? latest.brief, 40)}）`,
+    );
+  }
+  const text = lines.join("\n");
+  const chars = [...text];
+  return chars.length > LEDGER_DIGEST_MAX
+    ? `${chars.slice(0, LEDGER_DIGEST_MAX).join("")}…`
+    : text;
+}

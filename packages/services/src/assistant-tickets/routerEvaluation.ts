@@ -13,7 +13,7 @@ import {
   ASSISTANT_REPLY_LIMITS,
 } from "@drora/shared";
 import { parseRouterDecisionText } from "./routerDecision.js";
-import { composeQueryReply, type QueryReplyLocale } from "./queryReply.js";
+import { composeLedgerDigest, composeQueryReply, type QueryReplyLocale } from "./queryReply.js";
 import {
   composeCandidateCard,
   filterAttachCandidates,
@@ -101,6 +101,9 @@ export function createRouterEvaluation(deps: RouterEvaluationDeps): {
     void (async () => {
       // Tier2 候选集在评估链内采集（事件驱动；通道失败/缺席→空候选，不阻断评估）。
       const attachCandidates = await collectAttachCandidates(input.trigger.workspaceIdentity);
+      // P7 批 2（08 号详设 §4 方案乙）：候选卡附带有界台账速览——Router 无工具即可
+      // 感知账本（查询意图判定/attach 佐证）；空台账缺席（不出现速览段）。
+      const ledgerDigest = composeLedgerDigest(db.raw, deps.localIdentity, nowMs, input.decisionId);
       const card = composeCandidateCard({
         triggerId: input.trigger.id,
         text: input.trigger.text,
@@ -108,6 +111,7 @@ export function createRouterEvaluation(deps: RouterEvaluationDeps): {
         identity: input.trigger.identity,
         atMs: input.trigger.atMs,
         targetWorkspaceIdentity: input.trigger.workspaceIdentity,
+        ...(ledgerDigest ? { digest: ledgerDigest } : {}),
         ...(attachCandidates.length > 0 ? { attachCandidates } : {}),
       });
       const result = await router({ card: card.input });

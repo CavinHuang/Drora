@@ -1,5 +1,13 @@
 # 08 · 对话式查询与管理（2026-11-06 设计批；**批 1（B 路径）已实施**——feat/drora-mate 3c15fe5e2，见文末「批 1 实施对账注记」）
 
+## 8. 批 2 实施对账注记（2026-11-06，方案乙落地）
+
+**S1 探查结论**：MCP SDK 2.0.0 在库（browser-use/android-emulator 插件先例完整）；但官方插件 seed=marketplace cache roots（bootstrap official-plugin-definitions）——**全会话挂载**，仅 Router 可用需 cwd 门控+seed 定义+CDN manifest 合并，面大（独立批次）。
+
+**方案乙已落地（候选卡台账速览段）**：composeLedgerDigest（queryReply.ts，有界 400）→ routerEvaluation 组卡时经既有 digest 载体附【台账速览】段（routerShell 段标签随批改名，原 [台账浓缩] 无消费方）——Router **零进程**感知账本（活动/待决策/最近完成计数+行）。排除自身决策（excludeDecisionId：正在评估的卡不计入待决策）。空台账缺席（诚实缺省）。测试：P2Flows 两断言（空缺席/有工单携带）。
+
+**批 2 剩余（甲方案，登记后置）**：Mate 状态插件 stdio server 三只读工具（mate_list_tickets/mate_get_ticket/mate_get_usage）——S1 事实已录，实施需 seed 定义+cwd 门控设计，随插件体系批次。
+
 ## 0. 背景与问题定义
 
 用户问「xx 项目当前的进度怎样？」时，大副把它**当作任务原文路由出去**（attach/dispatch→worker 作答→汇报卡回流）——语义错位：进度事实全量在账（快照/工单/usage），却缺少"查询直答"的对话式出口。对照 DSH super-agent：其 Router 带 14 工具（含 bash），可查账后口头回答、对话即管理——大副在 P2 裁剪掉了工具面（spec §11「Router 无自定义工具面，白名单随 (b) 路线（若启用）一并交付」）。

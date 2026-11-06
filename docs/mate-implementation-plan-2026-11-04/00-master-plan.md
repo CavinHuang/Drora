@@ -35,6 +35,7 @@ P4 watchdog(automation)+auto 信任门(唯一入口+配额默认5)+汇报卡完�
    真实 Host 工件核验 git 真链路、watchdog 定时轮 30min 判据真机、配额跨端一致性与
    手机快照透传、工单终态汇报推送的 report 计数生产接线（随主动推送通道批）)
 语音入口：随 voice-agent spec 排期对齐后单列（不在 P1-P4 内，见 §8）
+P5-P10：06-10 号详设（设置中心+模型选择/桌宠工作面板/对话式查询直答/全域台账+自主节奏/对话面+入口倒转）——状态见 spec §14 矩阵与各详设头注
 ```
 
 包×模块落位：shared（contracts/assistant.ts + channels 键）、services（`src/assistant-tickets/` 六件）、ui（`src/mate/` 族 + store/hooks/i18n）、desktop（P3 桌宠接缝）、apps/drora-cli **零改动**（P2 assistantActivity 走 host 侧挂载，见 §3.9）。

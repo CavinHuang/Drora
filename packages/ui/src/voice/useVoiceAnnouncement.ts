@@ -45,7 +45,6 @@ import {
   type VoiceTtsStreamPort,
 } from "./cloudTtsAdapter.js";
 import { createVoiceVendorFetch } from "./voiceVendorFetch.js";
-import { isVoiceVendorConfigComplete } from "./resolveAsrAdapter.js";
 import { createToolBriefPlanner } from "./toolBriefPlanner.js";
 import { VOICE_TTS_CLOUD_CONSECUTIVE_FAILURES } from "./voiceTuning.js";
 import type { VoiceTtsPort, VoiceTtsUtterance } from "./voiceTtsPort.js";

@@ -173,12 +173,21 @@ export function createVoiceVendorStreamHandler(deps: VoiceVendorStreamHandlerDep
         // 先收 header 判定：非 2xx 读完整错误体（截 500 字符）一次性 error 帧。
         const chunks: Uint8Array[] = [];
         let errorBytes = 0;
+        let earlyBreak = false;
         for await (const chunk of response.body ?? []) {
           chunks.push(chunk);
           errorBytes += chunk.byteLength;
           if (errorBytes >= 2048) {
+            earlyBreak = true;
             break;
           }
+        }
+        if (earlyBreak) {
+          // 预算读满即停：主动 cancel 剩余错误体（全域审查残留项——防长错误页
+          // 剩余流靠连接复用/GC 兜底回收）；缺 cancel 的实现静默跳过。
+          await (response.body as unknown as { cancel?: () => Promise<void> } | null)?.cancel?.().catch(
+            () => undefined,
+          );
         }
         const errorBody = new TextDecoder()
           .decode(concatBytes(chunks))

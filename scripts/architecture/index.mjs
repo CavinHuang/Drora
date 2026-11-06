@@ -9,6 +9,7 @@ import {
   layerForFile,
   loadPolicy,
   manifestRequires,
+  manifestPublicEntrypoints,
   moduleForFile,
   posix,
   publicEntrypointMatches,
@@ -60,7 +61,8 @@ export async function checkArchitecture({
     const moduleFiles = files.filter((file) => modulesByFile.get(file)?.id === module.id);
     const manifest = moduleFiles.find((file) => path.basename(file) === "module.ts");
     if (manifest) {
-      const declared = manifestRequires(await fs.readFile(manifest, "utf8"));
+      const manifestSource = await fs.readFile(manifest, "utf8");
+      const declared = manifestRequires(manifestSource);
       if (declared) {
         manifestRequiresByModule.set(module.id, declared);
         // manifest-policy-mismatch：文档写"策略与模块声明必须互相校验"，首版只是优先读 module.ts。
@@ -80,6 +82,47 @@ export async function checkArchitecture({
               detail: parts.join("; "),
               module,
               message: `module.ts 与 architecture-policy.yaml 的 requires 不一致：${parts.join("；")}`,
+            }),
+          );
+        }
+      }
+      // publicEntrypoints 一致性（全域审查修复：module.ts 清单与 policy 此前可无限漂移、
+      // 无门禁拦截——voice 模块曾漂移 4 项）。module.ts 写模块根相对名，按 roots 归一成
+      // repo 相对路径后与 policy 比对；清单未写该字段不比对（向后兼容旧骨架）。
+      const declaredEntries = manifestPublicEntrypoints(manifestSource);
+      if (declaredEntries) {
+        const normalize = (entry) => {
+          for (const root of module.roots) {
+            const candidate = path.resolve(cwd, root, entry);
+            if (files.includes(candidate)) return posix(path.relative(cwd, candidate));
+          }
+          return null; // 任一 root 下都不存在。
+        };
+        const manifestSet = new Set();
+        const missing = [];
+        for (const entry of declaredEntries) {
+          const normalized = normalize(entry);
+          if (normalized == null) missing.push(entry);
+          else manifestSet.add(normalized);
+        }
+        const policySet = new Set(module.publicEntrypoints.map((entry) => posix(entry)));
+        const onlyInManifestEntries = [...manifestSet].filter((entry) => !policySet.has(entry));
+        const onlyInPolicyEntries = [...policySet].filter((entry) => !manifestSet.has(entry));
+        if (missing.length || onlyInManifestEntries.length || onlyInPolicyEntries.length) {
+          const parts = [];
+          if (missing.length) parts.push(`module.ts 条目在模块内不存在 ${missing.join(", ")}`);
+          if (onlyInManifestEntries.length)
+            parts.push(`仅 module.ts 声明 ${onlyInManifestEntries.join(", ")}`);
+          if (onlyInPolicyEntries.length)
+            parts.push(`仅 policy 声明 ${onlyInPolicyEntries.join(", ")}`);
+          violations.push(
+            violation({
+              cwd,
+              rule: "manifest-policy-mismatch",
+              file: manifest,
+              detail: parts.join("; "),
+              module,
+              message: `module.ts 与 architecture-policy.yaml 的 publicEntrypoints 不一致：${parts.join("；")}`,
             }),
           );
         }

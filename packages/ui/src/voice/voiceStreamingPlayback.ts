@@ -152,6 +152,10 @@ export function createStreamingPlayback(deps: VoiceStreamingPlaybackDeps = {}): 
         sources.push(source);
         source.onended = () => {
           scheduled -= 1;
+          // 已完播节点移出 sources（全域审查残留项：60s 硬闸上限下长句的包装对象
+          // 只增不清，本体虽由 Web Audio 释放、包装仍滞留至句尾——播完即摘）。
+          const idx = sources.indexOf(source);
+          if (idx >= 0) sources.splice(idx, 1);
           // 全部节点播完 + 无解码在途 + 上游已结束 → end（interrupt 的结算在 interrupt 内完成）。
           if (finished && allDrained() && !interrupted) {
             settle("end");

@@ -138,6 +138,16 @@ export function manifestRequires(source) {
   return [...match[1].matchAll(/["']([^"']+)["']/g)].map((item) => item[1]);
 }
 
+/**
+ * manifest publicEntrypoints 解析（module-root 相对名；全域审查修复：与 policy 的
+ * repo 相对路径比对前由调用方按模块 roots 归一）。返回 null = 清单未写该字段。
+ */
+export function manifestPublicEntrypoints(source) {
+  const match = source.match(/publicEntrypoints\s*:\s*\[([^\]]*)\]/s);
+  if (!match) return null;
+  return [...match[1].matchAll(/["']([^"']+)["']/g)].map((item) => item[1]);
+}
+
 export function countPublicMethods(source) {
   const sourceFile = ts.createSourceFile("contract.ts", source, ts.ScriptTarget.Latest, true);
   let count = 0;

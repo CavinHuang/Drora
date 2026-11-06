@@ -87,6 +87,57 @@ test("fixture 回调中的断言异常必须向上传播（finally 清理不得�
   );
 });
 
+test("manifest-policy-mismatch：publicEntrypoints 漂移被拦截（全域审查修复回归钉）", async () => {
+  // module.ts 声明 publicEntrypoints 与 policy 不一致 → manifest-policy-mismatch；
+  // 一致时零违规（voice 模块曾漂移 4 项无门禁，本用例钉住新校验）。
+  const manifest = (entries) =>
+    `export const module = { id: "alpha", requires: ["beta"], provides: ["alpha"], publicEntrypoints: [${entries.map((e) => `"${e}"`).join(", ")}] } as const;\n`;
+  const base = {
+    "architecture-policy.yaml": POLICY,
+    "src/alpha/module.ts": manifest(["contract.ts"]),
+    "src/alpha/contract.ts": "export {};\n",
+    "src/alpha/contract.example.ts": "export {};\n",
+    "src/alpha/CONTRACT.md": "doc\n",
+    "src/beta/module.ts": 'export const module = { id: "beta", requires: [], provides: ["beta"], publicEntrypoints: ["contract.ts"] } as const;\n',
+    "src/beta/contract.ts": "export {};\n",
+    "src/beta/contract.example.ts": "export {};\n",
+    "src/beta/CONTRACT.md": "doc\n",
+  };
+  await fixture(base, async (cwd) => {
+    const result = await checkArchitecture({ cwd });
+    const drift = result.violations.filter(
+      (v) => v.rule === "manifest-policy-mismatch" && v.message.includes("publicEntrypoints"),
+    );
+    assert.equal(drift.length, 0, "一致时零 publicEntrypoints 漂移违规");
+  });
+  // 漂移形态一：module.ts 多声明一个 policy 没有的入口（文件真实存在才走「仅声明」分支）。
+  await fixture(
+    {
+      ...base,
+      "src/alpha/module.ts": manifest(["contract.ts", "extra.ts"]),
+      "src/alpha/extra.ts": "export {};\n",
+    },
+    async (cwd) => {
+      const drift = (await checkArchitecture({ cwd })).violations.filter(
+        (v) => v.rule === "manifest-policy-mismatch" && v.message.includes("publicEntrypoints"),
+      );
+      assert.equal(drift.length, 1);
+      assert.match(drift[0].message, /仅 module\.ts 声明 src\/alpha\/extra\.ts/);
+    },
+  );
+  // 漂移形态二：module.ts 声明的文件在模块内不存在。
+  await fixture(
+    { ...base, "src/alpha/module.ts": manifest(["ghost.ts"]) },
+    async (cwd) => {
+      const drift = (await checkArchitecture({ cwd })).violations.filter(
+        (v) => v.rule === "manifest-policy-mismatch" && v.message.includes("publicEntrypoints"),
+      );
+      assert.equal(drift.length, 1);
+      assert.match(drift[0].message, /模块内不存在 ghost\.ts/);
+    },
+  );
+});
+
 test("managed module needs contracts and documentation but no unit test", async () => {
   const files = { "architecture-policy.yaml": POLICY };
   for (const module of ["alpha", "beta"]) {

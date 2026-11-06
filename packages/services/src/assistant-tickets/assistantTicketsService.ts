@@ -14,9 +14,15 @@ import {
   ASSISTANT_PERMISSION_TIERS,
   ASSISTANT_TICKET_STATUSES,
   type AssistantPermissionTier,
+  type MateWorkInventoryView,
 } from "@drora/shared";
 import { createServiceLogger } from "../logger/serviceLogger.js";
-import { ASSISTANT_KV_KEYS, readAssistantConfig } from "./assistantConfig.js";
+import {
+  ASSISTANT_KV_KEYS,
+  readAssistantConfig,
+  readAssistantInventoryRefreshIntervalMs,
+  readAssistantKv,
+} from "./assistantConfig.js";
 import {
   AssistantDatabase,
   openAssistantDatabase,
@@ -47,6 +53,7 @@ import {
 import { createAssistantAutoDispatch } from "./autoDispatch.js";
 import { createAssistantQuotaService } from "./quotaCenterService.js";
 import { resolveAssistantDailyQuota } from "./quotaCenter.js";
+import { getAssistantPorts } from "./assistantPorts.js";
 import { createAssistantRecordTrigger } from "./triggerRecord.js";
 import { createAssistantConfigActions } from "./configActions.js";
 import { createAssistantSourceIngest } from "./sources/sourceIngest.js";
@@ -80,11 +87,7 @@ export function createAssistantTicketsService(
    * 兜底（ledger 单调纪律拒绝乱序归账），不是结构隔离。 */
   applyTicketTurnEvent(input: AssistantTicketTurnEventInput): boolean;
   /** host 内部：teamActivity 第三信号归账（02 §5；sessions-index 桥喂入）。 */
-  applyTicketTeamEvent(input: {
-    ticketId: string;
-    teamStatus: string;
-    atMs: number;
-  }): boolean;
+  applyTicketTeamEvent(input: { ticketId: string; teamStatus: string; atMs: number }): boolean;
   /** host 内部：按 sessionId 反查工单的 teamActivity 归账（Mode B 桥路径）。 */
   applyTeamActivityForSession(input: {
     sessionId: string;
@@ -128,6 +131,16 @@ export function createAssistantTicketsService(
     nowMs?: number;
     awaitingCandidates?: readonly { ticketId: string; sinceMs: number }[];
   }): Promise<import("./watchdog.js").AssistantWatchdogRoundResult>;
+  /**
+   * host 内部：P8 台账刷新环路入口（09 详设 §1.2 v2 定案；host face
+   * AssistantTicketsHostFace.refreshInventory 同名透传）。节流在本入口按 kv 裁决
+   * （缺省 30s，尾沿补一拍）。边界注记（照 runWatchdogRound 同款）：本方法在
+   * channel 面上经 ProxyChannel 实际可调（实例整体注册），非结构隔离——误调兜底=
+   * 节流（interval 内只剩尾沿一拍 publish）+纯读 provider 语义（不改任何状态机）。
+   * 入口缺席（旧 host face 消费方）→ 调用方 optional-call 跳过，publish 照旧由
+   * 既有事件面（工单事务路径）驱动。
+   */
+  refreshInventory(): void;
   /** host 内部：auto 建议臂/直派臂的建票编排（测试直驱；Router 钩子同函数）。 */
   autoDispatchDecision(input: {
     decisionId: number;
@@ -167,9 +180,59 @@ export function createAssistantTicketsService(
 
   // P5 设置中心（06 号详设）：六 setter 纯模块件（写 kv+publish；见 configActions.ts）。
   const configActions = createAssistantConfigActions({ db, publish });
+
+  // ------------------------------------------------------------------
+  // P8 全域工作台账投影与刷新环路（09 详设 §1.2 v2 定案）：
+  // - publish 每次读装配层 provider（getAssistantPorts().inventory）挂 extras.inventory
+  //   ——provider 抛错/null → 快照不携带 inventory（部分源缺席=整体缺席；publish 不失败）；
+  // - refreshInventory：刷新环路的节流入口（sessions-index delta / tasks-index 回调
+  //   → host face refreshInventory → 本入口）。最小间隔 kv `inventory_refresh_interval_ms`
+  //   可调（缺省 30s，contracts ASSISTANT_INVENTORY_DEFAULTS）——前沿节流防高频会话
+  //   帧放大 publish，尾沿定时器补一拍保证突发末帧状态最终落账（单定时器、dispose 收口，
+  //   非轮询——「零新轮询」红线不受影响）。任何一次 publish（含工单事件路径）都算
+  //   「台账新鲜」基准：快照携带的是 provider 当刻输出。
+  // ------------------------------------------------------------------
+  let lastInventorySnapshotMs = 0;
+  let inventoryRefreshTimer: ReturnType<typeof setTimeout> | null = null;
+  function clearInventoryRefreshTimer(): void {
+    if (inventoryRefreshTimer === null) return;
+    clearTimeout(inventoryRefreshTimer);
+    inventoryRefreshTimer = null;
+  }
+  function refreshInventory(): void {
+    const intervalMs = readAssistantInventoryRefreshIntervalMs((key) =>
+      readAssistantKv(db.raw, key),
+    );
+    const elapsed = nowMs() - lastInventorySnapshotMs;
+    if (elapsed >= intervalMs) {
+      clearInventoryRefreshTimer();
+      publish();
+      return;
+    }
+    if (inventoryRefreshTimer === null) {
+      inventoryRefreshTimer = setTimeout(() => {
+        inventoryRefreshTimer = null;
+        publish();
+      }, intervalMs - elapsed);
+    }
+  }
+
   function publish(): void {
+    lastInventorySnapshotMs = nowMs();
+    let inventory: MateWorkInventoryView | null = null;
+    const inventoryProvider = getAssistantPorts().inventory;
+    if (inventoryProvider) {
+      try {
+        inventory = inventoryProvider();
+      } catch (error) {
+        // provider 抛错=台账缺席（诚实降级），publish 照旧——快照不携带 inventory。
+        logger.warn("assistant-tickets 台账 provider 读取失败（快照缺席台账）", error);
+        inventory = null;
+      }
+    }
     const snapshot = buildAssistantSnapshot(db.raw, readConfig(db.raw), {
       dailyQuota: quotaService.cachedQuota(),
+      ...(inventory ? { inventory } : {}),
     });
     for (const emit of emitters) {
       try {
@@ -286,7 +349,8 @@ export function createAssistantTicketsService(
         });
         if (!precheck.ok) {
           return fail(
-            precheck.error.code as (typeof ASSISTANT_ERROR_CODES)[keyof typeof ASSISTANT_ERROR_CODES],
+            precheck.error
+              .code as (typeof ASSISTANT_ERROR_CODES)[keyof typeof ASSISTANT_ERROR_CODES],
             precheck.error.reason,
           );
         }
@@ -435,16 +499,12 @@ export function createAssistantTicketsService(
           };
         }
         if (!created.ok) return created;
-        return await runPostApproval(
-          { engine, publish, dispatchIndex },
-          created.value,
-          {
-            decisionId: created.value.decisionId,
-            attachSessionId,
-            dispatchMode: input.dispatchMode ?? "A",
-            budgetMaxActivePerWorkspace: config.budgetMaxActivePerWorkspace,
-          },
-        );
+        return await runPostApproval({ engine, publish, dispatchIndex }, created.value, {
+          decisionId: created.value.decisionId,
+          attachSessionId,
+          dispatchMode: input.dispatchMode ?? "A",
+          budgetMaxActivePerWorkspace: config.budgetMaxActivePerWorkspace,
+        });
       } catch (error) {
         if (error instanceof AssistantStoreBusyError) return fail(ASSISTANT_ERROR_CODES.storeBusy);
         if (error instanceof AssistantStoreMigrationError)
@@ -459,9 +519,7 @@ export function createAssistantTicketsService(
       try {
         db.transaction((raw) => {
           raw
-            .prepare(
-              "UPDATE admission_decision SET outcome = ? WHERE id = ? AND outcome = ?",
-            )
+            .prepare("UPDATE admission_decision SET outcome = ? WHERE id = ? AND outcome = ?")
             .run(ASSISTANT_OUTCOMES.ignored, input.decisionId, ASSISTANT_OUTCOMES.statusReplied);
         });
         publish();
@@ -553,10 +611,7 @@ export function createAssistantTicketsService(
 
     async confirmTicketIncrements(input) {
       try {
-        return confirmTicketIncrements(
-          { db, publish, onTicketTerminal: () => {} },
-          input.ticketId,
-        );
+        return confirmTicketIncrements({ db, publish, onTicketTerminal: () => {} }, input.ticketId);
       } catch (error) {
         if (error instanceof AssistantStoreBusyError) return fail(ASSISTANT_ERROR_CODES.storeBusy);
         if (error instanceof AssistantStoreMigrationError)
@@ -688,7 +743,11 @@ export function createAssistantTicketsService(
     applyTeamActivityForSession: engine.applyTeamActivityForSession,
     notifySessionRemoved: engine.notifySessionRemoved,
     // 服务级订阅收口（全链审查遗留 16）：disposeServiceResources 统一调用。
-    dispose: () => engine.disposeWatchers(),
+    // P8：尾沿刷新定时器同批收口（防 dispose 后定时器再 publish 打已关库）。
+    dispose: () => {
+      clearInventoryRefreshTimer();
+      engine.disposeWatchers();
+    },
     followUp: engine.followUp,
     recycle: engine.recycle,
     ingestSourceEvent: sourceIngest.ingestSourceEvent,
@@ -700,9 +759,12 @@ export function createAssistantTicketsService(
         { db, publish, readDailyQuota: quotaService.readDailyQuotaLive },
         {
           ...input,
-          awaitingCandidates: input?.awaitingCandidates ?? collectAwaitingCandidates(db.raw, nowMs()),
+          awaitingCandidates:
+            input?.awaitingCandidates ?? collectAwaitingCandidates(db.raw, nowMs()),
         },
       ),
+    // P8 台账刷新环路入口（09 详设 §1.2；节流在 refreshInventory 闭包内）。
+    refreshInventory,
     autoDispatchDecision: (input) => autoDispatch.autoDispatchDecision(input),
   };
 }

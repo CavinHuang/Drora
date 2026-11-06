@@ -342,6 +342,28 @@ export const ASSISTANT_SNAPSHOT_LIMITS = {
   usageGenerationsMax: 20,
   /** ticket.briefFull 全量 brief 截断长度（code point；与候选卡 verbatim 同值口径）。 */
   ticketBriefFullMax: 1500,
+  // ---- P8（09 详设 §1.4 v2 定案）：全域工作台账（MateWorkInventoryView）的有界投影 ----
+  /** 台账 workspace 分组条数上界（超界按最近活动截断——视图界，区分订阅集界）。 */
+  inventoryWorkspaceMax: 6,
+  /** 台账行（三 kind 合计）条数上界（按 workspace 最近活动贪心分配，空组丢弃）。 */
+  inventoryRowMax: 20,
+  /** workspace 订阅集上界（bootstrap ∪ 动态发现，超界最久未活动者退订——09 §1.3）。
+   * 与上面两个视图界的分工：本值约束 host 侧常驻订阅规模，不进 wire。 */
+  inventoryWorkspaceSetMax: 16,
+  /** 台账行标题（brief/会话标题/任务标题）截断长度（code point）。 */
+  inventoryTitleMax: 120,
+} as const;
+
+/**
+ * P8 台账运行参数缺省（09 详设 §1.2/§1.3 v2 定案）：节流间隔 kv 可调（键
+ * `inventory_refresh_interval_ms`，services ASSISTANT_KV_KEYS 单出处；坏/缺值回落
+ * 本缺省），自举工单窗口为常量（判据语义钉死不 kv 化，照 watchdog 判据纪律）。
+ */
+export const ASSISTANT_INVENTORY_DEFAULTS = {
+  /** 刷新环路最小间隔（ms；30s——高频会话帧不放大 publish，尾沿补一拍保证收敛）。 */
+  refreshThrottleMs: 30_000,
+  /** bootstrap 初始集的工单时间窗（ms；近 14 天工单 target workspace，09 §1.3）。 */
+  bootstrapTicketWindowMs: 14 * 24 * 60 * 60 * 1000,
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -405,11 +427,7 @@ export const sessionMateActivitySchema = z
   .object({
     /** 目标 workspace 的活动工单数（软预算口径 dispatched/running/awaiting_output——
      * awaiting 占预算位，04 详设 §3；与 isBudgetActiveStatus 单一出处同集）。 */
-    activeCount: z
-      .number()
-      .int()
-      .nonnegative()
-      .max(ASSISTANT_MATE_ACTIVITY_LIMITS.activeCountMax),
+    activeCount: z.number().int().nonnegative().max(ASSISTANT_MATE_ACTIVITY_LIMITS.activeCountMax),
     /** 目标 workspace 的待决策卡数（decision_card 未决）。 */
     pendingDecisions: z
       .number()
@@ -421,3 +439,93 @@ export const sessionMateActivitySchema = z
   })
   .strict();
 export type SessionMateActivity = z.infer<typeof sessionMateActivitySchema>;
+
+// ---------------------------------------------------------------------------
+// 全域工作台账 wire（P8，09 详设 §1.4 v2 定案；AssistantSnapshot.inventory 可选
+// 追加字段的形状 authority。投影语义=全有或全无：任一数据源缺席时快照不携带
+// inventory 字段（整体缺席），消费方按「投影就绪中/旧 Host 缺席」处理——UI 归 P8b。
+// 多窗口口径（09 §1.2 登记）：inventory=本窗口 host 可见域，跨窗口不承诺同视图。
+// ---------------------------------------------------------------------------
+
+/** 台账行 kind 封闭枚举（工单/会话·teams/off-peak 任务；09 §1.4 三源各占一类）。 */
+export const MATE_WORK_INVENTORY_ROW_KINDS = {
+  ticket: "ticket",
+  session: "session",
+  offpeak: "offpeak",
+} as const;
+
+export type MateWorkInventoryRowKind =
+  (typeof MATE_WORK_INVENTORY_ROW_KINDS)[keyof typeof MATE_WORK_INVENTORY_ROW_KINDS];
+
+/** 台账行公共可选字段的截断界引用（同文件常量单出处，schema 与组装函数同值引用）。 */
+const inventoryTitleMax = ASSISTANT_SNAPSHOT_LIMITS.inventoryTitleMax;
+
+/** 工单行（大副台账源；staleSinceMs 有值=watchdog 停滞标记在案——总览卡「停滞点」）。 */
+export const mateWorkTicketRowSchema = z
+  .object({
+    kind: z.literal(MATE_WORK_INVENTORY_ROW_KINDS.ticket),
+    ticketId: z.string().min(1),
+    title: z.string().max(inventoryTitleMax),
+    status: z.string().max(40),
+    updatedAtMs: z.number().finite().nonnegative(),
+    /** watchdog 停滞标记时刻（ticket.stale_ms 列投影；null=未标记）。 */
+    staleSinceMs: z.number().finite().nonnegative().nullable().optional(),
+    /** 被大副当代工单占用的执行体标记（本 kind 恒不携带——工单行即大副自有账）。 */
+    managed: z.boolean().optional(),
+  })
+  .strict();
+
+/** 会话/teams 行（sessions-index 内存投影源；managed=当代工单 incarnation.sessionId 命中）。 */
+export const mateWorkSessionRowSchema = z
+  .object({
+    kind: z.literal(MATE_WORK_INVENTORY_ROW_KINDS.session),
+    sessionId: z.string().min(1),
+    title: z.string().max(inventoryTitleMax),
+    phase: z.string().max(64),
+    sessionEnded: z.boolean(),
+    updatedAtMs: z.number().finite().nonnegative(),
+    /** sessions-index teamActivity.status 投影（无 team=缺席；总览卡的「运行中的 teams」信号）。 */
+    teamStatus: z.string().max(40).optional(),
+    /** 该会话是否属于某张活动工单（sessionId ∈ 活动工单 incarnation.sessionId 集）。 */
+    managed: z.boolean().optional(),
+  })
+  .strict();
+
+/** off-peak 任务行（tasks-index 源，offPeakTaskId 有值的行；点行→任务中心）。 */
+export const mateWorkOffpeakRowSchema = z
+  .object({
+    kind: z.literal(MATE_WORK_INVENTORY_ROW_KINDS.offpeak),
+    taskId: z.string().min(1),
+    title: z.string().max(inventoryTitleMax),
+    /** 持久化任务状态（DroraTaskMeta.status 投影；缺席=无状态记录）。 */
+    status: z.string().max(40).optional(),
+    updatedAtMs: z.number().finite().nonnegative(),
+    managed: z.boolean().optional(),
+  })
+  .strict();
+
+export const mateWorkInventoryRowSchema = z.discriminatedUnion("kind", [
+  mateWorkTicketRowSchema,
+  mateWorkSessionRowSchema,
+  mateWorkOffpeakRowSchema,
+]);
+
+export const mateWorkInventoryWorkspaceSchema = z
+  .object({
+    /** workspace 身份键（AGENTS 规则：workspaceIdentity?.trim() || workspacePath）。 */
+    key: z.string().min(1),
+    rows: z.array(mateWorkInventoryRowSchema).max(ASSISTANT_SNAPSHOT_LIMITS.inventoryRowMax),
+  })
+  .strict();
+
+export const mateWorkInventorySchema = z
+  .object({
+    workspaces: z
+      .array(mateWorkInventoryWorkspaceSchema)
+      .max(ASSISTANT_SNAPSHOT_LIMITS.inventoryWorkspaceMax),
+  })
+  .strict();
+
+export type MateWorkInventoryView = z.infer<typeof mateWorkInventorySchema>;
+export type MateWorkInventoryWorkspace = z.infer<typeof mateWorkInventoryWorkspaceSchema>;
+export type MateWorkInventoryRow = z.infer<typeof mateWorkInventoryRowSchema>;

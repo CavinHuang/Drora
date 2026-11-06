@@ -8,7 +8,7 @@
  *
  * 单测以 fake 端口注入验证幂等/失败/降级路径（P1 先例）。
  */
-import type { AssistantPermissionTier } from "@drora/shared";
+import type { AssistantPermissionTier, MateWorkInventoryView } from "@drora/shared";
 import type { AssistantResult } from "./assistantTickets.js";
 import type { AssistantWriteDomain, WorkspaceProbe } from "./writeDomain.js";
 import type { AnchorProbe } from "./incarnation.js";
@@ -66,7 +66,9 @@ export interface AssistantAttachRequest {
 
 export type AssistantAttachResult = AssistantResult<AssistantDispatchResultValue>;
 
-export type AssistantAttachPort = (request: AssistantAttachRequest) => Promise<AssistantAttachResult>;
+export type AssistantAttachPort = (
+  request: AssistantAttachRequest,
+) => Promise<AssistantAttachResult>;
 
 // ---------------------------------------------------------------------------
 // 帧源端口（conversation 帧；P2 增加 hostPath 定位——W1 会话落位 worktree 目录）
@@ -127,13 +129,19 @@ export interface AssistantSessionsIndexPort {
   listSessions(
     workspaceIdentity: string,
     hostPath?: string,
-  ): Promise<{ ok: true; sessions: readonly AssistantSessionSummaryLite[] } | { ok: false; reason: string }>;
+  ): Promise<
+    { ok: true; sessions: readonly AssistantSessionSummaryLite[] } | { ok: false; reason: string }
+  >;
   /**
    * 锚对账（02 §3 触发源①②；优先 reconcile 单会话持久事实，缺席快照≠删除）。
    * hostPath 与派发/附着同形；通道不可用 → unavailable（调用方按不可校验处置：直投
    * 降级问人/如实报错）。
    */
-  probeSession(workspaceIdentity: string, sessionId: string, hostPath?: string): Promise<AnchorProbe>;
+  probeSession(
+    workspaceIdentity: string,
+    sessionId: string,
+    hostPath?: string,
+  ): Promise<AnchorProbe>;
   /** 订阅 workspace 会话摘要增量（Mode B teamActivity + session.removed 生命周期）。 */
   watchSessions(
     workspaceIdentity: string,
@@ -190,6 +198,18 @@ export interface AssistantSettingsPort {
 }
 
 // ---------------------------------------------------------------------------
+// 全域工作台账 provider 端口（P8，09 详设 §1.2 v2 定案）：装配层（node.ts）组装三源
+// （mate 快照 + sessions-index 内存投影 + tasks-index）→ provider 闭包注入；服务
+// publish 时读 provider 挂进快照 extras.inventory。
+// **部分源缺席=inventory 整体缺席**（投影是全有或全无的诚实语义，不拼半张账）：
+// null 的合法语义=冷启动（订阅快照未 ready）/某源读点失败/provider 未注入（旧装配），
+// 三者消费侧同形——快照不携带 inventory 字段（AssistantSnapshot.inventory 可选）。
+// provider 约定同步、幂等、无 IO 阻塞（tasks-index 走装配层缓存）。
+// ---------------------------------------------------------------------------
+
+export type AssistantInventoryProvider = () => MateWorkInventoryView | null;
+
+// ---------------------------------------------------------------------------
 // 模块级注入点（装配层 set*；服务/引擎闭包直读）
 // ---------------------------------------------------------------------------
 
@@ -202,6 +222,7 @@ let workspaceProbePort: AssistantWorkspaceProbePort | null = null;
 let gitWorktreePort: AssistantGitWorktreePort | null = null;
 let artifactVerifyPort: AssistantArtifactVerifyPort | null = null;
 let settingsPort: AssistantSettingsPort | null = null;
+let inventoryProvider: AssistantInventoryProvider | null = null;
 
 export function setAssistantDispatchPort(port: AssistantDispatchPort | null): void {
   dispatchPort = port;
@@ -239,6 +260,10 @@ export function setAssistantSettingsPort(port: AssistantSettingsPort | null): vo
   settingsPort = port;
 }
 
+export function setAssistantInventoryProvider(provider: AssistantInventoryProvider | null): void {
+  inventoryProvider = provider;
+}
+
 /** 服务/引擎闭包读取（模块内；不外泄 setter 以外的写路径）。 */
 export function getAssistantPorts(): {
   readonly dispatch: AssistantDispatchPort | null;
@@ -250,6 +275,7 @@ export function getAssistantPorts(): {
   readonly gitWorktree: AssistantGitWorktreePort | null;
   readonly artifactVerify: AssistantArtifactVerifyPort | null;
   readonly settings: AssistantSettingsPort | null;
+  readonly inventory: AssistantInventoryProvider | null;
 } {
   return {
     dispatch: dispatchPort,
@@ -261,6 +287,7 @@ export function getAssistantPorts(): {
     gitWorktree: gitWorktreePort,
     artifactVerify: artifactVerifyPort,
     settings: settingsPort,
+    inventory: inventoryProvider,
   };
 }
 

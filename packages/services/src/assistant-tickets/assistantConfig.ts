@@ -11,6 +11,7 @@
 import {
   ASSISTANT_CONFIG_LIMITS,
   ASSISTANT_DEFAULTS,
+  ASSISTANT_INVENTORY_DEFAULTS,
   ASSISTANT_MODES,
   ASSISTANT_TRUST_GATE_DEFAULTS,
   ASSISTANT_WATCHDOG_DEFAULTS,
@@ -34,6 +35,10 @@ export const ASSISTANT_KV_KEYS = {
   trustGateMinSamples: "trust_gate_min_samples",
   watchdogIntervalMs: "watchdog_interval_ms",
   modelPreference: "model_preference",
+  // P8 台账刷新环路节流（09 详设 §1.2 v2 定案）：kv 可调，坏/缺值回落
+  // ASSISTANT_INVENTORY_DEFAULTS.refreshThrottleMs（contracts 缺省单出处）；键名
+  // 单出处本常量，读点 readAssistantInventoryRefreshIntervalMs（文件底）。
+  inventoryRefreshIntervalMs: "inventory_refresh_interval_ms",
 } as const;
 
 /** 配置缺省（P1 形态：模式 observe、名单=本机 identity、软预算 3、W1 开）。 */
@@ -165,4 +170,20 @@ export function readAssistantModelSelectionNested(
   } catch {
     return undefined;
   }
+}
+
+/**
+ * P8 台账刷新节流间隔读取（09 详设 §1.2：refresh 最小间隔 30s，kv
+ * `inventory_refresh_interval_ms` 可调——改值无需重启，下次 refresh 即生效；
+ * 坏/缺值回落 contracts ASSISTANT_INVENTORY_DEFAULTS.refreshThrottleMs；≤0 视为
+ * 坏值不采纳，防手滑关掉节流放大 publish）。
+ */
+export function readAssistantInventoryRefreshIntervalMs(
+  kvGet: (key: string) => string | undefined,
+): number {
+  const raw = kvGet(ASSISTANT_KV_KEYS.inventoryRefreshIntervalMs);
+  if (raw === undefined) return ASSISTANT_INVENTORY_DEFAULTS.refreshThrottleMs;
+  const parsed = Number(raw);
+  if (Number.isSafeInteger(parsed) && parsed > 0) return parsed;
+  return ASSISTANT_INVENTORY_DEFAULTS.refreshThrottleMs;
 }

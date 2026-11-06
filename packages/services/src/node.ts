@@ -665,8 +665,17 @@ import {
 } from "./assistant-tickets/assistantPorts.js";
 import type {
   AssistantSessionSummaryLite,
+  AssistantSessionsIndexPort,
   AssistantSessionsIndexWatchDelta,
 } from "./assistant-tickets/assistantPorts.js";
+import { setAssistantInventoryProvider } from "./assistant-tickets/assistantPorts.js";
+// P8 全域工作台账（09 详设 §1.2/§1.3 v2 定案）：装配侧运行时（三源组装 provider +
+// bootstrap 常驻订阅/动态发现/退订界）与工单行读点。
+import {
+  createWorkInventoryBootstrap,
+  readAssistantWorkTicketRows,
+  type WorkInventoryTaskMetaInput,
+} from "./assistant-tickets/workInventoryBootstrap.js";
 import { ROUTER_KV_KEYS, shouldRotateRouterSession } from "./assistant-tickets/routerShell.js";
 import type { AssistantWatchdogRoundResult } from "./assistant-tickets/watchdog.js";
 import { ASSISTANT_ERROR_CODES, ASSISTANT_IDENTITY, ASSISTANT_SETTINGS_KEYS } from "@drora/shared";
@@ -692,7 +701,10 @@ import {
   resolveMappedIdentity,
 } from "./assistant-tickets/sources/sourceConfig.js";
 import type { MateChannelMessageEvent } from "./assistant-tickets/sources/contract.js";
-import { createHostCommandEnvelope, assertV4CommandAckOk } from "./drora-agent/droraV4HostCommand.js";
+import {
+  createHostCommandEnvelope,
+  assertV4CommandAckOk,
+} from "./drora-agent/droraV4HostCommand.js";
 
 import { createSettingsSyncService } from "./settings-sync/settingsSyncService.js";
 import {
@@ -898,9 +910,14 @@ const assistantTicketDisposers = new WeakMap<ServiceCollection, () => void>();
 // assistantTicketsService 注记即对账点）——本 WeakMap 提供的是「host 免持全实例引用」
 // 的窄入口，不是 renderer 隔离；误调兜底=kv 到轮节流+纯标记/通知语义。
 export interface AssistantTicketsHostFace {
-  runWatchdogRound(input?: {
-    nowMs?: number;
-  }): Promise<AssistantWatchdogRoundResult>;
+  runWatchdogRound(input?: { nowMs?: number }): Promise<AssistantWatchdogRoundResult>;
+  /**
+   * P8 台账刷新环路入口（09 详设 §1.2 v2 定案；服务 refreshInventory 同名透传）。
+   * **可缺席**：旧 host face 消费方 optional-call（`face.refreshInventory?.()`），
+   * 缺席=publish 照旧由既有事件面驱动（冷启动语义，node.ts 装配注释即对账点）。
+   * 节流在服务侧按 kv 裁决（缺省 30s）。
+   */
+  refreshInventory?(): void;
 }
 const assistantTicketsHostFaces = new WeakMap<ServiceCollection, AssistantTicketsHostFace>();
 export function getAssistantTicketsHostFace(
@@ -3448,7 +3465,9 @@ export function createLocalServices(options: {
   // 出现 "mate.dispatch.rejected"/"mate.attach.invalid" 字面量第二出处）。
   function toAssistantPortError(
     error: unknown,
-    code: typeof ASSISTANT_ERROR_CODES.dispatchRejected | typeof ASSISTANT_ERROR_CODES.attachTargetInvalid,
+    code:
+      | typeof ASSISTANT_ERROR_CODES.dispatchRejected
+      | typeof ASSISTANT_ERROR_CODES.attachTargetInvalid,
   ) {
     return {
       ok: false as const,
@@ -3471,9 +3490,7 @@ export function createLocalServices(options: {
             // 字段=CLI 缺省模型（现行为不变）。
             config: {
               mode: request.permissionTier,
-              ...(assistantModelSelection()
-                ? { modelSelection: assistantModelSelection() }
-                : {}),
+              ...(assistantModelSelection() ? { modelSelection: assistantModelSelection() } : {}),
             },
           },
         }),
@@ -3518,7 +3535,10 @@ export function createLocalServices(options: {
           clientId: "drora-mate",
         }),
       });
-      return { ok: true as const, value: { ticketId: request.ticketId, sessionId: request.sessionId } };
+      return {
+        ok: true as const,
+        value: { ticketId: request.ticketId, sessionId: request.sessionId },
+      };
     } catch (error) {
       return toAssistantPortError(error, ASSISTANT_ERROR_CODES.attachTargetInvalid);
     }
@@ -3574,9 +3594,7 @@ export function createLocalServices(options: {
           workspaceId: ASSISTANT_IDENTITY,
           config: {
             mode: "build",
-            ...(assistantModelSelection()
-              ? { modelSelection: assistantModelSelection() }
-              : {}),
+            ...(assistantModelSelection() ? { modelSelection: assistantModelSelection() } : {}),
           },
         },
       }),
@@ -3589,9 +3607,7 @@ export function createLocalServices(options: {
   async function ensureAssistantRouterSession(): Promise<string> {
     const seq = Number(assistantKvGet(ROUTER_KV_KEYS.seq) ?? "0");
     const currentSessionId = assistantKvGet(ROUTER_KV_KEYS.currentSessionId) ?? null;
-    const ticketsSinceRotation = Number(
-      assistantKvGet(ROUTER_KV_KEYS.ticketsSinceRotation) ?? "0",
-    );
+    const ticketsSinceRotation = Number(assistantKvGet(ROUTER_KV_KEYS.ticketsSinceRotation) ?? "0");
     if (!shouldRotateRouterSession({ seq, currentSessionId, ticketsSinceRotation })) {
       return currentSessionId!;
     }
@@ -3613,88 +3629,92 @@ export function createLocalServices(options: {
     await mkdir(getAssistantWorkspaceDir(), { recursive: true });
     // 串行化评估（同一 Router 会话轮转内 turn 不重叠；fire-and-forget 评估在服务侧并发
     // 触发时按到达顺序排队，事件驱动完成、禁超时兜底）。
-    const run = assistantRouterEvaluations.chain.then(async (): Promise<
-      { ok: true; output: string } | { ok: false; reason: string }
-    > => {
-      try {
-        const sessionId = await ensureAssistantRouterSession();
-        const commandId = `router-eval-${randomUUID()}`;
-        // 双臂解除（P2 审查修复）：此前只有 assistantText complete 才 resolve——sendText
-        // ACK 成功但该轮 turn 失败（assistantText failed/interrupted，同族帧 ticketLedger
-        // 语义即解析这些状态）时 promise 永不 settle → 评估串行链永久挂起，后续所有
-        // 决策卡停留「大副评估中」，违反 CONTRACT.md「评估失败→failed 诚实降级」不变式。
-        // 失败臂是事件解除而非超时兜底：帧状态即事件信号，服务侧按 {ok:false} 落
-        // router_evaluation=failed（决策卡降级 Tier3 问人，不重试模型）。
-        let settleOutput:
-          | ((result: { ok: true; output: string } | { ok: false; reason: string }) => void)
-          | null = null;
-        const outputPromise = new Promise<
-          { ok: true; output: string } | { ok: false; reason: string }
-        >((resolve) => {
-          settleOutput = resolve;
-        });
-        const disposable = droraAgentService.onDynamicConversationFrame({
-          workspacePath: getAssistantWorkspaceDir(),
-          workspaceIdentity: ASSISTANT_IDENTITY,
-        })((candidate) => {
-          // 防御式解析（对齐 ticketLedger 帧纪律）：assistantText 行 complete → 该轮输出；
-          // failed/interrupted → 失败臂（不重试模型，服务侧降级 Tier3）。
-          if (typeof candidate !== "object" || candidate === null) return;
-          const frame = candidate as {
-            topic?: unknown;
-            payload?: { kind?: unknown; deltas?: unknown };
-          };
-          if (frame.topic !== `conversation/${sessionId}` || frame.payload?.kind !== "deltas") return;
-          if (!Array.isArray(frame.payload.deltas)) return;
-          for (const delta of frame.payload.deltas) {
-            if (typeof delta !== "object" || delta === null) continue;
-            const d = delta as { op?: unknown; row?: { kind?: unknown; state?: unknown; text?: unknown } };
-            if (
-              (d.op === "row.appended" || d.op === "row.upserted") &&
-              typeof d.row === "object" &&
-              d.row !== null &&
-              d.row.kind === "assistantText"
-            ) {
-              if (d.row.state === "complete" && typeof d.row.text === "string") {
-                settleOutput?.({ ok: true as const, output: d.row.text });
-                return;
-              }
-              if (d.row.state === "failed" || d.row.state === "interrupted") {
-                settleOutput?.({
-                  ok: false as const,
-                  reason: `Router 该轮 turn ${d.row.state === "failed" ? "失败" : "被中断"}（assistantText ${d.row.state}）`,
-                });
-                return;
+    const run = assistantRouterEvaluations.chain.then(
+      async (): Promise<{ ok: true; output: string } | { ok: false; reason: string }> => {
+        try {
+          const sessionId = await ensureAssistantRouterSession();
+          const commandId = `router-eval-${randomUUID()}`;
+          // 双臂解除（P2 审查修复）：此前只有 assistantText complete 才 resolve——sendText
+          // ACK 成功但该轮 turn 失败（assistantText failed/interrupted，同族帧 ticketLedger
+          // 语义即解析这些状态）时 promise 永不 settle → 评估串行链永久挂起，后续所有
+          // 决策卡停留「大副评估中」，违反 CONTRACT.md「评估失败→failed 诚实降级」不变式。
+          // 失败臂是事件解除而非超时兜底：帧状态即事件信号，服务侧按 {ok:false} 落
+          // router_evaluation=failed（决策卡降级 Tier3 问人，不重试模型）。
+          let settleOutput:
+            | ((result: { ok: true; output: string } | { ok: false; reason: string }) => void)
+            | null = null;
+          const outputPromise = new Promise<
+            { ok: true; output: string } | { ok: false; reason: string }
+          >((resolve) => {
+            settleOutput = resolve;
+          });
+          const disposable = droraAgentService.onDynamicConversationFrame({
+            workspacePath: getAssistantWorkspaceDir(),
+            workspaceIdentity: ASSISTANT_IDENTITY,
+          })((candidate) => {
+            // 防御式解析（对齐 ticketLedger 帧纪律）：assistantText 行 complete → 该轮输出；
+            // failed/interrupted → 失败臂（不重试模型，服务侧降级 Tier3）。
+            if (typeof candidate !== "object" || candidate === null) return;
+            const frame = candidate as {
+              topic?: unknown;
+              payload?: { kind?: unknown; deltas?: unknown };
+            };
+            if (frame.topic !== `conversation/${sessionId}` || frame.payload?.kind !== "deltas")
+              return;
+            if (!Array.isArray(frame.payload.deltas)) return;
+            for (const delta of frame.payload.deltas) {
+              if (typeof delta !== "object" || delta === null) continue;
+              const d = delta as {
+                op?: unknown;
+                row?: { kind?: unknown; state?: unknown; text?: unknown };
+              };
+              if (
+                (d.op === "row.appended" || d.op === "row.upserted") &&
+                typeof d.row === "object" &&
+                d.row !== null &&
+                d.row.kind === "assistantText"
+              ) {
+                if (d.row.state === "complete" && typeof d.row.text === "string") {
+                  settleOutput?.({ ok: true as const, output: d.row.text });
+                  return;
+                }
+                if (d.row.state === "failed" || d.row.state === "interrupted") {
+                  settleOutput?.({
+                    ok: false as const,
+                    reason: `Router 该轮 turn ${d.row.state === "failed" ? "失败" : "被中断"}（assistantText ${d.row.state}）`,
+                  });
+                  return;
+                }
               }
             }
-          }
-        });
-        try {
-          await assistantSendV4({
-            hostPath: getAssistantWorkspaceDir(),
-            identity: ASSISTANT_IDENTITY,
-            envelope: createHostCommandEnvelope({
-              type: "sendText",
-              payload: { text: card, heldQueueDisposition: "keepQueueAndSend" },
-              sessionId,
-              commandId,
-              clientId: "drora-mate",
-            }),
           });
-          const tickets = Number(assistantKvGet(ROUTER_KV_KEYS.ticketsSinceRotation) ?? "0") + 1;
-          assistantKvSet(ROUTER_KV_KEYS.ticketsSinceRotation, String(tickets));
-          // 双臂等待：complete→输出；failed/interrupted→{ok:false}（评估落 failed 降级 Tier3）。
-          return await outputPromise;
-        } finally {
-          disposable.dispose();
+          try {
+            await assistantSendV4({
+              hostPath: getAssistantWorkspaceDir(),
+              identity: ASSISTANT_IDENTITY,
+              envelope: createHostCommandEnvelope({
+                type: "sendText",
+                payload: { text: card, heldQueueDisposition: "keepQueueAndSend" },
+                sessionId,
+                commandId,
+                clientId: "drora-mate",
+              }),
+            });
+            const tickets = Number(assistantKvGet(ROUTER_KV_KEYS.ticketsSinceRotation) ?? "0") + 1;
+            assistantKvSet(ROUTER_KV_KEYS.ticketsSinceRotation, String(tickets));
+            // 双臂等待：complete→输出；failed/interrupted→{ok:false}（评估落 failed 降级 Tier3）。
+            return await outputPromise;
+          } finally {
+            disposable.dispose();
+          }
+        } catch (error) {
+          return {
+            ok: false as const,
+            reason: error instanceof Error ? error.message : String(error),
+          };
         }
-      } catch (error) {
-        return {
-          ok: false as const,
-          reason: error instanceof Error ? error.message : String(error),
-        };
-      }
-    });
+      },
+    );
     assistantRouterEvaluations.chain = run.catch(() => undefined);
     return await run;
   });
@@ -3740,7 +3760,9 @@ export function createLocalServices(options: {
     if (existing && !existing.disposed) return existing;
     const target = {
       workspacePath: hostPath ?? getConversationWorkspaceDir(),
-      ...(assistantIdentityFor(identity) ? { workspaceIdentity: assistantIdentityFor(identity) } : {}),
+      ...(assistantIdentityFor(identity)
+        ? { workspaceIdentity: assistantIdentityFor(identity) }
+        : {}),
     };
     const state: AssistantSessionsIndexSubState = {
       sessions: new Map(),
@@ -3783,7 +3805,10 @@ export function createLocalServices(options: {
               deltas?: unknown;
             };
           };
-          if (frame.payload?.kind === "snapshot" && Array.isArray(frame.payload.snapshot?.sessions)) {
+          if (
+            frame.payload?.kind === "snapshot" &&
+            Array.isArray(frame.payload.snapshot?.sessions)
+          ) {
             state.sessions = new Map(
               (frame.payload.snapshot.sessions as SessionSummary[]).map((summary) => [
                 summary.sessionId,
@@ -3802,7 +3827,11 @@ export function createLocalServices(options: {
                 session?: unknown;
                 sessionId?: unknown;
               };
-              if (d.op === "session.upserted" && typeof d.session === "object" && d.session !== null) {
+              if (
+                d.op === "session.upserted" &&
+                typeof d.session === "object" &&
+                d.session !== null
+              ) {
                 const summary = assistantSessionSummaryToLite(d.session as SessionSummary);
                 state.sessions.set(summary.sessionId, summary);
                 applyDelta({ kind: "upserted", summary });
@@ -3829,7 +3858,9 @@ export function createLocalServices(options: {
     assistantSessionsIndexSubs.set(key, state);
     return state;
   }
-  setAssistantSessionsIndexPort({
+  // 端口对象提为具名常量：P8 台账 bootstrap（workInventoryBootstrap）复用同一订阅面
+  // （同一 ensureAssistantSessionsIndexSub 状态缓存——台账与引擎不建第二份订阅投影）。
+  const assistantSessionsIndexPort: AssistantSessionsIndexPort = {
     async listSessions(identity, hostPath) {
       const state = ensureAssistantSessionsIndexSub(identity, hostPath);
       if (!state) return { ok: false as const, reason: "会话索引不可用" };
@@ -3841,7 +3872,9 @@ export function createLocalServices(options: {
       // 优先 reconcile 单会话持久事实（缺席快照≠删除）；reconcile 缺席/失败回退缓存投影。
       const target = {
         workspacePath: hostPath ?? getConversationWorkspaceDir(),
-        ...(assistantIdentityFor(identity) ? { workspaceIdentity: assistantIdentityFor(identity) } : {}),
+        ...(assistantIdentityFor(identity)
+          ? { workspaceIdentity: assistantIdentityFor(identity) }
+          : {}),
       };
       if (typeof droraAgentService.reconcileSessionsIndexV4 === "function") {
         try {
@@ -3851,11 +3884,16 @@ export function createLocalServices(options: {
           });
           const entry = result.sessions.find((candidate) => candidate.sessionId === sessionId);
           if (entry?.exists) {
-            return entry.deleted ? ({ kind: "missing", deleted: true } as const) : ({ kind: "ok" } as const);
+            return entry.deleted
+              ? ({ kind: "missing", deleted: true } as const)
+              : ({ kind: "ok" } as const);
           }
           return { kind: "missing", deleted: false } as const;
         } catch (error) {
-          createServiceLogger("assistant-tickets").warn("锚对账 reconcile 失败，回退快照投影", error);
+          createServiceLogger("assistant-tickets").warn(
+            "锚对账 reconcile 失败，回退快照投影",
+            error,
+          );
         }
       }
       const state = assistantSessionsIndexSubs.get(assistantSessionsIndexKey(identity, hostPath));
@@ -3884,6 +3922,52 @@ export function createLocalServices(options: {
         },
       };
     },
+  };
+  setAssistantSessionsIndexPort(assistantSessionsIndexPort);
+  // ---- P8 全域工作台账装配（09 详设 §1.2/§1.3 v2 定案）----
+  // provider 端口注入：三源组装闭包（mate 快照读点 + sessions-index 常驻订阅投影 +
+  // tasks-index 缓存）→ workInventory 纯函数 → 服务 publish 时挂 extras.inventory。
+  // **多窗口口径（09 §1.2 登记，本注释即对账点）**：Local Host 是 window-scoped，
+  // 各窗口各自装配——inventory 视图=本窗口 host 可见域，跨窗口不承诺同视图；
+  // mate.sqlite 事实（工单）天然共享。
+  // **刷新环路**：常驻订阅 delta / tasks-index 变化广播 → requestWorkInventoryRefresh
+  // → host face refreshInventory → 服务节流（30s kv 可调）重 publish。face 入口缺席
+  // （旧 face/未装配）→ optional-call 跳过，publish 照旧由工单事务路径驱动（冷启动
+  // 语义的另一半：provider null=快照不携带 inventory，UI 显示「投影就绪中」，P8b）。
+  const requestWorkInventoryRefresh = (): void => {
+    const face = assistantTicketsHostFaces.get(services);
+    face?.refreshInventory?.();
+  };
+  const workInventoryBootstrap = createWorkInventoryBootstrap({
+    sessionsIndex: assistantSessionsIndexPort,
+    listTicketRows: () => readAssistantWorkTicketRows(assistantDatabase.raw),
+    listOffPeakTaskMetas: async (): Promise<readonly WorkInventoryTaskMetaInput[]> => {
+      // 不传 workspacePath 查全部（taskIndexRepo 支持，repo listTaskMetas 注释即
+      // 证据——S1 探查已实证；params 对象本身必填、字段全可选）；deleted 行不收
+      // （项目集/闲时行都只要存活事实）。
+      const metas = await taskIndexRepo.listTaskMetas({});
+      return metas.map((meta) => ({
+        taskId: meta.taskId,
+        title: meta.title,
+        ...(meta.status !== undefined ? { status: String(meta.status) } : {}),
+        workspacePath: meta.workspacePath,
+        ...(meta.workspaceIdentity !== undefined
+          ? { workspaceIdentity: meta.workspaceIdentity }
+          : {}),
+        updatedAtMs: meta.updatedAt,
+        ...(meta.offPeakTaskId !== undefined ? { offPeakTaskId: meta.offPeakTaskId } : {}),
+      }));
+    },
+    onRefreshNeeded: requestWorkInventoryRefresh,
+  });
+  setAssistantInventoryProvider(workInventoryBootstrap.provider);
+  // tasks-index 变化的现实载体：project tree / task-group 变更广播（publishProjectChange
+  // 与 taskGroupService afterChange 既有事件面，botProjectRuntime onMessage 先例同款）。
+  // 广播 → 刷新 off-peak 缓存（settle 后自动对账+触发刷新环路）。onMessage 返回
+  // IDisposable（dispose 收口，非函数句柄）。
+  const workInventoryChannelWatch = broadcastService.onMessage((event) => {
+    if (event.channel !== "state:projects" && event.channel !== "state:task-groups") return;
+    workInventoryBootstrap.refreshOffPeakCache();
   });
   // workspace 探测端口（写域 W1 前置）：P2 本地限定——identity 必须是本地绝对路径
   // （决策卡目标选择传递真实路径）。探测失败处置（2026-11-05 审查修复三口径收口）：
@@ -3928,7 +4012,11 @@ export function createLocalServices(options: {
           listed.exitCode === 0 &&
           listed.stdout
             .split(/\r?\n/)
-            .some((line) => line.trim() === `worktree ${path}` || line.trim() === `worktree ${path.replace(/\\/g, "/")}`);
+            .some(
+              (line) =>
+                line.trim() === `worktree ${path}` ||
+                line.trim() === `worktree ${path.replace(/\\/g, "/")}`,
+            );
         if (alreadyCheckedOut) return { ok: true as const };
         const branchLookup = await assistantGitCommands.run({
           cwd: workspacePath,
@@ -3947,7 +4035,10 @@ export function createLocalServices(options: {
         }
         return { ok: true as const };
       } catch (error) {
-        return { ok: false as const, reason: error instanceof Error ? error.message : String(error) };
+        return {
+          ok: false as const,
+          reason: error instanceof Error ? error.message : String(error),
+        };
       }
     },
     async removeWorktree({ path }) {
@@ -3959,12 +4050,16 @@ export function createLocalServices(options: {
         if (removed.exitCode !== 0) {
           return {
             ok: false as const,
-            reason: removed.stderr.trim() || removed.stdout.trim() || `git exitCode=${removed.exitCode}`,
+            reason:
+              removed.stderr.trim() || removed.stdout.trim() || `git exitCode=${removed.exitCode}`,
           };
         }
         return { ok: true as const };
       } catch (error) {
-        return { ok: false as const, reason: error instanceof Error ? error.message : String(error) };
+        return {
+          ok: false as const,
+          reason: error instanceof Error ? error.message : String(error),
+        };
       }
     },
   });
@@ -3993,7 +4088,10 @@ export function createLocalServices(options: {
         }
         return { ok: true as const, hasCommits: tip.stdout.trim() !== base.stdout.trim() };
       } catch (error) {
-        return { ok: false as const, reason: error instanceof Error ? error.message : String(error) };
+        return {
+          ok: false as const,
+          reason: error instanceof Error ? error.message : String(error),
+        };
       }
     },
   });
@@ -4018,6 +4116,8 @@ export function createLocalServices(options: {
   // 不再透传接缝参数。
   assistantTicketsHostFaces.set(services, {
     runWatchdogRound: (input) => assistantTicketService.runWatchdogRound(input),
+    // P8 台账刷新环路入口（09 §1.2）：装配层回调经 face 触发，服务侧节流重 publish。
+    refreshInventory: () => assistantTicketService.refreshInventory(),
   });
 
   // Source 注册表（03 详设 §1-§5，P3 host 侧批次）：飞书=bots assistantForwarder 出口
@@ -4062,7 +4162,13 @@ export function createLocalServices(options: {
   assistantSourceDisposers.set(services, () => assistantSourceRegistry.dispose());
   // 订阅收口（全链审查遗留 16）：此前 engine sessionWatches 无服务级出口，全量释放
   // 依赖 droraAgentService 同批 dispose 的级联假设——现在显式挂链。
-  assistantTicketDisposers.set(services, () => assistantTicketService.dispose());
+  // P8 台账（09 §1.2）：常驻订阅持有者=装配层 disposer——先停广播监听、退订台账
+  // sessions-index 常驻订阅（「先退订后停源」同款语义），再收口服务（含尾沿定时器）。
+  assistantTicketDisposers.set(services, () => {
+    workInventoryChannelWatch.dispose();
+    workInventoryBootstrap.dispose();
+    assistantTicketService.dispose();
+  });
 
   // 即使初始配置关闭也必须登记 lifecycle disposer：terminal fence 需要早于任意延迟 setting/acquire
   // 恢复，不能把"当前还没有 Helper"误当成"不需要生命周期所有者"。dispose 时串行 stop host。

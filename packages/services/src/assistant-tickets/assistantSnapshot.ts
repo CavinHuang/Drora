@@ -23,7 +23,12 @@ import type {
   AssistantSnapshot,
   AssistantWriteDomainView,
 } from "./assistantTickets.js";
-import { computeTrustStats, isTrustGateOpen, readTrustCounts, readTrustGateThresholds } from "./trustGate.js";
+import {
+  computeTrustStats,
+  isTrustGateOpen,
+  readTrustCounts,
+  readTrustGateThresholds,
+} from "./trustGate.js";
 import {
   assistantQuotaDayTotal,
   assistantQuotaKindCounts,
@@ -63,11 +68,18 @@ export function parseWriteDomainView(raw: string | null): AssistantWriteDomainVi
   if (!raw) return undefined;
   try {
     const parsed = JSON.parse(raw) as Partial<AssistantWriteDomainView>;
-    if (parsed.kind === "worktree" && typeof parsed.path === "string" && typeof parsed.branch === "string") {
+    if (
+      parsed.kind === "worktree" &&
+      typeof parsed.path === "string" &&
+      typeof parsed.branch === "string"
+    ) {
       return { kind: "worktree", path: parsed.path, branch: parsed.branch };
     }
     if (parsed.kind === "paths" && Array.isArray(parsed.paths)) {
-      return { kind: "paths", paths: parsed.paths.filter((p): p is string => typeof p === "string") };
+      return {
+        kind: "paths",
+        paths: parsed.paths.filter((p): p is string => typeof p === "string"),
+      };
     }
     if (parsed.kind === "workspace") return { kind: "workspace" };
     return undefined;
@@ -143,7 +155,9 @@ export function computeUsageByGeneration(input: {
       };
       windows = [
         merged,
-        ...windows.slice(keepFrom + 1).map((window, index) => ({ ...window, generation: index + 2 })),
+        ...windows
+          .slice(keepFrom + 1)
+          .map((window, index) => ({ ...window, generation: index + 2 })),
       ];
     }
   }
@@ -167,10 +181,9 @@ export function computeUsageByGeneration(input: {
     generation: bucket.window.generation,
     inputTokens: bucket.inputTokens,
     outputTokens: bucket.outputTokens,
-    durationMs:
-      bucket.window.current
-        ? Math.max(0, input.nowMs - bucket.window.fromMs)
-        : Math.max(0, bucket.window.toMs - bucket.window.fromMs),
+    durationMs: bucket.window.current
+      ? Math.max(0, input.nowMs - bucket.window.fromMs)
+      : Math.max(0, bucket.window.toMs - bucket.window.fromMs),
     ...(bucket.window.current ? { current: true } : {}),
   }));
 }
@@ -195,7 +208,11 @@ function loadUsageLogRows(
   }>;
   for (const row of rows) {
     const bucket = byTicket.get(row.ticket_id) ?? [];
-    bucket.push({ inputTokens: row.input_tokens, outputTokens: row.output_tokens, atMs: row.at_ms });
+    bucket.push({
+      inputTokens: row.input_tokens,
+      outputTokens: row.output_tokens,
+      atMs: row.at_ms,
+    });
     byTicket.set(row.ticket_id, bucket);
   }
   return byTicket;
@@ -258,7 +275,9 @@ function ticketRowToView(
     sessionId: incarnation.sessionId ?? null,
     updatedAtMs: row.updated_ms,
     ...(row.dispatch_mode ? { dispatchMode: row.dispatch_mode as "A" | "B" | "C" } : {}),
-    ...(parseWriteDomainView(row.write_domain) ? { writeDomain: parseWriteDomainView(row.write_domain) } : {}),
+    ...(parseWriteDomainView(row.write_domain)
+      ? { writeDomain: parseWriteDomainView(row.write_domain) }
+      : {}),
     ...(Array.isArray(generations) ? { generationCount: generations.length } : {}),
     anchorCommandId: incarnation.anchorCommandId ?? null,
     queuedReason: row.queued_reason,
@@ -301,7 +320,9 @@ function parseRouterSuggestion(
         ...(typeof arm.permissionTier === "string"
           ? { permissionTier: arm.permissionTier as AssistantPermissionTier }
           : {}),
-        ...(typeof arm.briefBase === "string" ? { briefBase: arm.briefBase as "verbatim" | "verbatim+appendix" } : {}),
+        ...(typeof arm.briefBase === "string"
+          ? { briefBase: arm.briefBase as "verbatim" | "verbatim+appendix" }
+          : {}),
         ...(typeof arm.appendix === "string" ? { appendix: arm.appendix } : {}),
         evidence,
       };
@@ -318,7 +339,12 @@ function parseRouterSuggestion(
 export function buildAssistantSnapshot(
   raw: AssistantDatabaseRaw,
   config: AssistantConfigView,
-  extras: { dailyQuota?: number } = {},
+  extras: {
+    dailyQuota?: number;
+    /** P8（09 详设 §1.2）：台账投影由装配层 provider 闭包提供；null/缺席=快照不携带
+     * inventory 字段（部分源缺席=整体缺席，provider 端口注释即对账点）。 */
+    inventory?: import("@drora/shared").MateWorkInventoryView | null;
+  } = {},
 ): AssistantSnapshot {
   const triggers = (
     raw
@@ -413,11 +439,7 @@ export function buildAssistantSnapshot(
     ticketRowsRaw.map((row) => row.id),
   );
   const ticketRows = ticketRowsRaw.map((row) =>
-    ticketRowToView(
-      row,
-      usageRowsByTicket.get(row.id) ?? [],
-      nowMs,
-    ),
+    ticketRowToView(row, usageRowsByTicket.get(row.id) ?? [], nowMs),
   );
   // 信任门统计（P4）：实时 counts（与 releaseCount/wouldAcceptCount 同一查询收口
   // trustGate.readTrustCounts）+ kv 可调阈值 → rate/samples/open 投影。
@@ -488,6 +510,9 @@ export function buildAssistantSnapshot(
       0,
       ASSISTANT_SNAPSHOT_LIMITS.watchdogNoticesMax,
     ),
+    // P8（09 详设 §1.2）：台账投影整体缺席语义——provider 给 null（或未注入）时
+    // 快照不携带 inventory 字段；给视图时原样挂载（形状由 mateWorkInventorySchema 权威）。
+    ...(extras.inventory ? { inventory: extras.inventory } : {}),
     updatedAtMs: nowMs,
   };
 }

@@ -18,6 +18,7 @@
   "packages/services/test/assistantSourceIngest.test.ts",
   "packages/services/test/assistantSourceRegistry.test.ts",
   "packages/services/test/assistantTicketsService.test.ts",
+  "packages/services/test/assistantWorkInventory.test.ts",
   "packages/services/test/assistantWriteDomain.test.ts",
   "packages/shared/test/sessionMateActivity.test.ts",
   "packages/ui/src/mate/petProjection.test.ts",

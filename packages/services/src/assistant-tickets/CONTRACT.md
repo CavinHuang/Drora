@@ -89,6 +89,30 @@ ticket.channel_ref）；Thread 直通 Tier1。
   同参）。快照增量投影：usageByGeneration（落窗归代 Σ=合计）/briefFull/awaitingSinceMs/
   incrementsConfirmedMs。FIFO 释放子侧拆 queuedRelease.ts、mandate stop/revoke 拆
   mandateActions.ts（单文件 ≤800 行纪律，行为不变）。
+- **P8 全域工作台账 host 侧地基（09 号详设 §1 v2 定案，feat/drora-mate P8a）**：
+  三源（mate 工单快照/sessions-index 内存投影/tasks-index 全量 meta）→ 视图
+  `MateWorkInventoryView`（contracts mateWorkInventorySchema：workspaces[{key,rows}]，
+  三 kind 行 ticket/session/offpeak+managed 可选；界 inventoryWorkspaceMax=6/
+  RowMax=20/WorkspaceSetMax=16/TitleMax=120 单出处 ASSISTANT_SNAPSHOT_LIMITS）。
+  接缝=provider 端口（`setAssistantInventoryProvider`，assistantPorts.ts 同款 set*
+  模式）：装配层（node.ts）经 workInventoryBootstrap.ts 组装，服务 publish 时读
+  provider 挂 extras.inventory（assistantSnapshot.ts buildAssistantSnapshot 第三参
+  扩展）；**部分源缺席=inventory 整体缺席**（provider 返回 null/抛错/未注入 → 快照
+  不携带字段；冷启动=订阅快照未 ready 同缺席——UI「投影就绪中」态归 P8b）。
+  bootstrap 三步（09 §1.3）：初始集=deriveInventoryBootstrapTargets（近 14d 工单
+  target workspace∪tasks-index 项目集，identity 键 AGENTS 规则单出处
+  resolveInventoryWorkspaceKey）→ 逐 workspace 常驻 watchSessions（持有者=装配层
+  disposer，watchSessions 端口 dispose 语义保证引擎 watcher 非零期间底层订阅不被
+  清零、台账退订也不拆引擎在用的域）→ 刷新驱动重推导动态发现（desired 集对账：
+  reconcileInventoryTargets 补订阅/超 16 最久未活动退订；**v4 delta 无跨域 workspace
+  引用，动态发现收敛为刷新驱动重推导——09 §1.1「无全域订阅形态」现实边界，spec
+  §14 P8 行已登记**）。刷新环路：常驻订阅 delta/state:projects·task-groups 广播 →
+  host face `refreshInventory?()`（**可缺席**，旧消费方 optional-call）→ 服务
+  refreshInventory 节流（kv `inventory_refresh_interval_ms` 缺省 30s，前沿+尾沿补
+  一拍，dispose 收口）重 publish。tasks-index 读点=listTaskMetas({}) 不传
+  workspacePath 查全部（repo 支持），**装配层缓存**（provider 同步读缓存，
+  refreshOffPeakCache 在途去重）。纯函数测试落点 workInventory.ts 矩阵 →
+  services/test/assistantWorkInventory.test.ts（登记 drora-isolated 清单）。
 - 端口纪律：本模块不 import drora-agent/git——v4 命令、会话索引、workspace 探测、
   git worktree、工件只读核验（P4 第二棒）、AppSettings 配额读（P4）八端口全在装配层
   （services/node.ts set*，assistantPorts.ts 唯一形状）；

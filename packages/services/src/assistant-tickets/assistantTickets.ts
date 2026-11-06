@@ -253,6 +253,12 @@ export interface AssistantSnapshot {
   readonly identityMap?: import("./sources/contract.js").MateSourceIdentityMap;
   /** P4（04 详设 §1）：watchdog 配额内通知（有界 ≤5；新→旧）。 */
   readonly watchdogNotices?: readonly AssistantWatchdogNoticeView[];
+  /**
+   * P8（09 详设 §1.2/§1.4 v2 定案）：全域工作台账投影（可选追加，version 不变）。
+   * 语义=全有或全无：装配层 provider 返回 null（冷启动/某源缺席/provider 未注入）
+   * 时整个字段缺席；provider 抛错同缺席（publish 不失败）。UI 三态消费归 P8b。
+   */
+  readonly inventory?: import("@drora/shared").MateWorkInventoryView;
   readonly updatedAtMs: number;
 }
 
@@ -409,9 +415,7 @@ export interface IAssistantTicketService {
     minSamples?: number;
   }): Promise<AssistantResult<{ ok: true }>>;
   /** P5：watchdog 轮询间隔（分钟；服务内换算 ms 落 kv，读侧语义不变）。 */
-  setWatchdogIntervalMinutes(input: {
-    minutes: number;
-  }): Promise<AssistantResult<{ ok: true }>>;
+  setWatchdogIntervalMinutes(input: { minutes: number }): Promise<AssistantResult<{ ok: true }>>;
   /** P5：Source 开关配置整体替换（github 启用须合法 repo+点名词；publish 即 reconcile）。 */
   setSourcesConfig(
     input: import("./sources/contract.js").MateSourcesConfig,
@@ -421,11 +425,13 @@ export interface IAssistantTicketService {
     input: import("./sources/contract.js").MateSourceIdentityMap,
   ): Promise<AssistantResult<{ ok: true }>>;
   /** P5：大副模型偏好（null=清除回落 CLI 缺省；作用于下一次建会话）。 */
-  setModelPreference(input: {
-    providerId: string;
-    modelId: string;
-    reasoningLevel?: string;
-  } | null): Promise<AssistantResult<{ ok: true }>>;
+  setModelPreference(
+    input: {
+      providerId: string;
+      modelId: string;
+      reasoningLevel?: string;
+    } | null,
+  ): Promise<AssistantResult<{ ok: true }>>;
   getConfig(): Promise<AssistantResult<AssistantConfigView>>;
 
   /** 全量快照（拉取一次；后续经 onDidChange 推送）。 */

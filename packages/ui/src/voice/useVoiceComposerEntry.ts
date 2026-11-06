@@ -80,6 +80,12 @@ export function useVoiceComposerEntry({
       const provider = view?.providers.find(
         (candidate) => candidate.providerId === asrCapability.providerRef,
       );
+      // 项2（enabled 语义两口径对齐 fail-closed）：表单侧（VoiceVendorProviderRow）只列
+      // enabled 卡，运行时解析原先不过滤 enabled → 「UI 说不可用、功能照常跑」。裁定：
+      // 与 §13 卡不可用 fail-closed 精神一致——enabled === false 与缺 Key 同路径返回
+      // null（ProviderSettingsProviderView.enabled 为必填 boolean，facades.ts:153），
+      // 出站侧自然回落 webSpeech。
+      if (provider?.enabled === false) return null;
       const access = provider?.effectiveConfig?.access;
       const baseUrl = provider?.effectiveConfig?.api?.baseUrl?.trim() ?? "";
       const apiKey = access?.type === "api-key" ? (access.apiKey?.trim() ?? "") : "";
@@ -102,27 +108,38 @@ export function useVoiceComposerEntry({
     },
     [],
   );
+  // 项5（getView 与 onDidChange 竞态）：连接解析 effect 里初始 getView 与 onDidChange
+  // 事件并行到达，晚到的旧 getView 响应可能把已更新状态写回（窄窗口自愈）。参照同类
+  // hook useProviderSettingsView 的 commitView：ref 记录已应用的最大 revision，仅
+  // revision >= 已应用值的视图才提交（同 revision 重复提交幂等——applyVendorConnection
+  // 值等价保旧引用；revision 缺席的载荷无法排序，放行，与 commitView 对 undefined
+  // revision 的比较行为一致）。
+  const latestAppliedRevisionRef = useRef(-1);
   useEffect(() => {
     let active = true;
+    // 新解析代际重置防护值（条目/服务依赖变化即换代，与 commitView 在 service 换代时
+    // 重置 latestRevisionRef 同法；跨代旧回调由下方 active 标记拦截）。
+    latestAppliedRevisionRef.current = -1;
     setVendorConnectionReady(false);
     setVendorConnection(null);
+    const commitView = (view: ProviderSettingsView): void => {
+      if (!active) return;
+      const revision = view.revision;
+      if (typeof revision === "number") {
+        if (revision < latestAppliedRevisionRef.current) return;
+        latestAppliedRevisionRef.current = revision;
+      }
+      applyVendorConnection(resolveFromView(view));
+    };
     void services.providerSettingsService
       ?.getView()
-      .then((view) => {
-        if (active) {
-          applyVendorConnection(resolveFromView(view));
-        }
-      })
+      .then(commitView)
       .catch(() => undefined);
     // §15 修复（对齐 TTS 的懒解析语义）：卡上 Key 变化（§15 内联 Key 行粘贴/他窗口
     // 修改/卡删除）即时重解析——原实现只挂能力条目依赖，Key 变化不触发重解析，听写
     // 入口以旧态出站（401）或误判档不完整回落 webSpeech。事件源与
     // useProviderSettingsServiceView 同一（providerSettingsService.onDidChange）。
-    const subscription = services.providerSettingsService?.onDidChange((view) => {
-      if (active) {
-        applyVendorConnection(resolveFromView(view));
-      }
-    });
+    const subscription = services.providerSettingsService?.onDidChange(commitView);
     return () => {
       active = false;
       subscription?.dispose();

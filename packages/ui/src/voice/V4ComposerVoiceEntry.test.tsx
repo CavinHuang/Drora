@@ -18,6 +18,7 @@ const {
   capabilityPayload,
   providerFixture,
   providerListeners,
+  viewGate,
 } = vi.hoisted(() => {
   const settingsState = {
     // §12 清理：ASR 引擎档已迁入模型能力档案（specs/model-capabilities.md §3.3），
@@ -56,6 +57,10 @@ const {
     current: { providers: [] as Array<Record<string, unknown>>, revision: 1 },
   };
   const providerListeners = new Set<(view: unknown) => void>();
+  // 项5 竞态用例可挂起 getView（置入未决 Promise；缺省 null 与原实现零时序差——
+  // 无 gate 时快照在调用时捕获，与 `async () => providerFixture.current` 等价，
+  // 释放后返回调用时的旧视图以构造「晚到的旧 getView 响应」）。
+  const viewGate = { current: null as Promise<void> | null };
   const stableServices = {
     broadcastService: undefined,
     credentialService: {
@@ -64,7 +69,11 @@ const {
       delete: async () => undefined,
     },
     providerSettingsService: {
-      getView: async () => providerFixture.current,
+      getView: async () => {
+        const snapshot = providerFixture.current;
+        if (viewGate.current) await viewGate.current;
+        return snapshot;
+      },
       onDidChange: (listener: (view: unknown) => void) => {
         providerListeners.add(listener);
         return { dispose: () => providerListeners.delete(listener) };
@@ -86,6 +95,7 @@ const {
     capabilityPayload,
     providerFixture,
     providerListeners,
+    viewGate,
   };
 });
 
@@ -427,6 +437,8 @@ describe("§15 ASR 连接重解析（onDidChange 订阅，specs/model-capabiliti
   afterEach(() => {
     uninstallRemoteMediaStubs();
     webSpeechState.supported = true;
+    // 项5 竞态用例的 getView 门闩复位（防挂起 gate 泄漏进后续用例）。
+    viewGate.current = null;
   });
 
   it("卡 Key 撤除经 onDidChange 推送 → remote 档不再支持 → 入口消失（回退即红）", async () => {
@@ -480,5 +492,123 @@ describe("§15 ASR 连接重解析（onDidChange 订阅，specs/model-capabiliti
       await Promise.resolve();
     });
     expect(harness.queryByTestId("v4-composer-voice-entry")).toBeNull();
+  });
+
+  it("卡 enabled:false 经 onDidChange 推送 → 解析 fail-closed → 入口消失（回退即红）", async () => {
+    installRemoteMediaStubs();
+    // remote 档塌树回落 webSpeech——撤掉支持使「fail-closed → 入口消失」可观测
+    //（webSpeech 可用时入口仍在，只是回落内置引擎，语义不变）。
+    webSpeechState.supported = false;
+    capabilityPayload.current = {
+      ...capabilityPayload.current,
+      capabilities: {
+        ...capabilityPayload.current.capabilities,
+        asr: {
+          engine: "remote",
+          providerRef: "card-sf",
+          modelId: "FunAudioLLM/SenseVoiceSmall",
+          baseUrlOverride: "",
+        },
+      },
+    };
+    // 项2（enabled 语义两口径对齐 fail-closed）：表单侧只列 enabled 卡，运行时解析
+    // 须同口径——enabled:false 卡（Key 在场也无效）与缺 Key 同路径返回 null →
+    // 档不完整 → 入口消失。
+    const cardEnabled = {
+      providerId: "card-sf",
+      providerName: "SiliconFlow",
+      enabled: true,
+      effectiveConfig: {
+        api: { baseUrl: "https://api.siliconflow.cn/v1" },
+        access: { type: "api-key", apiKey: "sk-1" },
+      },
+    };
+    const cardDisabled = { ...cardEnabled, enabled: false };
+    providerFixture.current = { providers: [cardEnabled], revision: 1 };
+    const harness = renderEntry();
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(harness.queryByTestId("v4-composer-voice-entry")).not.toBeNull();
+    // enabled:false 推送（revision 2，Key 未动）→ 入口消失。回退即红：去掉 enabled
+    // 判定则连接照常解析、入口残留（UI 说不可用、功能照常跑）。
+    await act(async () => {
+      providerFixture.current = { providers: [cardDisabled], revision: 2 };
+      for (const listener of Array.from(providerListeners)) {
+        listener(providerFixture.current);
+      }
+      await Promise.resolve();
+    });
+    expect(harness.queryByTestId("v4-composer-voice-entry")).toBeNull();
+  });
+
+  it("晚到的旧 getView 响应不回写已更新连接（revision 防护，回退即红）", async () => {
+    installRemoteMediaStubs();
+    webSpeechState.supported = false;
+    capabilityPayload.current = {
+      ...capabilityPayload.current,
+      capabilities: {
+        ...capabilityPayload.current.capabilities,
+        asr: {
+          engine: "remote",
+          providerRef: "card-sf",
+          modelId: "FunAudioLLM/SenseVoiceSmall",
+          baseUrlOverride: "",
+        },
+      },
+    };
+    const cardWithKey = {
+      providerId: "card-sf",
+      providerName: "SiliconFlow",
+      enabled: true,
+      effectiveConfig: {
+        api: { baseUrl: "https://api.siliconflow.cn/v1" },
+        access: { type: "api-key", apiKey: "sk-1" },
+      },
+    };
+    const cardWithoutKey = {
+      ...cardWithKey,
+      effectiveConfig: {
+        api: { baseUrl: "https://api.siliconflow.cn/v1" },
+        access: { type: "api-key", apiKey: "" },
+      },
+    };
+    providerFixture.current = { providers: [cardWithKey], revision: 1 };
+    // 项5 竞态构造：初始 getView 挂起（门闩）→ onDidChange 先推 revision 2（Key 撤除）
+    // → 放行挂起的 getView，其响应是调用时捕获的 revision 1（Key 在场）。
+    let releaseView!: () => void;
+    viewGate.current = new Promise<void>((resolve) => {
+      releaseView = resolve;
+    });
+    try {
+      const harness = renderEntry();
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+      // 初始 getView 未决 → 连接未就绪 → 入口隐藏。
+      expect(harness.queryByTestId("v4-composer-voice-entry")).toBeNull();
+      // onDidChange 先到（revision 2，Key 撤除）→ 已应用态 = 不可用 → 入口隐藏。
+      await act(async () => {
+        providerFixture.current = { providers: [cardWithoutKey], revision: 2 };
+        for (const listener of Array.from(providerListeners)) {
+          listener(providerFixture.current);
+        }
+        await Promise.resolve();
+      });
+      expect(harness.queryByTestId("v4-composer-voice-entry")).toBeNull();
+      // 晚到的 revision 1 响应须被 revision 防护拒绝（1 < 已应用 2）。回退即红：
+      // 无防护则旧响应回写连接态、入口复活。
+      releaseView();
+      viewGate.current = null;
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+      expect(harness.queryByTestId("v4-composer-voice-entry")).toBeNull();
+    } finally {
+      viewGate.current = null;
+    }
   });
 });

@@ -50,7 +50,7 @@ export interface CloudTtsPlaybackHandle {
   stop(): void;
 }
 
-/** DI fetch 形状（测试 mock HTTP 用）。@lintignore */
+/** DI fetch 形状（测试 mock HTTP 与 synthesizeOnce opts.fetch 消费）。 */
 export type CloudTtsFetch = (input: string, init: RequestInit) => Promise<ResponseLike>;
 
 /** DI deps 注入形状（测试 mock HTTP/播放消费）。@lintignore */
@@ -261,7 +261,34 @@ async function synthesizeOpenAiCompatible(
     signal,
   });
   if (!response.ok) {
-    throw new Error(`cloud tts request rejected: ${response.status}`);
+    // §15 深审项3：此前非 2xx 只抛 status，厂商错误体里的 quota/invalid key 细节被丢弃，
+    // 表单 toast 无法提示真实原因。读响应文本提取细节拼进消息：text 为可选方法（火山分支
+    // 约定）先判存在再 await；截断前 500 字符防超长体撑爆 toast；JSON 解析失败（HTML/纯
+    // 文本错误页）就忽略，回退纯 status 消息。隐私边界不变：零日志，消息只含厂商响应体
+    // 细节，不拼 apiKey/Authorization。
+    let detail = "";
+    if (response.text) {
+      try {
+        const raw = (await response.text()).slice(0, 500);
+        const parsed = JSON.parse(raw) as {
+          error?: { message?: unknown } | string;
+          message?: unknown;
+        };
+        // 厂商错误体形状不一：OpenAI 系 {error:{message}}、网关 {message}、少数 {error:"..."}。
+        const errorMessage =
+          typeof parsed.error === "object" && parsed.error !== null
+            ? parsed.error.message
+            : undefined;
+        detail =
+          (typeof errorMessage === "string" ? errorMessage : undefined) ??
+          (typeof parsed.message === "string" ? parsed.message : undefined) ??
+          (typeof parsed.error === "string" ? parsed.error : undefined) ??
+          "";
+      } catch {
+        // 解析/读文本失败：忽略细节，保留纯 status 消息。
+      }
+    }
+    throw new Error(`cloud tts request rejected: ${response.status}${detail ? `: ${detail}` : ""}`);
   }
   return response.blob();
 }

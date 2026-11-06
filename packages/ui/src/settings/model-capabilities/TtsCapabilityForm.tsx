@@ -21,7 +21,9 @@ import { Button } from "@/components/ui/button.js";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select.js";
@@ -292,12 +294,16 @@ export function TtsCapabilityForm() {
                     ))}
                     {modelId &&
                     !(vendorState.vendor?.voices ?? []).some((p) => p.id === modelId) ? (
-                      <SelectItem value={modelId}>
-                        {intl.formatMessage(
-                          { id: "settings.modelCapability.vendor.keepCurrent" },
-                          { id: modelId },
-                        )}
-                      </SelectItem>
+                      // §15 审查修复：存量值裸 id 作 SelectItem 文本——触发器回显真实值
+                      // 而非「保留当前：{id}」meta；「保留」语义改由分组标题表达。
+                      <SelectGroup>
+                        <SelectLabel>
+                          {intl.formatMessage({
+                            id: "settings.modelCapability.vendor.keepCurrentGroup",
+                          })}
+                        </SelectLabel>
+                        <SelectItem value={modelId}>{modelId}</SelectItem>
+                      </SelectGroup>
                     ) : null}
                   </SelectContent>
                 </Select>
@@ -335,12 +341,15 @@ export function TtsCapabilityForm() {
                           </SelectItem>
                         ))}
                         {modelId && !builtinModels.includes(modelId) ? (
-                          <SelectItem value={modelId}>
-                            {intl.formatMessage(
-                              { id: "settings.modelCapability.vendor.keepCurrent" },
-                              { id: modelId },
-                            )}
-                          </SelectItem>
+                          // §15 审查修复：同火山音色行——存量值裸 id 回显 + 分组标题。
+                          <SelectGroup>
+                            <SelectLabel>
+                              {intl.formatMessage({
+                                id: "settings.modelCapability.vendor.keepCurrentGroup",
+                              })}
+                            </SelectLabel>
+                            <SelectItem value={modelId}>{modelId}</SelectItem>
+                          </SelectGroup>
                         ) : null}
                       </SelectContent>
                     </Select>
@@ -386,12 +395,15 @@ export function TtsCapabilityForm() {
                           </SelectItem>
                         ))}
                         {voice && !builtinVoices.some((preset) => preset.id === voice) ? (
-                          <SelectItem value={voice}>
-                            {intl.formatMessage(
-                              { id: "settings.modelCapability.vendor.keepCurrent" },
-                              { id: voice },
-                            )}
-                          </SelectItem>
+                          // §15 审查修复：同火山音色行——存量值裸 id 回显 + 分组标题。
+                          <SelectGroup>
+                            <SelectLabel>
+                              {intl.formatMessage({
+                                id: "settings.modelCapability.vendor.keepCurrentGroup",
+                              })}
+                            </SelectLabel>
+                            <SelectItem value={voice}>{voice}</SelectItem>
+                          </SelectGroup>
                         ) : null}
                       </SelectContent>
                     </Select>

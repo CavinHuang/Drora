@@ -456,18 +456,6 @@ UI 本地静态注册表（`packages/ui/src/settings/model-capabilities/voiceVen
 - **试听按钮**（仅 tts）：固定句「你好，这是 Drora 的语音播报试听。」走当前表单态 `synthesizeOnce` 合成并直接播放；`modelId` 空则禁用；合成中禁用+spinner；失败 toast（试听失败：\<适配器错误消息\>，含厂商 status/凭据形态提示），成功 toast。**fail-visible：把 §9.6.5-3 静默回落从「播报期无感」变为「配置期可感知」，不改变播报回落逻辑本身**。ASR 无试听（需麦克风录制，backlog）。
 - **ASR 连接重解析与模型预设按厂商**（同批次补）：①听写入口连接解析订阅 `providerSettingsService.onDidChange`——卡上 Key 变化（内联粘贴/清空/他窗修改）即时重解析，值等价保持旧引用防无谓重渲染；对齐 TTS 的懒解析语义（原实现只挂条目依赖，Key 变化后入口以旧态出站或误回落 webSpeech）；②注册表增 `asrModels` 字段（SiliconFlow=SenseVoiceSmall/TeleSpeechASR，火山恒空），ASR 模型行预设按命中厂商给值，自定义端点出通用 OpenAI 兼容预设（whisper-1/gpt-4o-transcribe/SenseVoiceSmall）。
 
-### 15.6 审查修复批（2026-11-05 三路深审后收口，同日）
-
-1. **TTS 播报路由凭据缓存**（high，与 ASR 对称）：`useVoiceAnnouncement` 的 `cloudApiKeyRef` 只随条目 providerRef/override 重解析——§15 内联贴 Key 不触发，播报路由恒 system（试听可用但播报静默降级）；反向 Key 撤除后回落不恢复（违 §9.9.4-L13）。修复=订阅 `onDidChange`（值等价不 bump），与合成段懒解析对齐；wiring 用例回退即红。
-2. **火山语速映射**（§14.3 勘误落地）：`synthesizeVolcano` 此前 `speech_rate` 恒 0（丢弃 `u.rate`），补 rate 透传（播报腿与试听腿均接）。
-3. **建卡防重**：`selectVendor` 增 in-flight 表（vendorId → Promise），快速连选不再各建一张同 host 卡。
-4. **火山卡 ASR 死端**：命中模板但不含本能力的卡归自定义区可寻址；Select 值回退卡 id。
-5. **布局回归预防**：语音供应商行改 `controlLayout="wide"`（选中项「厂商名（已连接）」超 default 192px 列，109719552/2b8fcb924 两次实机同根）。
-6. **保存失败 fail-visible**：条目字段（engine/providerRef/model/voice/override）写失败补 toast；Key 行随卡切换 remount 清草稿（防跨卡错写）。
-7. **试听 30s 超时**（AbortSignal.timeout）；ElevenLabs（无音色预设厂商）不再回落 OpenAI 通用音色 datalist；火山占位文案改「必选」语义；适配器凭据形态错误消息英文化（toast 直显双语一致）。
-8. **遥测目录收口**：+8 动作（save_tts_provider/save_asr_provider/save_image_generation_provider/preview_tts/select_tts_vendor/select_asr_vendor/save_tts_vendor_key/save_asr_vendor_key）-3 死条目（save_tts_api_key/save_asr_api_key/save_image_generation_api_key）。
-9. **未处置登记**：双卡同 host 标注取第一张（防重后边缘）；enabled 语义表单/运行时两口径（§13 有意）；试听失败仅 status 码（厂商 body 不解析，隐私权衡）；E2E 维持人工验收轨道（§8 先例）。①听写入口连接解析订阅 `providerSettingsService.onDidChange`——卡上 Key 变化（内联粘贴/清空/他窗修改）即时重解析，值等价保持旧引用防无谓重渲染；对齐 TTS 的懒解析语义（原实现只挂条目依赖，Key 变化后入口以旧态出站或误回落 webSpeech）；②注册表增 `asrModels` 字段（SiliconFlow=SenseVoiceSmall/TeleSpeechASR，火山恒空），ASR 模型行预设按命中厂商给值，自定义端点出通用 OpenAI 兼容预设（whisper-1/gpt-4o-transcribe/SenseVoiceSmall）。
-
 ### 15.4 适配器新导出（cloudTtsAdapter）
 
 - `synthesizeOnce(config, text, opts?: { voice?, rate?, fetch?, signal? })`（§15 审查勘误：补 rate/signal 两参）：按 `isVolcanoTtsEndpoint` 分派火山分支 / 抽出的 OpenAI 分支；失败 throw（消息含厂商返回 status/code，供 toast 直显；不含 apiKey/合成文本——隐私边界不变）。
@@ -479,3 +467,28 @@ UI 本地静态注册表（`packages/ui/src/settings/model-capabilities/voiceVen
 - 单测：注册表 host 反查/预设 id 唯一性；适配器单 Key 形态（X-Api-Key 出站、无 App-Id 双头）+ synthesizeOnce OpenAI 分支；表单交互（选模板→createPersonalProvider→update providerRef；Key 保存→savePersonalProviderOverlay；试听→synthesizeOnce）。
 - 门禁：typecheck / lint / architecture:check / test:drora 全绿；en-US 键集一致性测试把关双语。
 - 实机：选「火山引擎」（卡自动建）→ 贴 Key → 选「湾湾小何」→ 试听出声；SiliconFlow 复用聊天卡 Key 直接出声。
+
+### 15.6 审查修复批（2026-11-05 三路深审后收口，同日）
+
+1. **TTS 播报路由凭据缓存**（high，与 ASR 对称）：`useVoiceAnnouncement` 的 `cloudApiKeyRef` 只随条目 providerRef/override 重解析——§15 内联贴 Key 不触发，播报路由恒 system（试听可用但播报静默降级）；反向 Key 撤除后回落不恢复（违 §9.9.4-L13）。修复=订阅 `onDidChange`（值等价不 bump），与合成段懒解析对齐；wiring 用例回退即红。
+2. **火山语速映射**（§14.3 勘误落地）：`synthesizeVolcano` 此前 `speech_rate` 恒 0（丢弃 `u.rate`），补 rate 透传（播报腿与试听腿均接）。
+3. **建卡防重**：`selectVendor` 增 in-flight 表（vendorId → Promise），快速连选不再各建一张同 host 卡。
+4. **火山卡 ASR 死端**：命中模板但不含本能力的卡归自定义区可寻址；Select 值回退卡 id。
+5. **布局回归预防**：语音供应商行改 `controlLayout="wide"`（选中项「厂商名（已连接）」超 default 192px 列，109719552/2b8fcb924 两次实机同根）。
+6. **保存失败 fail-visible**：条目字段（engine/providerRef/model/voice/override）写失败补 toast；Key 行随卡切换 remount 清草稿（防跨卡错写）。
+7. **试听 30s 超时**（AbortSignal.timeout）；ElevenLabs（无音色预设厂商）不再回落 OpenAI 通用音色 datalist；火山占位文案改「必选」语义；适配器凭据形态错误消息英文化（toast 直显双语一致）。
+8. **遥测目录收口**：+8 动作（save_tts_provider/save_asr_provider/save_image_generation_provider/preview_tts/select_tts_vendor/select_asr_vendor/save_tts_vendor_key/save_asr_vendor_key）-3 死条目（save_tts_api_key/save_asr_api_key/save_image_generation_api_key）。
+9. **未处置登记**：残留问题已于 2026-11-06 工作流批次全部修复（修法一览见 §15.7）——双卡同 host 标注：vendorOptions 命中卡选择式与 `selectVendor` 对齐（providerRef 卡优先），下拉「已连接/未配置 Key」标注描述的即实际会复用的卡；enabled 语义两口径：收口为运行时 fail-closed，禁用卡不出站（行为裁定，见 §15.7）；试听失败仅 status 码：非 2xx 响应体解析 `error.message`（截 500 字符）拼入错误消息，不含凭据；保留当前回显 meta：存量值 SelectItem 回显裸 id + 分组标签；ASR 入口竞态：连接解析按 `ProviderSettingsView.revision` 防护，晚到的旧响应不回写；火山凭据提示缺入口：补旧版/新版两个控制台地址；knip 失效 tag×2：两处 `@lintignore` 删除。唯一保留项：E2E 维持人工验收轨道（§8 先例）。
+
+### 15.7 残留问题修复批（2026-11-06）
+
+§15.6.9 未处置登记的收口批（三名修复员并行实施，修法逐项）：
+
+- **双卡同 host 标注**：`VoiceVendorProviderRow` 的 vendorOptions 命中卡选择式与 `selectVendor` 对齐——先找 `providerId === providerRef` 且 host 命中的卡，找不到再取任一 host 命中卡（依赖数组补 providerRef），下拉「已连接/未配置 Key」标注描述的即实际会复用的卡。
+- **enabled 语义收口（行为裁定）**：运行时解析 fail-closed——`useVoiceAnnouncement` / `useVoiceComposerEntry` 的连接解析对 `enabled:false` 卡与缺 Key 同路径返回 null，禁用卡不出站、出站自然回落（system/webSpeech）；与表单侧只列 enabled 卡的口径一致，亦合 §13 fail-closed 精神（依据 `ProviderSettingsProviderView.enabled` 为必填 boolean，`packages/provider/src/facades.ts:153`）。
+- **试听失败细节**：`synthesizeOpenAiCompatible` 非 2xx 分支读响应文本（截 500 字符），JSON 解析成功则提取 `error.message ?? message ?? error` 拼入 `cloud tts request rejected: <status>`，解析失败回退纯 status；零日志、消息不含 apiKey/Authorization（隐私边界不变）。
+- **保留当前回显**：TtsCapabilityForm 三处 Select（火山音色/SF 播报模型/SF 音色）的存量值 SelectItem 文本改裸 id（触发器回显真实值），外包「保留的当前值」分组标签（新键 `settings.modelCapability.vendor.keepCurrentGroup` 双语同批；旧键 `vendor.keepCurrent` 确认零消费后删除）。
+- **连接解析竞态**：两处同型双路应用加 `ProviderSettingsView.revision` 防护（对齐 commitView 写法）——仅接受 revision ≥ 已应用最大值，同 revision 幂等放行、值等价保旧引用，effect 换代重置 ref；晚到的旧 getView 响应不回写已更新连接（回归用例：onDidChange 先推 revision 2 再放行晚到的 revision 1 响应，入口不复活）。
+- **火山凭据提示**：双语提示补两个控制台入口——旧版 `console.volcengine.com/speech/app` 填 `AppID:Access Token`（冒号分隔），新版 `console.volcengine.com/speech/new` 填单个 API Key。
+- **knip 失效 tag×2**：`cloudTtsAdapter.ts`（`CloudTtsFetch`）与 `voicePersonas.ts`（`VoicePersonaPreset`）导出文档注释中的 `@lintignore` 删除——两类型均已真实消费，knip 复核两条 Unused tag 消失。
+  门禁（修复员实跑）：`test:drora` 相关三套全绿（cloudTtsAdapter 22/22、voice 入口+wiring 32/32、model-capabilities 35/35）；typecheck / lint 0 errors；knip 两条 Unused tag 清除。

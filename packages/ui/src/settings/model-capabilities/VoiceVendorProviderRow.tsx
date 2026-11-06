@@ -131,7 +131,14 @@ export function useVoiceVendorState(params: {
   const vendorOptions = useMemo<VoiceVendorOption[]>(
     () =>
       templates.map((template) => {
-        const matched = providers.find((provider) => hostOf(provider) === template.matchHost);
+        // §15 审查修复：命中卡选择式与 selectVendor 对齐——先 providerRef 卡 host
+        // 命中，否则任一 host 命中卡。同厂商两张卡时下拉「已连接/未配置 Key」
+        // 标注描述的就是实际会复用的那张卡，不再虚报 providers 首命中卡。
+        const matched =
+          providers.find(
+            (provider) =>
+              provider.providerId === providerRef && hostOf(provider) === template.matchHost,
+          ) ?? providers.find((provider) => hostOf(provider) === template.matchHost);
         return {
           key: `${VENDOR_KEY_PREFIX}${template.vendorId}`,
           vendorId: template.vendorId,
@@ -140,7 +147,7 @@ export function useVoiceVendorState(params: {
           keyPresent: matched ? apiKeyOf(matched).length > 0 : false,
         };
       }),
-    [templates, providers, locale],
+    [templates, providers, providerRef, locale],
   );
 
   const customOptions = useMemo<VoiceVendorOption[]>(

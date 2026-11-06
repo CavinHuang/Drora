@@ -536,4 +536,32 @@ describe("synthesizeOnce（specs/model-capabilities.md §15 试听）", () => {
       ),
     ).rejects.toThrow("401");
   });
+
+  it("非 2xx 错误体为 JSON：error.message 拼进消息（§15 深审项3：quota/invalid key 细节不再丢弃）", async () => {
+    const { synthesizeOnce } = await import("./cloudTtsAdapter.js");
+    const { fetch } = fakeFetch({
+      ok: false,
+      status: 403,
+      text: JSON.stringify({ error: { message: "invalid api key" } }),
+    });
+    await expect(
+      synthesizeOnce(
+        { baseUrl: "https://api.siliconflow.cn/v1", model: "m", apiKey: "sk-x" },
+        "试听",
+        { fetch },
+      ),
+    ).rejects.toThrow(/invalid api key/);
+  });
+
+  it("非 2xx 错误体非 JSON：解析失败忽略细节，消息保留 rejected: status（§15 深审项3）", async () => {
+    const { synthesizeOnce } = await import("./cloudTtsAdapter.js");
+    const { fetch } = fakeFetch({ ok: false, status: 401, text: "<html>unauthorized</html>" });
+    await expect(
+      synthesizeOnce(
+        { baseUrl: "https://api.siliconflow.cn/v1", model: "m", apiKey: "sk-x" },
+        "试听",
+        { fetch },
+      ),
+    ).rejects.toThrow(/rejected: 401/);
+  });
 });

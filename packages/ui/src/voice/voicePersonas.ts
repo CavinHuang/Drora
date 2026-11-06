@@ -18,7 +18,7 @@
 
 import type { AppSettings } from "@drora/shared";
 
-/** 目录条目形状（§9.7.8-1）。@lintignore */
+/** 目录条目形状（§9.7.8-1）。 */
 export interface VoicePersonaPreset {
   readonly id: string;
   readonly labelKey: string;

@@ -179,6 +179,12 @@ export function useVoiceAnnouncement({
       const providerRef = capability?.providerRef.trim() ?? "";
       if (!providerRef) return null;
       const provider = view?.providers.find((candidate) => candidate.providerId === providerRef);
+      // 项2（enabled 语义两口径对齐 fail-closed）：表单侧（VoiceVendorProviderRow）只列
+      // enabled 卡，运行时解析原先不过滤 enabled → 「UI 说不可用、功能照常跑」。裁定：
+      // 与 §13 卡不可用 fail-closed 精神一致——enabled === false 与缺 Key 同路径返回
+      // null（ProviderSettingsProviderView.enabled 为必填 boolean，facades.ts:153），
+      // 出站侧自然回落 system。
+      if (provider?.enabled === false) return null;
       const access = provider?.effectiveConfig?.access;
       const baseUrl = provider?.effectiveConfig?.api?.baseUrl?.trim() ?? "";
       const apiKey = access?.type === "api-key" ? (access.apiKey?.trim() ?? "") : "";
@@ -311,8 +317,18 @@ export function useVoiceAnnouncement({
   // 路由恒 system（试听可用但播报静默降级）；反向，Key 撤除后 ref 持旧值 → 连败回落
   // 后用户补凭据不清回落标记（违反 §9.9.4-L13）。订阅 onDidChange 即时重解析，与
   // 合成段懒解析（getVendorConfig）对齐。
+  // 项5（getView 与 onDidChange 竞态）：凭据缓存与 useVoiceComposerEntry 同型双路应用
+  //（初始 getView + onDidChange 事件并行），晚到的旧 getView 响应可能把已更新凭据写回
+  //（窄窗口自愈）。参照 useProviderSettingsView 的 commitView：ref 记录已应用的最大
+  // revision，仅 revision >= 已应用值的视图才提交（同 revision 重复提交幂等——
+  // applyConnection 值等价不 bump；revision 缺席的载荷无法排序，放行，与 commitView
+  // 对 undefined revision 的比较行为一致；跨代旧回调由下方 active 标记拦截）。
+  const latestAppliedRevisionRef = useRef(-1);
   useEffect(() => {
     let active = true;
+    // 新解析代际重置防护值（条目/服务依赖变化即换代，与 commitView 在 service 换代时
+    // 重置 latestRevisionRef 同法）。
+    latestAppliedRevisionRef.current = -1;
     const applyConnection = (connection: { baseUrl: string; apiKey: string } | null): void => {
       if (!active) return;
       // 值等价不 bump（onDidChange 在任意供应商卡变更都会 fire，防无谓重渲染）。
@@ -322,18 +338,31 @@ export function useVoiceAnnouncement({
         bumpCredentialVersion();
       }
     };
-    void resolveVendorConnection(ttsCapabilityRef.current)
-      .then(applyConnection)
-      .catch(() => undefined);
-    const subscription = services.providerSettingsService?.onDidChange((view) => {
+    const commitView = (view: ProviderSettingsView | null | undefined): void => {
+      if (!active) return;
+      const revision = view?.revision;
+      if (typeof revision === "number") {
+        if (revision < latestAppliedRevisionRef.current) return;
+        latestAppliedRevisionRef.current = revision;
+      }
       applyConnection(resolveConnectionFromView(view, ttsCapabilityRef.current));
-    });
+    };
+    // 初始解析直读视图（revision 防护需要 view 本体）；resolveVendorConnection 仍供
+    // cloudTts.getVendorConfig 出站懒解析（逐句 fail-closed、无状态写回，不参与本防护）。
+    void (async () => {
+      try {
+        commitView(await services.providerSettingsService?.getView());
+      } catch {
+        // getView 失败 = 未加载态（原 resolveVendorConnection catch 同语义：null）。
+        applyConnection(null);
+      }
+    })();
+    const subscription = services.providerSettingsService?.onDidChange(commitView);
     return () => {
       active = false;
       subscription?.dispose();
     };
   }, [
-    resolveVendorConnection,
     resolveConnectionFromView,
     services.providerSettingsService,
     ttsCapability?.providerRef,

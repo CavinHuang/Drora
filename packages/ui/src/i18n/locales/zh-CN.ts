@@ -4833,10 +4833,10 @@ const zhCN: Record<string, string> = {
   "settings.modelCapability.vendor.needsKey": "未配置 Key",
   "settings.modelCapability.vendor.customGroup": "自定义端点",
   "settings.modelCapability.vendor.apiKey.label": "API Key",
-  "settings.modelCapability.vendor.keepCurrent": "保留当前：{id}",
+  "settings.modelCapability.vendor.keepCurrentGroup": "保留的当前值",
   "settings.modelCapability.vendor.createFailed": "创建语音供应商卡失败，请稍后重试",
   "settings.modelCapability.vendor.credentialHint.volcano":
-    "火山引擎：旧版控制台填「AppID:Access Token」（冒号分隔）；新版控制台填单个 API Key。",
+    "火山引擎：旧版控制台 console.volcengine.com/speech/app 填 AppID:Access Token（冒号分隔）；新版控制台 console.volcengine.com/speech/new 填单个 API Key。",
   "settings.modelCapability.vendor.credentialHint.siliconflow":
     "SiliconFlow API Key（sk- 开头），与聊天模型共用同一把。",
   "settings.modelCapability.vendor.credentialHint.openai": "OpenAI API Key（sk- 开头）。",

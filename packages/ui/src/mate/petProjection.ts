@@ -13,6 +13,7 @@
  */
 
 import {
+  ASSISTANT_AUTONOMY_NOTICE_KINDS,
   ASSISTANT_PERMISSION_TIERS,
   ASSISTANT_SOURCE_KINDS,
   ASSISTANT_TICKET_STATUSES,
@@ -27,9 +28,6 @@ import {
 import type { AssistantSnapshot } from "@drora/services";
 
 import { isMateActiveTicket, isMatePendingDecision, isMateQueuedTicket } from "./view-model.js";
-
-/** P9 自主 report 通知 kind（services autonomy.ts ASSISTANT_AUTONOMY_NOTICE_KINDS.report 同值；wire 字面量跨包，此为消费方副本——单一出处 contracts 缺位，两端注释即对账点）。 */
-const AUTONOMY_REPORT_NOTICE_KIND = "autonomy_report";
 
 /** 首行截断（速览单行展示；与 MateTicketRow firstPreviewLine 同语义，本地实现避免循环依赖）。 */
 function firstLine(text: string, max: number): string {
@@ -127,14 +125,26 @@ export function projectMatePet(snapshot: AssistantSnapshot): MatePetProjection {
       };
     });
   // bubble 由发布方以 deriveMatePetBubble 差分后并集（本函数保持纯投影，不持时序状态）。
-  // P9：autonomyReport=通知区最新一条自主 report（差分源扩 report 帧的原材料）。
+  // P9：autonomyReport=通知区最新一条自主 report（差分源扩 report 帧的原材料；kind
+  // 字面量单出处 shared contracts ASSISTANT_AUTONOMY_NOTICE_KINDS——2026-11-06 复审
+  // 上收，删除消费方副本）。
   const autonomyNotice = [...(snapshot.watchdogNotices ?? [])]
-    .filter((notice) => notice.kind === AUTONOMY_REPORT_NOTICE_KIND)
+    .filter((notice) => notice.kind === ASSISTANT_AUTONOMY_NOTICE_KINDS.report)
     .sort((a, b) => b.atMs - a.atMs)[0];
   const autonomyBubble: MatePetAutonomyBubble | null = autonomyNotice
-    ? { summary: autonomyNotice.summary.slice(0, MATE_PET_PROJECTION_LIMITS.textMax), atMs: autonomyNotice.atMs }
+    ? {
+        summary: autonomyNotice.summary.slice(0, MATE_PET_PROJECTION_LIMITS.textMax),
+        atMs: autonomyNotice.atMs,
+      }
     : null;
-  return { pendingDecisions, activeTickets, recentTickets, latestReport, bubble: null, autonomyBubble };
+  return {
+    pendingDecisions,
+    activeTickets,
+    recentTickets,
+    latestReport,
+    bubble: null,
+    autonomyBubble,
+  };
 }
 
 /** 决策卡触发起始身份（速览元数据展示用；trigger 被快照容量裁剪时回空串）。 */

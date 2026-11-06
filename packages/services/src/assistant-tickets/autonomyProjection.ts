@@ -17,6 +17,7 @@
 import {
   ASSISTANT_AUTONOMY_DEFAULTS,
   ASSISTANT_CONFIG_LIMITS,
+  ASSISTANT_AUTONOMY_NOTICE_KINDS,
   ASSISTANT_SNAPSHOT_LIMITS,
 } from "@drora/shared";
 import type { AssistantDatabaseRaw } from "./assistantDatabase.js";
@@ -106,13 +107,12 @@ export function autonomyKvSet(
     .run(key, value, atMs);
 }
 
-/** 自主通知 kind 封闭集（通知区条目的 kind 字段；MateDigestCard 按 i18n 键渲染）。 */
-export const ASSISTANT_AUTONOMY_NOTICE_KINDS = {
-  /** report 臂过闸后的自主汇报。 */
-  report: "autonomy_report",
-  /** 首启一次性告知（闸 5）。 */
-  firstNotice: "autonomy_first_notice",
-} as const;
+/**
+ * 自主通知 kind 封闭集（2026-11-06 复审上收 shared/contracts 单出处——该 kind 值随
+ * 快照 watchdogNotices 跨包传递，UI petProjection 同引 shared 常量；本文件再导出维持
+ * autonomy.ts 既有 import 路径稳定）。
+ */
+export { ASSISTANT_AUTONOMY_NOTICE_KINDS };
 
 /** autonomy 通知条目（复用 watchdog 通知同形——ticketId 承载自主标记常量）。 */
 export type AssistantAutonomyNotice = AssistantWatchdogNotice;

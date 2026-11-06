@@ -144,7 +144,10 @@ ticket.channel_ref）；Thread 直通 Tier1。
   admitDisturbanceTx(kind=report) 过闸→自主通知区 kv `autonomy_notices`（与 watchdog_notices
   **分键单写者**——watchdog 轮判据出清按 ticket 事实维护，混写会被吞并；快照
   watchdogNotices 合并投影=MateDigestCard 既有面零改动）+桌宠气泡（ui petProjection
-  autonomyBubble+deriveMateAutonomyBubble，发布方不二次计数）；suggest→独立建卡事务
+  autonomyBubble+deriveMateAutonomyBubble，发布方不二次计数；通知 kind 字面量
+  `autonomy_report`/`autonomy_first_notice` 单出处 shared contracts
+  ASSISTANT_AUTONOMY_NOTICE_KINDS——2026-11-06 复审上收，services autonomyProjection
+  再导出+ui petProjection 消费方同引，删除跨包字面量副本）；suggest→独立建卡事务
   `insertAutonomySuggestCardTx`（trigger source_kind=autonomy+strength=`autonomous`
   字面量如实标注（contracts ASSISTANT_AUTONOMY_STRENGTH）+decision outcome=decision_card
   decided_by=gate+同事务 decision 配额计数+**建卡即写 `autonomy_muted:<对象hash>` 24h**

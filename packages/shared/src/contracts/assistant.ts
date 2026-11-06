@@ -162,6 +162,18 @@ export const ASSISTANT_AUTONOMY_DEFAULTS = {
 export const ASSISTANT_AUTONOMY_STRENGTH = "autonomous" as const;
 
 /**
+ * P9 自主通知 kind 封闭集（AGENTS「契约键单一出处」：autonomy_notices 条目的 kind 值
+ * 经快照 watchdogNotices 合并投影跨包传递——services autonomyProjection 生产方与 ui
+ * petProjection 消费方（autonomyBubble 差分源过滤）引用本常量，不再各自写字面量副本）。
+ */
+export const ASSISTANT_AUTONOMY_NOTICE_KINDS = {
+  /** report 臂过闸后的自主汇报。 */
+  report: "autonomy_report",
+  /** 首启一次性告知（闸 5）。 */
+  firstNotice: "autonomy_first_notice",
+} as const;
+
+/**
  * P4 watchdog 缺省参数（04 详设 §1 判据表；轮询间隔 kv `watchdog_interval_ms` 可调，
  * 判据阈值为常量——判据语义钉死在判据表，避免「kv 手滑改判据」破坏不自动终止不变式）。
  */

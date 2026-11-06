@@ -341,7 +341,7 @@ describe("火山引擎 TTS 协议分支（specs/model-capabilities.md §14）", 
     const handle = harness.adapter.speak({ text: "你好", lang: "zh-CN", rate: 1.2 });
     await vi.advanceTimersByTimeAsync(0);
     const request = harness.requests[harness.requests.length - 1]!;
-    expect(request.headers["X-Api-App-Id"]).toBe("1234567890");
+    expect(request.headers["X-Api-App-Key"]).toBe("1234567890");
     expect(request.headers["X-Api-Access-Key"]).toBe("my-access-token");
     // moon_bigtts 不含 uranus → seed-tts-1.0（§14 推断规则）
     expect(request.headers["X-Api-Resource-Id"]).toBe("seed-tts-1.0");
@@ -406,7 +406,7 @@ describe("火山引擎 TTS 协议分支（specs/model-capabilities.md §14）", 
     await vi.advanceTimersByTimeAsync(0);
     const singleRequest = single.requests[single.requests.length - 1]!;
     expect(singleRequest.headers["X-Api-Key"]).toBe("tlk-new-console-key");
-    expect(singleRequest.headers["X-Api-App-Id"]).toBeUndefined();
+    expect(singleRequest.headers["X-Api-App-Key"]).toBeUndefined();
     expect(singleRequest.headers["X-Api-Access-Key"]).toBeUndefined();
     expect(single.playback.length).toBe(1);
     void singleHandle;

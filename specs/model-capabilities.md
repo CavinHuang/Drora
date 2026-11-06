@@ -409,7 +409,7 @@ agent 会话
 ### 14.2 协议形状（社区已验证实现 + 火山文档）
 
 - `POST {baseUrl}/api/v3/tts/unidirectional`（NDJSON 流式）
-- Headers：`X-Api-App-Id`、`X-Api-Access-Key`、`X-Api-Resource-Id`、`X-Api-Request-Id`（uuid）。**新版控制台单 Key 形态（§15 批次补，2026-11-05 官方文档核实）**：新版语音控制台（`console.volcengine.com/speech/new`）鉴权改为单 API Key——发 `X-Api-Key` 头，不再有 AppID/Access Token 双值；旧版双值仍受支持。适配器按卡 Key 形态自动分派：含冒号 = 旧版复合（双头）；无冒号 = 新版单 Key（`X-Api-Key`）。`X-Api-Resource-Id` 两形态均必带。
+- Headers：复合模式 = `X-Api-App-Key`、`X-Api-Access-Key`、`X-Api-Resource-Id`、`X-Api-Request-Id`（uuid）。**头名勘误（2026-11-06，curl 预检探针三发实证）**：§14 初版把 App 侧头名误作 `X-Api-App-Id`——官方文档与火山 CORS 预检白名单均为 `X-Api-App-Key`，错名不在白名单导致复合模式 renderer 直连自始不可用（预检 403 形态的 `Request header field ... is not allowed`）；已改对，复合模式浏览器直连预检通过（`X-Api-App-Key`/`X-Api-Access-Key` 均在白名单，实测）。**新版控制台单 Key 形态（§15 批次补，2026-11-05 官方文档核实）**：新版语音控制台（`console.volcengine.com/speech/new`）鉴权改为单 API Key——发 `X-Api-Key` 头；**该头不在火山 CORS 白名单（实测），renderer 直连不可用且浏览器侧无替身头（Authorization 各形态探针均 `app key not found`）——backlog：桌面主进程出站代理（转发不受 CORS 约束）另行立项**；在此之前新版单 Key 用户请改用旧版复合形态。适配器按卡 Key 形态自动分派：含冒号 = 旧版复合（双头）；无冒号 = 新版单 Key（`X-Api-Key`）。`X-Api-Resource-Id` 两形态均必带。
 - Body：`{user: {uid}, req_params: {text, speaker, audio_params: {format: "mp3", sample_rate: 24000, speech_rate, loudness_rate}}}`
 - 响应逐行 JSON：`{code, message, data?}`——code 0 且 data = base64 音频分片；code 20000000 = 合成结束；其他非零 = 错误
 - 资源 ID 推断：speaker 含 `uranus` → `seed-tts-2.0`；`S_` 前缀 → `seed-icl-1.0`；其余（含 `moon_bigtts`）→ `seed-tts-1.0`

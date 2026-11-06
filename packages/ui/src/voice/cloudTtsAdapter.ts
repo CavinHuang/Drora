@@ -159,8 +159,12 @@ async function synthesizeVolcano(
     "X-Api-Resource-Id": inferVolcanoResourceId(config.model),
     "X-Api-Request-Id": requestId,
   };
+  // 头名勘误（2026-11-06 CORS 探针实证）：复合模式 App 侧头名是 X-Api-App-Key（官方
+  // 文档与预检白名单一致），§14 初版误作 X-Api-App-Id——该名不在火山 CORS 白名单，
+  // renderer 直连预检必死（复合模式自此一直不可用）。单 Key 头 X-Api-Key 同样不在
+  // 白名单，renderer 直连不可用（主进程代理另行立项，spec §14.2 backlog）。
   if (credentials.mode === "composite") {
-    headers["X-Api-App-Id"] = credentials.appId;
+    headers["X-Api-App-Key"] = credentials.appId;
     headers["X-Api-Access-Key"] = credentials.accessKey;
   } else {
     headers["X-Api-Key"] = credentials.apiKey;

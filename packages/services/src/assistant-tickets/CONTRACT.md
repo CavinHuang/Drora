@@ -111,7 +111,13 @@ ticket.channel_ref）；Thread 直通 Tier1。
   refreshInventory 节流（kv `inventory_refresh_interval_ms` 缺省 30s，前沿+尾沿补
   一拍，dispose 收口）重 publish。tasks-index 读点=listTaskMetas({}) 不传
   workspacePath 查全部（repo 支持），**装配层缓存**（provider 同步读缓存，
-  refreshOffPeakCache 在途去重）。纯函数测试落点 workInventory.ts 矩阵 →
+  refreshOffPeakCache 在途去重）+**变更指纹跳过**（09 §4 对策后半「组装输出 hash
+  未变则复用引用」，2026-11-06 复审落地：assembleWorkInventory 不读时钟为纯函数，
+  provider 对输入域（工单行/订阅域会话投影/off-peak 缓存）算稳定指纹，未变则复用
+  上次视图引用跳过重组装——工单事件高频 publish 不再产新对象，快照按内容序列化与
+  UI memo 吃引用稳定；workInventoryBootstrap.inventoryInputFingerprint 注释即对账点，
+  回归=assistantWorkInventory.test.ts「provider 变更指纹跳过」矩阵）。纯函数测试
+  落点 workInventory.ts 矩阵 →
   services/test/assistantWorkInventory.test.ts（登记 drora-isolated 清单）。
 - **P8 台账消费侧（P8b，09 号详设 §1.6/§1.7；feat/drora-mate）**：查询直答第六 scope
   kind `"work"`（±workspaceIdentity）——`composeQueryReply` 读调用方传入的台账视图

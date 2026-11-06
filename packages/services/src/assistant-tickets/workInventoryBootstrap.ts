@@ -15,6 +15,12 @@
  *    provider 同步读缓存，缓存刷新由 refreshOffPeakCache（tasks-index 变化回调现实
  *    载体=state:projects/task-groups 广播，node.ts 接线）驱动，在途去重。
  *
+ * **变更指纹跳过**（09 §4 对策后半「组装输出 hash 未变则复用引用」）：assembleWorkInventory
+ * 是不读时钟的纯函数（workInventory.ts），输出内容完全由其输入域决定——provider 每次
+ * 先对（工单行/订阅域会话投影/off-peak 缓存）算稳定指纹，未变则直接复用上次视图引用，
+ * 跳过重组装的对象分配。工单事件高频 publish 时快照按内容序列化、UI memo 依赖引用
+ * 稳定，复用引用消掉这条放大路径（本文件 inventoryInputFingerprint 注释即对账点）。
+ *
  * **bootstrap 三步**（09 §1.3，破循环依赖）：
  *   步 1 初始集合 = deriveInventoryBootstrapTargets（工单 ∪ 项目集，不依赖 sessions-index）；
  *   步 2 逐 workspace 常驻订阅；
@@ -160,6 +166,50 @@ export interface WorkInventoryBootstrapDeps {
   readonly onRefreshNeeded: () => void;
 }
 
+// ---------------------------------------------------------------------------
+// 变更指纹（09 §4 对策后半：组装输出 hash 未变则复用引用）
+// ---------------------------------------------------------------------------
+
+/**
+ * 台账组装输入指纹（稳定串）。assembleWorkInventory 输入域全覆盖：
+ * - 工单行全集（含 status/sessionId——managed 基准 activeTicketSessionIds 由其确定性
+ *   推导，不另行参与；isBudgetActiveStatus 纯分类）；
+ * - 各订阅域会话投影（sessions-index Lite 中被视图消费的字段：sessionId/title/phase/
+ *   sessionEnded/updatedAtMs/teamActivity.status）；
+ * - off-peak 缓存行全集。
+ * 会话按（订阅键、sessionId）排序——delta upsert 改变 Map 插序不产生伪差异；工单按
+ * SQL 序参与（保守：同集合不同序只损失一次复用机会，不漏更）。hostPath 不参与：它
+ * 只影响订阅定位，不进视图行。
+ */
+function inventoryInputFingerprint(
+  tickets: readonly AssistantWorkTicketRow[],
+  subscriptions: ReadonlyMap<string, WorkspaceSubscription>,
+  offpeakTasks: readonly WorkInventoryOffpeakTaskRow[],
+): string {
+  const sessionRows: string[] = [];
+  for (const key of [...subscriptions.keys()].sort()) {
+    const subscription = subscriptions.get(key);
+    if (!subscription) continue;
+    const sessions = [...subscription.sessions.values()].sort((a, b) =>
+      a.sessionId.localeCompare(b.sessionId),
+    );
+    for (const session of sessions) {
+      sessionRows.push(
+        JSON.stringify([
+          subscription.identity,
+          session.sessionId,
+          session.title,
+          session.phase,
+          session.sessionEnded,
+          session.updatedAtMs,
+          session.teamActivity?.status ?? null,
+        ]),
+      );
+    }
+  }
+  return JSON.stringify([tickets, sessionRows, offpeakTasks]);
+}
+
 interface WorkspaceSubscription {
   readonly identity: string;
   readonly hostPath: string | undefined;
@@ -190,6 +240,10 @@ export function createWorkInventoryBootstrap(
   let offpeakCache: readonly WorkInventoryOffpeakTaskRow[] | null = null;
   let offpeakInFlight: Promise<void> | null = null;
   let disposed = false;
+  // 变更指纹跳过（09 §4 对策后半）：上次非 null 视图引用与其输入指纹；null 检查见
+  // provider 内守卫——冷启动/缺席路径不登记指纹，就绪后首轮必重组装。
+  let lastInventoryView: MateWorkInventoryView | null = null;
+  let lastInventoryFingerprint: string | null = null;
 
   function subscribeTarget(target: WorkInventoryWorkspaceTarget): void {
     const key = inventoryTargetKey(target);
@@ -291,6 +345,12 @@ export function createWorkInventoryBootstrap(
       // 冷启动（!ready）/源缺席（failed）→ 整体缺席（09 §1.2 全有或全无；不拼半张账）。
       if (!subscription.ready || subscription.failed) return null;
     }
+    // 变更指纹跳过（09 §4 对策后半）：输入域未变 ⇒ 纯组装输出内容恒同，直接复用上次
+    // 视图引用——高频 publish 不再重组装产新对象（快照按内容序列化、UI memo 吃引用稳定）。
+    const fingerprint = inventoryInputFingerprint(ticketRows, subscriptions, offpeakCache);
+    if (lastInventoryView !== null && fingerprint === lastInventoryFingerprint) {
+      return lastInventoryView;
+    }
     const activeTicketSessionIds = new Set<string>();
     for (const ticket of ticketRows) {
       if (ticket.sessionId && isBudgetActiveStatus(ticket.status)) {
@@ -310,12 +370,15 @@ export function createWorkInventoryBootstrap(
         }),
       ),
     }));
-    return assembleWorkInventory({
+    const view = assembleWorkInventory({
       tickets: ticketRows,
       sessionGroups,
       offpeakTasks: offpeakCache,
       activeTicketSessionIds,
     });
+    lastInventoryFingerprint = fingerprint;
+    lastInventoryView = view;
+    return view;
   }
 
   function refreshOffPeakCache(): void {

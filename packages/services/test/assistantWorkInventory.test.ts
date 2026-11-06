@@ -4,7 +4,8 @@
  *   截断界）/订阅集对账（补订阅/LRU 退订界）/三源合并（分组/managed/有界/幂等）；
  * - 快照 inventory 投影/缺席语义（buildAssistantSnapshot extras + 服务 publish 读
  *   provider，provider null/抛错=整体缺席）；
- * - 刷新环路节流（refreshInventory 前沿节流 + 尾沿补一拍，kv 可调）。
+ * - 刷新环路节流（refreshInventory 前沿节流 + 尾沿补一拍，kv 可调）；
+ * - provider 变更指纹跳过（09 §4 对策后半：组装输出 hash 未变则复用上次视图引用）。
  * 登记清单：scripts/drora-isolated-test-files.json（照 mateWatchdogCron.test 先例）。
  */
 // @vitest-environment node
@@ -23,6 +24,16 @@ import {
   type WorkInventoryTicketRow,
 } from "../src/assistant-tickets/workInventory.js";
 import { setAssistantInventoryProvider } from "../src/assistant-tickets/assistantPorts.js";
+import type {
+  AssistantSessionSummaryLite,
+  AssistantSessionsIndexPort,
+  AssistantSessionsIndexWatchDelta,
+} from "../src/assistant-tickets/assistantPorts.js";
+import {
+  createWorkInventoryBootstrap,
+  type AssistantWorkTicketRow,
+  type WorkInventoryTaskMetaInput,
+} from "../src/assistant-tickets/workInventoryBootstrap.js";
 import { openAssistantDatabase } from "../src/assistant-tickets/assistantDatabase.js";
 import { buildAssistantSnapshot } from "../src/assistant-tickets/assistantSnapshot.js";
 import { createAssistantTicketsService } from "../src/assistant-tickets/assistantTicketsService.js";
@@ -434,6 +445,162 @@ describe("refreshInventory 刷新环路节流（09 §1.2：前沿节流+尾沿�
     } finally {
       service.dispose();
       db.close();
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// provider 变更指纹跳过（09 §4 对策后半，2026-11-06 复审落地）：
+// assembleWorkInventory 是不读时钟的纯函数，输入域（工单行/订阅域会话投影/off-peak
+// 缓存）未变 ⇒ 输出内容恒同——provider 复用上次视图引用，跳过重组装。本矩阵经
+// createWorkInventoryBootstrap 公共行为锁定（引用同一性 toBe，不经私有指纹函数）。
+// ---------------------------------------------------------------------------
+
+/** 有界会话摘要构造（AssistantSessionSummaryLite 最小集）。 */
+function liteSession(
+  overrides: Partial<AssistantSessionSummaryLite> = {},
+): AssistantSessionSummaryLite {
+  return {
+    sessionId: "s1",
+    title: "会话一",
+    phase: "working",
+    sessionEnded: false,
+    updatedAtMs: 1000,
+    ...overrides,
+  };
+}
+
+/** bootstrap 测试 harness：内存 sessions-index 端口 + 可变工单/off-peak 读点。 */
+function createBootstrapHarness() {
+  const targetKey = (identity: string, hostPath: string | undefined): string =>
+    `${identity}\u0000${hostPath ?? ""}`;
+  const sessionsByTarget = new Map<string, AssistantSessionSummaryLite[]>();
+  const watchers: Array<{
+    onDelta: (delta: AssistantSessionsIndexWatchDelta) => void;
+  }> = [];
+  let metas: readonly WorkInventoryTaskMetaInput[] = [];
+  let ticketRows: readonly AssistantWorkTicketRow[] = [];
+  const sessionsIndex: AssistantSessionsIndexPort = {
+    async listSessions(identity, hostPath) {
+      return {
+        ok: true,
+        sessions: [...(sessionsByTarget.get(targetKey(identity, hostPath)) ?? [])],
+      };
+    },
+    async probeSession() {
+      return { kind: "unavailable", reason: "bootstrap-fingerprint-harness" };
+    },
+    watchSessions(_identity, _hostPath, onDelta) {
+      watchers.push({ onDelta });
+      return { dispose: () => undefined };
+    },
+  };
+  const bootstrap = createWorkInventoryBootstrap({
+    sessionsIndex,
+    listTicketRows: () => ticketRows,
+    listOffPeakTaskMetas: async () => metas,
+    onRefreshNeeded: () => undefined,
+  });
+  return {
+    bootstrap,
+    watchers,
+    setTicketRows(rows: readonly AssistantWorkTicketRow[]): void {
+      ticketRows = rows;
+    },
+    setSessions(identity: string, sessions: AssistantSessionSummaryLite[]): void {
+      sessionsByTarget.set(targetKey(identity, undefined), sessions);
+    },
+    setMetas(next: readonly WorkInventoryTaskMetaInput[]): void {
+      metas = next;
+    },
+  };
+}
+
+describe("provider 变更指纹跳过（09 §4 对策后半：组装输出 hash 未变则复用引用）", () => {
+  // 构造期 refreshOffPeakCache + 订阅首拉都是微任务链，一个宏任务兜底全部 settle。
+  const flush = async (): Promise<void> => {
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+  };
+  // 工单须落在 bootstrap 14d 窗内，否则不派生订阅目标、watcher 不注册（derive 首步）。
+  const freshTicket = (overrides: Partial<WorkInventoryTicketRow> = {}): WorkInventoryTicketRow =>
+    ticketRow({ updatedAtMs: Date.now(), ...overrides });
+
+  it("输入域未变：provider 重复读返回同一视图引用", async () => {
+    const harness = createBootstrapHarness();
+    harness.setTicketRows([freshTicket({ ticketId: "t-inv" })]);
+    harness.setSessions("D:/ws/a", [liteSession()]);
+    try {
+      await flush();
+      const first = harness.bootstrap.provider();
+      expect(first).not.toBeNull();
+      expect(first?.workspaces.length).toBe(1);
+      // 同输入重读（工单事件高频 publish 的现实形态）：引用复用，不产新对象。
+      expect(harness.bootstrap.provider()).toBe(first);
+      expect(harness.bootstrap.provider()).toBe(first);
+    } finally {
+      harness.bootstrap.dispose();
+    }
+  });
+
+  it("工单行/会话 delta/off-peak 缓存任一变化 → 新引用；稳定后再次复用", async () => {
+    const harness = createBootstrapHarness();
+    harness.setTicketRows([freshTicket({ ticketId: "t-inv" })]);
+    harness.setSessions("D:/ws/a", [liteSession()]);
+    try {
+      await flush();
+      const first = harness.bootstrap.provider();
+      expect(first).not.toBeNull();
+
+      // 工单行变化（managed 基准随 status/sessionId 推导，指纹覆盖工单全集）。
+      harness.setTicketRows([
+        freshTicket({ ticketId: "t-inv" }),
+        freshTicket({ ticketId: "t-2", status: "queued", sessionId: "s9" }),
+      ]);
+      const afterTicket = harness.bootstrap.provider();
+      expect(afterTicket).not.toBe(first);
+      expect(harness.bootstrap.provider()).toBe(afterTicket);
+
+      // 会话 delta upsert（watcher 推送 → 订阅投影变化 → 指纹变化）。
+      harness.watchers[0]?.onDelta({ kind: "upserted", summary: liteSession({ sessionId: "s2" }) });
+      const afterDelta = harness.bootstrap.provider();
+      expect(afterDelta).not.toBe(afterTicket);
+      expect(harness.bootstrap.provider()).toBe(afterDelta);
+
+      // off-peak 缓存刷新落新行（tasks-index 变化回调的现实载体）。
+      harness.setMetas([
+        {
+          taskId: "op1",
+          title: "夜间回归",
+          workspacePath: "D:/ws/a",
+          updatedAtMs: 1000,
+          offPeakTaskId: "op1",
+        },
+      ]);
+      harness.bootstrap.refreshOffPeakCache();
+      await flush();
+      const afterOffpeak = harness.bootstrap.provider();
+      expect(afterOffpeak).not.toBe(afterDelta);
+      expect(harness.bootstrap.provider()).toBe(afterOffpeak);
+    } finally {
+      harness.bootstrap.dispose();
+    }
+  });
+
+  it("会话 Map 插序翻转（删后同内容重插、中间无读）不产生伪差异——引用复用", async () => {
+    const harness = createBootstrapHarness();
+    harness.setTicketRows([freshTicket({ ticketId: "t-inv" })]);
+    harness.setSessions("D:/ws/a", [liteSession(), liteSession({ sessionId: "s2" })]);
+    try {
+      await flush();
+      const first = harness.bootstrap.provider();
+      expect(first).not.toBeNull();
+      // 连续两个 delta（中间无 provider 读）：删 s1 → 同内容重插 s1，Map 插序翻转但
+      // 内容与上次读一致——指纹按 (订阅键, sessionId) 排序归一，不误判为变化。
+      harness.watchers[0]?.onDelta({ kind: "removed", sessionId: "s1" });
+      harness.watchers[0]?.onDelta({ kind: "upserted", summary: liteSession() });
+      expect(harness.bootstrap.provider()).toBe(first);
+    } finally {
+      harness.bootstrap.dispose();
     }
   });
 });

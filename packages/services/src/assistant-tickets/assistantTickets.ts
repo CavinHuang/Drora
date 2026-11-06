@@ -233,6 +233,33 @@ export interface AssistantQuotaView {
   }[];
 }
 
+// ---------------------------------------------------------------------------
+// P10a（10 号详设 §2.4）：对话流分页行——readMateThread 的行族。对话流=台账的消息投影
+// （零新状态所有者）：用户消息=trigger verbatim、决策卡/答复=decision（含 answer）、
+// 工单摘要行=ticket 终态行；trigger 与 decision 行同事务同刻，升序呈现按
+// trigger→decision→ticket 并列序（mateThread.ts 注释即排序语义出处）。
+// ---------------------------------------------------------------------------
+
+/** 工单终态摘要行（对话流内的一行——预览口径，完整信息走工单详情既有面）。 */
+export interface MateThreadTicketRow {
+  readonly ticketId: string;
+  /** brief 预览（ASSISTANT_SNAPSHOT_LIMITS.briefPreviewMax——与快照工单行同口径）。 */
+  readonly brief: string;
+  /** 终态（done/failed——非终态不进对话流，工单活动态走决策卡/工单区既有面）。 */
+  readonly status: string;
+  readonly targetWorkspaceIdentity: string | null;
+  readonly outputSummary: string | null;
+  readonly failReason: string | null;
+  /** 已归档代际数（+1=当前代序号；换代事件不逐条入流——摘要行如实标注「第 N 代」）。 */
+  readonly generationCount?: number;
+}
+
+/** 对话流分页行（readMateThread 返回；kind 判别联合）。 */
+export type MateThreadRow =
+  | { readonly kind: "trigger"; readonly atMs: number; readonly trigger: AssistantTriggerView }
+  | { readonly kind: "decision"; readonly atMs: number; readonly decision: AssistantDecisionView }
+  | { readonly kind: "ticket"; readonly atMs: number; readonly ticket: MateThreadTicketRow };
+
 export interface AssistantSnapshot {
   /** v2（2026-11-05，P2）：决策卡 Router 建议预填 + 工单写域/代际/锚/模式字段。
    * P2 审查修复追加 worktreeDisabled（W1 用户开关投影，仍属 v2 有界投影的增量字段）。
@@ -466,6 +493,29 @@ export interface IAssistantTicketService {
     } | null,
   ): Promise<AssistantResult<{ ok: true }>>;
   getConfig(): Promise<AssistantResult<AssistantConfigView>>;
+
+  /**
+   * P10a（10 号详设 §2.4）：对话流分页只读——SQL 合并 trigger+decision（含 answer）
+   * +ticket 终态行，按时间倒序取、**正序返回**（快照 triggersMax/decisionsMax 截断版
+   * 仍作首屏，上滑加载走本方法）。只读（单写者纪律；照 getConfig 先例开在 channel
+   * 面；快照不扩版本）。
+   * - workspaceKey：身份键过滤（trigger.workspace_identity / ticket
+   *   .target_workspace_identity；decision 随其 trigger 归属；缺省=全流）；
+   * - beforeMs：分页游标（严格 <；取上一页返回的 nextBeforeMs）；
+   * - limit：缺省 50、上界 200（MATE_THREAD_LIMITS 单出处；越界 validationFailed）；
+   * - 返回 rows 升序 + nextBeforeMs（null=无更早行）。分页界不切开同刻并列组
+   *   （trigger 与其 decision 同事务同刻）——补齐后页可略超 limit。
+   */
+  readMateThread(input: {
+    workspaceKey?: string;
+    limit?: number;
+    beforeMs?: number;
+  }): Promise<
+    AssistantResult<{
+      readonly rows: readonly MateThreadRow[];
+      readonly nextBeforeMs: number | null;
+    }>
+  >;
 
   /** 全量快照（拉取一次；后续经 onDidChange 推送）。 */
   getSnapshot(): Promise<AssistantSnapshot>;

@@ -413,9 +413,20 @@ export const ASSISTANT_SNAPSHOT_LIMITS = {
 } as const;
 
 /**
+ * P10a（10 号详设 §2.4）：readMateThread 对话流分页的缺省与上界（单出处——服务校验
+ * 与消费方同引；limit 越界拒绝不猜测收敛）。
+ */
+export const MATE_THREAD_LIMITS = {
+  /** 单页行数缺省（与快照 triggersMax 首屏口径同级）。 */
+  defaultPageSize: 50,
+  /** 单页行数上界（防无界拉取；同刻并列组补齐可略超——mateThread.ts 注释即语义出处）。 */
+  maxPageSize: 200,
+} as const;
+
+/**
  * P8 台账运行参数缺省（09 详设 §1.2/§1.3 v2 定案）：节流间隔 kv 可调（键
  * `inventory_refresh_interval_ms`，services ASSISTANT_KV_KEYS 单出处；坏/缺值回落
- * 本缺省），自举工单窗口为常量（判据语义钉死不 kv 化，照 watchdog 判据纪律）。
+ * 本缺省），自举工单时间窗为常量（判据语义钉死不 kv 化，照 watchdog 判据纪律）。
  */
 export const ASSISTANT_INVENTORY_DEFAULTS = {
   /** 刷新环路最小间隔（ms；30s——高频会话帧不放大 publish，尾沿补一拍保证收敛）。 */

@@ -54,6 +54,7 @@ import {
 import { createAssistantAutoDispatch } from "./autoDispatch.js";
 import { createAssistantQuotaService } from "./quotaCenterService.js";
 import { resolveAssistantDailyQuota } from "./quotaCenter.js";
+import { createMateThreadReader } from "./mateThread.js";
 import { getAssistantPorts } from "./assistantPorts.js";
 import { createAssistantRecordTrigger } from "./triggerRecord.js";
 import { createAssistantConfigActions } from "./configActions.js";
@@ -737,6 +738,10 @@ export function createAssistantTicketsService(
         throw error;
       }
     },
+
+    // P10a（10 号详设 §2.4）：对话流分页只读（实现拆 mateThread.ts——≤800 行纪律；
+    // 照 getConfig 同款 channel 面只读入口，快照不扩版本）。
+    readMateThread: createMateThreadReader({ db }),
 
     async getSnapshot() {
       // P4：与 publish 同参（配额闭包缓存值进投影；判定仍以 admitDisturbance 实时读为准）。

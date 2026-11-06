@@ -65,7 +65,42 @@ export function composeRoutingPreamble(): string {
     "evidence 至多 3 条且必须逐字引用候选卡原文；路由注（附加说明）≤30 词；拿不准一律 hold，禁止编造。",
     "attach 臂的 sessionId 只能取自候选卡【附着候选】清单；清单缺席、为空或均不合适 → hold，禁止编造 sessionId。",
     "候选卡【台账速览】段（若有）是大副账本的当前事实（活动/待决策/最近完成计数；P8 起含「全域 …」行=跨项目会话/teams/闲时任务概览）——查询意图的 scope 判定与 dispatch/attach 的目标佐证以它为准（attach 目标佐证不限于大副工单，但 sessionId 仍只能取自【附着候选】清单）；缺席时按原文判断，禁止臆测账本内容。",
-    "P7 查询直答（08 号详设；P8 扩 work scope）：进度/状态/成本/摘要类**查询意图**（不要求执行）→ {\"query_status\":{\"scope\":{\"kind\":\"status|ticket|usage|digest|work\",\"workspaceIdentity\":可选,\"ticketId\":可选},\"reason\":\"≤500字\"},\"evidence\":[…]}——系统会按你的 scope 直查账本作答，无需 worker。问「最近都在忙什么/各项目什么情况」等跨项目问题用 work（全域工作台账视角）。含「去做/去修/去查一下」等执行动词 → dispatch/attach；管理写意图（停止工单/切模式/换代）→ reject 并在 reason 引导到面板操作（你没有写工具，也永不该有）。",
+    "P7 查询直答（08 号详设；P8 扩 work；P10a 扩 chat）：进度/状态/成本/摘要类**查询意图**（不要求执行）→ {\"query_status\":{\"scope\":{\"kind\":\"status|ticket|usage|digest|work\",\"workspaceIdentity\":可选,\"ticketId\":可选},\"reason\":\"≤500字\"},\"evidence\":[…]}——系统会按你的 scope 直查账本作答，无需 worker。问「最近都在忙什么/各项目什么情况」等跨项目问题用 work（全域工作台账视角）。非四 scope 的读意图（闲聊/咨询/泛问题）→ {\"query_status\":{\"scope\":{\"kind\":\"chat\"},\"reason\":\"≤500字\"},\"evidence\":[…]}——系统会以你身份追加一轮自由作答。含「去做/去修/去查一下」等执行动词 → dispatch/attach；管理写意图（停止工单/切模式/换代）→ reject 并在 reason 引导到面板操作（你没有写工具，也永不该有）。",
+  ].join("\n");
+}
+
+// ---------------------------------------------------------------------------
+// P10a（10 号详设 §2.2）：Router 聊天轮输入组装——query_status scope kind="chat" 时
+// 评估循环改经 router port 聊天轮入口向**同一 Router 会话**追加自由作答轮。约言与候选
+// 卡轮/自主轮互扰防护：显式标记「本输入为聊天轮」（composeAutonomyPreamble 自主轮
+// 同款先例——同一会话内多类输入靠标记区分，不靠模型猜）。
+// ---------------------------------------------------------------------------
+
+/**
+ * 聊天轮约言（双脑禁令落点）：自由作答、无工具、不承诺执行、涉及工单操作只引导走
+ * 任务/面板；输出=自然语言 ≤800 字（host 只截断不解析——非 zod 五臂，无失败解析态）。
+ */
+export function composeChatTurnPreamble(): string {
+  return [
+    "你是「大副」（Drora Mate）。【本输入为聊天轮】——这不是候选卡，无需输出 JSON 决策；也不是自主评估。",
+    "你没有工具：不读写文件、不跑命令、不查账本系统；凭本会话已有上下文以自然语言自由作答。",
+    "回答 ≤800 字；不承诺执行任何操作——需要执行的事请引导用户走任务派发或大副面板。",
+    "涉及工单/会话操作（停止、换代、切换模式等）时，只说明可在面板完成，不要声称已做或将做。",
+  ].join("\n");
+}
+
+/** 聊天轮完整输入（约言 + 用户问题 verbatim；超 candidateBriefMax 截断并如实标注）。 */
+export function composeChatTurnInput(question: string): string {
+  const max = ASSISTANT_SNAPSHOT_LIMITS.candidateBriefMax;
+  const truncated = question.length > max;
+  const body = truncated ? `${question.slice(0, max)}…` : question;
+  return [
+    composeChatTurnPreamble(),
+    "【用户问题】（verbatim，未改写）：",
+    "---",
+    body,
+    "---",
+    `${truncated ? `（原文超 ${max} 字已截断；不得臆测截断内容。）\n` : ""}请按约言以自然语言回答（本输入为聊天轮）。`,
   ].join("\n");
 }
 

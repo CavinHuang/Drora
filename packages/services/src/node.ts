@@ -657,6 +657,7 @@ import {
   setAssistantAttachPort,
   setAssistantFrameSource,
   setAssistantRouterPort,
+  setAssistantRouterChatPort,
   setAssistantSessionsIndexPort,
   setAssistantWorkspaceProbePort,
   setAssistantGitWorktreePort,
@@ -3571,6 +3572,8 @@ export function createLocalServices(options: {
   // Router 端口（02 §1.1/§1.3）：assistant 虚拟 workspace 会话壳 + 轮转簿记（kv）+
   // 候选卡投递 → 事件驱动等该轮 assistantText complete 输出。无状态壳：路由约言随每张
   // 候选卡重发（服务侧 composeCandidateCard 已含），轮转即新建会话，无浓缩交接依赖。
+  // P10a（10 号详设 §2.2）：聊天轮端口共用本会话壳与串行化链（聊天轮不与评估重叠、
+  // 永不计入轮转计数——ticketsSinceRotation 只数候选卡轮）。
   const assistantRouterEvaluations = {
     chain: Promise.resolve() as Promise<unknown>,
   };
@@ -3628,6 +3631,97 @@ export function createLocalServices(options: {
     createServiceLogger("assistant-tickets").info("Router 会话轮转", { seq: nextSeq });
     return sessionId;
   }
+  // Router 单轮投递（候选卡轮/聊天轮共用件——P10a 10 号详设 §2.2 抽出；候选卡轮行为
+  // 逐行等价：订阅先于投递、双臂解除、ACK 后回调）。双臂解除（P2 审查修复）：此前只有
+  // assistantText complete 才 resolve——sendText ACK 成功但该轮 turn 失败（assistantText
+  // failed/interrupted，同族帧 ticketLedger 语义即解析这些状态）时 promise 永不 settle →
+  // 评估串行链永久挂起，后续所有决策卡停留「大副评估中」，违反 CONTRACT.md「评估失败
+  // →failed 诚实降级」不变式。失败臂是事件解除而非超时兜底：帧状态即事件信号，服务侧
+  // 按 {ok:false} 落 router_evaluation=failed（决策卡降级 Tier3 问人，不重试模型）。
+  // onAcked 在 sendText ACK 成功后同步回调（候选卡轮在此推进轮转计数——与抽出前
+  // 「ACK 成功即计数、不看 turn 结果」时序一致；聊天轮不传=永不计数）。
+  async function sendAssistantRouterTurn(input: {
+    sessionId: string;
+    text: string;
+    commandId: string;
+    onAcked?: () => void;
+  }): Promise<{ ok: true; output: string } | { ok: false; reason: string }> {
+    let settleOutput:
+      | ((result: { ok: true; output: string } | { ok: false; reason: string }) => void)
+      | null = null;
+    const outputPromise = new Promise<
+      { ok: true; output: string } | { ok: false; reason: string }
+    >((resolve) => {
+      settleOutput = resolve;
+    });
+    const disposable = droraAgentService.onDynamicConversationFrame({
+      workspacePath: getAssistantWorkspaceDir(),
+      workspaceIdentity: ASSISTANT_IDENTITY,
+    })((candidate) => {
+      // 防御式解析（对齐 ticketLedger 帧纪律）：assistantText 行 complete → 该轮输出；
+      // failed/interrupted → 失败臂（不重试模型，服务侧降级 Tier3）。
+      if (typeof candidate !== "object" || candidate === null) return;
+      const frame = candidate as {
+        topic?: unknown;
+        payload?: { kind?: unknown; deltas?: unknown };
+      };
+      if (frame.topic !== `conversation/${input.sessionId}` || frame.payload?.kind !== "deltas")
+        return;
+      if (!Array.isArray(frame.payload.deltas)) return;
+      for (const delta of frame.payload.deltas) {
+        if (typeof delta !== "object" || delta === null) continue;
+        const d = delta as {
+          op?: unknown;
+          row?: { kind?: unknown; state?: unknown; text?: unknown };
+        };
+        if (
+          (d.op === "row.appended" || d.op === "row.upserted") &&
+          typeof d.row === "object" &&
+          d.row !== null &&
+          d.row.kind === "assistantText"
+        ) {
+          if (d.row.state === "complete" && typeof d.row.text === "string") {
+            settleOutput?.({ ok: true as const, output: d.row.text });
+            return;
+          }
+          if (d.row.state === "failed" || d.row.state === "interrupted") {
+            settleOutput?.({
+              ok: false as const,
+              reason: `Router 该轮 turn ${d.row.state === "failed" ? "失败" : "被中断"}（assistantText ${d.row.state}）`,
+            });
+            return;
+          }
+        }
+      }
+    });
+    try {
+      await assistantSendV4({
+        hostPath: getAssistantWorkspaceDir(),
+        identity: ASSISTANT_IDENTITY,
+        envelope: createHostCommandEnvelope({
+          type: "sendText",
+          payload: { text: input.text, heldQueueDisposition: "keepQueueAndSend" },
+          sessionId: input.sessionId,
+          commandId: input.commandId,
+          clientId: "drora-mate",
+        }),
+      });
+      input.onAcked?.();
+      // 双臂等待：complete→输出；failed/interrupted→{ok:false}（评估落 failed 降级 Tier3）。
+      return await outputPromise;
+    } finally {
+      disposable.dispose();
+    }
+  }
+  // 串行化评估（同一 Router 会话轮转内 turn 不重叠；fire-and-forget 评估在服务侧并发
+  // 触发时按到达顺序排队，事件驱动完成、禁超时兜底）。P10a：聊天轮共用同一链。
+  function enqueueAssistantRouterTurn(
+    run: () => Promise<{ ok: true; output: string } | { ok: false; reason: string }>,
+  ): Promise<{ ok: true; output: string } | { ok: false; reason: string }> {
+    const chained = assistantRouterEvaluations.chain.then(run);
+    assistantRouterEvaluations.chain = chained.catch(() => undefined);
+    return chained;
+  }
   setAssistantRouterPort(async ({ card, countTowardsRotation }) => {
     // mate-home 目录唯一创建方（2026-11-06 审查 F5 修复）：Router/assistant 会话的
     // workspacePath=getAssistantWorkspaceDir()，此前全仓无 mkdir——CLI 会话目录不存在时
@@ -3636,102 +3730,54 @@ export function createLocalServices(options: {
     // 2026-11-06 二轮审查：改 fs/promises 异步 mkdir——本回调每次 Router 评估都会进入，
     // AGENTS「使用异步文件和网络 IO」纪律下不留同步事件循环阻塞（mkdirSync 已移除）。
     await mkdir(getAssistantWorkspaceDir(), { recursive: true });
-    // 串行化评估（同一 Router 会话轮转内 turn 不重叠；fire-and-forget 评估在服务侧并发
-    // 触发时按到达顺序排队，事件驱动完成、禁超时兜底）。
-    const run = assistantRouterEvaluations.chain.then(
-      async (): Promise<{ ok: true; output: string } | { ok: false; reason: string }> => {
-        try {
-          const sessionId = await ensureAssistantRouterSession();
-          const commandId = `router-eval-${randomUUID()}`;
-          // 双臂解除（P2 审查修复）：此前只有 assistantText complete 才 resolve——sendText
-          // ACK 成功但该轮 turn 失败（assistantText failed/interrupted，同族帧 ticketLedger
-          // 语义即解析这些状态）时 promise 永不 settle → 评估串行链永久挂起，后续所有
-          // 决策卡停留「大副评估中」，违反 CONTRACT.md「评估失败→failed 诚实降级」不变式。
-          // 失败臂是事件解除而非超时兜底：帧状态即事件信号，服务侧按 {ok:false} 落
-          // router_evaluation=failed（决策卡降级 Tier3 问人，不重试模型）。
-          let settleOutput:
-            | ((result: { ok: true; output: string } | { ok: false; reason: string }) => void)
-            | null = null;
-          const outputPromise = new Promise<
-            { ok: true; output: string } | { ok: false; reason: string }
-          >((resolve) => {
-            settleOutput = resolve;
-          });
-          const disposable = droraAgentService.onDynamicConversationFrame({
-            workspacePath: getAssistantWorkspaceDir(),
-            workspaceIdentity: ASSISTANT_IDENTITY,
-          })((candidate) => {
-            // 防御式解析（对齐 ticketLedger 帧纪律）：assistantText 行 complete → 该轮输出；
-            // failed/interrupted → 失败臂（不重试模型，服务侧降级 Tier3）。
-            if (typeof candidate !== "object" || candidate === null) return;
-            const frame = candidate as {
-              topic?: unknown;
-              payload?: { kind?: unknown; deltas?: unknown };
-            };
-            if (frame.topic !== `conversation/${sessionId}` || frame.payload?.kind !== "deltas")
-              return;
-            if (!Array.isArray(frame.payload.deltas)) return;
-            for (const delta of frame.payload.deltas) {
-              if (typeof delta !== "object" || delta === null) continue;
-              const d = delta as {
-                op?: unknown;
-                row?: { kind?: unknown; state?: unknown; text?: unknown };
-              };
-              if (
-                (d.op === "row.appended" || d.op === "row.upserted") &&
-                typeof d.row === "object" &&
-                d.row !== null &&
-                d.row.kind === "assistantText"
-              ) {
-                if (d.row.state === "complete" && typeof d.row.text === "string") {
-                  settleOutput?.({ ok: true as const, output: d.row.text });
-                  return;
-                }
-                if (d.row.state === "failed" || d.row.state === "interrupted") {
-                  settleOutput?.({
-                    ok: false as const,
-                    reason: `Router 该轮 turn ${d.row.state === "failed" ? "失败" : "被中断"}（assistantText ${d.row.state}）`,
-                  });
-                  return;
-                }
+    return enqueueAssistantRouterTurn(async () => {
+      try {
+        const sessionId = await ensureAssistantRouterSession();
+        return await sendAssistantRouterTurn({
+          sessionId,
+          text: card,
+          commandId: `router-eval-${randomUUID()}`,
+          // P9（09 详设 §2.1 v2）：ticketsSinceRotation 只数候选卡轮——自主轮是观察
+          // 不是工作，countTowardsRotation=false（autonomy.ts 传入）不推进计数；
+          // 缺省（候选卡评估链）照旧 +1（ACK 成功即计数，不看 turn 结果——抽出前时序）。
+          ...(countTowardsRotation !== false
+            ? {
+                onAcked: () => {
+                  const tickets =
+                    Number(assistantKvGet(ROUTER_KV_KEYS.ticketsSinceRotation) ?? "0") + 1;
+                  assistantKvSet(ROUTER_KV_KEYS.ticketsSinceRotation, String(tickets));
+                },
               }
-            }
-          });
-          try {
-            await assistantSendV4({
-              hostPath: getAssistantWorkspaceDir(),
-              identity: ASSISTANT_IDENTITY,
-              envelope: createHostCommandEnvelope({
-                type: "sendText",
-                payload: { text: card, heldQueueDisposition: "keepQueueAndSend" },
-                sessionId,
-                commandId,
-                clientId: "drora-mate",
-              }),
-            });
-            // P9（09 详设 §2.1 v2）：ticketsSinceRotation 只数候选卡轮——自主轮是观察
-            // 不是工作，countTowardsRotation=false（autonomy.ts 传入）不推进计数；
-            // 缺省（候选卡评估链）照旧 +1。
-            if (countTowardsRotation !== false) {
-              const tickets =
-                Number(assistantKvGet(ROUTER_KV_KEYS.ticketsSinceRotation) ?? "0") + 1;
-              assistantKvSet(ROUTER_KV_KEYS.ticketsSinceRotation, String(tickets));
-            }
-            // 双臂等待：complete→输出；failed/interrupted→{ok:false}（评估落 failed 降级 Tier3）。
-            return await outputPromise;
-          } finally {
-            disposable.dispose();
-          }
-        } catch (error) {
-          return {
-            ok: false as const,
-            reason: error instanceof Error ? error.message : String(error),
-          };
-        }
-      },
-    );
-    assistantRouterEvaluations.chain = run.catch(() => undefined);
-    return await run;
+            : {}),
+        });
+      } catch (error) {
+        return {
+          ok: false as const,
+          reason: error instanceof Error ? error.message : String(error),
+        };
+      }
+    });
+  });
+  // P10a（10 号详设 §2.2）：Router 聊天轮端口——同一 Router 会话追加自由作答轮（候选
+  // 卡端口同壳同链：聊天轮与评估共用串行化队列不重叠）；countTowardsRotation 恒 false
+  // =永不推进轮转计数（端口字段的显式声明，装配层不为其写计数）。
+  setAssistantRouterChatPort(async ({ text }) => {
+    await mkdir(getAssistantWorkspaceDir(), { recursive: true });
+    return enqueueAssistantRouterTurn(async () => {
+      try {
+        const sessionId = await ensureAssistantRouterSession();
+        return await sendAssistantRouterTurn({
+          sessionId,
+          text,
+          commandId: `router-chat-${randomUUID()}`,
+        });
+      } catch (error) {
+        return {
+          ok: false as const,
+          reason: error instanceof Error ? error.message : String(error),
+        };
+      }
+    });
   });
   // 会话索引端口（Tier2 候选/锚对账/生命周期+teamActivity 源）：按 (identity, hostPath)
   // 惰性订阅 sessions-index；快照/增量内存投影有界；reconcile 可用时锚对账走持久事实。

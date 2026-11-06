@@ -514,4 +514,7 @@ export type {
   AssistantWatchdogNoticeView,
   AssistantResult,
   AssistantServiceError,
+  // P10a（10 号详设 §2.4）：对话流分页行族（readMateThread 返回）。
+  MateThreadRow,
+  MateThreadTicketRow,
 } from "./assistant-tickets/assistantTickets.js";

@@ -16,6 +16,7 @@ import { parseRouterDecisionText } from "./routerDecision.js";
 import { composeLedgerDigest, composeQueryReply, type QueryReplyLocale } from "./queryReply.js";
 import {
   composeCandidateCard,
+  composeChatTurnInput,
   filterAttachCandidates,
   type RouterAttachCandidate,
 } from "./routerShell.js";
@@ -24,6 +25,18 @@ const logger = createServiceLogger("assistant-tickets");
 
 function nowMs(): number {
   return Date.now();
+}
+
+/**
+ * P10a（10 号详设 §2.2）：聊天轮答复截断——≤ASSISTANT_REPLY_LIMITS.replyTextMax code
+ * points，超界加省略号（与 queryReply.ts 的 cap 同式；聊天输出是自由文本，只截断
+ * 不解析——无 zod 失败态）。
+ */
+function capChatReplyText(text: string): string {
+  const chars = [...text];
+  return chars.length > ASSISTANT_REPLY_LIMITS.replyTextMax
+    ? `${chars.slice(0, ASSISTANT_REPLY_LIMITS.replyTextMax).join("")}…`
+    : text;
 }
 
 /**
@@ -134,43 +147,86 @@ export function createRouterEvaluation(deps: RouterEvaluationDeps): {
         ...(attachCandidates.length > 0 ? { attachCandidates } : {}),
       });
       const result = await router({ card: card.input });
-      // P7（08 号详设 §3.3）：query_status 臂 → host 确定性应答器直答——同事务落
-      // answer_text + decision 翻 outcome=status_replied（不建票、不派 worker、不进
-      // 决策卡集；answer 界 replyTextMax）。decision 配额计数在触发时已落，翻转不
-      // 回冲（decision 类永不抑制，统计偏差 ≤1 有界——contracts 注释即对账点）。
-      let queryReplyText: string | null = null;
-      const finalize: { state: "suggested" | "failed"; verdict?: string; error?: string } =
-        result.ok
-          ? (() => {
-              const parsed = parseRouterDecisionText(result.output);
-              if (parsed.ok && parsed.decision.kind === "query_status") {
-                const reply = composeQueryReply({
-                  scope: parsed.decision.arm.scope,
-                  raw: db.raw,
-                  localIdentity: deps.localIdentity,
-                  // P8b（09 §1.6）：work scope 读全域台账（与候选卡速览同视图）。
-                  inventory,
-                  ...(deps.replyLocale ? { locale: deps.replyLocale } : {}),
-                });
-                queryReplyText = reply.text.slice(0, ASSISTANT_REPLY_LIMITS.replyTextMax);
-              }
-              return parsed.ok
-                ? { state: "suggested" as const, verdict: JSON.stringify(parsed.decision) }
-                : { state: "failed" as const, error: parsed.reason };
-            })()
-          : { state: "failed" as const, error: result.reason };
+      // P7（08 号详设 §3.3）：query_status 臂 → host 直答——同事务落 answer_text +
+      // decision 翻 outcome=status_replied（不建票、不派 worker、不进决策卡集；answer
+      // 界 replyTextMax）。decision 配额计数在触发时已落，翻转不回冲（decision 类永不
+      // 抑制，统计偏差 ≤1 有界——contracts 注释即对账点）。reason_code 两态：
+      // - query_replied：确定性四 scope（status/ticket/usage/digest/work）——应答器
+      //   零 LLM 加工，答案与账本结构性恒一致；
+      // - chat_replied（P10a，10 号详设 §2.2）：scope kind="chat"——不走 composeQueryReply，
+      //   改调 router port 聊天轮入口（同一 Router 会话追加自由作答轮：互扰标记+
+      //   countTowardsRotation=false 不计轮转），输出仅截断 ≤800（无失败解析态）。
+      //   聊天轮通道缺席/失败=诚实降级 failed（决策卡降级 Tier3 问人，不猜答案不重试）。
+      let reply: { text: string; reasonCode: "query_replied" | "chat_replied" } | null = null;
+      // 既有臂（dispatch/attach/hold/reject/确定性 query）的落账保持**同步**路径（无额外
+      // 微任务跳——assistantP2Flows 评估时序既有锁定）；chat 臂是唯一含异步等待的分支
+      // （聊天轮通道）。
+      let finalize: { state: "suggested" | "failed"; verdict?: string; error?: string };
+      if (!result.ok) {
+        finalize = { state: "failed", error: result.reason };
+      } else {
+        const parsed = parseRouterDecisionText(result.output);
+        if (!parsed.ok) {
+          finalize = { state: "failed", error: parsed.reason };
+        } else if (
+          parsed.decision.kind === "query_status" &&
+          parsed.decision.arm.scope.kind === "chat"
+        ) {
+          const chatPort = getAssistantPorts().routerChat;
+          if (!chatPort) {
+            finalize = { state: "failed", error: "chat 通道未装配（聊天轮不可达）" };
+          } else {
+            const chatTurn = await chatPort({
+              text: composeChatTurnInput(input.trigger.text),
+              countTowardsRotation: false,
+            });
+            if (!chatTurn.ok) {
+              finalize = { state: "failed", error: `聊天轮失败：${chatTurn.reason}` };
+            } else {
+              reply = { text: capChatReplyText(chatTurn.output), reasonCode: "chat_replied" };
+              finalize = { state: "suggested", verdict: JSON.stringify(parsed.decision) };
+            }
+          }
+        } else {
+          if (
+            parsed.decision.kind === "query_status" &&
+            parsed.decision.arm.scope.kind !== "chat"
+          ) {
+            const composed = composeQueryReply({
+              // 正向条件收窄 kind（展开重建使字面量类型随分支收窄——应答器类型面
+              // 不收 chat 是有意防误用）。
+              scope: { ...parsed.decision.arm.scope, kind: parsed.decision.arm.scope.kind },
+              raw: db.raw,
+              localIdentity: deps.localIdentity,
+              // P8b（09 详设 §1.6）：work scope 读全域台账（与候选卡速览同视图）。
+              inventory,
+              ...(deps.replyLocale ? { locale: deps.replyLocale } : {}),
+            });
+            reply = {
+              text: composed.text.slice(0, ASSISTANT_REPLY_LIMITS.replyTextMax),
+              reasonCode: "query_replied",
+            };
+          }
+          finalize = { state: "suggested", verdict: JSON.stringify(parsed.decision) };
+        }
+      }
       db.transaction((raw: AssistantDatabaseRaw) => {
         raw
           .prepare(
             "UPDATE router_evaluation SET state = ?, verdict = ?, error = ?, answer_text = ?, decided_ms = ? WHERE decision_id = ? AND state = 'pending'",
           )
-          .run(finalize.state, finalize.verdict ?? null, finalize.error ?? null, queryReplyText, nowMs(), input.decisionId);
-        if (queryReplyText !== null) {
+          .run(finalize.state, finalize.verdict ?? null, finalize.error ?? null, reply?.text ?? null, nowMs(), input.decisionId);
+        if (reply !== null) {
           raw
             .prepare(
-              "UPDATE admission_decision SET outcome = ?, reason_code = 'query_replied' WHERE id = ? AND outcome = ?",
+              "UPDATE admission_decision SET outcome = ?, reason_code = ? WHERE id = ? AND outcome = ?",
             )
-            .run(ASSISTANT_OUTCOMES.statusReplied, input.decisionId, ASSISTANT_OUTCOMES.decisionCard);
+            .run(
+              ASSISTANT_OUTCOMES.statusReplied,
+              reply.reasonCode,
+              input.decisionId,
+              ASSISTANT_OUTCOMES.decisionCard,
+            );
         }
       });
       if (finalize.state === "suggested" && finalize.verdict && deps.onSuggested) {

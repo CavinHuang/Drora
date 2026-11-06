@@ -174,6 +174,8 @@
   "packages/services/src/drora-agent/resident-rows-range/contract.test.ts",
   "packages/services/src/drora-extensions/contract.test.ts",
   "packages/services/src/gen-ui/contract.test.ts",
+  "packages/services/test/assistantMateChat.test.ts",
+  "packages/services/test/assistantMateThread.test.ts",
   "packages/services/test/inputPredictionSwitch.test.ts",
   "packages/services/test/knowledgeJevAdapter.test.ts",
   "packages/services/test/knowledgeJevAssembly.test.ts",

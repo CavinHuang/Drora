@@ -337,6 +337,80 @@ function parseRouterSuggestion(
   }
 }
 
+/**
+ * trigger 表行（快照与 readMateThread 共用的 SELECT 列集；投影单出口防两读路径漂移）。
+ * type 别名（非 interface）：node:sqlite .all() 返回 Record<string, SQLOutputValue>[]，
+ * 匿名字面量形态才有隐式索引签名可直转（interface 会失重叠校验）。
+ */
+export type AssistantTriggerRowDb = {
+  id: string;
+  source_kind: string;
+  simulated_strength: string;
+  identity: string;
+  workspace_identity: string | null;
+  text: string;
+  at_ms: number;
+  channel_ref: string | null;
+  remote_session_id: string | null;
+};
+
+/** admission_decision JOIN trigger LEFT JOIN router_evaluation 行（同上共用列集）。 */
+export type AssistantDecisionRowDb = {
+  id: number;
+  trigger_id: string;
+  strength: string;
+  mode: string;
+  outcome: string;
+  decided_by: string;
+  decided_ms: number;
+  trigger_text: string;
+  trigger_source_kind: string | null;
+  router_state: string | null;
+  router_verdict: string | null;
+  router_error: string | null;
+  router_answer: string | null;
+};
+
+/** trigger 行 → 视图（P10a 起快照与对话流分页共用同一映射——单一投影口径）。 */
+export function assistantTriggerRowToView(row: AssistantTriggerRowDb): AssistantSnapshot["triggers"][number] {
+  return {
+    id: row.id,
+    sourceKind: row.source_kind,
+    strength: row.simulated_strength as AssistantSnapshot["triggers"][number]["strength"],
+    identity: row.identity,
+    text: row.text,
+    atMs: row.at_ms,
+    targetWorkspaceIdentity: row.workspace_identity,
+    channelRef: row.channel_ref,
+    remoteSessionId: row.remote_session_id,
+  };
+}
+
+/** decision 行 → 视图（P10a 起快照与对话流分页共用同一映射；answer 语义见 AssistantDecisionView）。 */
+export function assistantDecisionRowToView(row: AssistantDecisionRowDb): AssistantSnapshot["decisions"][number] {
+  const suggestion = parseRouterSuggestion(row.router_state, row.router_verdict);
+  return {
+    id: row.id,
+    triggerId: row.trigger_id,
+    strength: row.strength as AssistantSnapshot["decisions"][number]["strength"],
+    mode: row.mode as AssistantSnapshot["decisions"][number]["mode"],
+    outcome: row.outcome,
+    decidedBy: row.decided_by as AssistantSnapshot["decisions"][number]["decidedBy"],
+    decidedMs: row.decided_ms,
+    triggerText: row.trigger_text,
+    // P3 来源徽标载体（可选追加，旧库/旧行 NULL 合法缺席）。
+    ...(row.trigger_source_kind ? { sourceKind: row.trigger_source_kind } : {}),
+    ...(row.router_state
+      ? { routerState: row.router_state as "pending" | "suggested" | "failed" }
+      : {}),
+    ...(suggestion ? { routerSuggestion: suggestion } : {}),
+    ...(row.router_error ? { routerError: row.router_error } : {}),
+    // P7（08 号详设 §3.4）：查询直答文本（query_status 评估行携带；dismiss 后
+    // outcome=ignored 但 answer 保留——消费方按 outcome 过滤呈现，见 MateQueryReply）。
+    ...(row.router_answer ? { answer: row.router_answer } : {}),
+  };
+}
+
 export function buildAssistantSnapshot(
   raw: AssistantDatabaseRaw,
   config: AssistantConfigView,
@@ -355,28 +429,8 @@ export function buildAssistantSnapshot(
       .prepare(
         "SELECT id, source_kind, simulated_strength, identity, workspace_identity, text, at_ms, channel_ref, remote_session_id FROM trigger ORDER BY at_ms DESC LIMIT ?",
       )
-      .all(ASSISTANT_SNAPSHOT_LIMITS.triggersMax) as Array<{
-      id: string;
-      source_kind: string;
-      simulated_strength: string;
-      identity: string;
-      workspace_identity: string | null;
-      text: string;
-      at_ms: number;
-      channel_ref: string | null;
-      remote_session_id: string | null;
-    }>
-  ).map((row) => ({
-    id: row.id,
-    sourceKind: row.source_kind,
-    strength: row.simulated_strength as AssistantSnapshot["triggers"][number]["strength"],
-    identity: row.identity,
-    text: row.text,
-    atMs: row.at_ms,
-    targetWorkspaceIdentity: row.workspace_identity,
-    channelRef: row.channel_ref,
-    remoteSessionId: row.remote_session_id,
-  }));
+      .all(ASSISTANT_SNAPSHOT_LIMITS.triggersMax) as AssistantTriggerRowDb[]
+  ).map(assistantTriggerRowToView);
   const decisions = (
     raw
       .prepare(
@@ -389,44 +443,8 @@ export function buildAssistantSnapshot(
          LEFT JOIN router_evaluation r ON r.decision_id = d.id
          ORDER BY d.decided_ms DESC LIMIT ?`,
       )
-      .all(ASSISTANT_SNAPSHOT_LIMITS.decisionsMax) as Array<{
-      id: number;
-      trigger_id: string;
-      strength: string;
-      mode: string;
-      outcome: string;
-      decided_by: string;
-      decided_ms: number;
-      trigger_text: string;
-      trigger_source_kind: string | null;
-      router_state: string | null;
-      router_verdict: string | null;
-      router_error: string | null;
-      router_answer: string | null;
-    }>
-  ).map((row) => {
-    const suggestion = parseRouterSuggestion(row.router_state, row.router_verdict);
-    return {
-      id: row.id,
-      triggerId: row.trigger_id,
-      strength: row.strength as AssistantSnapshot["decisions"][number]["strength"],
-      mode: row.mode as AssistantSnapshot["decisions"][number]["mode"],
-      outcome: row.outcome,
-      decidedBy: row.decided_by as AssistantSnapshot["decisions"][number]["decidedBy"],
-      decidedMs: row.decided_ms,
-      triggerText: row.trigger_text,
-      // P3 来源徽标载体（可选追加，旧库/旧行 NULL 合法缺席）。
-      ...(row.trigger_source_kind ? { sourceKind: row.trigger_source_kind } : {}),
-      ...(row.router_state
-        ? { routerState: row.router_state as "pending" | "suggested" | "failed" }
-        : {}),
-      ...(suggestion ? { routerSuggestion: suggestion } : {}),
-      ...(row.router_error ? { routerError: row.router_error } : {}),
-      // P7（08 号详设 §3.4）：查询直答文本（query_status 评估行携带；dismiss 后
-      // outcome=ignored 但 answer 保留——消费方按 outcome 过滤呈现，见 MateQueryReply）。
-      ...(row.router_answer ? { answer: row.router_answer } : {}),
-    };
-  });
+      .all(ASSISTANT_SNAPSHOT_LIMITS.decisionsMax) as AssistantDecisionRowDb[]
+  ).map(assistantDecisionRowToView);
   // 投影基准时刻（trust/quota/分代时长共用一个时钟读数，避免同帧内时刻漂移）。
   const nowMs = Date.now();
   // P4 第二棒（04 详设 §3 按代成本）：本页工单的 usage_log 行一次查询（界 ticketsMax）。

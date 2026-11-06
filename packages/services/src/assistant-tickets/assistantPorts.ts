@@ -105,6 +105,22 @@ export type AssistantRouterPort = (input: {
   readonly countTowardsRotation?: boolean;
 }) => Promise<{ ok: true; output: string } | { ok: false; reason: string }>;
 
+/**
+ * P10a（10 号详设 §2.2）：Router 聊天轮端口——query_status scope kind="chat" 时
+ * 评估循环不走确定性应答器，改经本入口向**同一 Router 会话**追加「聊天轮」（自由
+ * 作答；非 zod 五臂解析）。与候选卡端口（AssistantRouterPort）共享装配层的会话壳
+ * 与串行化队列（node.ts——聊天轮不与评估重叠）；**聊天轮永不计入轮转计数**
+ * （ticketsSinceRotation 只数候选卡轮；countTowardsRotation 恒 false 字段是
+ * 「不计数」的显式声明——autonomy 自主轮同款先例）。未注入（旧装配）→ 评估循环
+ * 诚实降级 router_evaluation=failed（决策卡降级 Tier3 问人），不猜答案。
+ */
+export type AssistantRouterChatPort = (input: {
+  /** composeChatTurnInput 产出的完整输入（含「本输入为聊天轮」互扰标记与约言）。 */
+  readonly text: string;
+  /** 恒 false：聊天轮不计入 Router 轮转计数（装配层是计数唯一写者）。 */
+  readonly countTowardsRotation: false;
+}) => Promise<{ ok: true; output: string } | { ok: false; reason: string }>;
+
 // ---------------------------------------------------------------------------
 // 会话索引端口（Tier2 候选集 / 锚对账 / Mode B teamActivity / 生命周期事件；02 §2/§3/§5）
 // ---------------------------------------------------------------------------
@@ -224,6 +240,7 @@ let dispatchPort: AssistantDispatchPort | null = null;
 let attachPort: AssistantAttachPort | null = null;
 let frameSource: AssistantFrameSourcePort | null = null;
 let routerPort: AssistantRouterPort | null = null;
+let routerChatPort: AssistantRouterChatPort | null = null;
 let sessionsIndexPort: AssistantSessionsIndexPort | null = null;
 let workspaceProbePort: AssistantWorkspaceProbePort | null = null;
 let gitWorktreePort: AssistantGitWorktreePort | null = null;
@@ -245,6 +262,10 @@ export function setAssistantFrameSource(port: AssistantFrameSourcePort | null): 
 
 export function setAssistantRouterPort(port: AssistantRouterPort | null): void {
   routerPort = port;
+}
+
+export function setAssistantRouterChatPort(port: AssistantRouterChatPort | null): void {
+  routerChatPort = port;
 }
 
 export function setAssistantSessionsIndexPort(port: AssistantSessionsIndexPort | null): void {
@@ -277,6 +298,8 @@ export function getAssistantPorts(): {
   readonly attach: AssistantAttachPort | null;
   readonly frameSource: AssistantFrameSourcePort | null;
   readonly router: AssistantRouterPort | null;
+  /** P10a：Router 聊天轮入口（null=旧装配无聊天轮——消费方按 failed 诚实降级）。 */
+  readonly routerChat: AssistantRouterChatPort | null;
   readonly sessionsIndex: AssistantSessionsIndexPort | null;
   readonly workspaceProbe: AssistantWorkspaceProbePort | null;
   readonly gitWorktree: AssistantGitWorktreePort | null;
@@ -289,6 +312,7 @@ export function getAssistantPorts(): {
     attach: attachPort,
     frameSource,
     router: routerPort,
+    routerChat: routerChatPort,
     sessionsIndex: sessionsIndexPort,
     workspaceProbe: workspaceProbePort,
     gitWorktree: gitWorktreePort,

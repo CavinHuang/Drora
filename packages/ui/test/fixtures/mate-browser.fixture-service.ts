@@ -23,6 +23,10 @@ import {
 import type { AssistantMode } from "@drora/shared";
 import { createInventoryInjectFixture } from "./mate-browser.fixture-inventory.js";
 import {
+  createMateThreadFixture,
+  createQueryReplyInjectFixture,
+} from "./mate-browser.fixture-thread.js";
+import {
   AUTONOMY_FIXTURE_BRIEF,
   createAutonomyRhythmFixture,
   injectAutonomyCardFixture,
@@ -95,7 +99,8 @@ export function createMateFixtureService(
   // P8b 台账注入状态件拆 mate-browser.fixture-inventory.ts（≤800 行纪律）；P9 自主
   // 节奏状态件拆 mate-browser.fixture-autonomy.ts；P4 配额/打扰闸/watchdog 通知区
   // 状态件拆 mate-browser.fixture-quota.ts；信任门投影/auto-locked 拆
-  // mate-browser.fixture-trust.ts。缺席/就绪语义见各拆件文件头。
+  // mate-browser.fixture-trust.ts；P10a 对话流分页拆 mate-browser.fixture-thread.ts。
+  // 缺席/就绪语义见各拆件文件头。
   const autonomyRhythm = createAutonomyRhythmFixture(publish);
   const quotaFixture = createQuotaFixture({ publish, onAdmit });
   const trustFixture = createTrustGateFixture(publish);
@@ -302,32 +307,18 @@ export function createMateFixtureService(
   }
 
   // P7（08 号详设 §3.4）：注入 status_replied 查询直答（MSA14 验收消费——答复文本
-  // 即 MSA 断言锚；无工单产生）。
-  function injectQueryReply(text = "查询直答 fixture 答复"): number {
-    seq += 1;
-    const triggerId = `TR-${seq}`;
-    triggers.push({
-      id: triggerId,
-      sourceKind: "local",
-      strength: ASSISTANT_STRENGTHS.explicit,
-      identity: "fixture/user-a",
-      text,
-      atMs: Date.now(),
-      targetWorkspaceIdentity: tab.workspaceIdentity,
-    });
-    decisions.push({
-      id: seq,
-      triggerId,
-      outcome: "status_replied",
-      decidedBy: "gate",
-      triggerText: text,
-      decidedMs: Date.now(),
-      sourceKind: "local",
-      answer: `答复：ws-a 进行中 1（修复登录），最近完成 1；数据时刻 ${new Date().toLocaleTimeString("zh-CN")}`,
-    });
-    publish();
-    return seq;
-  }
+  // 即 MSA 断言锚；无工单产生）。实现迁 fixture-thread.ts（对话面状态件归拢——
+  // fixture-service ≤800 行纪律，语义不变）。
+  const injectQueryReply = createQueryReplyInjectFixture({
+    triggers,
+    decisions,
+    workspaceIdentity: tab.workspaceIdentity,
+    publish,
+    allocateSeq: () => {
+      seq += 1;
+      return seq;
+    },
+  });
 
   /**
    * P8b 台账注入（MSA15 验收消费；状态件拆 mate-browser.fixture-inventory.ts——
@@ -698,6 +689,10 @@ export function createMateFixtureService(
         },
       };
     },
+
+    // P10a（10 号详设 §2.4）：对话流分页只读——内存版语义件拆
+    // mate-browser.fixture-thread.ts（服务 SQL 读作的浏览器验收同构面）。
+    readMateThread: createMateThreadFixture({ triggers, decisions, tickets }),
 
     async getSnapshot() {
       return buildSnapshot();

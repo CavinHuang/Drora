@@ -52,14 +52,17 @@ const rejectArmSchema = z.object({ reason: z.string().trim().min(1).max(500) }).
  * P7 查询直答臂（08 号详设 §3.1）：进度/状态/成本/摘要类意图 → host 确定性应答器
  * 直答（不建票、不派 worker、不过 Mandate）。Router 只判意图与 scope；答案由 host
  * 从账本模板生成（零 LLM 加工——与账本结构性恒一致）。写意图（停止/切换）不在此臂
- * （约言引导 reject+面板指引）。P8b（09 详设 §1.6）：新增 "work" scope——全域工作
+ * （约言引导 reject+面板指引）。P8b（09 号详设 §1.6）：新增 "work" scope——全域工作
  * 台账视角（应答器读快照 inventory；缺席回落工单账并注明「仅工单视角」）。
+ * P10a（10 号详设 §2.2）：新增 "chat" scope kind（无参形态）——非四 scope 的读意图
+ * （闲聊/咨询/泛问题）判定臂；命中后评估循环不走 composeQueryReply，改调 router port
+ * 聊天轮入口（同一 Router 会话自由作答；互扰标记+不计轮转，routerEvaluation.ts 分流）。
  */
 const queryStatusArmSchema = z
   .object({
     scope: z
       .object({
-        kind: z.enum(["status", "ticket", "usage", "digest", "work"]),
+        kind: z.enum(["status", "ticket", "usage", "digest", "work", "chat"]),
         workspaceIdentity: z.string().trim().max(200).optional(),
         ticketId: z.string().trim().max(200).optional(),
       })
@@ -120,7 +123,8 @@ export type RouterDecision =
     };
 export interface RouterQueryStatusArm {
   readonly scope: {
-    readonly kind: "status" | "ticket" | "usage" | "digest" | "work";
+    /** P10a：含 "chat"（无参形态——workspaceIdentity/ticketId 对 chat 无意义，缺省不携带）。 */
+    readonly kind: "status" | "ticket" | "usage" | "digest" | "work" | "chat";
     readonly workspaceIdentity?: string;
     readonly ticketId?: string;
   };

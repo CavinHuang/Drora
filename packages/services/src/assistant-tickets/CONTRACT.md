@@ -160,6 +160,33 @@ ticket.channel_ref）；Thread 直通 Tier1。
   `rhythm?` 投影（设置区节奏区数据源；setter=setAutonomyEnabled/setAutonomyIntervalMinutes
   在 configActions）。验收=assistantAutonomy.test.ts（24 项）+cron fire-and-forget 3 项
   +petProjection 自主气泡差分 3 项+MSA16。
+- **P10a-1 对话管理台服务面（10 号详设 §2.2/§2.4；feat/drora-mate）**：query_status
+  scope 枚举扩 `"chat"`（无参形态；路由约言 routerShell 同步加判定指引）。评估循环
+  （routerEvaluation.ts）chat 臂**不走** composeQueryReply——改调 Router 聊天轮端口
+  （`setAssistantRouterChatPort`，assistantPorts Router 段新入口）：node.ts 装配与候选卡
+  评估**同一会话壳（ensureAssistantRouterSession）+同一串行化队列**
+  （assistantRouterEvaluations.chain——聊天轮不与评估重叠；单轮投递抽共用件
+  sendAssistantRouterTurn，候选卡轮行为逐行等价：ACK 后计数时序/双臂解除/帧防御式
+  解析不变）；聊天轮 `countTowardsRotation` 恒 false=永不推进 ticketsSinceRotation
+  （装配层不为其写计数）；输入=composeChatTurnInput（互扰标记「本输入为聊天轮」——
+  自主轮同款先例；约言：自由作答 ≤800/无工具/不承诺执行/工单操作只引导走任务面板）
+  +用户问题 verbatim（candidateBriefMax 截断如实标注）；输出仅截断 ≤800 code points
+  （ASSISTANT_REPLY_LIMITS 复用，无失败解析态）；answer 落 router_evaluation.answer_text
+  （query 臂同列）、decision outcome=status_replied 且 reason_code=`chat_replied`（与
+  确定性 query 的 query_replied 区分）；聊天轮通道缺席（旧装配）/失败=router_evaluation
+  failed+决策卡留 Tier3（不猜答案不重试）；既有臂（含确定性 query）落账保持同步路径
+  （评估时序既有锁定不回归）。`readMateThread({workspaceKey?, limit=50, beforeMs?})`：
+  channel 面只读（照 getConfig 先例；快照不扩版本）——mateThread.ts 三源 SQL 合并
+  （trigger/admission_decision JOIN router_evaluation（含 answer）/ticket 终态行 done/
+  failed，非终态不进流），倒序取、正序返回；同刻并列组按 trigger→decision→ticket
+  呈现序且**分页界不切分**（界刻补齐防并列残行被下一页 beforeMs 游标跳过；页可略超
+  limit）；trigger/decision 视图映射自 assistantSnapshot 上收共用
+  （assistantTriggerRowToView/assistantDecisionRowToView——单一投影口径不建第二读
+  路径）；limit 缺省/上界=MATE_THREAD_LIMITS（contracts 单出处，越界
+  validationFailed）。UI fixture 内存同构件=ui/test/fixtures/mate-browser.fixture-thread.ts
+  （P10a-2 对话管理台验收面）。验收=assistantMateChat.test.ts（7 项）+
+  assistantMateThread.test.ts（6 项），登记 scripts/drora-test-files.json（drora 并发
+  清单——生成器 glob 覆盖，重跑收敛）。
 - 端口纪律：本模块不 import drora-agent/git——v4 命令、会话索引、workspace 探测、
   git worktree、工件只读核验（P4 第二棒）、AppSettings 配额读（P4）八端口全在装配层
   （services/node.ts set*，assistantPorts.ts 唯一形状）；

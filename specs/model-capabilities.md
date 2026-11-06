@@ -409,24 +409,24 @@ agent 会话
 ### 14.2 协议形状（社区已验证实现 + 火山文档）
 
 - `POST {baseUrl}/api/v3/tts/unidirectional`（NDJSON 流式）
-- Headers：复合模式 = `X-Api-App-Key`、`X-Api-Access-Key`、`X-Api-Resource-Id`、`X-Api-Request-Id`（uuid）。**头名勘误（2026-11-06，curl 预检探针三发实证）**：§14 初版把 App 侧头名误作 `X-Api-App-Id`——官方文档与火山 CORS 预检白名单均为 `X-Api-App-Key`，错名不在白名单导致复合模式 renderer 直连自始不可用（预检 403 形态的 `Request header field ... is not allowed`）；已改对，复合模式浏览器直连预检通过（`X-Api-App-Key`/`X-Api-Access-Key` 均在白名单，实测）。**新版控制台单 Key 形态（§15 批次补，2026-11-05 官方文档核实）**：新版语音控制台（`console.volcengine.com/speech/new`）鉴权改为单 API Key——发 `X-Api-Key` 头；**该头不在火山 CORS 白名单（实测），renderer 直连不可用且浏览器侧无替身头（Authorization 各形态探针均 `app key not found`）——backlog：桌面主进程出站代理（转发不受 CORS 约束）另行立项**；在此之前新版单 Key 用户请改用旧版复合形态。适配器按卡 Key 形态自动分派：含冒号 = 旧版复合（双头）；无冒号 = 新版单 Key（`X-Api-Key`）。`X-Api-Resource-Id` 两形态均必带。
+- Headers：`X-Api-Key`（新版控制台单 API Key）、`X-Api-Resource-Id`、`X-Api-Request-Id`（uuid）、`Content-Type`。**头名勘误存档（2026-11-06，curl 预检探针三发实证）**：§14 初版支持的旧版复合模式把 App 侧头名误作 `X-Api-App-Id`——官方文档与火山 CORS 预检白名单均为 `X-Api-App-Key`，错名不在白名单导致复合模式 renderer 直连自始不可用（预检 403 形态的 `Request header field ... is not allowed`）；曾改对为 `X-Api-App-Key`，**复合模式随后整体移除（§15.9 用户裁定），本勘误仅存档**。**单 Key 形态（唯一支持形态，2026-11-05 官方文档核实）**：新版语音控制台（`console.volcengine.com/speech/new`）鉴权为单 API Key——发 `X-Api-Key` 头；该头不在火山 CORS 白名单（实测）且浏览器侧无替身头（Authorization 各形态探针均 `app key not found`）——已按 §15.8 用户裁定「代理根治」由桌面主进程出站代理解决。
 - Body：`{user: {uid}, req_params: {text, speaker, audio_params: {format: "mp3", sample_rate: 24000, speech_rate, loudness_rate}}}`
 - 响应逐行 JSON：`{code, message, data?}`——code 0 且 data = base64 音频分片；code 20000000 = 合成结束；其他非零 = 错误
 - 资源 ID 推断：speaker 含 `uranus` → `seed-tts-2.0`；`S_` 前缀 → `seed-icl-1.0`；其余（含 `moon_bigtts`）→ `seed-tts-1.0`
-- 凭据双形态（§15 审查勘误，单 Key 支持落地后本行由「需要双值」勘误）：供应商卡 API Key = 旧版 `AppID:Access Token`（冒号分隔）或新版控制台单 API Key
+- 凭据（§15.9 裁剪后唯一形态）：供应商卡 API Key = 新版控制台单 API Key；旧版 `AppID:Access Token` 复合形态**不再支持**（裁定见 §15.9）
 
 ### 14.3 适配实现（renderer cloudTtsAdapter）
 
 - 识别：baseUrl host = `openspeech.bytedance.com` → 火山分支（其余走既有 OpenAI 形状，零变化）
 - 请求：`{model}` 字段（能力条目「播报模型」）映射 speaker；`speed` 乘数 0.25–4 → 火山 `speech_rate` [-50,100]（`(rate-1)*100` 取整钳制）；`voice`（厂商音色）火山侧不用（音色即 speaker）
 - 响应：逐行 JSON 解析 → base64 分片拼接 → Blob(mp3) → playBlob（打断/连败回落语义零变化）
-- 错误：非 2xx HTTP / 链接期 code 非零 / 无音频分片 → 单句 error（回落计数照旧）；apiKey 为空串 → fail-closed（无出站）；形如 `AppID:Access Token` 复合 → 旧版双头，纯单值 → 新版 `X-Api-Key`
+- 错误：非 2xx HTTP / 链接期 code 非零 / 无音频分片 → 单句 error（回落计数照旧）；apiKey 为空串 → fail-closed（无出站）；凭据恒以 `X-Api-Key` 单头发送（§15.9 裁剪后无形态分派）
 - 隐私边界不变：日志零 apiKey/零合成文本
 
 ### 14.4 验收
 
-- 单测：请求形状（headers/body 断言）、NDJSON 解析（分片拼接/结束标记/错误码）、复合凭据解析、资源 ID 推断、既有 OpenAI 路径回归
-- 实机：火山引擎开通豆包语音合成大模型 → 供应商卡（baseUrl=openspeech.bytedance.com、API Key=AppID:Access Token）→ 语音合成选卡 + 播报模型 `zh_female_wanwanxiaohe_moon_bigtts` → 播报出声
+- 单测：请求形状（headers/body 断言）、NDJSON 解析（分片拼接/结束标记/错误码）、凭据 fail-closed（空白零出站）、资源 ID 推断、既有 OpenAI 路径回归
+- 实机：火山引擎新版语音控制台开通豆包语音合成大模型 → 供应商卡（baseUrl=openspeech.bytedance.com、API Key=新版单 API Key）→ 语音合成选卡 + 播报模型 `zh_female_wanwanxiaohe_moon_bigtts` → 播报出声
 
 ## 15. 语音供应商模板与试听（2026-11-05，用户裁定「照抄社区成熟做法」）
 
@@ -451,7 +451,7 @@ UI 本地静态注册表（`packages/ui/src/settings/model-capabilities/voiceVen
 ### 15.3 表单形态（asr/tts 共用 VoiceVendorProviderRow）
 
 - **语音供应商行**：下拉 = 内置模板（标注「已连接/未配置 Key」，host 反查现有卡；优先复用当前 providerRef 卡）+ 分隔 + 自定义卡区。选中模板且无命中卡 → 程序化建卡 `createPersonalProvider({ providerName: 本地化名, initialConfig: { access: { type: "api-key" }, api: { type: "openai-chat-completions", baseUrl: canonical } } })`（LoginApiKeyForm 先例；api.type 与 §13 迁移建卡同款，出站链路不消费该字段），随后条目 providerRef 指向新卡。空态「去新建供应商」按钮路径随之消失。
-- **API Key 行**（内联）：复用 ApiKeyRow 语义（留空保存即删除）；onSave → `persistProviderApiKey`（`provider_config.json` 单点，§13 禁令不破）。火山卡凭据形态提示：`AppID:Access Token`（旧版）或新版单 API Key。
+- **API Key 行**（内联）：复用 ApiKeyRow 语义（留空保存即删除）；onSave → `persistProviderApiKey`（`provider_config.json` 单点，§13 禁令不破）。火山卡凭据形态提示：新版控制台单 API Key（§15.9 裁剪后唯一形态）。
 - **音色/模型行按厂商变形**（LobeChat 同构）：火山 = 单行「音色」Select（写 `modelId`——火山协议 speaker 即音色；预设外已填 id（如复刻 S\_ 系）以「保留当前」项呈现不丢失）；其余内置厂商 = 「播报模型」Select（`models` 预设）+「音色」Select（`voices` 预设），均带「保留当前」兜底（预设外存量值不丢失）；无音色预设的厂商（ElevenLabs）音色行退自由文本；自定义端点卡 = 双行自由文本 + 通用 OpenAI 兼容预设 datalist。厂商切换不改写另一形态的存量字段（未用字段无害）。
 - **试听按钮**（仅 tts）：固定句「你好，这是 Drora 的语音播报试听。」走当前表单态 `synthesizeOnce` 合成并直接播放；`modelId` 空则禁用；合成中禁用+spinner；失败 toast（试听失败：\<适配器错误消息\>，含厂商 status/凭据形态提示），成功 toast。**fail-visible：把 §9.6.5-3 静默回落从「播报期无感」变为「配置期可感知」，不改变播报回落逻辑本身**。ASR 无试听（需麦克风录制，backlog）。
 - **ASR 连接重解析与模型预设按厂商**（同批次补）：①听写入口连接解析订阅 `providerSettingsService.onDidChange`——卡上 Key 变化（内联粘贴/清空/他窗修改）即时重解析，值等价保持旧引用防无谓重渲染；对齐 TTS 的懒解析语义（原实现只挂条目依赖，Key 变化后入口以旧态出站或误回落 webSpeech）；②注册表增 `asrModels` 字段（SiliconFlow=SenseVoiceSmall/TeleSpeechASR，火山恒空），ASR 模型行预设按命中厂商给值，自定义端点出通用 OpenAI 兼容预设（whisper-1/gpt-4o-transcribe/SenseVoiceSmall）。
@@ -460,7 +460,7 @@ UI 本地静态注册表（`packages/ui/src/settings/model-capabilities/voiceVen
 
 - `synthesizeOnce(config, text, opts?: { voice?, rate?, fetch?, signal? })`（§15 审查勘误：补 rate/signal 两参）：按 `isVolcanoTtsEndpoint` 分派火山分支 / 抽出的 OpenAI 分支；失败 throw（消息含厂商返回 status/code，供 toast 直显；不含 apiKey/合成文本——隐私边界不变）。
 - `playTtsBlob`：原 `defaultPlayBlob` 闭包提升为模块导出（实现不变）；`deps.playBlob` 注入点兼容。
-- 火山单 Key：`parseVolcanoCredentials` 双形态（冒号分隔 = 旧版复合；单值 = 新版），空串仍 null（fail-closed）。
+- 火山单 Key：`parseVolcanoCredentials` 双形态（冒号分隔 = 旧版复合；单值 = 新版），空串仍 null（fail-closed）。**§15.9 勘误：该函数及双形态已随复合模式移除删除，凭据恒单 Key（`X-Api-Key` 单头）+ 空白 fail-closed，无分派**。
 
 ### 15.5 验收
 
@@ -489,6 +489,123 @@ UI 本地静态注册表（`packages/ui/src/settings/model-capabilities/voiceVen
 - **试听失败细节**：`synthesizeOpenAiCompatible` 非 2xx 分支读响应文本（截 500 字符），JSON 解析成功则提取 `error.message ?? message ?? error` 拼入 `cloud tts request rejected: <status>`，解析失败回退纯 status；零日志、消息不含 apiKey/Authorization（隐私边界不变）。
 - **保留当前回显**：TtsCapabilityForm 三处 Select（火山音色/SF 播报模型/SF 音色）的存量值 SelectItem 文本改裸 id（触发器回显真实值），外包「保留的当前值」分组标签（新键 `settings.modelCapability.vendor.keepCurrentGroup` 双语同批；旧键 `vendor.keepCurrent` 确认零消费后删除）。
 - **连接解析竞态**：两处同型双路应用加 `ProviderSettingsView.revision` 防护（对齐 commitView 写法）——仅接受 revision ≥ 已应用最大值，同 revision 幂等放行、值等价保旧引用，effect 换代重置 ref；晚到的旧 getView 响应不回写已更新连接（回归用例：onDidChange 先推 revision 2 再放行晚到的 revision 1 响应，入口不复活）。
-- **火山凭据提示**：双语提示补两个控制台入口——旧版 `console.volcengine.com/speech/app` 填 `AppID:Access Token`（冒号分隔），新版 `console.volcengine.com/speech/new` 填单个 API Key。
+- **火山凭据提示**：双语提示补控制台入口（§15.9 裁剪后收敛为单一入口——新版 `console.volcengine.com/speech/new` 填单个 API Key；旧版 `speech/app` 句已随复合模式移除删除）。
 - **knip 失效 tag×2**：`cloudTtsAdapter.ts`（`CloudTtsFetch`）与 `voicePersonas.ts`（`VoicePersonaPreset`）导出文档注释中的 `@lintignore` 删除——两类型均已真实消费，knip 复核两条 Unused tag 消失。
   门禁（修复员实跑）：`test:drora` 相关三套全绿（cloudTtsAdapter 22/22、voice 入口+wiring 32/32、model-capabilities 35/35）；typecheck / lint 0 errors；knip 两条 Unused tag 清除。
+
+### 15.8 CORS 根治：桌面主进程厂商出站代理 + 复合头名修复（2026-11-06，用户裁定「代理根治」）
+
+#### 背景
+
+§15.6 试听修复批后用户实测火山试听仍报错：desktop renderer（dev origin `http://localhost:5174`，打包后 `file://` 同理）直连 `https://openspeech.bytedance.com/api/v3/tts/unidirectional` 被 Chromium CORS 预检拒绝——`Request header field x-api-key is not allowed by Access-Control-Allow-Headers in preflight response`。
+
+#### 根因证据（2026-11-06 curl 实测，五探针矩阵）
+
+火山端点预检响应的 `Access-Control-Allow-Headers` 白名单（实测原文）：
+
+```
+DNT,X-Mx-ReqToken,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,
+Content-Type,Authorization,X-Api-App-Key,X-Api-Access-Key,X-Api-Request-Id,X-Api-Resource-Id,X-Api-Sequence
+```
+
+| 我方发送头 | 服务端解析？（假凭据探针） | 在 CORS 白名单？ | 结论 |
+| --- | --- | --- | --- |
+| `X-Api-Key`（§14.2 单 Key 模式） | 是（`45000010 Invalid X-Api-Key`） | **否** | 预检死，浏览器侧无替身头（`Authorization` 各形态探针均 `app key not found`） |
+| `X-Api-App-Id`（§14.2 复合模式旧头名） | 是（进入 grant 查询） | **否** | 预检死；且头名本身是 bug（§14.2 勘误，白名单与官方文档均为 `X-Api-App-Key`） |
+| `X-Api-App-Key`+`X-Api-Access-Key` | 是（`401 grant not found` = 进入正常鉴权流） | **是** | 复合模式改用此对即可浏览器直连通过预检（**复合模式已随 §15.9 用户裁定整体移除，两行仅存档**） |
+
+结论：**单 API Key 只有 `X-Api-Key` 一个鉴权槽位且被火山 CORS 政策永久堵死**（服务端不认 `Authorization` 承载单 Key），浏览器 renderer 直连单 Key 形态不可修复；复合形态浏览器直连可行（头名勘误后）。
+
+#### 裁定与设计（用户选「代理根治」：头名小改立刻做 + 桌面主进程代理）
+
+允许出站 host 白名单单一出处：`packages/shared/src/contracts/voice.ts` `VOICE_VENDOR_PROXY_ALLOWED_HOSTS`（当前仅火山 `VOICE_VENDOR_HOST_VOLCANO`）；`cloudTtsAdapter.isVolcanoTtsEndpoint` 与 `voiceVendorRegistry` 火山 `matchHost` 均引用该命名常量（契约键单一出处）。未来厂商撞 CORS = 白名单加一项，renderer/main 两端自动生效。
+
+事件顺序与所有者：
+
+```
+renderer (ui voiceVendorFetch 工厂)
+  │ url host ∈ 白名单 且 platform.voiceVendorProxyFetch 存在（桌面）？
+  │ ├─ 否 → 直连 fetch（现状路径，OpenAI 兼容族/非桌面不变）
+  │ └─ 是 → ipcRenderer.invoke(VoiceVendorProxyFetch, {url, headers, body})
+  │           │（AbortSignal 不跨 IPC：renderer race 调用方 signal，main 另有硬超时/上限）
+  │           ▼
+  │ desktop main（唯一所有者）：zod 校验载荷 → host 白名单 fail-closed → header 键过滤
+  │   → net.fetch（60s 超时 + 响应 24MiB 上限）→ {ok, status, contentType, bodyBase64}
+  │           ▼
+  │ renderer 还原 ResponseLike（text=utf8 解码 / blob=bytes+contentType）→ 适配器零改动消费
+  ▼
+播放/试听链路不变（planner 排队、回落计数、toast 语义均不动）
+```
+
+- 通道：`PlatformChannels.VoiceVendorProxyFetch`（`drora:voice-vendor-proxy-fetch`）；载荷契约 `VoiceVendorProxyFetchRequest/Response` 与 zod schema 同在 `contracts/voice.ts`。body 走 JSON 文本、响应统一 base64（NDJSON 文本与 mp3 二进制都二进制安全）。
+- `IPlatformService.voiceVendorProxyFetch?` 可选（Web/手机不实现，直连回退——浏览器 CORS 面现状不变，服务端代理 backlog）。
+- main 侧硬边界：method 恒 POST、URL 必须 https 且 host ∈ 白名单、header 键仅 `content-type/authorization/x-api-*`、请求体 ≤ 64Ki 字符（zod `max` 按字符计，CJK JSON 至多 ~192KiB UTF-8 字节——TTS 句级载荷远小于闸，语义从宽）、响应 ≤ 24MiB（base64 字符）、60s 超时；校验失败 throw（renderer 还原为网络异常语义，经 IPC 错误剥壳不外泄通道名）。
+- ASR 不入代理 v1：ASR 上传是 multipart FormData（二进制流），且其厂商族（OpenAI/Groq/SiliconFlow）CORS 友好现状可用；火山 ASR 是另一条产品线协议（§15.2 恒空）。
+- 头名修复（独立 bug，与代理正交）：`synthesizeVolcano` 复合模式 `X-Api-App-Id` → `X-Api-App-Key`（证据见上表与官方文档）；代理与直连两路径均受益。**§15.9 注记：复合模式已整体移除，本项修复仅存档。**
+- 施工冲突注记：本批实施期间并行修复会话（§15.7 收口方）在同一共享树写入，其 spec 将代理记为 backlog——以本节用户裁定为准回改（上文 §14.2）；其头名修复与头名勘误记录与本批一致，予以保留。
+
+#### 验收
+
+- 单测：复合头名断言更新（`X-Api-App-Key`。**§15.9 注记：现为「复合头必须不存在」的防回归断言**）；`voiceVendorFetch` 路由矩阵（白名单+桌面→代理、非白名单/无方法→直连、signal race、ResponseLike 还原）；main handler 纯逻辑（校验拒绝面、白名单、header 过滤、base64 还原）。
+- 实机（用户）：新版单 API Key 火山卡试听出声；播报链路同样出声（复合模式已随 §15.9 移除，不再验收）。
+
+### 15.9 旧版复合凭据模式移除（2026-11-06，用户裁定「不需要兼容旧的模式：AppID:Access Token 我们没有这种，所有的这种相关的代码都要清除」）
+
+- **裁定**：火山凭据只支持新版控制台单 API Key（`X-Api-Key` 单头）；旧版 `AppID:Access Token` 复合形态（含冒号分派、`X-Api-App-Key`+`X-Api-Access-Key` 双头）属**有意裁剪**（用户确认手头无旧版凭据，双形态分支为无用复杂度）。背景：复合模式的浏览器直连价值已被 §15.8 桌面代理取代（单 Key 经代理出站），复合形态不再有任何可达收益。
+- **清除面**：`cloudTtsAdapter` 删 `VolcanoCredential` 类型/`parseVolcanoCredentials` 冒号分派/复合双头分支（恒 `X-Api-Key` 单头 + 空白 fail-closed）；测试 VOLCANO_CONFIG 改单 Key、复合用例改单形态断言；i18n 双语提示删旧版控制台句（收敛为单一入口）；§14.2/§14.3/§14.4/§15.3/§15.7 同步收敛，头名勘误（`X-Api-App-Id`→`X-Api-App-Key`）仅存档不回滚记录。
+- **不做**：冒号 Key 的容错提示（持旧版复合串的用户会收到厂商鉴权错误，由 fail-visible toast 自然暴露）；不需要迁移逻辑（无存量用户——功能未发行）。
+- 验收：单测全绿（请求形状断言 `X-Api-Key`、空白 fail-closed）；i18n 双语只剩单 Key 提示。
+
+## 16. 火山真流式播报：代理通道 chunk 化 + Web Audio 渐进播放（2026-11-06 立项，用户裁定「直接立项 B」）
+
+### 16.1 背景与裁定
+
+§15.8 代理落地后播报链路仍是「整流收集再播」（specs/voice-agent-integration.md §9.6.5 v1 整段 HTTP 批量）：长句首音延迟 = 整句合成时间（火山数秒）。业界三级形态（整段批量/分句流水线/端内真流式）中用户裁定直接立项**端内真流式**：合成服务边生成边吐音频分片，客户端边收边解码边播，首音延迟降至首个音频分片到达（~300-800ms）。范围裁定：**流式只做播报腿**（火山白名单代理路径）；试听腿保持整段（fail-visible + 30s 超时语义不变）；OpenAI 兼容族直连路径保持整段（body 无分片边界且 CORS 友好，价值低）；planner 句级排队/打断/权限段插入逻辑**零变化**（流式发生在句内合成-播放层）；§4.1「只播轮尾终态」裁决不动。
+
+### 16.2 协议形状（契约单一出处 contracts/voice.ts + channels.ts）
+
+三通道形态（对齐既有 UpdateReady 等推流先例，不用 MessagePort）：
+
+- `VoiceVendorProxyStreamStart`（invoke，renderer → main）：载荷 = 既有 `VoiceVendorProxyFetchRequest`；返回 `{streamId}`。main 校验同 §15.8（白名单/https/header 过滤/上限），发起 `net.fetch` 并**逐行读 body**：每收一行 NDJSON（`{code, data(base64)}`）立即 `webContents.send(Chunk)` 推帧，不攒整流。
+- `VoiceVendorProxyStreamChunk`（main → renderer 事件帧）：`{streamId, seq, kind: "data" | "done" | "error", base64Chunk?, status?, errorMessage?}`。`data` = 音频 base64 分片（NDJSON `data` 字段原样转发）；`done` = 合成结束（收到 `code 20000000` 或流 EOF）；`error` = 非 2xx（先收 header 判定，错误体预算式读取 ≤2048 字节、截 500 字符回传 `status + errorMessage`）/ 网络异常 / 上限违反（沿用 §15.8 64Ki 字符与 24MiB、60s 硬闸）/ main 校验失败。
+- `VoiceVendorProxyStreamAbort`（invoke，renderer → main）：`{streamId}` → main abort 该请求并从 GC 表摘除。
+- streamId 生命周期与 GC：main 侧 `Map<streamId, {abortController, terminalSent, seq}>`（terminal 帧发送后摘除，abort/超时经 abortController 收尾）；done/error 帧发送后摘除；abort 摘除；60s 超时摘除。renderer 侧 seq 单调校验（乱序/断号 fail-closed 按句 error）。
+
+事件顺序与所有者：
+
+```
+planner(不变)            cloudTtsAdapter(句内)            desktop main                    火山
+  │ speak(句N)             │ invoke(StreamStart)             │ 校验+net.fetch(POST)          │
+  │                        │ ◀─ {streamId} ─────────────────│ ──── NDJSON 请求 ────────────▶│
+  │                        │ ◀═ Chunk{data,b64片} ══════════│ ◀═ NDJSON 行(base64) ════════│
+  │                        │   帧缓冲→攒批(~250ms)→decodeAudioData→schedule 播│ ◀═ 行 ═══════│
+  │                        │ ◀═ Chunk{done} ════════════════│（EOF 即推 done，摘 GC 表）     │
+  │ ◀ onDone(end) ─────────│   末节点 onended → settle("end")│                              │
+  │ speak(句N+1) …          │ interrupt: Abort invoke + stop 全部 source + close ctx          │
+```
+
+### 16.3 播放器（ui/voice 新增，与整段路径并存）
+
+- `voiceStreamingPlayback.ts`：注入式 deps（`createContext`/`decodeAudio`/`minBatchBytes` 可 fake，jsdom 可测）；分片 → base64→bytes → **mp3 帧边界缓冲**（跨片累积 + 帧头 `0xFFEx` 同步扫描 + 帧长切分——不做火山分片对齐假设，不对齐也能播）→ 攒够 ~250ms 等价字节再 `decodeAudioData` → `AudioBufferSourceNode` 链顺序 schedule（`nextStartTime` 单调推进）；interrupt = stop 全部已 schedule 节点 + close context + 上游 Abort。
+- `cloudTtsAdapter` 火山分支：平台提供流式通道且 host ∈ 白名单 → 流式路径（`synthesizeVolcanoStreaming`）；否则回退整段（Web/手机/通道缺席零变化）。两路径共用回落计数/取消/cancel 全停语义；流式失败结算：**error 帧/上游失败在从未播出任何音频时 = 单句 error（回落计数照旧）；已播出后失败宽容播完已收部分（"end"，镜像整段截断宽容）；seq 断号恒硬失败（"error"，不归零回落计数）**。
+- 试听腿 `synthesizeOnce` 零变化。
+
+### 16.4 改造面清单
+
+| 层 | 文件 | 内容 |
+| --- | --- | --- |
+| shared | contracts/voice.ts | 流式帧/Start/Abort 载荷类型 + zod schema + 流式 limits 常量 |
+| shared | channels.ts | 三通道 + PlatformChannelMap 映射 |
+| desktop main | voiceVendorProxy.ts（扩展） | 流式 handler（逐行推帧/GC 表/abort）；纯逻辑核心可注入测试 |
+| desktop main | desktopMainIpcPlatform.ts | 三通道注册（chunk 通道 webContents.send 需 sender webContents） |
+| desktop | preload/index.ts + globals.d.ts + desktopPlatform.ts | 桥方法与类型 |
+| ui | voiceStreamingPlayback.ts（新） | mp3 帧缓冲 + Web Audio 渐进播放器 |
+| ui | cloudTtsAdapter.ts | 火山分支流式路径 + 回退整段 |
+| ui | useVoiceAnnouncement.ts | 流式通道经 deps 注入 adapter（platform 缺席回退不变） |
+| 测试 | 各层 | shared schema / main handler（注入分片 fake：乱序/abort/非2xx error 帧/GC）/ 帧缓冲纯函数（手工帧序列）/ 播放器（fake deps）/ adapter 流式分支与回退 |
+
+### 16.5 验收
+
+- 单测：上述各层；adapter 流式失败 → 回落计数与整段路径等价（回退即红）。
+- 实机（用户，需真实 Key）：长句播报首音显著提前（不再先沉默数秒）；打断即停（不残留尾音）；断网中句 → 句跳过与连败回落与现状一致；试听行为不变。
+- 门禁：typecheck / lint / arch --changed（新通道登记）/ test:drora 全绿。

@@ -21,6 +21,8 @@
  *   音色行保持自由填 Voice ID（控制台 Voice Library 获取）。
  */
 
+import { VOICE_VENDOR_HOST_VOLCANO } from "@drora/shared";
+
 /** 音色预设（value = 出站请求用的厂商原始 id；label = 下拉友好名）。 */
 export interface VoiceVendorVoicePreset {
   id: string;
@@ -50,8 +52,10 @@ export const VOICE_VENDOR_REGISTRY: ReadonlyArray<VoiceVendorTemplate> = [
   {
     vendorId: "volcano",
     nameMap: { "zh-CN": "火山引擎（豆包语音）", "en-US": "Volcano Engine (Doubao Voice)" },
-    canonicalBaseUrl: "https://openspeech.bytedance.com",
-    matchHost: "openspeech.bytedance.com",
+    // §15.8：host 字面量单一出处（代理白名单/协议识别/建卡 canonical 同源派生），
+    // 禁止独立写字面量。
+    canonicalBaseUrl: `https://${VOICE_VENDOR_HOST_VOLCANO}`,
+    matchHost: VOICE_VENDOR_HOST_VOLCANO,
     credentialHintKey: "settings.modelCapability.vendor.credentialHint.volcano",
     apiKinds: ["tts"],
     voices: [

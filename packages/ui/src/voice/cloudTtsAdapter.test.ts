@@ -303,10 +303,11 @@ describe("火山引擎 TTS 协议分支（specs/model-capabilities.md §14）", 
   });
 
   const VOLCANO_BASE = "https://openspeech.bytedance.com";
+  // §15.9：凭据唯一形态 = 新版控制台单 API Key（复合 AppID:Access Token 已移除）。
   const VOLCANO_CONFIG = {
     baseUrl: VOLCANO_BASE,
     model: "zh_female_wanwanxiaohe_moon_bigtts",
-    apiKey: "1234567890:my-access-token",
+    apiKey: "tlk-new-console-key",
   };
 
   function ndjson(lines: Array<Record<string, unknown>>): string {
@@ -329,7 +330,7 @@ describe("火山引擎 TTS 协议分支（specs/model-capabilities.md §14）", 
     void handle;
   });
 
-  it("请求形状：v3 headers（AppID/AccessKey/ResourceId）与 req_params body", async () => {
+  it("请求形状：v3 headers（X-Api-Key/ResourceId）与 req_params body", async () => {
     const harness = createHarness();
     harness.setConfig(VOLCANO_CONFIG);
     harness.setRawResponse({
@@ -341,8 +342,10 @@ describe("火山引擎 TTS 协议分支（specs/model-capabilities.md §14）", 
     const handle = harness.adapter.speak({ text: "你好", lang: "zh-CN", rate: 1.2 });
     await vi.advanceTimersByTimeAsync(0);
     const request = harness.requests[harness.requests.length - 1]!;
-    expect(request.headers["X-Api-App-Key"]).toBe("1234567890");
-    expect(request.headers["X-Api-Access-Key"]).toBe("my-access-token");
+    // §15.9：凭据恒 X-Api-Key 单头（复合双头已移除，此断言同时防双头回归）。
+    expect(request.headers["X-Api-Key"]).toBe("tlk-new-console-key");
+    expect(request.headers["X-Api-App-Key"]).toBeUndefined();
+    expect(request.headers["X-Api-Access-Key"]).toBeUndefined();
     // moon_bigtts 不含 uranus → seed-tts-1.0（§14 推断规则）
     expect(request.headers["X-Api-Resource-Id"]).toBe("seed-tts-1.0");
     expect(request.body).toMatchObject({
@@ -388,8 +391,8 @@ describe("火山引擎 TTS 协议分支（specs/model-capabilities.md §14）", 
     expect(harness.failCount.value).toBe(1);
   });
 
-  it("凭据双形态：复合键 → 旧版双头；单值键 → 新版 X-Api-Key（§14.2/§15）", async () => {
-    // 新版单 Key：X-Api-Key 出站，无 App-Id/Access-Key 双头
+  it("凭据形态：单 Key → X-Api-Key 出站；空白 → fail-closed（§15.9 唯一形态）", async () => {
+    // 单 Key：X-Api-Key 出站，无复合双头（§15.9 移除后防回归断言）
     const single = createHarness();
     single.setConfig({
       baseUrl: VOLCANO_BASE,
@@ -430,7 +433,7 @@ describe("火山引擎 TTS 协议分支（specs/model-capabilities.md §14）", 
     ];
     for (const [model, expected] of cases) {
       const harness = createHarness();
-      harness.setConfig({ baseUrl: VOLCANO_BASE, model, apiKey: "1:2" });
+      harness.setConfig({ baseUrl: VOLCANO_BASE, model, apiKey: "tlk-new-console-key" });
       harness.setRawResponse({
         text: ndjson([
           { code: 0, data: "" },
@@ -451,6 +454,42 @@ describe("火山引擎 TTS 协议分支（specs/model-capabilities.md §14）", 
     expect(isVolcanoTtsEndpoint("https://openspeech.bytedance.com.evil.example")).toBe(false);
     expect(isVolcanoTtsEndpoint("https://api.siliconflow.cn/v1")).toBe(false);
     expect(isVolcanoTtsEndpoint("not a url")).toBe(false);
+  });
+
+  it("wiring 接缝：deps.fetch=createVoiceVendorFetch（平台 mock）→ 火山 URL 路由进代理（§15.8 断线静默回退防护）", async () => {
+    const { createVoiceVendorFetch } = await import("./voiceVendorFetch.js");
+    const proxyFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      contentType: "application/json",
+      bodyBase64: Buffer.from(
+        ndjson([
+          { code: 0, data: Buffer.from("hi").toString("base64") },
+          { code: 20000000, message: "success" },
+        ]),
+        "utf8",
+      ).toString("base64"),
+    });
+    const adapter = createCloudTtsAdapter({
+      fetch: createVoiceVendorFetch({ platform: { voiceVendorProxyFetch: proxyFetch } }),
+      getVendorConfig: async () => ({
+        baseUrl: VOLCANO_BASE,
+        model: "zh_female_wanwanxiaohe_moon_bigtts",
+        apiKey: "tlk-new-console-key",
+      }),
+      playBlob: () => {
+        const handle = new FakePlayback();
+        handle.complete("end");
+        return handle;
+      },
+    });
+    adapter.speak({ text: "你好", lang: "zh-CN" });
+    await vi.waitFor(() => {
+      expect(proxyFetch).toHaveBeenCalledTimes(1);
+    });
+    // 接缝断言：适配器构造的火山出站 URL 被代理工厂路由（deps.fetch 注入缺失时此用例即红）。
+    // 工厂以单载荷对象调用平台方法（{url, headers, body}）。
+    expect(proxyFetch.mock.calls[0]?.[0]?.url).toBe(`${VOLCANO_BASE}/api/v3/tts/unidirectional`);
   });
 });
 

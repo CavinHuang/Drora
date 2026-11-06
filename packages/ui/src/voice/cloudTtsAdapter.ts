@@ -19,6 +19,8 @@
  */
 
 import { logger } from "@/logger.js";
+import { VOICE_VENDOR_HOST_VOLCANO } from "@drora/shared";
+import { createStreamingPlayback } from "./voiceStreamingPlayback.js";
 import { VOICE_TTS_CLOUD_CONSECUTIVE_FAILURES } from "./voiceTuning.js";
 import type {
   VoiceTtsDoneReason,
@@ -53,6 +55,42 @@ export interface CloudTtsPlaybackHandle {
 /** DI fetch 形状（测试 mock HTTP 与 synthesizeOnce opts.fetch 消费）。 */
 export type CloudTtsFetch = (input: string, init: RequestInit) => Promise<ResponseLike>;
 
+/** 流式播放器缺省工厂：createStreamingPlayback 包装为 adapter 播放形状（interrupt→stop）。 */
+const defaultStreamPlaybackFactory = (): CloudTtsStreamingPlayback => {
+  const player = createStreamingPlayback();
+  return {
+    appendChunk: (b64) => player.appendChunk(b64),
+    finish: () => player.finish(),
+    fail: (error) => player.fail(error),
+    failNow: (error) => player.failNow(error),
+    handle: {
+      completed: player.handle.completed,
+      stop: () => player.handle.interrupt(),
+    },
+  };
+};
+
+/** §16 流式代理端口（platform 三方法聚合；可选注入——缺席回退整段路径）。 */
+export interface VoiceTtsStreamPort {
+  start(request: {
+    url: string;
+    headers: Record<string, string>;
+    body: string;
+  }): Promise<{ streamId: string }>;
+  onChunk(handler: (frame: import("@drora/shared").VoiceVendorProxyStreamChunkFrame) => void): () => void;
+  abort(payload: { streamId: string }): Promise<void>;
+}
+
+/** 流式播放器形状（createStreamingPlayback 返回子集；测试注入 fake）。 */
+export interface CloudTtsStreamingPlayback {
+  appendChunk(base64: string): void;
+  finish(): void;
+  fail(error: Error): void;
+  /** 硬失败（§16 审查修复）：无条件停播 + completed("error")——断号 fail-closed 专用。 */
+  failNow(error: Error): void;
+  handle: CloudTtsPlaybackHandle;
+}
+
 /** DI deps 注入形状（测试 mock HTTP/播放消费）。@lintignore */
 export interface CloudTtsAdapterDeps {
   /** 厂商档（异步：apiKey 经凭据服务读取后注入）；null/字段缺失 = 档不完整。 */
@@ -61,6 +99,10 @@ export interface CloudTtsAdapterDeps {
   fetch?(input: string, init: RequestInit): Promise<ResponseLike>;
   /** 缺省 HTMLAudioElement + objectURL 播放；测试注入 fake。 */
   playBlob?(blob: Blob): CloudTtsPlaybackHandle;
+  /** §16 流式三通道（platform 聚合）；缺席 = 火山也走整段（Web/手机/旧 bridge）。 */
+  stream?: VoiceTtsStreamPort;
+  /** 流式播放器工厂；缺省 createStreamingPlayback；测试注入 fake。 */
+  streamPlaybackFactory?: () => CloudTtsStreamingPlayback;
   /** 连续失败阈值，缺省 voiceTuning 值；测试可缩短。 */
   consecutiveFailuresThreshold?: number;
 }
@@ -79,10 +121,10 @@ export function clampTtsSpeed(rate: number | undefined): number {
   return Math.min(4, Math.max(0.25, raw));
 }
 
-/** 火山引擎 TTS 端点识别（§14）：baseUrl host 指向豆包语音开放接口。 */
+/** 火山引擎 TTS 端点识别（§14）：baseUrl host 指向豆包语音开放接口（§15.8 起引用 shared 单一出处）。 */
 export function isVolcanoTtsEndpoint(baseUrl: string): boolean {
   try {
-    return new URL(baseUrl).host === "openspeech.bytedance.com";
+    return new URL(baseUrl).host === VOICE_VENDOR_HOST_VOLCANO;
   } catch {
     return false;
   }
@@ -102,31 +144,6 @@ export function inferVolcanoResourceId(voiceType: string): string {
   return "seed-tts-1.0";
 }
 
-/**
- * 火山凭据双形态解析（§14.2/§15）：含冒号 = 旧版控制台复合形态 `AppID:Access Token`；
- * 无冒号 = 新版控制台单 API Key。空串/纯空白 = null（fail-closed，无出站）。
- */
-export type VolcanoCredential =
-  | { mode: "composite"; appId: string; accessKey: string }
-  | { mode: "single"; apiKey: string };
-
-export function parseVolcanoCredentials(apiKey: string): VolcanoCredential | null {
-  const trimmed = apiKey.trim();
-  if (!trimmed) {
-    return null;
-  }
-  const sep = trimmed.indexOf(":");
-  if (sep < 0) {
-    return { mode: "single", apiKey: trimmed };
-  }
-  const appId = trimmed.slice(0, sep).trim();
-  const accessKey = trimmed.slice(sep + 1).trim();
-  if (!appId || !accessKey) {
-    return null;
-  }
-  return { mode: "composite", appId, accessKey };
-}
-
 /** 乘数语速（0.25–4）→ 火山 speech_rate [-50, 100]（1 = 0）。 */
 export function toVolcanoSpeechRate(rate: number | undefined): number {
   const raw = Math.round(((rate ?? 1) - 1) * 100);
@@ -136,7 +153,122 @@ export function toVolcanoSpeechRate(rate: number | undefined): number {
 /**
  * §14 火山分支合成：POST {baseUrl}/api/v3/tts/unidirectional（NDJSON 流），
  * 逐行收集 base64 分片拼成 mp3 Blob。失败抛错（调用方统一 warn + settle error）。
+ * 凭据（§15.9 裁剪后唯一形态）：新版控制台单 API Key，恒 `X-Api-Key` 单头；空白
+ * fail-closed。旧版 `AppID:Access Token` 复合模式已移除，无冒号分派。
  */
+const VOLCANO_UNIDIRECTIONAL_PATH = "/api/v3/tts/unidirectional";
+
+/** §16 请求构造单一出处：整段与流式两路径共用（headers/凭据校验 fail-closed）。 */
+function volcanoRequestHeaders(config: RemoteTtsVendorConfig): Record<string, string> {
+  const apiKey = config.apiKey.trim();
+  if (!apiKey) {
+    // 稳定英文标识（表单层 toast 直显；en-US 用户也会看到）——语义=key 缺失。
+    throw new Error("volcano tts api key is required (new-console single API key)");
+  }
+  // §15.9：凭据恒 X-Api-Key 单头；X-Api-Key 不在火山 CORS 白名单（2026-11-06 探针
+  // 实证）——白名单厂商经桌面主进程代理出站（§15.8/§16 流式），直连仅为非白名单保留。
+  return {
+    "Content-Type": "application/json",
+    "X-Api-Key": apiKey,
+    "X-Api-Resource-Id": inferVolcanoResourceId(config.model),
+    "X-Api-Request-Id": crypto.randomUUID(),
+  };
+}
+
+/** §16 请求体构造单一出处（整段/流式同形）。 */
+function volcanoRequestBody(config: RemoteTtsVendorConfig, text: string, rate?: number): string {
+  return JSON.stringify({
+    user: { uid: "drora-tts" },
+    req_params: {
+      text,
+      speaker: config.model,
+      audio_params: {
+        format: "mp3",
+        sample_rate: 24000,
+        speech_rate: toVolcanoSpeechRate(rate),
+      },
+    },
+  });
+}
+
+/**
+ * §16 真流式合成-播放编排：Start 订阅分片帧 → 帧缓冲攒批渐进播放 → done 结算。
+ * seq 断号 fail-closed（abort + interrupt + error）；error 帧交 player（无音频→error、
+ * 已播宽容播完）；上游失败经 handle.completed 以 "error" 结算 → speak 路径统一回落计数。
+ */
+function speakVolcanoStreaming(
+  config: RemoteTtsVendorConfig,
+  text: string,
+  stream: VoiceTtsStreamPort,
+  createPlayer: () => CloudTtsStreamingPlayback,
+  rate?: number,
+): CloudTtsPlaybackHandle {
+  const player = createPlayer();
+  let streamId: string | null = null;
+  let expectedSeq = 0;
+  /** 本流已 fail-closed 终止：忽略后续帧（防重复结算/abort）。 */
+  let streamPoisoned = false;
+  /** completed 已结算（含 cancel/interrupt/正常完成）：start 迟到返回时补 abort 防僵尸流。 */
+  let finalized = false;
+  const unsubscribe = stream.onChunk((frame) => {
+    if (streamId == null || frame.streamId !== streamId || streamPoisoned) {
+      return;
+    }
+    if (frame.seq !== expectedSeq) {
+      // 断号 = 流完整性破坏：硬失败（§16 审查修复——宽容 stop 会结算 "end" 归零回落计数，
+      // 必须走 failNow 无条件 "error"，回落计数照旧）。
+      streamPoisoned = true;
+      void stream.abort({ streamId }).catch(() => undefined);
+      player.failNow(new Error("voice vendor proxy stream out of order"));
+      return;
+    }
+    expectedSeq += 1;
+    if (frame.kind === "data" && frame.base64Chunk != null) {
+      player.appendChunk(frame.base64Chunk);
+    } else if (frame.kind === "done") {
+      player.finish();
+    } else if (frame.kind === "error") {
+      player.fail(new Error(frame.errorMessage ?? "voice vendor proxy stream failed"));
+    }
+  });
+  void stream
+    .start({
+      url: `${config.baseUrl.replace(/\/+$/u, "")}${VOLCANO_UNIDIRECTIONAL_PATH}`,
+      headers: volcanoRequestHeaders(config),
+      body: volcanoRequestBody(config, text, rate),
+    })
+    .then(({ streamId: id }) => {
+      streamId = id;
+      // Start 迟到（cancel/interrupt 先发生）：立即 abort 防僵尸流跑满 60s 硬闸。
+      if (finalized) {
+        void stream.abort({ streamId: id }).catch(() => undefined);
+      }
+    })
+    .catch((error: unknown) => {
+      logger.warn("voice.tts", "cloud tts stream start failed", {
+        type: error instanceof Error ? error.name : "unknown",
+        message: error instanceof Error ? error.message : undefined,
+      });
+      player.fail(error instanceof Error ? error : new Error("voice vendor proxy stream start failed"));
+    });
+  return {
+    completed: player.handle.completed.finally(() => {
+      finalized = true;
+      unsubscribe();
+      if (streamId != null) {
+        void stream.abort({ streamId }).catch(() => undefined);
+      }
+    }),
+    stop: () => {
+      finalized = true;
+      player.handle.stop();
+      if (streamId != null) {
+        void stream.abort({ streamId }).catch(() => undefined);
+      }
+    },
+  };
+}
+
 async function synthesizeVolcano(
   config: RemoteTtsVendorConfig,
   text: string,
@@ -145,47 +277,12 @@ async function synthesizeVolcano(
   /** 乘数语速（0.25–4）→ speech_rate [-50,100]（§14.3 映射；§15 审查修复此前恒 0 丢弃偏好）。 */
   rate?: number,
 ): Promise<Blob> {
-  const credentials = parseVolcanoCredentials(config.apiKey);
-  if (!credentials) {
-    // 稳定英文标识（表单层 toast 直显；en-US 用户也会看到）——语义=key 形态不合法。
-    throw new Error(
-      "volcano tts api key must be 'AppID:Access Token' (colon-separated) or a new-console API key",
-    );
-  }
-  const requestId = crypto.randomUUID();
-  // 凭据形态分派（§14.2）：复合 = 旧版双头；单值 = 新版 X-Api-Key。Resource-Id 两形态均必带。
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-    "X-Api-Resource-Id": inferVolcanoResourceId(config.model),
-    "X-Api-Request-Id": requestId,
-  };
-  // 头名勘误（2026-11-06 CORS 探针实证）：复合模式 App 侧头名是 X-Api-App-Key（官方
-  // 文档与预检白名单一致），§14 初版误作 X-Api-App-Id——该名不在火山 CORS 白名单，
-  // renderer 直连预检必死（复合模式自此一直不可用）。单 Key 头 X-Api-Key 同样不在
-  // 白名单，renderer 直连不可用（主进程代理另行立项，spec §14.2 backlog）。
-  if (credentials.mode === "composite") {
-    headers["X-Api-App-Key"] = credentials.appId;
-    headers["X-Api-Access-Key"] = credentials.accessKey;
-  } else {
-    headers["X-Api-Key"] = credentials.apiKey;
-  }
   const response = await doFetch(
-    `${config.baseUrl.replace(/\/+$/u, "")}/api/v3/tts/unidirectional`,
+    `${config.baseUrl.replace(/\/+$/u, "")}${VOLCANO_UNIDIRECTIONAL_PATH}`,
     {
       method: "POST",
-      headers,
-      body: JSON.stringify({
-        user: { uid: "drora-tts" },
-        req_params: {
-          text,
-          speaker: config.model,
-          audio_params: {
-            format: "mp3",
-            sample_rate: 24000,
-            speech_rate: toVolcanoSpeechRate(rate),
-          },
-        },
-      }),
+      headers: volcanoRequestHeaders(config),
+      body: volcanoRequestBody(config, text, rate),
       credentials: "omit",
       redirect: "error",
       signal,
@@ -403,6 +500,22 @@ export function createCloudTtsAdapter(deps: CloudTtsAdapterDeps): CloudTtsPort {
         playback?.stop();
       });
       void (async () => {
+        try {
+          await speakBody();
+        } catch (error) {
+          // 兜底（§16 审查修复）：流式播放器构造同步 throw / getVendorConfig reject
+          // 等未预期异常若逃出会让句子永不结算（planner 卡死）——统一按句 error。
+          if (!cancelled) {
+            logger.warn("voice.tts", "cloud tts speak chain failed", {
+              type: error instanceof Error ? error.name : "unknown",
+              message: error instanceof Error ? error.message : undefined,
+            });
+            settle(handle, "error");
+          }
+        }
+      })();
+
+      async function speakBody(): Promise<void> {
         const config = await deps.getVendorConfig();
         if (cancelled) {
           return;
@@ -413,46 +526,63 @@ export function createCloudTtsAdapter(deps: CloudTtsAdapterDeps): CloudTtsPort {
           settle(handle, "error");
           return;
         }
-        let blob: Blob;
-        try {
-          // §14：火山引擎卡（openspeech.bytedance.com）走自有 v3 协议分支；
-          // 其余 baseUrl 维持 OpenAI 兼容 /audio/speech 形状。
-          if (isVolcanoTtsEndpoint(config.baseUrl)) {
-            blob = await synthesizeVolcano(config, u.text, doFetch, abortController.signal, u.rate);
-          } else {
-            // §9.7.3：云音色独立命名空间（u.vendorVoice）；u.voice（system 音色名）零消费。
-            blob = await synthesizeOpenAiCompatible(
-              config,
-              u.text,
-              doFetch,
-              abortController.signal,
-              {
-                rate: u.rate,
-                voice: u.vendorVoice,
-              },
-            );
+        // §16：火山 + 平台流式通道存在 → 真流式（分片渐进播放，completed 即整句结算）；
+        // 其余（非白名单/通道缺席/Web/手机）→ 整段路径零变化。
+        if (isVolcanoTtsEndpoint(config.baseUrl) && deps.stream) {
+          playback = speakVolcanoStreaming(
+            config,
+            u.text,
+            deps.stream,
+            deps.streamPlaybackFactory ?? defaultStreamPlaybackFactory,
+            u.rate,
+          );
+        } else {
+          let blob: Blob;
+          try {
+            // §14：火山引擎卡走自有 v3 协议分支（整段）；其余维持 OpenAI 兼容 /audio/speech。
+            if (isVolcanoTtsEndpoint(config.baseUrl)) {
+              blob = await synthesizeVolcano(config, u.text, doFetch, abortController.signal, u.rate);
+            } else {
+              // §9.7.3：云音色独立命名空间（u.vendorVoice）；u.voice（system 音色名）零消费。
+              blob = await synthesizeOpenAiCompatible(
+                config,
+                u.text,
+                doFetch,
+                abortController.signal,
+                {
+                  rate: u.rate,
+                  voice: u.vendorVoice,
+                },
+              );
+            }
+          } catch (error) {
+            if (cancelled) {
+              return; // 用户取消路径已结算（或本句已被跳过结算）。
+            }
+            logger.warn("voice.tts", "cloud tts request failed", {
+              type: error instanceof Error ? error.name : "unknown",
+              message: error instanceof Error ? error.message : undefined,
+            });
+            settle(handle, "error");
+            return;
           }
-        } catch (error) {
           if (cancelled) {
-            return; // 用户取消路径已结算（或本句已被跳过结算）。
+            return;
           }
-          logger.warn("voice.tts", "cloud tts request failed", {
-            type: error instanceof Error ? error.name : "unknown",
-            message: error instanceof Error ? error.message : undefined,
-          });
-          settle(handle, "error");
-          return;
+          playback = playBlob(blob);
         }
-        if (cancelled) {
-          return;
-        }
-        playback = playBlob(blob);
         const outcome = await playback.completed;
         if (cancelled) {
           return;
         }
+        if (outcome === "error") {
+          // 流式失败可观测性（§16 二审补）：error 帧/断号/解码失败在连败阈值前至少有逐句 warn。
+          logger.warn("voice.tts", "cloud tts streaming sentence failed; counting toward fallback", {
+            type: "stream_error",
+          });
+        }
         settle(handle, outcome === "error" ? "error" : "end");
-      })();
+      }
       return handle;
     },
     cancel(): void {

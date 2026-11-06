@@ -833,6 +833,29 @@ contextBridge.exposeInMainWorld("drora", {
   }> => ipcRenderer.invoke(PlatformChannels.ExportLogs),
   /** 截取当前窗口，用于错误反馈携带现场画面 */
   captureWindowScreenshot: () => ipcRenderer.invoke(PlatformChannels.CaptureWindowScreenshot),
+  /** 语音厂商出站代理（specs/model-capabilities.md §15.8）：main net.fetch 不受 CORS */
+  voiceVendorProxyFetch: (
+    payload: import("@drora/shared").VoiceVendorProxyFetchRequest,
+  ): Promise<import("@drora/shared").VoiceVendorProxyFetchResponse> =>
+    ipcRenderer.invoke(PlatformChannels.VoiceVendorProxyFetch, payload),
+  /** §16 真流式播报：发起流式代理（返回 streamId，分片经 onVoiceVendorProxyStreamChunk 推送） */
+  voiceVendorProxyStreamStart: (
+    payload: import("@drora/shared").VoiceVendorProxyFetchRequest,
+  ): Promise<{ streamId: string }> =>
+    ipcRenderer.invoke(PlatformChannels.VoiceVendorProxyStreamStart, payload),
+  /** §16 真流式播报：订阅 main 推送的分片帧（返回退订函数） */
+  onVoiceVendorProxyStreamChunk: (
+    callback: (frame: import("@drora/shared").VoiceVendorProxyStreamChunkFrame) => void,
+  ): (() => void) => {
+    const handler = (_event: unknown, frame: import("@drora/shared").VoiceVendorProxyStreamChunkFrame) =>
+      callback(frame);
+    ipcRenderer.on(PlatformChannels.VoiceVendorProxyStreamChunk, handler);
+    return () => ipcRenderer.removeListener(PlatformChannels.VoiceVendorProxyStreamChunk, handler);
+  },
+  /** §16 真流式播报：取消进行中的流（main abort + 摘 GC 表） */
+  voiceVendorProxyStreamAbort: (
+    payload: import("@drora/shared").VoiceVendorProxyStreamAbortRequest,
+  ): Promise<void> => ipcRenderer.invoke(PlatformChannels.VoiceVendorProxyStreamAbort, payload),
   // CDP-on-guest pivot：`<webview>` guest dom-ready 后上报 webContentsId 给 main attach。
   browserViewLoadUrl: (payload: { webContentsId: number; url: string }): Promise<void> =>
     ipcRenderer.invoke(PlatformChannels.BrowserViewLoadUrl, payload),

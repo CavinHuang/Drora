@@ -179,6 +179,15 @@ export function createDesktopPlatform(options: {
     exportLogs: () => window.drora.exportLogs(),
     captureWindowScreenshot: () =>
       window.drora.captureWindowScreenshot?.() ?? Promise.resolve(null),
+    // §15.8 语音厂商出站代理：desktop main net.fetch，白名单校验在 main handler。
+    voiceVendorProxyFetch: (payload) => window.drora.voiceVendorProxyFetch(payload),
+    // §16 真流式播报三通道：Start/onChunk 订阅/Abort，转发 main 推送帧。
+    voiceVendorProxyStreamStart: (payload) =>
+      window.drora.voiceVendorProxyStreamStart(payload),
+    onVoiceVendorProxyStreamChunk: (handler) =>
+      window.drora.onVoiceVendorProxyStreamChunk(handler),
+    voiceVendorProxyStreamAbort: (payload) =>
+      window.drora.voiceVendorProxyStreamAbort(payload),
     onUpdateReady: (callback) => window.drora.onUpdateReady(callback),
     onUpdateCheckResult: (callback) => window.drora.onUpdateCheckResult(callback),
     onUpdateStateChanged: (callback) => window.drora.onUpdateStateChanged?.(callback) ?? (() => {}),

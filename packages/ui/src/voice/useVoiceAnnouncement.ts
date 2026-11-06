@@ -39,12 +39,18 @@ import {
 import { createBroadcastAnnouncementClaimAdapter } from "./voiceAnnouncementClaim.js";
 import { dispatchVoiceCommand, registerVoiceCommandHandler } from "./voiceCommandBus.js";
 import { createSpeechSynthesisTtsAdapter } from "./speechSynthesisTtsAdapter.js";
-import { createCloudTtsAdapter, resolveTtsEngineChoice } from "./cloudTtsAdapter.js";
+import {
+  createCloudTtsAdapter,
+  resolveTtsEngineChoice,
+  type VoiceTtsStreamPort,
+} from "./cloudTtsAdapter.js";
+import { createVoiceVendorFetch } from "./voiceVendorFetch.js";
 import { isVoiceVendorConfigComplete } from "./resolveAsrAdapter.js";
 import { createToolBriefPlanner } from "./toolBriefPlanner.js";
 import { VOICE_TTS_CLOUD_CONSECUTIVE_FAILURES } from "./voiceTuning.js";
 import type { VoiceTtsPort, VoiceTtsUtterance } from "./voiceTtsPort.js";
 import { useModelCapabilities } from "@/hooks/useModelCapabilities.js";
+import { useOptionalPlatform } from "@/hooks/usePlatform.js";
 import { logger } from "@/logger.js";
 
 /** 结构化最小权限 pending 源（与 drora-protocol-v4 pendingInteractionSchema 形状兼容；wiring 参数形状导出）。@lintignore */
@@ -208,9 +214,32 @@ export function useVoiceAnnouncement({
   // 与 settingsRef 同型，见下）。
   const ttsCapabilityRef = useRef(ttsCapability);
   ttsCapabilityRef.current = ttsCapability;
+  // §15.8 厂商出站 fetch：白名单 host（火山）走 desktop main 代理，其余直连；
+  // platform 缺席（Web/手机）= 恒直连，行为与现状零差异。
+  const platform = useOptionalPlatform();
+  const vendorFetch = useMemo(() => createVoiceVendorFetch({ platform }), [platform]);
+  // §16 真流式三通道聚合（platform 缺席或缺任一方法 = null → 火山回退整段路径）。
+  const streamPort = useMemo<VoiceTtsStreamPort | null>(() => {
+    if (
+      platform?.voiceVendorProxyStreamStart == null ||
+      platform.onVoiceVendorProxyStreamChunk == null ||
+      platform.voiceVendorProxyStreamAbort == null
+    ) {
+      return null;
+    }
+    return {
+      start: (request) => platform.voiceVendorProxyStreamStart!(request),
+      onChunk: (handler) => platform.onVoiceVendorProxyStreamChunk!(handler),
+      abort: (payload) => platform.voiceVendorProxyStreamAbort!(payload),
+    };
+  }, [platform]);
   const cloudTts = useMemo(
     () =>
       createCloudTtsAdapter({
+        // §15.8 厂商出站 fetch：白名单 host（火山）走 desktop main 代理，其余直连；
+        // platform 缺席（Web/手机）= 恒直连，行为与现状零差异。
+        fetch: vendorFetch,
+        stream: streamPort ?? undefined,
         getVendorConfig: async () => {
           const current = ttsCapabilityRef.current;
           const model = current?.modelId?.trim() ?? "";
@@ -225,7 +254,7 @@ export function useVoiceAnnouncement({
         },
         consecutiveFailuresThreshold: VOICE_TTS_CLOUD_CONSECUTIVE_FAILURES,
       }),
-    [resolveVendorConnection],
+    [resolveVendorConnection, vendorFetch, streamPort],
   );
 
   // 设置读取经 reader 收口（§9.3）；ref 保证 planner deps 闭包拿最新值而不重建 planner。

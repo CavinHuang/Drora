@@ -8,7 +8,7 @@
  * SiliconFlow/OpenAI 兼容：播报模型 + 音色双行自由文本 + 厂商预设 datalist。
  * 生效语义：即时（下一次播报；渲染进程经 hook 订阅）。
  */
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { LoaderCircle } from "lucide-react";
 import {
   TID_MODEL_CAPABILITY_PREVIEW_BUTTON,
@@ -30,7 +30,9 @@ import {
 import { toast } from "@/components/ui/toast.js";
 import { useModelCapabilities } from "@/hooks/useModelCapabilities.js";
 import { useDroraIntl } from "@/i18n/IntlProvider.js";
+import { useOptionalPlatform } from "@/hooks/usePlatform.js";
 import { startUserAction } from "@/lib/userActionTelemetry.js";
+import { createVoiceVendorFetch } from "@/voice/voiceVendorFetch.js";
 import { playTtsBlob, synthesizeOnce } from "@/voice/ttsPreview.js";
 import { SettingsGroupCard, SettingsRow } from "@/settings/SettingsPageParts.js";
 import { CapabilityBaseUrlRow, CapabilityTextValueRow } from "./CapabilityFormParts.js";
@@ -178,6 +180,10 @@ export function TtsCapabilityForm() {
 
   // §15 试听：走当前表单态（providerRef 卡连接 + modelId + 音色）单次合成并直接播放。
   const [previewing, setPreviewing] = useState(false);
+  // §15.8 厂商出站 fetch：白名单 host（火山）走 desktop main 代理，其余直连；
+  // platform 缺席（Web/手机）= 恒直连。
+  const platform = useOptionalPlatform();
+  const vendorFetch = useMemo(() => createVoiceVendorFetch({ platform }), [platform]);
   const previewReady = Boolean(
     engine === "cloud" && modelId && vendorState.card?.baseUrl && vendorState.card?.apiKey,
   );
@@ -202,6 +208,8 @@ export function TtsCapabilityForm() {
           voice: isVolcano ? undefined : entry?.voice?.trim() || undefined,
           // §15 审查修复：试听无超时则网络黑洞时「合成中…」永久卡死——30s 上限。
           signal: AbortSignal.timeout(30_000),
+          // §15.8：白名单厂商（火山）经 desktop main 代理出站，绕开厂商 CORS 预检。
+          fetch: vendorFetch,
         },
       );
       trace.complete({ resultSource: "platform_result" });
@@ -217,7 +225,7 @@ export function TtsCapabilityForm() {
     } finally {
       setPreviewing(false);
     }
-  }, [vendorState.card, entry, modelId, isVolcano, previewing, intl]);
+  }, [vendorState.card, entry, modelId, isVolcano, previewing, intl, vendorFetch]);
 
   return (
     <SettingsGroupCard>

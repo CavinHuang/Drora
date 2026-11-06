@@ -11,6 +11,8 @@
  * （UI 交互判定，不进 wire）。
  */
 
+import { z } from "zod";
+
 /** wire 契约：input-intent source kind 字面量。drora-protocol-v4/input-intent.ts 的
  *  voiceInputSourceSchema 以 z.literal(VOICE_INPUT_SOURCE_KIND) 引用，禁止两处独立写字面量。 */
 export const VOICE_INPUT_SOURCE_KIND = "voice";
@@ -46,3 +48,136 @@ export const VOICE_BROADCAST_CLAIM_KEY = {
    */
   mic: "drora:voice-mic-claim",
 } as const;
+
+// ---------------------------------------------------------------------------
+// 语音厂商出站代理（specs/model-capabilities.md §15.8，2026-11-06 用户裁定「代理根治」）
+// ---------------------------------------------------------------------------
+
+/** 火山引擎（豆包语音）host——协议识别（cloudTtsAdapter.isVolcanoTtsEndpoint）与代理白名单共用的单一出处。 */
+export const VOICE_VENDOR_HOST_VOLCANO = "openspeech.bytedance.com";
+
+/**
+ * 允许经桌面主进程代理出站的厂商 host 白名单（specs/model-capabilities.md §15.8）。
+ *
+ * 契约键单一出处：isVolcanoTtsEndpoint 的协议识别与 voiceVendorRegistry 火山模板
+ * matchHost 均引用本表（经 VOICE_VENDOR_HOST_VOLCANO），禁止多处独立写字面量；
+ * 未来厂商撞 CORS = 本表加一项，renderer/main 两端自动生效。
+ *
+ * 背景：火山单 API Key 仅 `X-Api-Key` 一个鉴权槽位，且不在其 CORS 预检白名单
+ * （2026-11-06 curl 实测，spec §15.8 探针矩阵），浏览器 renderer 直连不可修复——
+ * 唯一出路是桌面 main 经 net.fetch 代理（main 不受 CORS 约束）。
+ */
+export const VOICE_VENDOR_PROXY_ALLOWED_HOSTS = [VOICE_VENDOR_HOST_VOLCANO] as const;
+
+/** url host 是否允许经桌面代理出站（解析失败 = false，fail-closed）。 */
+export function isVoiceVendorProxyAllowedUrl(url: string): boolean {
+  try {
+    return (VOICE_VENDOR_PROXY_ALLOWED_HOSTS as readonly string[]).includes(new URL(url).host);
+  } catch {
+    return false;
+  }
+}
+
+/** 代理硬边界（main 侧强制执行；renderer 侧仅作提示，不重复校验）。 */
+export const VOICE_VENDOR_PROXY_LIMITS = {
+  /** 请求 JSON 文本上限（对齐 relay-v2 body 硬闸量级；TTS 句文本远小于此）。 */
+  maxRequestBodyChars: 64 * 1024,
+  /** 响应 base64 上限（≈17.6MB 解码后音频；句级 TTS 远小于此）。 */
+  maxResponseBodyBase64Chars: 24 * 1024 * 1024,
+  /** main 侧 net.fetch 硬超时（AbortSignal 不跨 IPC，main 自带兜底）。 */
+  requestTimeoutMs: 60_000,
+} as const;
+
+/** 代理请求载荷（renderer → main；headers 值经 main 二次键过滤）。 */
+export interface VoiceVendorProxyFetchRequest {
+  url: string;
+  headers: Record<string, string>;
+  /** 请求体 JSON 文本（TTS 两分支均 JSON；上传类 ASR multipart 不入代理 v1）。 */
+  body: string;
+}
+
+/** 代理响应载荷（main → renderer；body 统一 base64，NDJSON 文本与 mp3 二进制都安全）。 */
+export interface VoiceVendorProxyFetchResponse {
+  ok: boolean;
+  status: number;
+  contentType: string | null;
+  bodyBase64: string;
+}
+
+// ---------------------------------------------------------------------------
+// 真流式播报（specs/model-capabilities.md §16，2026-11-06 用户裁定「直接立项 B」）
+// ---------------------------------------------------------------------------
+
+/**
+ * 流式代理三通道（specs/model-capabilities.md §16.2）：
+ * Start（invoke，载荷复用 VoiceVendorProxyFetchRequest + 同一 schema/校验/limits）→
+ * Chunk（main 经 webContents.send 推帧）→ Abort（invoke，取消并摘 GC 表）。
+ * main 逐行读 net.fetch body（NDJSON `{code,data}`），每行立即推 `data` 帧；
+ * EOF/`code 20000000` 推 `done`；非 2xx/网络异常/超限/校验失败推 `error`（errorMessage
+ * 不含 apiKey）。chunk base64 只承载音频分片，上限沿 §15.8 LIMITS。
+ */
+export type VoiceVendorProxyStreamChunkKind = "data" | "done" | "error";
+
+/** main → renderer 推送帧（seq 单调递增；renderer 侧断号 fail-closed 按句 error）。 */
+export interface VoiceVendorProxyStreamChunkFrame {
+  streamId: string;
+  seq: number;
+  kind: VoiceVendorProxyStreamChunkKind;
+  /** kind="data" 时的音频 base64 分片（NDJSON data 字段原样转发）。 */
+  base64Chunk?: string;
+  /** kind="error" 时的 HTTP status（非 2xx 路径）。 */
+  status?: number;
+  /** kind="error" 时的稳定错误消息（不含 apiKey/Authorization）。 */
+  errorMessage?: string;
+}
+
+/** Start 载荷校验复用整段 voiceVendorProxyFetchRequestSchema（同白名单/https/limits），无独立 schema。 */
+export const voiceVendorProxyStreamAbortSchema = z
+  .object({ streamId: z.string().min(1) })
+  .strict();
+
+export interface VoiceVendorProxyStreamAbortRequest {
+  streamId: string;
+}
+
+/** main abort 通道入口校验（失败 throw）。 */
+export function parseVoiceVendorProxyStreamAbortRequest(
+  payload: unknown,
+): VoiceVendorProxyStreamAbortRequest {
+  return voiceVendorProxyStreamAbortSchema.parse(payload);
+}
+
+/** 流式响应上限（沿 §15.8 量级：累计解码字节闸 + 单流时长闸；main 侧强制）。 */
+export const VOICE_VENDOR_PROXY_STREAM_LIMITS = {
+  /** 单流累计音频字节上限（24MiB，与整段响应闸同量级）。 */
+  maxStreamBytes: 24 * 1024 * 1024,
+  /** 单流最长寿命 ms（沿 §15.8 60s；含排队与传输）。 */
+  streamTimeoutMs: 60_000,
+} as const;
+
+
+export const voiceVendorProxyFetchRequestSchema = z
+  .object({
+    url: z.string().refine(isVoiceVendorProxyAllowedUrl, "url host not in vendor proxy allowlist"),
+    headers: z.record(z.string(), z.string()),
+    body: z.string().max(VOICE_VENDOR_PROXY_LIMITS.maxRequestBodyChars),
+  })
+  .strict();
+
+/** main handler 入口校验（失败 throw，renderer 侧还原为网络异常语义）。 */
+export function parseVoiceVendorProxyRequest(payload: unknown): VoiceVendorProxyFetchRequest {
+  return voiceVendorProxyFetchRequestSchema.parse(payload);
+}
+
+/**
+ * main 侧 header 键过滤白名单（防御纵深：renderer 载荷可被伪造，main 不信任）。
+ * 放行语音两分支实际需要的键：火山 x-api-* 族 + OpenAI 兼容族 authorization/content-type。
+ */
+export function isVoiceVendorProxyAllowedHeaderKey(key: string): boolean {
+  const normalized = key.toLowerCase();
+  return (
+    normalized === "content-type" ||
+    normalized === "authorization" ||
+    normalized.startsWith("x-api-")
+  );
+}

@@ -471,6 +471,19 @@ export const PlatformChannels = {
   /** Renderer → Main：截取当前窗口作为反馈附件 */
   CaptureWindowScreenshot: "drora:capture-window-screenshot",
   /**
+   * Renderer → Main：语音厂商出站代理（specs/model-capabilities.md §15.8）。
+   * 厂商 CORS 白名单堵死浏览器直连（火山 X-Api-Key 不在预检白名单），desktop main
+   * 经 net.fetch 代理出站；host 白名单 fail-closed（contracts/voice.ts 单一出处）。
+   */
+  VoiceVendorProxyFetch: "drora:voice-vendor-proxy-fetch",
+  /**
+   * §16 真流式播报三通道：Start（invoke，载荷/校验同 §15.8）→ Chunk（main 逐行推帧）→
+   * Abort（invoke 取消）。详见 contracts/voice.ts 流式契约块。
+   */
+  VoiceVendorProxyStreamStart: "drora:voice-vendor-proxy-stream-start",
+  VoiceVendorProxyStreamChunk: "drora:voice-vendor-proxy-stream-chunk",
+  VoiceVendorProxyStreamAbort: "drora:voice-vendor-proxy-stream-abort",
+  /**
    * Renderer → Main：`<webview>` guest dom-ready 后上报 webContentsId，
    * main 用 BrowserGuestManager attach 该 guest（fire-and-forget）。CDP-on-guest pivot。
    */
@@ -1271,6 +1284,22 @@ export interface PlatformChannelMap {
       contentType: string;
       size: number;
     } | null;
+  };
+  [PlatformChannels.VoiceVendorProxyFetch]: {
+    request: import("./contracts/voice.js").VoiceVendorProxyFetchRequest;
+    response: import("./contracts/voice.js").VoiceVendorProxyFetchResponse;
+  };
+  [PlatformChannels.VoiceVendorProxyStreamStart]: {
+    request: import("./contracts/voice.js").VoiceVendorProxyFetchRequest;
+    response: { streamId: string };
+  };
+  [PlatformChannels.VoiceVendorProxyStreamChunk]: {
+    request: import("./contracts/voice.js").VoiceVendorProxyStreamChunkFrame;
+    response: void;
+  };
+  [PlatformChannels.VoiceVendorProxyStreamAbort]: {
+    request: import("./contracts/voice.js").VoiceVendorProxyStreamAbortRequest;
+    response: void;
   };
   // CDP-on-guest pivot：renderer `<webview>` 上报 guest webContentsId → main attach。
   [PlatformChannels.BrowserViewAttachGuest]: {

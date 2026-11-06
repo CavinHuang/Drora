@@ -1173,6 +1173,28 @@ export interface IPlatformService {
   /** 截取当前窗口，用于错误反馈携带现场画面；Web fallback 可返回 null */
   captureWindowScreenshot?(): Promise<WindowScreenshotResult | null>;
 
+  /**
+   * 语音厂商出站代理（specs/model-capabilities.md §15.8）：desktop main 经 net.fetch
+   * 代理白名单厂商域（火山单 Key 被 CORS 预检白名单堵死，浏览器直连不可修复）。
+   * Web/手机不实现——消费方（voiceVendorFetch）按方法缺席回退直连。
+   */
+  voiceVendorProxyFetch?(payload: import("./contracts/voice.js").VoiceVendorProxyFetchRequest): Promise<
+    import("./contracts/voice.js").VoiceVendorProxyFetchResponse
+  >;
+
+  /**
+   * §16 真流式播报三通道（specs/model-capabilities.md §16）：Start 返回 streamId、
+   * 分片经 onVoiceVendorProxyStreamChunk 推送、Abort 取消。Web/手机不实现——
+   * 消费方（cloudTtsAdapter 火山分支）按缺席回退整段路径。
+   */
+  voiceVendorProxyStreamStart?(payload: import("./contracts/voice.js").VoiceVendorProxyFetchRequest): Promise<{
+    streamId: string;
+  }>;
+  onVoiceVendorProxyStreamChunk?(
+    handler: (frame: import("./contracts/voice.js").VoiceVendorProxyStreamChunkFrame) => void,
+  ): () => void;
+  voiceVendorProxyStreamAbort?(payload: import("./contracts/voice.js").VoiceVendorProxyStreamAbortRequest): Promise<void>;
+
   /** 可信宿主导航自己承载的 guest；main 负责本地 HTML 的目录授权。 */
   browserViewLoadUrl?(payload: { webContentsId: number; url: string }): Promise<void>;
 

@@ -1,6 +1,6 @@
 import { decorateRequestSecurityLogArgs } from "./request-security-edition/index.js";
 /* eslint-disable max-lines -- 桌面平台 IPC 集中装配，拆散会让权限边界更难审计；行数随平台能力增长。 */
-import { BrowserWindow, dialog, ipcMain, nativeTheme } from "electron";
+import { BrowserWindow, dialog, ipcMain, nativeTheme, net } from "electron";
 import { readDroraStdioTapDevState } from "@drora/services/node";
 import {
   DesktopCommandIds,
@@ -30,6 +30,10 @@ import { createFileApplicationService } from "@desktop/main/file-open-apps/index
 import type { FileApplicationTarget } from "@drora/shared";
 import { getApplicationIcon } from "./applicationIcons.js";
 import { exportLogs } from "./exportLogs.js";
+import {
+  createVoiceVendorProxyHandler,
+  createVoiceVendorStreamHandler,
+} from "./voiceVendorProxy.js";
 import { resolveCommunityUrl } from "./desktopCommandHandlers.js";
 import { openInEditor } from "./openInEditor.js";
 import {
@@ -456,6 +460,34 @@ export function registerPlatformIpcHandlers(options: {
   );
   ipcMain.handle(PlatformChannels.GetDeviceId, () => options.deviceMid);
   ipcMain.handle(PlatformChannels.ExportLogs, () => exportLogs());
+  // §15.8 语音厂商出站代理：main net.fetch 不受 CORS 约束；白名单/上限/超时校验在 handler。
+  const voiceVendorProxyHandler = createVoiceVendorProxyHandler({
+    fetchImpl: (input, init) => net.fetch(input, init),
+  });
+  ipcMain.handle(PlatformChannels.VoiceVendorProxyFetch, (_event, payload: unknown) =>
+    voiceVendorProxyHandler(payload),
+  );
+  // §16 真流式播报三通道：Start 逐行推 Chunk（帧下行绑 sender webContents）；Abort 摘流。
+  const voiceVendorStreamHandler = createVoiceVendorStreamHandler({
+    fetchImpl: (input, init) => net.fetch(input, init),
+  });
+  ipcMain.handle(PlatformChannels.VoiceVendorProxyStreamStart, (event, payload: unknown) =>
+    voiceVendorStreamHandler.start(payload, (frame) => {
+      // 窗口销毁后 send 会 throw（"Object has been destroyed"）——吞掉防 main unhandled
+      // rejection（§16 审查修复）；流本体由 60s 硬闸/GC 表自然收尾。
+      try {
+        BrowserWindow.fromWebContents(event.sender)?.webContents.send(
+          PlatformChannels.VoiceVendorProxyStreamChunk,
+          frame,
+        );
+      } catch {
+        // sender 已销毁：帧丢弃。
+      }
+    }),
+  );
+  ipcMain.handle(PlatformChannels.VoiceVendorProxyStreamAbort, (_event, payload: unknown) =>
+    voiceVendorStreamHandler.abort(payload),
+  );
   ipcMain.handle(PlatformChannels.CaptureWindowScreenshot, async (event) => {
     const senderWindow = BrowserWindow.fromWebContents(event.sender);
     return captureWindowScreenshot(senderWindow);

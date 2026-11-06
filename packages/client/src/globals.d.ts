@@ -328,6 +328,22 @@ declare global {
       }>;
       /** 截取当前窗口，用于错误反馈携带现场画面 */
       captureWindowScreenshot?(): Promise<WindowScreenshotResult | null>;
+      /** 语音厂商出站代理（specs/model-capabilities.md §15.8；desktop main net.fetch，不受 CORS） */
+      voiceVendorProxyFetch(
+        payload: import("@drora/shared").VoiceVendorProxyFetchRequest,
+      ): Promise<import("@drora/shared").VoiceVendorProxyFetchResponse>;
+      /** §16 真流式播报：发起流式代理，分片经 onVoiceVendorProxyStreamChunk 推送 */
+      voiceVendorProxyStreamStart(
+        payload: import("@drora/shared").VoiceVendorProxyFetchRequest,
+      ): Promise<{ streamId: string }>;
+      /** §16 真流式播报：订阅 main 推送的分片帧（返回退订函数） */
+      onVoiceVendorProxyStreamChunk(
+        callback: (frame: import("@drora/shared").VoiceVendorProxyStreamChunkFrame) => void,
+      ): () => void;
+      /** §16 真流式播报：取消进行中的流 */
+      voiceVendorProxyStreamAbort(
+        payload: import("@drora/shared").VoiceVendorProxyStreamAbortRequest,
+      ): Promise<void>;
       browserViewAttachGuest?(payload: {
         key: string;
         webContentsId: number;

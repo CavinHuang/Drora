@@ -5462,7 +5462,7 @@ const enUS: Record<string, string> = {
   "settings.modelCapability.vendor.createFailed":
     "Failed to create the voice provider card. Try again later.",
   "settings.modelCapability.vendor.credentialHint.volcano":
-    'Volcano Engine: prefer the legacy console (console.volcengine.com/speech/app) with "AppID:Access Token" (colon-separated; works in-app); the new-console single API key (console.volcengine.com/speech/new) is not usable in-app yet (proxy support pending).',
+    "Volcano Engine: new speech console (console.volcengine.com/speech/new) takes a single API key (outbound via the desktop proxy in-app).",
   "settings.modelCapability.vendor.credentialHint.siliconflow":
     "SiliconFlow API key (starts with sk-), shared with chat models.",
   "settings.modelCapability.vendor.credentialHint.openai": "OpenAI API key (starts with sk-).",

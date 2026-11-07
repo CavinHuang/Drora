@@ -9031,6 +9031,7 @@ const zhCN: Record<string, string> = {
   "voice.entry.mic.tooltip":
     "语音听写：点按开始，再次点按或按 Esc 停止；转写进入输入框，发送前可编辑",
   "voice.dictation.preview.hint": "正在聆听，请说话…",
+  "voice.dictation.stop": "停止听写",
   "voice.dictation.preview.clear": "清除",
   "voice.dictation.requestingMic": "等待麦克风权限…",
   "voice.dictation.requestingMicTimeout":

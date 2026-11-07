@@ -9588,6 +9588,7 @@ const enUS: Record<string, string> = {
   "voice.entry.mic.tooltip":
     "Voice dictation: click to start, click again or press Esc to stop; text lands in the composer for review before sending",
   "voice.dictation.preview.hint": "Listening…",
+  "voice.dictation.stop": "Stop dictation",
   "voice.dictation.preview.clear": "Clear",
   "voice.dictation.requestingMic": "Waiting for microphone permission…",
   "voice.dictation.requestingMicTimeout":

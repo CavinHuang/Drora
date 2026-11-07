@@ -2433,3 +2433,33 @@ html[data-document-hidden] *::after {
 [data-scrollbar-active][data-scrollbar-dragging] {
   --drora-scrollbar-thumb: color-mix(in oklab, var(--color-foreground) 45%, transparent);
 }
+
+/* 底部转写浮层动画（spec §5.2 增补；DESIGN.md Motion：fast/low-drama）。 */
+@keyframes voice-rise {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 8px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+@keyframes voice-caret {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+@keyframes voice-wave {
+  0%,
+  100% {
+    height: 5px;
+  }
+  50% {
+    height: 14px;
+  }
+}

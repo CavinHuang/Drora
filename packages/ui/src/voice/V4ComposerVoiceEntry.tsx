@@ -27,7 +27,7 @@ import {
   createHoldTalkKeyHandler,
 } from "./voiceHoldTalk.js";
 import { VOICE_LAST_DICTATION_TTL_MS, VOICE_NOTICE_VISIBLE_TTL_MS } from "./voiceTuning.js";
-import { DictationPreviewOverlay } from "./DictationPreviewOverlay.js";
+import { VoiceTranscriptOverlay } from "./VoiceTranscriptOverlay.js";
 import { VoicePrivacyDisclosureDialog } from "./VoicePrivacyDisclosureDialog.js";
 import { useVoiceComposerEntry, useVoiceDictationSnapshot } from "./useVoiceComposerEntry.js";
 
@@ -225,16 +225,10 @@ function V4ComposerVoiceEntryMounted({
   const noticeVisible = snapshot.notice != null && !noticeExpired;
   return (
     <div className="relative inline-flex items-center">
-      {/* 录音指示/预览条（持有者入口，§3.2/§5.2/§9.9.4-L6）+ notice 提示（不依赖绑定归属，F1）。 */}
-      {bound || noticeVisible ? (
-        <DictationPreviewOverlay
-          bound={bound}
-          inputLeg={snapshot.inputLeg}
-          partialText={snapshot.partialText}
-          notice={noticeVisible ? snapshot.notice : null}
-          onClearPartial={() => useVoiceSessionStore.getState().setPartial("")}
-          onDismissNotice={() => useVoiceSessionStore.getState().clearNotice()}
-        />
+      {/* 底部转写浮层（§5.2 增补 2026-11-07，Proma 形态）：流式 partial + notice +
+          停止按钮；fixed 底部居中（持有者入口渲染单例，录音态/notice 可见）。 */}
+      {(snapshot.inputLeg !== "idle" || noticeVisible) && (bound || noticeVisible) ? (
+        <VoiceTranscriptOverlay onStopPressed={() => dictation.toggleMic()} />
       ) : null}
       <ControlHintTooltip title={tooltip}>
         {lastDictationFresh ? (

@@ -439,6 +439,8 @@ export const VOICE_INTERRUPT_FALLBACK = "en-US";   // 第三语言回退
 - **清空时机**：每句 final 注入发起即从预览条移除该句；录音结束时预览条随录音腿回 Idle 一并清空。
 - **焦点互斥**：预览条不获焦（`tabindex={-1}`），录音中键盘焦点保持在 composer——Esc 仲裁（§4.4）因此不需要处理预览条分支。
 
+**底部转写浮层（2026-11-07 增补，用户裁定「照 Proma：单独渲染入口+屏幕下方+动画」）**：流式听写（§9.6.10）期 partial 的展示从 composer 上方预览条升级为**窗口级底部浮层**（`VoiceTranscriptOverlay`：fixed 底部居中、毛玻璃、focused pane 渲染单例）——partial 逐字滚动+尾部光标闪烁+录音声波指示（DESIGN.md Motion 约束：fast/low-drama，淡入滑入 150ms 级，禁长弹簧动画）；notice（错误轻提示）与停止按钮并入浮层，原 `DictationPreviewOverlay` 退役。§5.1 写入规则不变（partial 永不进正文）；多 pane 只在 focused 渲染（与 AnnouncementIndicator 同位先例）；系统级独立悬浮窗（跨 App 可见）记扩展位不做。
+
 ### 5.3 RequestingMic 超时与 ASR 错误处置（冻结）
 
 - 权限对话框被忽略/折叠 → **10s 超时**自动回 Idle + 轻提示（voice.dictation.requestingMicTimeout）；拒绝 → 提示 + 设置引导（IPlatformService optional 引导方法，照 openCuaPermissionOnboarding 模式，前期勘察未复验）。

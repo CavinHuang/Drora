@@ -197,3 +197,90 @@ export function isVoiceVendorProxyAllowedHeaderKey(key: string): boolean {
     normalized.startsWith("x-api-")
   );
 }
+
+// ---------------------------------------------------------------------------
+// 豆包流式 ASR（specs/voice-agent-integration.md §9.6.10，2026-11-07 立项，按 Proma 架构）
+// ---------------------------------------------------------------------------
+
+/** sauc 流式 ASR 的 WS 端点模式（async=bigmodel_async 服务端攒句；duplex=bigmodel 实时）。 */
+export type DoubaoAsrEndpointMode = "async" | "duplex";
+
+/** ASR 专用复合凭据（卡 apiKey = "AppID:AccessToken"，冒号分隔；与 §15.9 TTS 单 Key 无涉）。 */
+export interface DoubaoAsrCredentials {
+  appId: string;
+  accessKey: string;
+}
+
+/** 复合凭据解析：空串/缺段 = null（fail-closed，无出站）。 */
+export function parseDoubaoAsrCredentials(apiKey: string): DoubaoAsrCredentials | null {
+  const trimmed = apiKey.trim();
+  if (!trimmed) return null;
+  const sep = trimmed.indexOf(":");
+  if (sep <= 0 || sep >= trimmed.length - 1) return null;
+  return { appId: trimmed.slice(0, sep).trim(), accessKey: trimmed.slice(sep + 1).trim() };
+}
+
+/** sauc 资源 ID 单一出处（端点模式后缀由 modelId 预设承载）。 */
+export const DOUBAO_ASR_RESOURCE_ID = "volc.seedasr.sauc.duration";
+
+/** 流式 ASR 硬边界（main 强制）。 */
+export const VOICE_ASR_STREAM_LIMITS = {
+  /** 会话时长上限（对齐录音上限族）。 */
+  sessionTimeoutMs: 60_000,
+  /** 单帧 PCM 上限（200ms@16k16bit=6400B，取 8KB 上取整余量）。 */
+  maxChunkBytes: 8192,
+} as const;
+
+export interface VoiceAsrStreamStartRequest {
+  appId: string;
+  accessKey: string;
+  resourceId: string;
+  endpointMode: DoubaoAsrEndpointMode;
+  /** BCP-47 源（voiceDictationLang；空串=端点默认）。 */
+  language: string;
+}
+
+export interface VoiceAsrStreamAudioChunk {
+  streamId: string;
+  /** 16k/16bit/单声道 PCM。 */
+  pcm: ArrayBuffer;
+  isLast: boolean;
+}
+
+export interface VoiceAsrStreamTranscriptFrame {
+  streamId: string;
+  text: string;
+  isFinal: boolean;
+}
+
+export type VoiceAsrStreamStatus = "ended" | "error";
+
+export interface VoiceAsrStreamStateFrame {
+  streamId: string;
+  status: VoiceAsrStreamStatus;
+  errorMessage?: string;
+}
+
+export const voiceAsrStreamStartRequestSchema = z
+  .object({
+    appId: z.string().min(1),
+    accessKey: z.string().min(1),
+    resourceId: z.string().min(1),
+    endpointMode: z.enum(["async", "duplex"]),
+    language: z.string(),
+  })
+  .strict();
+
+/** main Start 入口校验（失败 throw，renderer 还原为错误出腿）。 */
+export function parseVoiceAsrStreamStartRequest(payload: unknown): VoiceAsrStreamStartRequest {
+  return voiceAsrStreamStartRequestSchema.parse(payload);
+}
+
+export const voiceAsrStreamAudioChunkSchema = z.object({
+  streamId: z.string().min(1),
+  isLast: z.boolean(),
+});
+
+export const voiceAsrStreamAbortSchema = z
+  .object({ streamId: z.string().min(1) })
+  .strict();

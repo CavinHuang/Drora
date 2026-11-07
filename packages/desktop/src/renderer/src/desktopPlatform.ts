@@ -188,6 +188,13 @@ export function createDesktopPlatform(options: {
       window.drora.onVoiceVendorProxyStreamChunk(handler),
     voiceVendorProxyStreamAbort: (payload) =>
       window.drora.voiceVendorProxyStreamAbort(payload),
+    // §9.6.10 豆包流式 ASR 五方法。
+    voiceAsrStreamStart: (payload) => window.drora.voiceAsrStreamStart(payload),
+    voiceAsrStreamSendAudio: (chunk) => window.drora.voiceAsrStreamSendAudio(chunk),
+    onVoiceAsrStreamTranscript: (handler) =>
+      window.drora.onVoiceAsrStreamTranscript(handler),
+    onVoiceAsrStreamState: (handler) => window.drora.onVoiceAsrStreamState(handler),
+    voiceAsrStreamAbort: (payload) => window.drora.voiceAsrStreamAbort(payload),
     onUpdateReady: (callback) => window.drora.onUpdateReady(callback),
     onUpdateCheckResult: (callback) => window.drora.onUpdateCheckResult(callback),
     onUpdateStateChanged: (callback) => window.drora.onUpdateStateChanged?.(callback) ?? (() => {}),

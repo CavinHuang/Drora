@@ -57,7 +57,8 @@ export const VOICE_VENDOR_REGISTRY: ReadonlyArray<VoiceVendorTemplate> = [
     canonicalBaseUrl: `https://${VOICE_VENDOR_HOST_VOLCANO}`,
     matchHost: VOICE_VENDOR_HOST_VOLCANO,
     credentialHintKey: "settings.modelCapability.vendor.credentialHint.volcano",
-    apiKinds: ["tts"],
+    // §9.6.10：火山 ASR（sauc 流式）立项后启用；modelId=resourceId（#duplex 后缀切端点模式）。
+    apiKinds: ["tts", "asr"],
     voices: [
       { id: "zh_female_wanwanxiaohe_moon_bigtts", label: "湾湾小何（台湾腔·女）" },
       { id: "zh_female_xiaohe_uranus_bigtts", label: "小何 2.0（女·多语种）" },
@@ -72,7 +73,10 @@ export const VOICE_VENDOR_REGISTRY: ReadonlyArray<VoiceVendorTemplate> = [
     ],
     // 火山协议的 speaker 即音色（条目 modelId 承载），无独立模型轴。
     models: [],
-    asrModels: [],
+    asrModels: [
+      "volc.seedasr.sauc.duration",
+      "volc.seedasr.sauc.duration#duplex",
+    ],
   },
   {
     vendorId: "siliconflow",

@@ -856,6 +856,35 @@ contextBridge.exposeInMainWorld("drora", {
   voiceVendorProxyStreamAbort: (
     payload: import("@drora/shared").VoiceVendorProxyStreamAbortRequest,
   ): Promise<void> => ipcRenderer.invoke(PlatformChannels.VoiceVendorProxyStreamAbort, payload),
+  /** §9.6.10 豆包流式 ASR：发起会话（返回 streamId；转写经 onVoiceAsrStreamTranscript 推送） */
+  voiceAsrStreamStart: (
+    payload: import("@drora/shared").VoiceAsrStreamStartRequest,
+  ): Promise<{ streamId: string }> => ipcRenderer.invoke(PlatformChannels.VoiceAsrStreamStart, payload),
+  /** §9.6.10 豆包流式 ASR：上行 PCM 分片（send 通道，fire-and-forget） */
+  voiceAsrStreamSendAudio: (chunk: import("@drora/shared").VoiceAsrStreamAudioChunk): void => {
+    ipcRenderer.send(PlatformChannels.VoiceAsrStreamAudio, chunk);
+  },
+  /** §9.6.10 豆包流式 ASR：订阅下行转写帧 */
+  onVoiceAsrStreamTranscript: (
+    callback: (frame: import("@drora/shared").VoiceAsrStreamTranscriptFrame) => void,
+  ): (() => void) => {
+    const handler = (_event: unknown, frame: import("@drora/shared").VoiceAsrStreamTranscriptFrame) =>
+      callback(frame);
+    ipcRenderer.on(PlatformChannels.VoiceAsrStreamTranscript, handler);
+    return () => ipcRenderer.removeListener(PlatformChannels.VoiceAsrStreamTranscript, handler);
+  },
+  /** §9.6.10 豆包流式 ASR：订阅会话状态（ended/error） */
+  onVoiceAsrStreamState: (
+    callback: (frame: import("@drora/shared").VoiceAsrStreamStateFrame) => void,
+  ): (() => void) => {
+    const handler = (_event: unknown, frame: import("@drora/shared").VoiceAsrStreamStateFrame) =>
+      callback(frame);
+    ipcRenderer.on(PlatformChannels.VoiceAsrStreamState, handler);
+    return () => ipcRenderer.removeListener(PlatformChannels.VoiceAsrStreamState, handler);
+  },
+  /** §9.6.10 豆包流式 ASR：中止会话 */
+  voiceAsrStreamAbort: (payload: { streamId: string }): Promise<void> =>
+    ipcRenderer.invoke(PlatformChannels.VoiceAsrStreamAbort, payload),
   // CDP-on-guest pivot：`<webview>` guest dom-ready 后上报 webContentsId 给 main attach。
   browserViewLoadUrl: (payload: { webContentsId: number; url: string }): Promise<void> =>
     ipcRenderer.invoke(PlatformChannels.BrowserViewLoadUrl, payload),

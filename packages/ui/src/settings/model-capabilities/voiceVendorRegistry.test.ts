@@ -25,22 +25,22 @@ describe("语音供应商模板注册表（specs/model-capabilities.md §15）",
     expect(resolveVoiceVendorForCard("not a url")).toBeNull();
   });
 
-  it("能力子集：火山仅 tts（ASR 是另一条产品线协议）；SiliconFlow tts+asr", () => {
+  it("能力子集：火山 tts+asr（§9.6.10 sauc 流式立项后启用）；SiliconFlow tts+asr", () => {
     const volcano = VOICE_VENDOR_REGISTRY.find((template) => template.vendorId === "volcano");
     const siliconflow = VOICE_VENDOR_REGISTRY.find(
       (template) => template.vendorId === "siliconflow",
     );
-    expect(volcano?.apiKinds).toEqual(["tts"]);
+    expect(volcano?.apiKinds).toEqual(["tts", "asr"]);
     expect(siliconflow?.apiKinds).toContain("tts");
     expect(siliconflow?.apiKinds).toContain("asr");
   });
 
-  it("ASR 模型预设：SiliconFlow 提供（SenseVoice/TeleSpeech）；火山恒空（§15.2）", () => {
+  it("ASR 模型预设：SiliconFlow（SenseVoice/TeleSpeech）与火山（sauc 双模式，§9.6.10）", () => {
     const volcano = VOICE_VENDOR_REGISTRY.find((template) => template.vendorId === "volcano");
     const siliconflow = VOICE_VENDOR_REGISTRY.find(
       (template) => template.vendorId === "siliconflow",
     );
-    expect(volcano?.asrModels).toEqual([]);
+    expect(volcano?.asrModels).toEqual(["volc.seedasr.sauc.duration", "volc.seedasr.sauc.duration#duplex"]);
     expect(siliconflow?.asrModels).toContain("FunAudioLLM/SenseVoiceSmall");
     expect(siliconflow?.asrModels).toContain("TeleAI/TeleSpeechASR");
   });

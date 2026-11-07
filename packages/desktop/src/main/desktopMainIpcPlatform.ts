@@ -1,6 +1,7 @@
 import { decorateRequestSecurityLogArgs } from "./request-security-edition/index.js";
 /* eslint-disable max-lines -- 桌面平台 IPC 集中装配，拆散会让权限边界更难审计；行数随平台能力增长。 */
 import { BrowserWindow, dialog, ipcMain, nativeTheme, net } from "electron";
+import WebSocket from "ws";
 import { readDroraStdioTapDevState } from "@drora/services/node";
 import {
   DesktopCommandIds,
@@ -34,6 +35,7 @@ import {
   createVoiceVendorProxyHandler,
   createVoiceVendorStreamHandler,
 } from "./voiceVendorProxy.js";
+import { createDoubaoAsrService } from "./doubaoAsrService.js";
 import { resolveCommunityUrl } from "./desktopCommandHandlers.js";
 import { openInEditor } from "./openInEditor.js";
 import {
@@ -488,6 +490,42 @@ export function registerPlatformIpcHandlers(options: {
   ipcMain.handle(PlatformChannels.VoiceVendorProxyStreamAbort, (_event, payload: unknown) =>
     voiceVendorStreamHandler.abort(payload),
   );
+  // §9.6.10 豆包流式 ASR 通道族：常驻 service（Start/Audio/Abort 三通道共享会话表）；
+  // 下行按 streamId 路由到发起 Start 的 sender（窗口销毁吞异常，§16 sink 同款）。
+  {
+    const senders = new Map<string, Electron.WebContents>();
+    const push = (channel: string, frame: { streamId: string }) => {
+      const sender = senders.get(frame.streamId);
+      if (!sender || sender.isDestroyed()) return;
+      try {
+        sender.send(channel, frame);
+      } catch {
+        // sender 已销毁：帧丢弃。
+      }
+    };
+    const doubaoAsr = createDoubaoAsrService({
+      connect: (url, headers) => new WebSocket(url, { headers }),
+      sendTranscript: (frame) => push(PlatformChannels.VoiceAsrStreamTranscript, frame),
+      sendState: (frame) => {
+        push(PlatformChannels.VoiceAsrStreamState, frame);
+        senders.delete(frame.streamId); // ended/error 后不再需要路由。
+      },
+    });
+    ipcMain.handle(PlatformChannels.VoiceAsrStreamStart, (event, payload: unknown) =>
+      doubaoAsr.start(payload).then((result) => {
+        senders.set(result.streamId, event.sender);
+        return result;
+      }),
+    );
+    ipcMain.on(PlatformChannels.VoiceAsrStreamAudio, (_event, chunk: unknown) => {
+      doubaoAsr.sendAudio(chunk);
+    });
+    ipcMain.handle(PlatformChannels.VoiceAsrStreamAbort, (_event, payload: unknown) => {
+      const streamId = (payload as { streamId?: string })?.streamId ?? "";
+      senders.delete(streamId);
+      doubaoAsr.abort(payload);
+    });
+  }
   ipcMain.handle(PlatformChannels.CaptureWindowScreenshot, async (event) => {
     const senderWindow = BrowserWindow.fromWebContents(event.sender);
     return captureWindowScreenshot(senderWindow);

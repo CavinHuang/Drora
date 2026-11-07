@@ -890,6 +890,69 @@ flowchart TD
 | OQ-8 | 厂商 CORS / 容器格式能力矩阵（OpenAI 直连 preflight 本环境连接超时未能核验；SiliconFlow transcriptions 支持格式列表未抓取到） | 每厂商属性，只能实测；默认厂商已放行，第二厂商未引入 | 引入任何非默认厂商前（含 OpenAI 官方） | Phase 2 实现者 |
 | TV-8 | 默认厂商端到端连通性 spike（真实凭据直调 transcriptions/speech + 桌面 renderer 环境 CORS + MediaRecorder webm/opus 容器实测） | 需真实凭据与目标运行时，静态核验不足 | **S2/S4 实施前强制前置**（同 TV-1 之于 Phase 1a） | Phase 2 实现者 |
 
+#### 9.6.10 豆包流式 ASR 引擎（sauc，2026-11-07 立项，用户裁定「按 Proma 架构设计」）
+
+**背景与裁定**：§9.6.4 冻结的 v1 批量形态兑现了「松开出字」，实时滚字在桌面端因 webSpeech 静默死（§5.3 看门狗批实证）不可达。用户裁定按 Proma（开源 Electron 架构实证）引入**火山豆包「语音识别大模型」流式协议（sauc）**为第二云引擎——即 §15.2 曾记「火山 ASR 另一条产品线协议」的产品线正式适配（与 TTS 火山特例 §14 同构：OpenAI 兼容族之外火山自有协议第二例）。**§9.6.4 的流式扩展位就此兑现；批量引擎（SiliconFlow 族）语义全部不变**。
+
+**协议形状（Proma doubao-asr-service.ts 实证 + 火山文档）**：
+
+- WS 端点 `wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_async`（`endpointMode:"async"`，Proma 默认）与 `.../bigmodel`（`"duplex"`）双模式，v1 两者都进设置（默认 async，实测后定推荐）。
+- 鉴权四头：`X-Api-App-Key`(AppID)、`X-Api-Access-Key`(AccessToken)、`X-Api-Resource-Id`（默认 `volc.seedasr.sauc.duration`）、`X-Api-Connect-Id`(uuid)。**浏览器 WebSocket 不能带自定义头——必须 main 进程持连**（与 §15.8 代理同动机）。
+- 二进制帧：4B 头（版本 0b0001/头长 0b0001|消息类型|flags|序列化|压缩）+ 4B payload 大小 + payload。首帧 `FULL_CLIENT_REQUEST`（gzip JSON：`audio{format:"pcm",rate:16000,bits:16,channel:1}` + `request{model_name:"bigmodel",enable_nonstream:true,show_utterances:true,result_type:"full",enable_itn/punc/ddc:true,end_window_size:5000,force_to_speech_time:1000}`——听写调优值照 Proma 实证：5s 断句窗防过早切句）；后续 `AUDIO_ONLY_REQUEST`（gzip PCM，末帧 FLAG_LAST）；服务端 `FULL_SERVER_RESPONSE`（gzip JSON）。
+- **服务端语义（Proma 踩坑注释直接吸收）**：`result` 数组是**候选不是分句**——按 confidence 取最优，直接拼接会产生重复文本；`utterances[].definite === true` 判句终；`enable_nonstream` 兼容尾句兜底。
+
+**架构（数据面三层，Proma 同构，映射到本仓既有基建）**：
+
+```
+renderer pcmStreamCapture.ts（新）                    desktop main doubaoAsrService.ts（新）      火山 sauc WS
+  getUserMedia → AudioContext + ScriptProcessor(4096)    帧编解码（gzip/头/大小）+ 会话表/GC      wss://…sauc/bigmodel[_async]
+  → floatTo16BitPcm 重采样 16k/16bit/单声道              WS 持连（鉴权四头）                       （上行音频帧/下行转写帧）
+  → 200ms 切块 ──IPC send 上行──▶  AudioChunk ──ws.send 音频帧──▶
+                                                    ◀──ws.onmessage 转写── Transcript ──webContents.send──▶
+  doubaoStreamingAsrAdapter.ts（新）：VoiceAsrPort 适配
+    isFinal=false → onPartial → 预览条实时滚字（§5.2）
+    utterance definite → onFinal 逐句注入正文（§5.1 句级语义原生恢复，打断词恢复句级实时判定）
+```
+
+**IPC 通道族（contracts/voice.ts 单一出处，对齐 §16 家族命名）**：
+
+- `VoiceAsrStreamStart`（invoke，renderer→main）：载荷 `{appId, accessKey, resourceId, endpointMode, language}` → `{streamId}`；凭据不完整 throw（fail-closed，§13 精神）。
+- `VoiceAsrStreamAudio`（send，renderer→main）：`{streamId, pcm: ArrayBuffer, isLast}`。
+- `VoiceAsrStreamTranscript`（main→renderer 推）：`{streamId, text, isFinal}`。
+- `VoiceAsrStreamState`（main→renderer 推）：`{streamId, status: "ended"|"error", errorMessage?}`。
+- `VoiceAsrStreamAbort`（invoke）：摘会话表 + ws.terminate。
+- limits（main 强制）：会话时长上限 60s（对齐录音上限族）、单帧 PCM ≤ 8KB（200ms 上取整）、GC 四路摘除对齐 §16.2（done/error/abort/超时）。
+
+**适配与选型（VoiceAsrPort 契约零改动）**：
+
+- 新适配器 `doubaoStreamingAsrAdapter` 实现 `VoiceAsrPort`：`onPartial`（非 final text）/`onFinal`（definite 句）/`onError`（§5.3 映射：WS 断开/超时 → network）/`stop()`（发 last 帧 + 等尾句 final，`VOICE_ASR_STOP_SETTLE_TIMEOUT_MS` 兜底）/`abort()`。
+- 选型：ASR 条目供应商卡 host 命中 `VOICE_VENDOR_HOST_VOLCANO` → doubao 流式；其余 remote 卡照旧批量；webSpeech 照旧。`resolveAsrAdapter` 加分支。
+- **凭证进现有卡体系（schema 零改动）**：卡 `apiKey` 塞复合 `AppID:AccessToken`（冒号分隔；ASR 专用解析 `parseDoubaoAsrCredentials`——与 §15.9 删除的 TTS 复合解析无涉），`resourceId`/`endpointMode` 由条目 `modelId` 字段承载（registry 预设下拉：`volc.seedasr.sauc.duration (async)` / `(duplex)`）。
+- **混合预览（§5.5.2）不适用于本引擎**（自身流式，双引擎无增益且 webSpeech 在桌面端死）；SiliconFlow 批量引擎的混合预览语义不变。
+
+**范围裁定**：v1 不带热词 corpus（扩展位记档：`request.corpus` 字段已实证可用，未来接自定义词表）；不做自动重连（§5.3 不自动重启原则，断线=句 error 出腿）；不做语言自动检测（`language` 映射既有 `voiceDictationLang`，空=端点默认）；Win/Linux 全平台可用（纯网络协议，无平台原生依赖）。**§1.2「不新增音频帧通道」冻结的重新裁定**：该冻结针对 wire 协议 v4（agent 会话通道）——本引擎音频帧走**本机 IPC + 厂商 WS**，不进 wire 协议/不进快照回放域，与冻结精神一致（记档澄清，非推翻）。
+
+**改造面清单**：
+
+| 层 | 文件 | 内容 |
+| --- | --- | --- |
+| shared | contracts/voice.ts | VoiceAsrStream* 通道族常量 + 载荷 schema + limits + 凭据解析 `parseDoubaoAsrCredentials` |
+| shared | channels.ts | 四通道 + PlatformChannelMap 映射 |
+| shared | platform.ts | 四可选方法（IPlatformService voiceAsrStream* 家族） |
+| desktop main | doubaoAsrService.ts（新） | sauc 帧编解码（gzip golden 可测）+ WS 会话表 + 鉴权四头 + 背压/上限/GC |
+| desktop | desktopMainIpcPlatform/preload/globals.d.ts/desktopPlatform | 通道接线（照 §16 三件套模式） |
+| ui | pcmStreamCapture.ts（新） | ScriptProcessor 抓取 + 重采样 16k/16bit + 200ms 切块（算法照 Proma voice-audio-utils 自写，含重采样精度单测） |
+| ui | doubaoStreamingAsrAdapter.ts（新） | 流会话编排（Start→上行→下行→stop 尾句）+ VoiceAsrPort 适配 |
+| ui | resolveAsrAdapter/useVoiceDictation | 选型分支 + PCM 腿装配 |
+| ui | voiceVendorRegistry | 火山模板 `apiKinds` 补 `asr`、`asrModels` 填 sauc 双模式预设、凭据提示（ASR 控制台入口与 TTS 不同产品线，注明） |
+| 测试 | 各层 | 帧编解码 golden / 会话状态机 / 适配器（partial/definite/断线/stop 尾句）/ 选型 / 重采样 |
+
+**验收**：
+
+- 单测：帧编解码字节级 golden；会话状态机（Start/Audio/Transcript/Abort/GC 四路）；适配器（partial→预览、definite→逐句注入、断线→network 出腿、stop 尾句收尾）；重采样精度；选型矩阵。
+- 实机（用户）：火山控制台「语音技术→流式语音识别大模型」开通拿 AppID/AccessToken → 卡填复合凭据 + 模型选 sauc → **长按右 ⌘：预览条实时滚字、逐句落正文、松开尾句收尾**；Esc 中止；断网 toast；打断词句级命中。
+- 门禁：typecheck / lint / arch --changed（新通道登记）/ test:drora 全绿。
+
 ### 9.7 Phase 2 批次二：音色选择完善与角色设置（2026-10-24 增补）
 
 增补性质：本章消化 `docs/voice-completeness-review-2026-10-24.md`（下称「复审报告」；**该报告与其引用的上轮 `docs/voice-agent-implementation-review-2026-10-23.md` 均随本批增补一并提交入仓，溯源链仓内可解析**）第三节五个音色缺口（#1 盲填 medium 复核成立 / #2 voiceschanged low / #3 云 voice 跨命名空间 medium 复核成立 / #4 播报语言来源 low / #5 语速草稿态 nit）、第四节 persona missing-in-spec（六条建议）与 7.2 后续动作 #1–#6。**不改写任何既有冻结裁决**；对 §9.6.5-1「voice=u.voice ?? 缺省（复用既有 voiceAnnouncementVoice 作为厂商音色 id）」云 voice 子句的取代，照 §9.6 头部对 §9.4「TV-1 注作废」的先例办理——原正文不改写，以本章为准。本章新增裁决自增补日起纳入头部冻结范围，标注「建议，待拍板」条目除外。

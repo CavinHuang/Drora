@@ -40,6 +40,11 @@ export interface UseVoiceDictationParams {
    * 缺省 true 与 appSettings 默认一致）。webSpeech 不可用时自然无效。
    */
   hybridPreview?: boolean;
+  /**
+   * §9.6.10 豆包流式 ASR 通道聚合（platform 五方法；火山卡命中时优先于批量引擎；
+   * 缺席=回退批量/内置引擎）。混合预览不适用于该引擎（自身流式）。
+   */
+  asrStream?: import("./doubaoStreamingAsrAdapter.js").DoubaoAsrStreamPort;
 }
 export interface VoiceDictationController {
   /** 点按 mic：idle→RequestingMic（经隐私门）/ 录音中→手动停止 / requestingMic 中→持有者取消。 */
@@ -245,7 +250,24 @@ export function useVoiceDictation(params: UseVoiceDictationParams): VoiceDictati
     void (async () => {
       let adapter: VoiceAsrPort = webSpeechAdapter;
       try {
-        if (current.asrEngine === "remote") {
+        // §9.6.10：火山卡 + ASR 流通道在场 → 豆包流式适配器（partial 实时 + 逐句 final）。
+        if (
+          current.asrEngine === "remote" &&
+          current.asrStream &&
+          current.vendor?.baseUrl.includes("openspeech.bytedance.com")
+        ) {
+          const { createDoubaoStreamingAsrAdapter } = await import("./doubaoStreamingAsrAdapter.js");
+          const apiKey = (await current.getVendorApiKey?.().catch(() => null)) ?? "";
+          if (generation !== generationRef.current) return;
+          adapter = createDoubaoStreamingAsrAdapter({
+            stream: current.asrStream,
+            getVendorConfig: async () => ({
+              baseUrl: current.vendor?.baseUrl ?? "",
+              model: current.vendor?.model ?? "",
+              apiKey,
+            }),
+          });
+        } else if (current.asrEngine === "remote") {
           const apiKey = (await current.getVendorApiKey?.().catch(() => null)) ?? "";
           if (generation !== generationRef.current) return;
           // 本次录音固定厂商配置，避免设置热更把已录音频发到另一处理方。

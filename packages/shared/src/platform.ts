@@ -1195,6 +1195,23 @@ export interface IPlatformService {
   ): () => void;
   voiceVendorProxyStreamAbort?(payload: import("./contracts/voice.js").VoiceVendorProxyStreamAbortRequest): Promise<void>;
 
+  /**
+   * §9.6.10 豆包流式 ASR 通道族（specs/voice-agent-integration.md §9.6.10）：main 持
+   * sauc WebSocket（鉴权四头），renderer 上行 PCM 分片/下行转写。Web/手机不实现——
+   * 消费方（doubaoStreamingAsrAdapter）按方法缺席走「引擎不可用」出腿。
+   */
+  voiceAsrStreamStart?(payload: import("./contracts/voice.js").VoiceAsrStreamStartRequest): Promise<{
+    streamId: string;
+  }>;
+  voiceAsrStreamSendAudio?(chunk: import("./contracts/voice.js").VoiceAsrStreamAudioChunk): void;
+  onVoiceAsrStreamTranscript?(
+    handler: (frame: import("./contracts/voice.js").VoiceAsrStreamTranscriptFrame) => void,
+  ): () => void;
+  onVoiceAsrStreamState?(
+    handler: (frame: import("./contracts/voice.js").VoiceAsrStreamStateFrame) => void,
+  ): () => void;
+  voiceAsrStreamAbort?(payload: { streamId: string }): Promise<void>;
+
   /** 可信宿主导航自己承载的 guest；main 负责本地 HTML 的目录授权。 */
   browserViewLoadUrl?(payload: { webContentsId: number; url: string }): Promise<void>;
 

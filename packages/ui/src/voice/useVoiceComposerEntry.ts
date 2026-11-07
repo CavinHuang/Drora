@@ -12,6 +12,7 @@ import type { ProviderSettingsView } from "@drora/services";
 import { useDroraIntl } from "@/i18n/IntlProvider.js";
 import { useServices } from "@/hooks/useServices.js";
 import { useSettings } from "@/hooks/useSettingService.js";
+import { useOptionalPlatform } from "@/hooks/usePlatform.js";
 import { useModelCapabilities } from "@/hooks/useModelCapabilities.js";
 import {
   isVoiceComposerEntryVisibleInSettings,
@@ -60,6 +61,7 @@ export function useVoiceComposerEntry({
   const { intl, locale } = useDroraIntl();
   const services = useServices();
   const { settings, update: updateSettings } = useSettings();
+  const platform = useOptionalPlatform();
   // ASR 引擎数据源（specs/model-capabilities.md §4/§13）：引擎选择读档案 asr 条目；
   // §13 起连接信息（baseUrl+apiKey）单点在官方供应商卡，经 providerSettingsService
   // 按 providerRef 实时解析（卡删/key 变即时生效，回退树语义不变 MC-10）。
@@ -199,6 +201,28 @@ export function useVoiceComposerEntry({
   );
   // §5.5：长按听写两设置键（appSettings 行为偏好；schema 默认 off/true）。
   const dictationHoldKey = settings?.voiceDictationHoldKey ?? "off";
+  // §9.6.10 豆包流式 ASR 通道聚合（火山卡命中的听写走真流式；方法缺席=缺席端口）。
+  const asrStream = useMemo<
+    import("../voice/doubaoStreamingAsrAdapter.js").DoubaoAsrStreamPort | null
+  >(() => {
+    const platformAsr = platform;
+    if (
+      platformAsr?.voiceAsrStreamStart == null ||
+      platformAsr.voiceAsrStreamSendAudio == null ||
+      platformAsr.onVoiceAsrStreamTranscript == null ||
+      platformAsr.onVoiceAsrStreamState == null ||
+      platformAsr.voiceAsrStreamAbort == null
+    ) {
+      return null;
+    }
+    return {
+      start: (request) => platformAsr.voiceAsrStreamStart!(request),
+      sendAudio: (chunk) => platformAsr.voiceAsrStreamSendAudio!(chunk),
+      onTranscript: (handler) => platformAsr.onVoiceAsrStreamTranscript!(handler),
+      onState: (handler) => platformAsr.onVoiceAsrStreamState!(handler),
+      abort: (payload) => platformAsr.voiceAsrStreamAbort!(payload),
+    };
+  }, [platform]);
   const dictationHybridPreview = settings?.voiceDictationHybridPreview ?? true;
   const dictation = useVoiceDictation({
     sessionId,
@@ -214,6 +238,8 @@ export function useVoiceComposerEntry({
     getVendorApiKey,
     // §5.5.2：混合流式预览开关。
     hybridPreview: dictationHybridPreview,
+    // §9.6.10：豆包流式 ASR 通道（火山卡命中优先）。
+    asrStream: asrStream ?? undefined,
     // §9.9.3-M9：入口可见性（voiceComposerEntryState 纯函数收口的唯一判定源）——
     // 录音中设置隐藏入口 = 持有者定向停止，不留下无入口的继续拾音。
     entryVisible: view.visible,

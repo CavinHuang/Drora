@@ -344,6 +344,22 @@ declare global {
       voiceVendorProxyStreamAbort(
         payload: import("@drora/shared").VoiceVendorProxyStreamAbortRequest,
       ): Promise<void>;
+      /** §9.6.10 豆包流式 ASR：发起会话 */
+      voiceAsrStreamStart(
+        payload: import("@drora/shared").VoiceAsrStreamStartRequest,
+      ): Promise<{ streamId: string }>;
+      /** §9.6.10 豆包流式 ASR：上行 PCM 分片 */
+      voiceAsrStreamSendAudio(chunk: import("@drora/shared").VoiceAsrStreamAudioChunk): void;
+      /** §9.6.10 豆包流式 ASR：订阅下行转写帧 */
+      onVoiceAsrStreamTranscript(
+        callback: (frame: import("@drora/shared").VoiceAsrStreamTranscriptFrame) => void,
+      ): () => void;
+      /** §9.6.10 豆包流式 ASR：订阅会话状态 */
+      onVoiceAsrStreamState(
+        callback: (frame: import("@drora/shared").VoiceAsrStreamStateFrame) => void,
+      ): () => void;
+      /** §9.6.10 豆包流式 ASR：中止会话 */
+      voiceAsrStreamAbort(payload: { streamId: string }): Promise<void>;
       browserViewAttachGuest?(payload: {
         key: string;
         webContentsId: number;

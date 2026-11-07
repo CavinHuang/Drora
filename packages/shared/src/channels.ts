@@ -484,6 +484,15 @@ export const PlatformChannels = {
   VoiceVendorProxyStreamChunk: "drora:voice-vendor-proxy-stream-chunk",
   VoiceVendorProxyStreamAbort: "drora:voice-vendor-proxy-stream-abort",
   /**
+   * §9.6.10 豆包流式 ASR 通道族：Start（invoke）→ Audio（renderer→main send 上行 PCM）→
+   * Transcript/State（main→renderer 推）→ Abort。详见 contracts/voice.ts ASR 流式块。
+   */
+  VoiceAsrStreamStart: "drora:voice-asr-stream-start",
+  VoiceAsrStreamAudio: "drora:voice-asr-stream-audio",
+  VoiceAsrStreamTranscript: "drora:voice-asr-stream-transcript",
+  VoiceAsrStreamState: "drora:voice-asr-stream-state",
+  VoiceAsrStreamAbort: "drora:voice-asr-stream-abort",
+  /**
    * Renderer → Main：`<webview>` guest dom-ready 后上报 webContentsId，
    * main 用 BrowserGuestManager attach 该 guest（fire-and-forget）。CDP-on-guest pivot。
    */
@@ -1299,6 +1308,26 @@ export interface PlatformChannelMap {
   };
   [PlatformChannels.VoiceVendorProxyStreamAbort]: {
     request: import("./contracts/voice.js").VoiceVendorProxyStreamAbortRequest;
+    response: void;
+  };
+  [PlatformChannels.VoiceAsrStreamStart]: {
+    request: import("./contracts/voice.js").VoiceAsrStreamStartRequest;
+    response: { streamId: string };
+  };
+  [PlatformChannels.VoiceAsrStreamAudio]: {
+    request: import("./contracts/voice.js").VoiceAsrStreamAudioChunk;
+    response: void;
+  };
+  [PlatformChannels.VoiceAsrStreamTranscript]: {
+    request: import("./contracts/voice.js").VoiceAsrStreamTranscriptFrame;
+    response: void;
+  };
+  [PlatformChannels.VoiceAsrStreamState]: {
+    request: import("./contracts/voice.js").VoiceAsrStreamStateFrame;
+    response: void;
+  };
+  [PlatformChannels.VoiceAsrStreamAbort]: {
+    request: { streamId: string };
     response: void;
   };
   // CDP-on-guest pivot：renderer `<webview>` 上报 guest webContentsId → main attach。

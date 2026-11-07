@@ -66,6 +66,11 @@ export function startPcmStreamCapture(
       audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
     });
     const ctx = createCtx();
+    // autoplay policy 兜底（§16 TTS 播放器同款）：suspended 的 ctx 不会驱动
+    // ScriptProcessor——零 PCM 上行、服务端只回元数据帧（真机排障实证形态）。
+    if (ctx.state === "suspended") {
+      void ctx.resume().catch(() => undefined);
+    }
     const source = ctx.createMediaStreamSource(stream);
     // ScriptProcessorNode 已废弃但在 Electron/Chromium 稳定可用（Proma 同款）；AudioWorklet
     // 需独立 worklet 模块加载，v1 按实证路径。

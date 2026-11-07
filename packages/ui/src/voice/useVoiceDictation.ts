@@ -249,8 +249,16 @@ export function useVoiceDictation(params: UseVoiceDictationParams): VoiceDictati
 
     void (async () => {
       let adapter: VoiceAsrPort = webSpeechAdapter;
+      // §9.6.10：doubao 流式引擎自身出 partial——混合预览不适用（双引擎无增益且
+      // 桌面 webSpeech 死引擎徒占音频）。
+      let isStreamingCloudAdapter = false;
       try {
         // §9.6.10：火山卡 + ASR 流通道在场 → 豆包流式适配器（partial 实时 + 逐句 final）。
+        console.info("[ASR-DBG] 选型条件", {
+          engine: current.asrEngine,
+          hasStream: !!current.asrStream,
+          baseUrl: current.vendor?.baseUrl ?? "",
+        });
         if (
           current.asrEngine === "remote" &&
           current.asrStream &&
@@ -267,6 +275,7 @@ export function useVoiceDictation(params: UseVoiceDictationParams): VoiceDictati
               apiKey,
             }),
           });
+          isStreamingCloudAdapter = true;
         } else if (current.asrEngine === "remote") {
           const apiKey = (await current.getVendorApiKey?.().catch(() => null)) ?? "";
           if (generation !== generationRef.current) return;
@@ -339,6 +348,7 @@ export function useVoiceDictation(params: UseVoiceDictationParams): VoiceDictati
         let previewPartialUnsubscribe: (() => void) | null = null;
         if (
           adapter !== webSpeechAdapter &&
+          !isStreamingCloudAdapter &&
           webSpeechAdapter.isSupported() &&
           (current.hybridPreview ?? true)
         ) {

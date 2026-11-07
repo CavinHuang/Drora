@@ -12,6 +12,7 @@
  */
 
 import { randomUUID } from "node:crypto";
+import { createServiceLogger } from "@drora/services/node";
 import { gunzipSync, gzipSync } from "node:zlib";
 import {
   VOICE_ASR_STREAM_LIMITS,
@@ -41,6 +42,7 @@ const COMPRESSION_GZIP = 0b0001;
 
 /** 听写调优（Proma 实证）：5s 断句窗防 800ms 静音过早切句；1s 强制成句。 */
 const END_WINDOW_SIZE_MS = 5000;
+const logger = createServiceLogger("voice.asr");
 const FORCE_TO_SPEECH_TIME_MS = 1000;
 
 export function doubaoAsrEndpoint(mode: DoubaoAsrEndpointMode): string {
@@ -209,6 +211,7 @@ export interface DoubaoAsrServiceDeps {
 interface Session {
   ws: DoubaoAsrWsLike;
   closed: boolean;
+  firstChunk?: boolean;
   timer: ReturnType<typeof setTimeout>;
 }
 
@@ -309,6 +312,10 @@ export function createDoubaoAsrService(deps: DoubaoAsrServiceDeps): {
       const pcm = (chunk as { pcm?: ArrayBuffer }).pcm;
       if (!pcm || pcm.byteLength === 0 || pcm.byteLength > VOICE_ASR_STREAM_LIMITS.maxChunkBytes) {
         return; // 超限/空帧丢弃（防御；renderer 侧按 200ms 切块恒在限内）。
+      }
+      if (session.firstChunk !== true) {
+        session.firstChunk = true;
+        logger.info("doubao asr first audio chunk uplinked", { bytes: pcm.byteLength });
       }
       session.ws.send(buildDoubaoAudioFrame(Buffer.from(pcm), parsed.isLast));
       if (parsed.isLast) {

@@ -113,6 +113,9 @@ export function createVoiceTranscriptIndicator(
     });
     const entry = deps.resolveEntryUrl(deps.rendererDevUrl != null, deps.rendererDevUrl, deps.rendererDir);
     if (entry.url) {
+      created.webContents.once("did-fail-load", (_e, code, desc) => {
+        deps.logger.warn("voice transcript indicator load failed", { code, desc });
+      });
       void created.loadURL(entry.url);
     } else if (entry.file) {
       void created.loadFile(entry.file);

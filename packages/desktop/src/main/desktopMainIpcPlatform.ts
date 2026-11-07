@@ -558,10 +558,19 @@ export function registerPlatformIpcHandlers(options: {
       },
     });
     ipcMain.handle(PlatformChannels.VoiceAsrStreamStart, (event, payload: unknown) => {
-      // 指示窗零等待反馈（真机实证修复）：invoke 即显示——不等 WS 连接（串行链 2s+
-      // 期间用户看到的「按住无反应/闪现即失」）；连接失败经 sendState error 路径 hide。
-      transcriptIndicator.show();
-      transcriptIndicator.send("drora:voice-transcript-show", { streamId: "pending" });
+      // §5.5 双模路由（Proma usesExternalIndicator 同款，2026-11-07 三轮真机症状后
+      // 从「恒用悬浮窗」回撤）：主窗前台 = 窗口内浮层展示，**不创建外置面板**——macOS
+      // 对「App 激活期首次创建全工作区非激活面板」敏感（真机先后出现：整 App 隐藏 /
+      // Dock 图标消失+主窗沉底，均只在首按创建序列），Proma 的外置条仅在自家非前台
+      // 时创建，此路径它从不执行。主窗非前台（对其他 App 听写）= 外置悬浮条。
+      const senderWindow = BrowserWindow.fromWebContents(event.sender);
+      const useExternalIndicator = senderWindow == null || senderWindow.isFocused() !== true;
+      if (useExternalIndicator) {
+        // 指示窗零等待反馈（真机实证修复）：invoke 即显示——不等 WS 连接（串行链 2s+
+        // 期间用户看到的「按住无反应/闪现即失」）；连接失败经 sendState error 路径 hide。
+        transcriptIndicator.show();
+        transcriptIndicator.send("drora:voice-transcript-show", { streamId: "pending" });
+      }
       return doubaoAsr
         .start(payload)
         .then((result) => {
@@ -569,8 +578,10 @@ export function registerPlatformIpcHandlers(options: {
           return result;
         })
         .catch((error: unknown) => {
-          transcriptIndicator.hide();
-          transcriptIndicator.send("drora:voice-transcript-hide", { streamId: "pending" });
+          if (useExternalIndicator) {
+            transcriptIndicator.hide();
+            transcriptIndicator.send("drora:voice-transcript-hide", { streamId: "pending" });
+          }
           throw error;
         });
     });

@@ -22,11 +22,9 @@ import { useOptionalServices } from "@/hooks/useServices.js";
 import { useDroraIntl } from "@/i18n/IntlProvider.js";
 import { useDroraSessionStore } from "@/store/droraSessionStore.js";
 import { isVoiceLastDictationFresh, useVoiceSessionStore } from "@/store/voiceSessionStore.js";
-import {
-  attachHoldTalkKeyListeners,
-  createHoldTalkKeyHandler,
-} from "./voiceHoldTalk.js";
+import { attachHoldTalkKeyListeners, createHoldTalkKeyHandler } from "./voiceHoldTalk.js";
 import { VOICE_LAST_DICTATION_TTL_MS, VOICE_NOTICE_VISIBLE_TTL_MS } from "./voiceTuning.js";
+import { nextExternalIndicatorActive } from "./voiceComposerEntryState.js";
 import { VoiceTranscriptOverlay } from "./VoiceTranscriptOverlay.js";
 import { VoicePrivacyDisclosureDialog } from "./VoicePrivacyDisclosureDialog.js";
 import { useVoiceComposerEntry, useVoiceDictationSnapshot } from "./useVoiceComposerEntry.js";
@@ -77,6 +75,24 @@ function V4ComposerVoiceEntryMounted({
     tooltip,
   } = useVoiceComposerEntry({ sessionId, workspacePath, workspaceIdentity, isWebRemoteControl });
   const snapshot = useVoiceDictationSnapshot();
+  // §5.5 双模路由的渲染侧（与 main Start 的 isFocused 判定同刻同源）：主窗前台 =
+  // 窗口内浮层展示流式 partial；非前台 = 外置悬浮条、窗口内浮层抑制。recording 起点
+  // 冻结到腿结束（中途焦点变化不切换，v1 简化）——纯函数见 voiceComposerEntryState。
+  const [externalIndicatorActive, setExternalIndicatorActive] = useState(false);
+  const prevLegRef = useRef(snapshot.inputLeg);
+  useEffect(() => {
+    const prevLeg = prevLegRef.current;
+    prevLegRef.current = snapshot.inputLeg;
+    setExternalIndicatorActive((prev) =>
+      nextExternalIndicatorActive({
+        inputLeg: snapshot.inputLeg,
+        prevLeg,
+        isVolcanoStreaming,
+        documentHasFocus: document.hasFocus(),
+        prev,
+      }),
+    );
+  }, [snapshot.inputLeg, isVolcanoStreaming]);
   // §5.5.1 长按听写：window 级捕获（capture 阶段；不要求 composer 聚焦）。
   // "off" 不挂监听；blur 兜底 = 松手语义（转写已说内容）。
   const pressStartRef = useRef(dictation.pressStart);
@@ -252,12 +268,16 @@ function V4ComposerVoiceEntryMounted({
     <div className="relative inline-flex items-center">
       {/* 底部转写浮层（§5.2 增补 2026-11-07，Proma 形态）：流式 partial + notice +
           停止按钮；fixed 底部居中（持有者入口渲染单例，录音态/notice 可见）。 */}
-      {/* 流式引擎（豆包）recording 期由独立悬浮窗展示（§5.5 二次增补）——窗口内浮层
-          仅 requestingMic/notice/非流式（批量）路径渲染。流式判定：engine=remote 且
-          火山卡（选型条件同 useVoiceDictation，简化用 asrStream 端口在场+火山 host）。 */}
+      {/* §5.5 双模路由（2026-11-07 从「恒用悬浮窗」回撤，Proma usesExternalIndicator
+          同款）：主窗前台 = 窗口内浮层展示流式 partial（macOS 对 App 激活期创建外置
+          面板敏感，三轮真机症状）；主窗非前台 = 独立悬浮窗、窗口内浮层抑制。判定在
+          recording 起点冻结到腿结束（与 main 的 isFocused 路由同刻同源；中途焦点变化
+          不切换为 v1 简化）。 */}
       {(snapshot.inputLeg !== "idle" || noticeVisible) && (bound || noticeVisible) ? (
         <VoiceTranscriptOverlay
-          suppressForStreaming={snapshot.inputLeg === "recording" && isVolcanoStreaming}
+          suppressForStreaming={
+            snapshot.inputLeg === "recording" && isVolcanoStreaming && externalIndicatorActive
+          }
           onStopPressed={() => dictation.toggleMic()}
         />
       ) : null}

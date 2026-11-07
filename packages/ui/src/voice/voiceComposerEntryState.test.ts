@@ -5,6 +5,7 @@ import {
   isVoicePrivacyAcknowledged,
   resolveVoiceComposerEntryView,
   resolveVoiceAnnouncementLang,
+  nextExternalIndicatorActive,
   resolveVoiceAnnouncementVoiceConfig,
   resolveVoiceDictationLang,
 } from "./voiceComposerEntryState.js";
@@ -138,5 +139,63 @@ describe("resolveVoiceAnnouncementLang (§9.7.5)", () => {
 
   it("prefers the explicit value over the UI locale", () => {
     expect(resolveVoiceAnnouncementLang({ voiceAnnouncementLang: "en-US" }, "zh-CN")).toBe("en-US");
+  });
+});
+
+describe("nextExternalIndicatorActive（§5.5 双模路由渲染侧）", () => {
+  it("流式 recording 起点按主窗前台冻结：前台=窗口内浮层（不抑制），非前台=外置条", () => {
+    // 前台起录：外置条不激活（窗口内浮层承载）。
+    expect(
+      nextExternalIndicatorActive({
+        inputLeg: "recording",
+        prevLeg: "requestingMic",
+        isVolcanoStreaming: true,
+        documentHasFocus: true,
+        prev: false,
+      }),
+    ).toBe(false);
+    // 非前台起录（对其他 App 听写）：外置条激活。
+    expect(
+      nextExternalIndicatorActive({
+        inputLeg: "recording",
+        prevLeg: "requestingMic",
+        isVolcanoStreaming: true,
+        documentHasFocus: false,
+        prev: false,
+      }),
+    ).toBe(true);
+  });
+
+  it("腿中途焦点变化不切换（起点冻结语义）；idle 复位；非流式引擎恒不激活", () => {
+    // 非前台起录后回前台（同腿重入）：冻结保持外置条（v1 简化）。
+    expect(
+      nextExternalIndicatorActive({
+        inputLeg: "recording",
+        prevLeg: "recording",
+        isVolcanoStreaming: true,
+        documentHasFocus: true,
+        prev: true,
+      }),
+    ).toBe(true);
+    // idle 复位。
+    expect(
+      nextExternalIndicatorActive({
+        inputLeg: "idle",
+        prevLeg: "recording",
+        isVolcanoStreaming: true,
+        documentHasFocus: true,
+        prev: true,
+      }),
+    ).toBe(false);
+    // 非流式（批量/混合预览）引擎：外置条不参与，prev 语义透传但 recording+非流式=prev。
+    expect(
+      nextExternalIndicatorActive({
+        inputLeg: "recording",
+        prevLeg: "requestingMic",
+        isVolcanoStreaming: false,
+        documentHasFocus: false,
+        prev: false,
+      }),
+    ).toBe(false);
   });
 });

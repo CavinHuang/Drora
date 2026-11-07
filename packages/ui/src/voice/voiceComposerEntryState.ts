@@ -111,3 +111,30 @@ export function resolveVoiceComposerEntryView(
   if (inputs.hiddenBySettings) return { visible: false };
   return { visible: true, tooltipMessageId: TOOLTIP_MESSAGE_ID };
 }
+
+/**
+ * §5.5 双模路由渲染侧（2026-11-07，Proma usesExternalIndicator 同款）：流式 recording
+ * 起点按「主窗是否前台」冻结外置悬浮条是否承载展示——前台=窗口内浮层（macOS 对 App
+ * 激活期创建全工作区非激活面板敏感，三轮真机症状后从「恒用悬浮窗」回撤），非前台=
+ * 外置条、窗口内浮层抑制。与 main Start 的 isFocused 判定同刻同源；腿中途焦点变化
+ * 不切换（v1 简化，spec §5.5 记档）。
+ */
+export function nextExternalIndicatorActive(state: {
+  inputLeg: string;
+  /** 上一拍 inputLeg——区分「腿起点判定」与「同一 recording 腿内重入」（保持冻结）。 */
+  prevLeg: string;
+  isVolcanoStreaming: boolean;
+  documentHasFocus: boolean;
+  prev: boolean;
+}): boolean {
+  if (state.inputLeg === "recording" && state.isVolcanoStreaming) {
+    if (state.prevLeg === "recording") {
+      return state.prev; // 同腿重入（如流式旗标后到）：保持冻结值。
+    }
+    return !state.documentHasFocus; // 腿起点：按主窗前台判定（与 main isFocused 同刻）。
+  }
+  if (state.inputLeg === "idle") {
+    return false;
+  }
+  return state.prev;
+}

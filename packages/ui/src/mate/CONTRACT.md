@@ -187,7 +187,9 @@ expandedDecisionId / expandedWorkKeys` 四件 UI 局部态，按 workspace 分�
   （`isMateThreadTicketNavigable`——LRU 裁剪后的旧行降级不可点，不造空详情）。
   其余 decision outcome 不出独立消息（观察区/收件箱/摘要行承接）；auto_notice
   告知卡内嵌（§2.3 mode 矩阵）。
-- **composer**：单行输入（一期纯文本无附件；IME isComposing 的 Enter 不发送）；
+- **composer**：单行输入（一期纯文本无附件；IME isComposing 的 Enter 不发送——实现遵循
+  仓库既有模式（PluginStoreListView/TeamMemberSidePane 同款），无自动化断言，断言补齐
+  登记遗留（P10 审查发现 4））；
   发送=`mateStore.recordTrigger(explicit, target=workspaceKey)`——与 /mate 命令拦截、
   配置区触发完全同链（F1 恒传 target）；off 模式输入/发送禁用+提示（对话面只读，
   分页读不受限）。

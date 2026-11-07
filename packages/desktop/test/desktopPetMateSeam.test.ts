@@ -161,12 +161,14 @@ describe("createMatePetTrayDom（托盘速览 DOM）", () => {
     const doc = buildTrayDocument();
     const opened: Array<{ ticketId: string; targetWorkspaceIdentity?: string }> = [];
     const decided: Array<{ decisionId: number; choice: "approve" | "ignore" }> = [];
+    const openedMate: boolean[] = [];
     const dom = createMatePetTrayDom(
       doc,
-      { approve: "放行", ignore: "忽略" },
+      { approve: "放行", ignore: "忽略", openMate: "去面板" },
       {
         onOpenTicket: (ticketId, targetWorkspaceIdentity) => opened.push({ ticketId, targetWorkspaceIdentity }),
         onDecide: (decisionId, choice) => decided.push({ decisionId, choice }),
+        onOpenMate: () => openedMate.push(true),
       },
     );
     const root = doc.getElementById("mate")!;
@@ -213,9 +215,36 @@ describe("createMatePetTrayDom（托盘速览 DOM）", () => {
     expect(doc.getElementById("mate-recent-label")!.hidden).toBe(true);
   });
 
+  it("P10 审查发现 8 修复：manage 建议卡渲染「去面板」（open-mate 直达唯一放行口），不出放行死按钮", () => {
+    const doc = buildTrayDocument();
+    const openedMate: boolean[] = [];
+    const decided: Array<{ decisionId: number; choice: "approve" | "ignore" }> = [];
+    const dom = createMatePetTrayDom(
+      doc,
+      { approve: "放行", ignore: "忽略", openMate: "去面板" },
+      {
+        onOpenTicket: () => undefined,
+        onDecide: (decisionId, choice) => decided.push({ decisionId, choice }),
+        onOpenMate: () => openedMate.push(true),
+      },
+    );
+    dom.render({
+      ...PROJECTION,
+      pendingDecisions: [{ ...PROJECTION.pendingDecisions[0]!, manageSuggested: true }],
+    });
+    // manage 卡：无放行钮（旧放行口对 manage 建议拒绝——死按钮已除）；去面板+忽略在。
+    expect(doc.querySelector('[data-mate-action="approve"]')).toBeNull();
+    const openMate = doc.querySelector<HTMLButtonElement>('[data-mate-action="open-mate"]')!;
+    expect(openMate.textContent).toBe("去面板");
+    openMate.click();
+    expect(openedMate).toEqual([true]);
+    doc.querySelector<HTMLButtonElement>('[data-mate-action="ignore"]')!.click();
+    expect(decided).toEqual([{ decisionId: 7, choice: "ignore" }]);
+  });
+
   it("模板节点缺失（宠物窗文档）→ 渲染句柄安全 no-op", () => {
     document.body.innerHTML = "<div id='pet'></div>";
-    const dom = createMatePetTrayDom(document, { approve: "放行", ignore: "忽略" }, {
+    const dom = createMatePetTrayDom(document, { approve: "放行", ignore: "忽略", openMate: "去面板" }, {
       onOpenTicket: () => undefined,
       onDecide: () => undefined,
     });
@@ -247,8 +276,8 @@ describe("matePetSuggestedTierLabel（速览放行档文案，spec §11 同参�
     const doc = buildTrayDocument();
     const dom = createMatePetTrayDom(
       doc,
-      { approve: "放行", ignore: "忽略" },
-      { onOpenTicket: () => undefined, onDecide: () => undefined },
+      { approve: "放行", ignore: "忽略", openMate: "去面板" },
+      { onOpenTicket: () => undefined, onDecide: () => undefined, onOpenMate: () => undefined },
     );
     dom.render(PROJECTION);
     const metas = [...doc.querySelectorAll("#mate-decisions .mate-meta")].map((n) => n.textContent);

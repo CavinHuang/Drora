@@ -179,7 +179,7 @@ ticket.channel_ref）；Thread 直通 Tier1。
   channel 面只读（照 getConfig 先例；快照不扩版本）——mateThread.ts 三源 SQL 合并
   （trigger/admission_decision JOIN router_evaluation（含 answer）/ticket 终态行 done/
   failed，非终态不进流），倒序取、正序返回；同刻并列组按 trigger→decision→ticket
-  呈现序且**分页界不切分**（界刻补齐防并列残行被下一页 beforeMs 游标跳过；页可略超
+  呈现序且**分页界不切分**（界刻补齐防并列残行被下一页 beforeMs 游标跳过——上界限定（P10 审查发现 1 补记）：同刻并列行数超过各源单窗 limit 的病理态仍可能留残行，常态同事务单对场景成立，不静默扩窗；页可略超
   limit）；trigger/decision 视图映射自 assistantSnapshot 上收共用
   （assistantTriggerRowToView/assistantDecisionRowToView——单一投影口径不建第二读
   路径）；limit 缺省/上界=MATE_THREAD_LIMITS（contracts 单出处，越界

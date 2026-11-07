@@ -10,6 +10,7 @@
  */
 import {
   ASSISTANT_OUTCOMES,
+  ASSISTANT_SNAPSHOT_LIMITS,
   ASSISTANT_TICKET_STATUSES,
   ASSISTANT_STRENGTHS,
   MATE_THREAD_LIMITS,
@@ -54,6 +55,13 @@ export function createMateThreadFixture(entities: {
           code: "mate.validation.failed",
           reason: `limit 必须为 1-${MATE_THREAD_LIMITS.maxPageSize} 的整数`,
         },
+      };
+    }
+    // 与服务同构（P10 审查发现 2 修复）：beforeMs 非有限数拒绝（不猜测收敛）。
+    if (input.beforeMs !== undefined && !Number.isFinite(input.beforeMs)) {
+      return {
+        ok: false,
+        error: { code: "mate.validation.failed", reason: "beforeMs 必须为有限数" },
       };
     }
     const workspaceKey = input.workspaceKey?.trim() || undefined;
@@ -110,7 +118,8 @@ export function createMateThreadFixture(entities: {
               atMs: ticket.updatedAtMs,
               ticket: {
                 ticketId: ticket.id,
-                brief: ticket.brief,
+                // 与服务同构（P10 审查发现 2 修复）：brief 按快照口径截断 briefPreviewMax。
+                brief: ticket.brief.slice(0, ASSISTANT_SNAPSHOT_LIMITS.briefPreviewMax),
                 status: ticket.status,
                 targetWorkspaceIdentity: ticket.targetWorkspaceIdentity,
                 outputSummary: ticket.outputSummary,

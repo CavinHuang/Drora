@@ -54,6 +54,9 @@ export function projectMatePet(snapshot: AssistantSnapshot): MatePetProjection {
       return {
         decisionId: decision.id,
         text: firstLine(decision.triggerText, MATE_PET_PROJECTION_LIMITS.textMax),
+        // P10b（P10 审查发现 8 修复）：manage 建议卡标记——速览放行钮是旧放行口
+        // （服务对 manage 建议拒绝），tray 改渲染「去面板」直达唯一放行口。
+        ...(decision.routerSuggestion?.kind === "manage" ? { manageSuggested: true } : {}),
         // 决策卡快照行 sourceKind 是可选追加字段；缺席（旧库行）按 local 诚实降级——
         // 本地双按钮是 P1 以来最常见触发面，不发明第四种来源。字面量单出处
         // （contracts ASSISTANT_SOURCE_KINDS；spec §5 P3 落地注记）。

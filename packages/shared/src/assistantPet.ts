@@ -45,6 +45,12 @@ export const matePetPendingDecisionSchema = z
     identity: z.string().min(1).max(160),
     /** Router 建议档（可选；速览行展示+decide 预填放行档——与面板放行同参）。 */
     suggestedTier: suggestedTierSchema.optional(),
+    /**
+     * P10b（P10 审查发现 8 修复）：manage 建议卡标记——速览的「放行」是旧放行口
+     * （approveDecision 对 manage 建议拒绝），tray 据此改渲染「去面板」（open-mate
+     * 直达唯一放行口）；缺席=普通卡（旧消费方零改动，只加不破）。
+     */
+    manageSuggested: z.boolean().optional(),
   })
   .strict();
 export type MatePetPendingDecision = z.infer<typeof matePetPendingDecisionSchema>;

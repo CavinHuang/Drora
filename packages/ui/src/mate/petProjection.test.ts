@@ -103,6 +103,33 @@ describe("projectMatePet（快照 → 桌宠有界投影）", () => {
     expect(projection.pendingDecisions[0]?.text).toBe("点名原文");
   });
 
+  it("P10 审查发现 8 修复：manage 建议卡投影 manageSuggested 标记（tray 据此改「去面板」）；普通卡/无建议缺席", () => {
+    const snap = snapshot({
+      decisions: [
+        decision({
+          id: 1,
+          routerSuggestion: {
+            kind: "manage",
+            evidence: [],
+          },
+        }),
+        decision({
+          id: 2,
+          routerSuggestion: {
+            kind: "dispatch",
+            permissionTier: ASSISTANT_PERMISSION_TIERS.build,
+            evidence: [],
+          },
+        }),
+        decision({ id: 3 }),
+      ],
+    });
+    const rows = projectMatePet(snap).pendingDecisions;
+    expect(rows.find((row) => row.decisionId === 1)?.manageSuggested).toBe(true);
+    expect(rows.find((row) => row.decisionId === 2)?.manageSuggested).toBeUndefined();
+    expect(rows.find((row) => row.decisionId === 3)?.manageSuggested).toBeUndefined();
+  });
+
   it("建议档透传：build/guarded 随行下发；yolo 不透传；无建议缺席（spec §11 tray 同参）", () => {
     const snap = snapshot({
       decisions: [

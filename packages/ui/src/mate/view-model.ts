@@ -344,21 +344,27 @@ export function deriveMateThreadRows(snap: AssistantSnapshot): readonly MateThre
 /**
  * 合并首屏与已加载的更早页（升序；kind+id 去重）。分页游标 beforeMs 严格 <，旧页与
  * 快照窗在语义上不重叠——去重是同刻并列组边界的安全网，不是第二份语义。
+ *
+ * 键冲突取舍（P10 审查发现 3 修复，2026-11-07）：trigger/decision 行不可变
+ * （trigger 落库后不改写、admission_decision.decided_ms 从不 UPDATE）——首见胜，
+ * 旧页历史不可改写；**ticket 行是唯一可变行**（换代/终态推进 updated_ms，行时刻随
+ * 之变化），且快照侧是新事实——冲突时取 atMs 更新鲜的一份，防已分页的旧终态行
+ * 静默压制快照里的换代新行（对话流曾因此显示陈旧终态直到面板重挂）。
  */
 export function mergeMateThreadRows(
   ...groups: readonly (readonly MateThreadRow[])[]
 ): readonly MateThreadRow[] {
-  const seen = new Set<string>();
-  const merged: MateThreadRow[] = [];
+  const byKey = new Map<string, MateThreadRow>();
   for (const group of groups) {
     for (const row of group) {
       const key = `${row.kind}:${mateThreadRowId(row)}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      merged.push(row);
+      const existing = byKey.get(key);
+      if (existing === undefined || (row.kind === "ticket" && row.atMs > existing.atMs)) {
+        byKey.set(key, row);
+      }
     }
   }
-  return merged.sort(compareMateThreadRowsAsc);
+  return [...byKey.values()].sort(compareMateThreadRowsAsc);
 }
 
 /**

@@ -49,10 +49,24 @@ team 工具族（TeamTask*/TeamSendMessage——仅自有 lead 可用）；autom
 
 ## 2. P10a · 对话管理台（v1 对话面重定位）
 
-设计不变项（v1 §2 原样保留）：对话流=四类消息投影（用户消息=trigger verbatim/决策卡
-内嵌/答复气泡/工单摘要行）；composer 发送=recordTrigger(explicit) 进准入门；chat scope
-kind（Router 会话聊天轮：互扰标记+不计轮转+无工具+约言禁承诺执行）；readMateThread
-分页只读；mode 矩阵（off=对话面只读）。
+> **v2.1 审查修订补锚（2026-11-07）**：v2 压缩了 v1 的子节结构，但 spec 落地注记与
+> 代码注释引用 §2.1-§2.4——以下四锚点补回（内容=v1 条款的有效面，实现以 spec §2
+> 落地注记为权威）。
+
+### 2.1 对话流形态
+对话流=四类消息投影（用户消息=trigger verbatim/决策卡内嵌/答复气泡/工单摘要行）；
+composer 发送=recordTrigger(explicit) 进准入门。
+
+### 2.2 意图分流
+chat scope kind（Router 会话聊天轮：互扰标记+不计轮转+无工具+约言禁承诺执行）——
+判定权在 Router 五臂（chat 是 query_status 的新 scope kind）。
+
+### 2.3 mode 矩阵
+off=对话面只读（composer 禁用+提示）；observe=读/chat 零摩擦+写一卡；auto=读/chat
+直答+写直派+告知卡内嵌。不新增档位、不调信任门阈值。
+
+### 2.4 数据与分页
+readMateThread 分页只读（快照截断版首屏；游标 beforeMs 严格 <）。
 
 **重定位后的差异**：
 - 对话面的角色=**管理台**：用户在这里下管理指令（「把那个卡住的会话停了」「取消那个
@@ -80,8 +94,10 @@ manage: {
   `targetRef` 只能取自候选卡输入的**台账可见集**（attach 臂同款反编造纪律：清单外
   sessionId=失配拒绝）。
 - **批准与执行**：决策卡（动作/对象/理由/证据）→ 人工 Y → host 执行面：session=
-  经该会话的 dispatchCommand `stop`（expectedForegroundExecutionId 取自 sessions-index
-  活动执行帧）；offpeak=`offPeakTaskService.cancelTask`。执行结果回写卡
+  经该会话的 dispatchCommand `stop`（expectedForegroundExecutionId 取自会话 v4 控制面
+  快照——readBotGroupRuntimeSnapshot→control.activeWorks，与 SessionPane.handleStop 同一
+  取帧语义；sessions-index 会话摘要无执行 id 字段，v2 原措辞按字面不可实现，P10 审查
+  发现 9 回改）；offpeak=`offPeakTaskService.cancelTask`。执行结果回写卡
   （executed=ok/failed+原因；失败不重试）。N=忽略。**auto 模式同样必须人工 Y**（§0）。
 - **执行失败语义**：目标已终态（会话已停/任务已完）=幂等成功（如实标注「已无需执行」）；
   执行通道失败=failed+原因，可重新触发（新卡新决策，不自动重试）。
@@ -131,7 +147,7 @@ launcher、桌宠直达三入口。
 | --- | --- | --- |
 | P10a-1 服务面 | chat scope kind+router port chat 轮+readMateThread+单测（**已实施 2026-11-07**——落地注记见 spec §2「P10a-1 落地注记」；验收=assistantMateChat/assistantMateThread 两件登记 drora 清单） | 1 天 |
 | P10a-2 UI 面 | 对话管理台组件（四类消息+composer）+MSA18（**已实施 2026-11-07**——落地注记见 spec §2「P10a-2 落地注记」；MateThreadSection 新组件+原 MateQueryReply 卡区撤除+兄弟资产 locator 按 mate-inbox-list 收敛） | 1-1.5 天 |
-| P10b | manage 臂 schema+执行面接线（stop/cancelTask）+台账行管理入口+决策卡 manage 呈现+单测+MSA19（**已实施 2026-11-07**——落地注记见 spec §2「P10b 落地注记」；验收=assistantManageActions.test.ts 17 项登记 drora 清单+view-model 6 项+MSA19） | 1-1.5 天 |
+| P10b | manage 臂 schema+执行面接线（stop/cancelTask）+台账行管理入口+决策卡 manage 呈现+单测+MSA19（**已实施 2026-11-07**——落地注记见 spec §2「P10b 落地注记」；验收=assistantManageActions.test.ts 22 项（安全审查修复轮 +5：含 manageIntent 降级+旧放行口拒绝双守卫断言）登记 drora 清单+view-model 6 项+MSA19） | 1-1.5 天 |
 
 依赖：P10a-1→P10a-2；P10b 独立可并行（manage 臂不依赖对话面——面板按钮即可触发）。
 

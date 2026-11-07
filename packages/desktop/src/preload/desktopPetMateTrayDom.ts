@@ -55,11 +55,15 @@ export interface MatePetTrayCallbacks {
   onOpenTicket(ticketId: string, targetWorkspaceIdentity?: string): void;
   /** 速览内放行/忽略（decide 事件经 Main 转发主窗口 renderer 执行）。 */
   onDecide(decisionId: number, choice: "approve" | "ignore"): void;
+  /** P10b（P10 审查发现 8 修复）：manage 建议卡「去面板」——open-mate 直达唯一放行口。 */
+  onOpenMate(): void;
 }
 
 export interface MatePetTrayLabels {
   approve: string;
   ignore: string;
+  /** manage 建议卡的替代动作文案（去面板处理）。 */
+  openMate: string;
 }
 
 /** 组装速览区（挂 desktopPetOverlayContent tray 模板既有节点）；返回按帧渲染的句柄。 */
@@ -146,17 +150,34 @@ export function createMatePetTrayDom(
         );
         const actions = document.createElement("div");
         actions.className = "mate-actions";
-        const approve = document.createElement("button");
-        approve.type = "button";
-        approve.textContent = labels.approve;
-        approve.dataset.mateAction = "approve";
-        approve.addEventListener("click", () => callbacks.onDecide(decision.decisionId, "approve"));
-        const ignore = document.createElement("button");
-        ignore.type = "button";
-        ignore.textContent = labels.ignore;
-        ignore.dataset.mateAction = "ignore";
-        ignore.addEventListener("click", () => callbacks.onDecide(decision.decisionId, "ignore"));
-        actions.append(approve, ignore);
+        // P10 审查发现 8 修复：manage 建议卡的速览「放行」是旧放行口（服务拒绝执行，
+        // 点击只得 warn 死按钮）——改渲染「去面板」（open-mate 直达大副面板的唯一
+        // 放行口）；忽略钮保留（ignoreDecision 对 manage 卡同样有效）。
+        if (decision.manageSuggested) {
+          const openMate = document.createElement("button");
+          openMate.type = "button";
+          openMate.textContent = labels.openMate;
+          openMate.dataset.mateAction = "open-mate";
+          openMate.addEventListener("click", () => callbacks.onOpenMate());
+          const ignore = document.createElement("button");
+          ignore.type = "button";
+          ignore.textContent = labels.ignore;
+          ignore.dataset.mateAction = "ignore";
+          ignore.addEventListener("click", () => callbacks.onDecide(decision.decisionId, "ignore"));
+          actions.append(openMate, ignore);
+        } else {
+          const approve = document.createElement("button");
+          approve.type = "button";
+          approve.textContent = labels.approve;
+          approve.dataset.mateAction = "approve";
+          approve.addEventListener("click", () => callbacks.onDecide(decision.decisionId, "approve"));
+          const ignore = document.createElement("button");
+          ignore.type = "button";
+          ignore.textContent = labels.ignore;
+          ignore.dataset.mateAction = "ignore";
+          ignore.addEventListener("click", () => callbacks.onDecide(decision.decisionId, "ignore"));
+          actions.append(approve, ignore);
+        }
         row.append(body, actions);
         decisionsBox.append(row);
       }

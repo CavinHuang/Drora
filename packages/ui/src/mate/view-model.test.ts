@@ -650,6 +650,44 @@ describe("P10a-2 mergeMateThreadRows（旧页合并去重）", () => {
     ).toEqual(["TR-1", "d1", "TR-2"]);
   });
 
+  it("ticket 键冲突取新鲜胜（P10 审查发现 3 修复）：换代/终态推进后快照新行不被旧页压制", () => {
+    const staleRow = {
+      kind: "ticket",
+      atMs: T0 + 40,
+      ticket: {
+        ticketId: "T-gen",
+        brief: "旧终态",
+        status: ASSISTANT_TICKET_STATUSES.done,
+        targetWorkspaceIdentity: "ws-a",
+        outputSummary: "旧汇报",
+        failReason: null,
+      },
+    } as const;
+    const freshRow = {
+      kind: "ticket",
+      atMs: T0 + 90,
+      ticket: {
+        ticketId: "T-gen",
+        brief: "换代新终态",
+        status: ASSISTANT_TICKET_STATUSES.failed,
+        targetWorkspaceIdentity: "ws-a",
+        outputSummary: null,
+        failReason: "assistant_row_failed",
+      },
+    } as const;
+    // 旧页先入（已分页的旧终态行），快照首屏后入携带新鲜行——冲突取 atMs 更大者。
+    const merged = mergeMateThreadRows([staleRow], [freshRow]);
+    expect(merged).toHaveLength(1);
+    const mergedRow = merged[0]!;
+    if (mergedRow.kind !== "ticket") throw new Error("expected ticket row");
+    expect(mergedRow.atMs).toBe(T0 + 90);
+    expect(mergedRow.ticket.status).toBe(ASSISTANT_TICKET_STATUSES.failed);
+    // 反序（新鲜先入）同样收敛到新鲜行；不可变行（trigger/decision）首见胜由上一用例锁定。
+    const reversed = mergeMateThreadRows([freshRow], [staleRow]);
+    expect(reversed).toHaveLength(1);
+    expect(reversed[0]!.atMs).toBe(T0 + 90);
+  });
+
   it("空组与乱序输入仍收敛为升序", () => {
     const merged = mergeMateThreadRows(
       [],

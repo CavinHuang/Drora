@@ -17,7 +17,11 @@ export function createDesktopPetTray() {
   // 动作按钮文案按文档语言注入；命令经 MATE_PET_COMMANDS.command 回 Main（只转发）。
   const mate = createMatePetTrayDom(
     document,
-    { approve: zh ? "放行" : "Approve", ignore: zh ? "忽略" : "Ignore" },
+    {
+      approve: zh ? "放行" : "Approve",
+      ignore: zh ? "忽略" : "Ignore",
+      openMate: zh ? "去面板" : "Open Mate",
+    },
     {
       onOpenTicket: (ticketId, targetWorkspaceIdentity) =>
         ipcRenderer.send(MATE_PET_COMMANDS.channels.command, {
@@ -27,6 +31,8 @@ export function createDesktopPetTray() {
         }),
       onDecide: (decisionId, choice) =>
         ipcRenderer.send(MATE_PET_COMMANDS.channels.command, { action: "decide", decisionId, choice }),
+      onOpenMate: () =>
+        ipcRenderer.send(MATE_PET_COMMANDS.channels.command, { action: "open-mate" }),
     },
   );
   ipcRenderer.on(MATE_PET_COMMANDS.channels.render, (_event, raw: unknown) => {

@@ -9588,6 +9588,8 @@ const enUS: Record<string, string> = {
   "voice.entry.mic.tooltip":
     "Voice dictation: click to start, click again or press Esc to stop; text lands in the composer for review before sending",
   "voice.dictation.preview.hint": "Listening…",
+  "voice.dictation.status.recording":
+    "Listening · Click again to stop (hold to talk, release to stop)",
   "voice.dictation.stop": "Stop dictation",
   "voice.dictation.preview.clear": "Clear",
   "voice.dictation.requestingMic": "Waiting for microphone permission…",
@@ -9595,7 +9597,8 @@ const enUS: Record<string, string> = {
     "Timed out waiting for microphone permission and stopped. Allow the microphone in system settings and try again.",
   "voice.dictation.error.permission":
     "Microphone permission was denied. Allow it in system settings and try again.",
-  "voice.dictation.error.network": "Speech service unavailable (the system engine may be limited in desktop builds). Inserted text was kept; switch to a cloud ASR engine in Settings → Model Capabilities → Speech Recognition.",
+  "voice.dictation.error.network":
+    "Speech service unavailable (the system engine may be limited in desktop builds). Inserted text was kept; switch to a cloud ASR engine in Settings → Model Capabilities → Speech Recognition.",
   "voice.dictation.error.device":
     "Cannot access the microphone device. Check the device connection.",
   "voice.dictation.error.aborted": "Dictation ended.",

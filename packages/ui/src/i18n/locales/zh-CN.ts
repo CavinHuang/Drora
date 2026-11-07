@@ -9031,13 +9031,15 @@ const zhCN: Record<string, string> = {
   "voice.entry.mic.tooltip":
     "语音听写：点按开始，再次点按或按 Esc 停止；转写进入输入框，发送前可编辑",
   "voice.dictation.preview.hint": "正在聆听，请说话…",
+  "voice.dictation.status.recording": "正在聆听 · 再按一下结束（按住说话松开结束）",
   "voice.dictation.stop": "停止听写",
   "voice.dictation.preview.clear": "清除",
   "voice.dictation.requestingMic": "等待麦克风权限…",
   "voice.dictation.requestingMicTimeout":
     "等待麦克风权限超时，已停止。可在系统设置中允许麦克风后重试。",
   "voice.dictation.error.permission": "麦克风权限被拒绝。请在系统设置中允许后重试。",
-  "voice.dictation.error.network": "语音服务不可用（系统识别引擎在桌面端可能受限），已保留已输入文字；可在设置 → 模型能力 → 语音识别切换云端引擎。",
+  "voice.dictation.error.network":
+    "语音服务不可用（系统识别引擎在桌面端可能受限），已保留已输入文字；可在设置 → 模型能力 → 语音识别切换云端引擎。",
   "voice.dictation.error.device": "无法访问麦克风设备，请检查设备连接。",
   "voice.dictation.error.aborted": "本次听写已结束。",
   "voice.dictation.sessionGone": "所在会话已关闭，听写已停止。",

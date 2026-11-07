@@ -3495,6 +3495,7 @@ export function createLocalServices(options: {
   // 派发端口（Mode A/B）：v4 createSession + sendText（带序 commandId 由引擎生成=锚）。
   setAssistantDispatchPort(async (request) => {
     try {
+      const selection = await resolveAssistantModelSelection();
       const createAck = await assistantSendV4({
         hostPath: request.hostPath,
         identity: request.targetWorkspaceIdentity,
@@ -3504,11 +3505,12 @@ export function createLocalServices(options: {
           payload: {
             workspaceId: request.targetWorkspaceIdentity || assistantHostPathFor(request.hostPath),
             // P5 模型偏好（06 号详设 §4）：大副选择的模型作用于新建 worker 会话——
-            // 「下一次建会话生效」，在途会话不热切（避免第二条模型写路径）；缺省不带
-            // 字段=CLI 缺省模型（现行为不变）。
+            // 「下一次建会话生效」，在途会话不热切（避免第二条模型写路径）。2026-11-07
+            // 真机根修：无偏好时注入 Host 生效完整选择（含档位）——裸建回落缺省模型
+            // 在档位必选账户上 Model creation failed（见 resolveAssistantModelSelection）。
             config: {
               mode: request.permissionTier,
-              ...(assistantModelSelection() ? { modelSelection: assistantModelSelection() } : {}),
+              ...(selection ? { modelSelection: selection } : {}),
             },
           },
         }),
@@ -3590,6 +3592,38 @@ export function createLocalServices(options: {
   function assistantModelSelection(): import("@drora/shared").ModelSelection | undefined {
     return readAssistantModelSelectionNested(assistantDatabase.raw);
   }
+  // 2026-11-07 真机根修（dev 实机「Model creation failed」）：未设偏好时裸建会话回落
+  // CLI 缺省模型——账户 GLM-5.3-Flash 属 registry 档位必选模型（reasoning-level-missing
+  // → turn 在 model_creation 相位秒败，工单假 running）。修法：无偏好时注入 Host 当前
+  // 生效的完整选择（含 reasoningLevel，与主 composer 同源）；有偏好但缺档位且 Host
+  // 生效选择同模型时采纳其档位。getView 失败=不带字段（现行为不变，诚实降级）。
+  async function resolveAssistantModelSelection(): Promise<
+    import("@drora/shared").ModelSelection | undefined
+  > {
+    const preference = assistantModelSelection();
+    try {
+      const view = await providerRuntime.modelSelection.getView();
+      const preferred = view.preferredSelection ?? null;
+      if (preference) {
+        if (preference.options?.reasoningLevel) return preference;
+        if (
+          preferred &&
+          preferred.providerId === preference.providerId &&
+          preferred.modelId === preference.modelId &&
+          preferred.options?.reasoningLevel
+        ) {
+          return {
+            ...preference,
+            options: { ...preference.options, reasoningLevel: preferred.options.reasoningLevel },
+          };
+        }
+        return preference;
+      }
+      return preferred ?? undefined;
+    } catch {
+      return preference;
+    }
+  }
   function assistantKvGet(key: string): string | undefined {
     const row = assistantDatabase.raw.prepare("SELECT value FROM kv WHERE key = ?").get(key) as
       | { value: string }
@@ -3604,6 +3638,7 @@ export function createLocalServices(options: {
       .run(key, value, Date.now());
   }
   async function assistantCreateRouterSession(): Promise<string> {
+    const selection = await resolveAssistantModelSelection();
     const ack = await assistantSendV4({
       hostPath: getAssistantWorkspaceDir(),
       identity: ASSISTANT_IDENTITY,
@@ -3614,7 +3649,7 @@ export function createLocalServices(options: {
           workspaceId: ASSISTANT_IDENTITY,
           config: {
             mode: "build",
-            ...(assistantModelSelection() ? { modelSelection: assistantModelSelection() } : {}),
+            ...(selection ? { modelSelection: selection } : {}),
           },
         },
       }),

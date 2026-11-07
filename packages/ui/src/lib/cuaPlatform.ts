@@ -8,7 +8,8 @@ import type { IPlatformService } from "@drora/shared";
 // 由模块级常量改为惰性函数。原常量在模块 import 时求值，导致按 UA 分支的单测
 // 无法在同一进程内覆盖多平台（改 navigator.userAgent 对已求值的常量无效）。运行时行为等价——
 // 真实环境里 UA 不会中途变化。
-function isMacOsDesktopUserAgent(): boolean {
+/** 通用桌面平台 UA 探测（惰性求值：单测可覆写 UA 覆盖多平台；先例见文件头）。 */
+export function isMacOsDesktopUserAgent(): boolean {
   return (
     typeof navigator !== "undefined" &&
     /Macintosh|Mac OS X/.test(navigator.userAgent) &&
@@ -16,7 +17,8 @@ function isMacOsDesktopUserAgent(): boolean {
   );
 }
 
-function isWindowsDesktopUserAgent(): boolean {
+/** 通用桌面平台 UA 探测（同上；供跨平台 UI 文案等非 CUA 消费方复用）。 */
+export function isWindowsDesktopUserAgent(): boolean {
   return typeof navigator !== "undefined" && /Windows/i.test(navigator.userAgent);
 }
 

@@ -9529,10 +9529,12 @@ const enUS: Record<string, string> = {
   "voice.settings.dictation.lang.en": "English (US)",
   "voice.settings.dictation.holdKey.label": "Hold-to-talk key",
   "voice.settings.dictation.holdKey.description":
-    "Hold the selected key to talk and release to transcribe (works alongside the mic button). Right ⌘ is recommended (works out of the box); for Fn, set System Settings → Keyboard → “Press 🌐 key to” to “Do Nothing” first.",
+    "Hold the selected key to talk and release to transcribe (works alongside the mic button). The right Meta key is recommended (⌘ on macOS / Win on Windows, works out of the box); for Fn, set System Settings → Keyboard → “Press 🌐 key to” to “Do Nothing” first.",
   "voice.settings.dictation.holdKey.off": "Off",
   "voice.settings.dictation.holdKey.fn": "Fn (🌐)",
-  "voice.settings.dictation.holdKey.rightMeta": "Right ⌘ (recommended)",
+  "voice.settings.dictation.holdKey.rightMeta": "Right Meta (recommended)",
+  "voice.settings.dictation.holdKey.rightMeta.mac": "Right ⌘ (recommended)",
+  "voice.settings.dictation.holdKey.rightMeta.win": "Right Win (recommended)",
   "voice.settings.dictation.holdKey.rightAlt": "Right ⌥",
   "voice.settings.dictation.hybridPreview.label": "Live transcription preview",
   "voice.settings.dictation.hybridPreview.description":

@@ -28,6 +28,8 @@ export interface HoldTalkKeyEventLike {
   code?: string;
   repeat: boolean;
   isComposing: boolean;
+  /** 命中持键时调用（Windows 右 Win：抑制 keyup 弹开始菜单的尝试；平台不支持则无效无害）。 */
+  preventDefault?(): void;
 }
 
 /** 持键匹配（§5.5.1）：fn 按 key 识别；右侧修饰键按 code 精确区分左右（左侧不触发）。 */
@@ -64,6 +66,7 @@ export function createHoldTalkKeyHandler(config: HoldTalkKeyConfig): HoldTalkKey
       if (!matchesHoldKey(config.holdKey, event) || event.repeat || event.isComposing) {
         return;
       }
+      event.preventDefault?.();
       if (holding) {
         return; // 已按住（理论上 macOS 不重发非 repeat 的 Fn down，防御）。
       }
@@ -71,7 +74,13 @@ export function createHoldTalkKeyHandler(config: HoldTalkKeyConfig): HoldTalkKey
       config.onPressStart();
     },
     handleKeyUp(event) {
-      if (!matchesHoldKey(config.holdKey, event) || !holding) {
+      if (!matchesHoldKey(config.holdKey, event)) {
+        return;
+      }
+      // Windows 右 Win：keyup 是开始菜单触发点，命中即 preventDefault（能否完全抑制
+      // 因平台而异，§5.5.1 记档；未按住也抑制——同键的 keyup 都不该漏给系统）。
+      event.preventDefault?.();
+      if (!holding) {
         return;
       }
       holding = false;

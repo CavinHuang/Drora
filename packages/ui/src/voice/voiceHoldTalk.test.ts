@@ -15,6 +15,32 @@ function keyEvent(key: string, overrides?: Partial<HoldTalkKeyEventLike>): HoldT
   return { key, repeat: false, isComposing: false, ...overrides };
 }
 
+describe("preventDefault（§5.5.1 Windows 右 Win 开始菜单抑制尝试）", () => {
+  it("命中的 keydown/keyup 调 preventDefault；非命中/未按住的 keyup 不调", () => {
+    const preventDefault = vi.fn();
+    const handler = createHoldTalkKeyHandler({
+      holdKey: "right-meta",
+      onPressStart: () => undefined,
+      onPressStop: () => undefined,
+    });
+    // 非命中（左 ⌘）不调。
+    handler.handleKeyDown(keyEvent("Meta", { code: "MetaLeft", preventDefault }));
+    expect(preventDefault).not.toHaveBeenCalled();
+    // 命中 keydown 调。
+    handler.handleKeyDown(keyEvent("Meta", { code: "MetaRight", preventDefault }));
+    expect(preventDefault).toHaveBeenCalledTimes(1);
+    // 命中 keyup 调（同键 keyup 不漏给系统——Windows 开始菜单触发点）。
+    handler.handleKeyUp(keyEvent("Meta", { code: "MetaRight", preventDefault }));
+    expect(preventDefault).toHaveBeenCalledTimes(2);
+    // 未按住的命中 keyup 也抑制（防御重复/迟到 keyup）但不触发 pressStop。
+    const stops = vi.fn();
+    const h2 = createHoldTalkKeyHandler({ holdKey: "fn", onPressStart: () => undefined, onPressStop: stops });
+    h2.handleKeyUp(keyEvent("Fn", { preventDefault }));
+    expect(preventDefault).toHaveBeenCalledTimes(3);
+    expect(stops).not.toHaveBeenCalled();
+  });
+});
+
 describe("持键左右侧识别（§5.5.1 扩枚举：right-meta/right-alt）", () => {
   it("右 ⌘：MetaRight 起停闭环；左 ⌘（MetaLeft）零触发", () => {
     const onPressStart = vi.fn();

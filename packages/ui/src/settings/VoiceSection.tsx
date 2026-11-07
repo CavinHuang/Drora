@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/select.js";
 import { Switch } from "@/components/ui/switch.js";
 import type { VoiceDictationHoldKey } from "@drora/shared";
+import { isMacOsDesktopUserAgent, isWindowsDesktopUserAgent } from "@/lib/cuaPlatform.js";
 import { Input } from "@/components/ui/input.js";
 import { Button } from "@/components/ui/button.js";
 import { useDroraIntl } from "@/i18n/IntlProvider.js";
@@ -110,6 +111,12 @@ export function VoiceSection() {
   // §9.7.8 persona 显示派生：命中 builtin 且底层键（含档案 tts.voice）与物化值逐项
   // 相等 → 显示该 preset；任一键发散/未选/未知 id → 「自定义」（只读不写）。
   const personaSelection = resolveVoicePersonaSelection(settings, ttsVendorVoice);
+  // §5.5.1 跨平台文案：right-meta 物理键 mac=右 ⌘ / win=右 Win / 其他=Meta（惰性 UA 探测）。
+  const rightMetaLabelId = isMacOsDesktopUserAgent()
+    ? "voice.settings.dictation.holdKey.rightMeta.mac"
+    : isWindowsDesktopUserAgent()
+      ? "voice.settings.dictation.holdKey.rightMeta.win"
+      : "voice.settings.dictation.holdKey.rightMeta";
 
   // §9.7.2 system 音色枚举目录：getVoices 快照 + voiceschanged 异步刷新（Windows/Chrome
   // 首帧常为空表——设置面列表不阻塞等待，空表仅渲染「自动」+ 禁用加载占位）。
@@ -255,7 +262,7 @@ export function VoiceSection() {
                   {intl.formatMessage({ id: "voice.settings.dictation.holdKey.fn" })}
                 </SelectItem>
                 <SelectItem value="right-meta">
-                  {intl.formatMessage({ id: "voice.settings.dictation.holdKey.rightMeta" })}
+                  {intl.formatMessage({ id: rightMetaLabelId })}
                 </SelectItem>
                 <SelectItem value="right-alt">
                   {intl.formatMessage({ id: "voice.settings.dictation.holdKey.rightAlt" })}

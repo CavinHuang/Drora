@@ -133,17 +133,32 @@ export function createDoubaoStreamingAsrAdapter(deps: DoubaoStreamingAsrDeps): V
         }),
       );
 
-      const { streamId: id } = await deps.stream.start({
+      // 并行启动（真机日志实证修复）：WS 连接与 getUserMedia 此前串行——启动链 2s+，
+      // 用户按住 ~2s 松开时仍卡 requestingMic → pressStop 取消整个会话（悬浮条
+      // 闪现即 hide）。并行后 WS 就绪前到达的 PCM 块暂存，streamId 就位即 flush。
+      const pendingChunks: ArrayBuffer[] = [];
+      const capturePromise = startPcmStreamCapture((chunk) => {
+        if (settled) return;
+        if (streamId != null) {
+          deps.stream.sendAudio({ streamId, pcm: chunk, isLast: false });
+        } else if (pendingChunks.length < 32) {
+          // 上限 32 块（6.4s）：WS 迟迟未就绪时丢老块（ fail-closed 方向），不无限积压。
+          pendingChunks.push(chunk);
+        }
+      }, deps.pcmDeps);
+      const startPromise = deps.stream.start({
         apiKey,
         resourceId: resourceId || DOUBAO_ASR_RESOURCE_ID,
         endpointMode,
         language: lang.split("-")[0] ?? "",
       });
+      const [{ streamId: id }, cap] = await Promise.all([startPromise, capturePromise]);
       streamId = id;
-      capture = await startPcmStreamCapture((chunk) => {
-        if (streamId == null || settled) return;
+      capture = cap;
+      for (const chunk of pendingChunks.splice(0)) {
+        if (settled) break;
         deps.stream.sendAudio({ streamId, pcm: chunk, isLast: false });
-      }, deps.pcmDeps);
+      }
 
       return {
         onFinal(cb: (text: string) => void): () => void {

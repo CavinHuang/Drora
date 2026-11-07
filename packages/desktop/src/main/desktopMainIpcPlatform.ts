@@ -556,14 +556,23 @@ export function registerPlatformIpcHandlers(options: {
         senders.delete(frame.streamId); // ended/error 后不再需要路由。
       },
     });
-    ipcMain.handle(PlatformChannels.VoiceAsrStreamStart, (event, payload: unknown) =>
-      doubaoAsr.start(payload).then((result) => {
-        senders.set(result.streamId, event.sender);
-        transcriptIndicator.show(); // 起录：悬浮指示窗显示（showInactive 不抢焦点）。
-        transcriptIndicator.send("drora:voice-transcript-show", { streamId: result.streamId });
-        return result;
-      }),
-    );
+    ipcMain.handle(PlatformChannels.VoiceAsrStreamStart, (event, payload: unknown) => {
+      // 指示窗零等待反馈（真机实证修复）：invoke 即显示——不等 WS 连接（串行链 2s+
+      // 期间用户看到的「按住无反应/闪现即失」）；连接失败经 sendState error 路径 hide。
+      transcriptIndicator.show();
+      transcriptIndicator.send("drora:voice-transcript-show", { streamId: "pending" });
+      return doubaoAsr
+        .start(payload)
+        .then((result) => {
+          senders.set(result.streamId, event.sender);
+          return result;
+        })
+        .catch((error: unknown) => {
+          transcriptIndicator.hide();
+          transcriptIndicator.send("drora:voice-transcript-hide", { streamId: "pending" });
+          throw error;
+        });
+    });
     ipcMain.on(PlatformChannels.VoiceAsrStreamAudio, (_event, chunk: unknown) => {
       doubaoAsr.sendAudio(chunk);
     });

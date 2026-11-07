@@ -2463,3 +2463,15 @@ html[data-document-hidden] *::after {
     height: 14px;
   }
 }
+/* 等待呼吸点（requestingMic）。 */
+@keyframes voice-wait {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: translateY(0);
+  }
+  50% {
+    opacity: 1;
+    transform: translateY(-2px);
+  }
+}

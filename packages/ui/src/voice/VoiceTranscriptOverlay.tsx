@@ -1,11 +1,13 @@
 /**
  * 底部转写浮层（spec §5.2 增补 2026-11-07，照 Proma 形态）：
- * 窗口级 fixed 底部居中、毛玻璃卡片——流式听写 partial 逐字滚动 + 尾部光标 +
- * 录音声波指示；notice 与停止按钮并入；原 DictationPreviewOverlay 退役。
+ * 窗口级 fixed 底部居中——流式听写 partial 逐字滚动 + 尾部光标 + 录音声波指示；
+ * notice 与停止按钮并入；原 DictationPreviewOverlay 退役。
  *
- * 动画遵守 DESIGN.md Motion：fast/low-drama——淡入+上滑 150ms、光标 1s 步进闪烁、
- * 声波 3 根竖条 1.2s 错相脉动（幅度 4px，克制不弹跳）。写入规则不变（§5.1）：
- * partial 永不进正文，final 注入后从浮层消失。
+ * 样式（v2 精致版）：表面 = toast 同源（bg-toast/60 + blur + rounded-2xl，DESIGN.md
+ * Toast 豁免条目）；字级用 text-ui-* 强制刻度（partial=lg 主视觉、状态行=caption）；
+ * 两层布局——转写主行（含"正在聆听"空态）+ 底部元信息行（声波/等待点 · 状态 · 停止）；
+ * 动画遵守 DESIGN.md Motion（fast/low-drama）：淡入上滑 150ms、光标 1s 步进、声波
+ * 1.2s 错相微脉动（禁弹簧）。写入规则不变（§5.1）：partial 永不进正文。
  */
 import { XIcon } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
@@ -21,15 +23,30 @@ const NOTICE_MESSAGE_ID: Record<string, string> = {
   sessionGone: "voice.dictation.sessionGone",
 };
 
-/** 声波指示（3 根错相脉动竖条，4px 幅度，DESIGN.md low-drama 约束）。 */
+/** 声波指示（4 根错相微脉动竖条；DESIGN.md Motion low-drama 约束）。 */
 function WaveBars() {
   return (
     <span aria-hidden className="flex h-4 items-end gap-[3px]" data-testid="voice-transcript-wave">
+      {[0, 1, 2, 3].map((i) => (
+        <span
+          key={i}
+          className="w-[2.5px] rounded-full bg-primary/70 animate-[voice-wave_1.2s_ease-in-out_infinite]"
+          style={{ animationDelay: `${i * 0.15}s`, height: "5px" }}
+        />
+      ))}
+    </span>
+  );
+}
+
+/** 等待指示（requestingMic：三粒呼吸点）。 */
+function WaitingDots() {
+  return (
+    <span aria-hidden className="flex items-center gap-1" data-testid="voice-transcript-waiting">
       {[0, 1, 2].map((i) => (
         <span
           key={i}
-          className="w-[3px] rounded-full bg-current animate-[voice-wave_1.2s_ease-in-out_infinite]"
-          style={{ animationDelay: `${i * 0.18}s`, height: "6px" }}
+          className="h-[5px] w-[5px] rounded-full bg-muted-foreground/60 animate-[voice-wait_1.4s_ease-in-out_infinite]"
+          style={{ animationDelay: `${i * 0.2}s` }}
         />
       ))}
     </span>
@@ -42,55 +59,75 @@ export function VoiceTranscriptOverlay({ onStopPressed }: { onStopPressed: () =>
   const recording = snapshot.inputLeg === "recording";
   const requestingMic = snapshot.inputLeg === "requestingMic";
   const noticeCode = snapshot.notice?.code;
-  if (!recording && !requestingMic && !noticeCode) {
+  const active = recording || requestingMic;
+  if (!active && !noticeCode) {
     return null;
   }
   return (
     <div
       data-testid="voice-transcript-overlay"
-      className="pointer-events-none fixed bottom-6 left-1/2 z-40 w-[min(640px,calc(100vw-3rem))] -translate-x-1/2 animate-[voice-rise_150ms_ease-out]"
+      className="pointer-events-none fixed bottom-8 left-1/2 z-40 w-[min(560px,calc(100vw-4rem))] -translate-x-1/2 animate-[voice-rise_150ms_ease-out]"
     >
-      <div className="pointer-events-auto flex items-center gap-3 rounded-xl border border-border/60 bg-background/80 px-4 py-3 shadow-lg backdrop-blur-md">
-        {recording ? (
-          <span className="text-muted-foreground shrink-0">
-            <WaveBars />
-          </span>
-        ) : null}
-        <div className="min-w-0 flex-1">
+      <div className="pointer-events-auto rounded-2xl border border-border/40 bg-toast/60 shadow-xl backdrop-blur-xl">
+        {/* 主行：转写文本（partial 大字视觉）/ 等待 / 错误 */}
+        <div className="flex items-center gap-3 px-5 pt-4 pb-2">
+          {recording ? (
+            <span className="text-primary/80 shrink-0">
+              <WaveBars />
+            </span>
+          ) : null}
           {requestingMic && !noticeCode ? (
-            <p className="text-sm text-muted-foreground" data-testid="voice-transcript-requesting">
-              {intl.formatMessage({ id: "voice.dictation.requestingMic" })}
-            </p>
-          ) : noticeCode ? (
-            <p className="text-sm text-foreground" role="alert">
+            <span className="flex items-center gap-2">
+              <WaitingDots />
+              <span className="text-ui-sm text-muted-foreground" data-testid="voice-transcript-requesting">
+                {intl.formatMessage({ id: "voice.dictation.requestingMic" })}
+              </span>
+            </span>
+          ) : null}
+          {noticeCode ? (
+            <p className="text-ui-sm text-foreground" role="alert">
               {intl.formatMessage({
                 id: NOTICE_MESSAGE_ID[noticeCode] ?? "voice.dictation.error.network",
               })}
             </p>
-          ) : (
-            <p className="truncate text-sm text-foreground" data-testid="voice-transcript-partial">
-              {snapshot.partialText || intl.formatMessage({ id: "voice.dictation.preview.hint" })}
-              {recording ? (
-                <span
-                  aria-hidden
-                  className="ml-0.5 inline-block h-4 w-[2px] translate-y-[3px] animate-[voice-caret_1s_step-end_infinite] bg-current"
-                />
-              ) : null}
+          ) : recording ? (
+            <p
+              className="min-w-0 flex-1 truncate text-ui-lg leading-relaxed text-foreground"
+              data-testid="voice-transcript-partial"
+            >
+              {snapshot.partialText || (
+                <span className="text-muted-foreground/70">
+                  {intl.formatMessage({ id: "voice.dictation.preview.hint" })}
+                </span>
+              )}
+              <span
+                aria-hidden
+                className="ml-1 inline-block h-[1.1em] w-[2px] translate-y-[3px] animate-[voice-caret_1s_step-end_infinite] bg-primary/80 align-baseline"
+              />
             </p>
-          )}
+          ) : null}
         </div>
-        {recording ? (
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7 shrink-0"
-            aria-label={intl.formatMessage({ id: "voice.dictation.stop" })}
-            onClick={onStopPressed}
-            data-testid="voice-transcript-stop"
-          >
-            <XIcon className="h-4 w-4" />
-          </Button>
-        ) : null}
+        {/* 元信息行：左侧状态 · 右侧停止 */}
+        <div className="flex items-center justify-between border-t border-border/30 px-5 py-2">
+          <span className="text-ui-xs text-muted-foreground">
+            {recording
+              ? intl.formatMessage({ id: "voice.dictation.preview.hint" })
+              : intl.formatMessage({ id: "voice.dictation.requestingMic" })}
+          </span>
+          {recording ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 gap-1.5 px-2.5 text-ui-xs text-muted-foreground hover:text-foreground"
+              aria-label={intl.formatMessage({ id: "voice.dictation.stop" })}
+              onClick={onStopPressed}
+              data-testid="voice-transcript-stop"
+            >
+              <XIcon className="h-3.5 w-3.5" />
+              {intl.formatMessage({ id: "voice.dictation.stop" })}
+            </Button>
+          ) : null}
+        </div>
       </div>
     </div>
   );

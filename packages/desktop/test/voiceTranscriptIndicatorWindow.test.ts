@@ -17,6 +17,7 @@ interface FakeWindow {
   options: Record<string, unknown>;
   destroyed: boolean;
   hidden: boolean;
+  loading: boolean;
   showInactiveCalls: number;
   setBoundsCalls: Array<{ x: number; y: number; width: number; height: number }>;
   sent: Array<{ channel: string; payload: unknown }>;
@@ -24,6 +25,8 @@ interface FakeWindow {
   allWorkspaces: Array<[boolean, { visibleOnFullScreen?: boolean }]>;
   loadedUrls: string[];
   loadedFiles: string[];
+  /** 窗口级 once 回调表（ready-to-show/closed 由测试手动驱动）。 */
+  onceHandlers: Map<string, Array<() => void>>;
   win: BrowserWindow;
 }
 
@@ -32,6 +35,7 @@ function makeFakeWindow(options: Record<string, unknown>): FakeWindow {
     options,
     destroyed: false,
     hidden: false,
+    loading: false,
     showInactiveCalls: 0,
     setBoundsCalls: [],
     sent: [],
@@ -39,6 +43,7 @@ function makeFakeWindow(options: Record<string, unknown>): FakeWindow {
     allWorkspaces: [],
     loadedUrls: [],
     loadedFiles: [],
+    onceHandlers: new Map(),
     win: null as unknown as BrowserWindow,
   };
   fake.win = {
@@ -64,21 +69,33 @@ function makeFakeWindow(options: Record<string, unknown>): FakeWindow {
     setAlwaysOnTop: (top: boolean, level: string) => {
       fake.alwaysOnTop.push([top, level]);
     },
-    once: () => fake.win,
+    once: (event: string, cb: () => void) => {
+      fake.onceHandlers.set(event, [...(fake.onceHandlers.get(event) ?? []), cb]);
+      return fake.win;
+    },
     loadURL: (url: string) => {
       fake.loadedUrls.push(url);
+      fake.loading = true;
       return Promise.resolve();
     },
     loadFile: (file: string) => {
       fake.loadedFiles.push(file);
+      fake.loading = true;
       return Promise.resolve();
     },
     webContents: {
       once: () => undefined,
+      isLoading: () => fake.loading,
       send: (channel: string, payload: unknown) => fake.sent.push({ channel, payload }),
     },
   } as unknown as BrowserWindow;
   return fake;
+}
+
+/** 驱动 fake 的 ready-to-show（并解除 loading）。 */
+function emitReadyToShow(fake: FakeWindow) {
+  fake.loading = false;
+  for (const cb of fake.onceHandlers.get("ready-to-show") ?? []) cb();
 }
 
 function makeDeps(overrides: Partial<VoiceTranscriptIndicatorDeps> = {}) {
@@ -110,23 +127,47 @@ describe("悬浮指示窗生命周期（§5.5 二次增补）", () => {
     });
   });
 
-  it("置顶参数：screen-saver 级 alwaysOnTop + 全工作区 + 不抢焦点 + 透明无框", () => {
+  it("窗口旗标（Proma 对齐回归钉）：aux overlay 全 false + 显式透明背景 + 无运行时改级", () => {
     const { deps, created } = makeDeps();
     createVoiceTranscriptIndicator(deps).show();
     const options = created[0]!.options;
     expect(options["transparent"]).toBe(true);
+    expect(options["backgroundColor"]).toBe("#00000000");
     expect(options["frame"]).toBe(false);
     expect(options["alwaysOnTop"]).toBe(true);
     expect(options["skipTaskbar"]).toBe(true);
     expect(options["focusable"]).toBe(false);
-    expect(created[0]!.alwaysOnTop).toEqual([[true, "screen-saver"]]);
+    // aux overlay 旗标（首按 Space 异常修复核心：fullscreenable:false 才与全工作区组合安全）。
+    expect(options["resizable"]).toBe(false);
+    expect(options["movable"]).toBe(false);
+    expect(options["minimizable"]).toBe(false);
+    expect(options["maximizable"]).toBe(false);
+    expect(options["fullscreenable"]).toBe(false);
+    // 运行时不再改级（screen-saver 级变更已弃——首按序列异常面之一）。
+    expect(created[0]!.alwaysOnTop).toEqual([]);
     expect(created[0]!.allWorkspaces).toEqual([[true, { visibleOnFullScreen: true }]]);
+  });
+
+  it("首次显示门：加载中 show 挂起，ready-to-show 接管；hide 取消待显", () => {
+    const { deps, created } = makeDeps();
+    const indicator = createVoiceTranscriptIndicator(deps);
+    indicator.show();
+    // 首建加载中：不 showInactive，但 bounds 零等待就位。
+    expect(created[0]!.loading).toBe(true);
+    expect(created[0]!.showInactiveCalls).toBe(0);
+    expect(created[0]!.setBoundsCalls).toHaveLength(1);
+    emitReadyToShow(created[0]!);
+    expect(created[0]!.showInactiveCalls).toBe(1);
+    // 加载完成后：后续 show 立即显示（不再走门）。
+    indicator.show();
+    expect(created[0]!.showInactiveCalls).toBe(2);
   });
 
   it("show 幂等复用：重复 show 不重建窗口；bounds 随光标工作区刷新", () => {
     const { deps, created } = makeDeps();
     const indicator = createVoiceTranscriptIndicator(deps);
     indicator.show();
+    emitReadyToShow(created[0]!); // 首建的 ready-to-show 门
     indicator.show();
     expect(created).toHaveLength(1);
     expect(created[0]!.showInactiveCalls).toBe(2);

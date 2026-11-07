@@ -57,10 +57,16 @@ export interface VoiceTranscriptIndicatorDeps {
     x: number;
     y: number;
     transparent: boolean;
+    backgroundColor: string;
     frame: boolean;
     alwaysOnTop: boolean;
     skipTaskbar: boolean;
     focusable: boolean;
+    resizable: boolean;
+    movable: boolean;
+    minimizable: boolean;
+    maximizable: boolean;
+    fullscreenable: boolean;
     show: boolean;
     webPreferences: { preload?: string; additionalArguments?: string[] };
   }): BrowserWindow;
@@ -80,7 +86,7 @@ export interface VoiceTranscriptIndicatorDeps {
 }
 
 export interface VoiceTranscriptIndicator {
-  /** 起录显示（幂等：已建窗只 setBounds+showInactive）。 */
+  /** 起录显示（幂等：已建窗 setBounds + 就绪即 showInactive；首建加载中由 ready-to-show 门接管）。 */
   show(): void;
   /** 结束/错误隐藏（不销毁——复用避免每句闪烁，Proma hide/show 先例）。 */
   hide(): void;
@@ -94,6 +100,7 @@ export function createVoiceTranscriptIndicator(
   deps: VoiceTranscriptIndicatorDeps,
 ): VoiceTranscriptIndicator {
   let win: BrowserWindow | null = null;
+  let wantVisible = false;
 
   const ensure = (): BrowserWindow => {
     if (win && !win.isDestroyed()) {
@@ -106,10 +113,22 @@ export function createVoiceTranscriptIndicator(
       x: bounds.x,
       y: bounds.y,
       transparent: true,
+      backgroundColor: "#00000000",
       frame: false,
       alwaysOnTop: true,
       skipTaskbar: true,
       focusable: false,
+      // 2026-11-07 首按消失修复（对齐 Proma voice-dictation-window.ts 旗标组合）：
+      // 悬浮条是 aux overlay——不可缩放/移动/最小化/最大化/全屏。fullscreenable:false
+      // 与 setVisibleOnAllWorkspaces 的 CanJoinAllSpaces+FullScreenAuxiliary 组合才
+      // 是 macOS 认可的 overlay 形态；默认 FullScreenPrimary 参与全屏 Space 仲裁，
+      // 首次 showInactive 时触发 Space 切换/整 App 窗口退场（真机：仅首按——首按
+      // 是唯一跑完整创建序列的路径）。backgroundColor 显式透明防白闪。
+      resizable: false,
+      movable: false,
+      minimizable: false,
+      maximizable: false,
+      fullscreenable: false,
       show: false,
       // 2026-11-07 真机终因修复：此前此处传空 webPreferences——deps.preloadPath 声明了
       // 却从未消费，BrowserWindow 无 preload → voiceTranscriptBridge 永不注入 → App
@@ -119,9 +138,19 @@ export function createVoiceTranscriptIndicator(
       webPreferences: { preload: deps.preloadPath },
     });
     created.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
-    created.setAlwaysOnTop(true, "screen-saver");
+    // 2026-11-07 弃运行时改级：构造器 alwaysOnTop:true（floating 级）已够压普通窗；
+    // 运行时 setAlwaysOnTop(true,"screen-saver") 是 NSWindow level 变更，发生在首按
+    // 创建序列里（Proma 无此调用），与首按 Space 异常同时在场——按 Proma 平行实现
+    // 移除，异常面收敛到与 Proma 完全同构。
     created.once("closed", () => {
       win = null;
+    });
+    created.once("ready-to-show", () => {
+      // 首次显示门（Proma 同款）：页面未就绪前不 showInactive——透明空窗在部分
+      // macOS 版本上首次 orderFront 是 Space 异常的高危面。
+      if (wantVisible && !created.isDestroyed()) {
+        created.showInactive();
+      }
     });
     const entry = deps.resolveEntryUrl(
       deps.rendererDevUrl != null,
@@ -144,10 +173,15 @@ export function createVoiceTranscriptIndicator(
     show() {
       const w = ensure();
       if (w.isDestroyed()) return;
+      wantVisible = true;
       w.setBounds(indicatorBounds(deps.getCursorDisplayWorkArea()));
-      w.showInactive();
+      if (!w.webContents.isLoading()) {
+        w.showInactive();
+      }
+      // 仍在加载：ready-to-show 门接管显示（bounds 已就位，零等待反馈语义不变）。
     },
     hide() {
+      wantVisible = false;
       if (win && !win.isDestroyed()) {
         win.hide();
       }

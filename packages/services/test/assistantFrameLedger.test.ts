@@ -321,6 +321,46 @@ describe("帧接线（01 §3：订阅生命周期+归账映射）", () => {
     }
   });
 
+  // 修复（2026-11-07 dev 实机）：turnHeader 终态帧归账——轮在产出 assistantText 之前
+  // 失败时 CLI 只发 turnHeader failed/completedInterrupted，旧解析静默丢弃 → 工单永久
+  // 卡 running（实机 T-aef40cf3）。
+  it("parseTicketFrameEvents：turnHeader failed/completedInterrupted（无 assistantText）→turn_failed/turn_cancelled", () => {
+    const headerFrame = (state: string) => ({
+      topic: "conversation/s1",
+      sentAt: 1234,
+      payload: {
+        kind: "deltas",
+        deltas: [{ op: "row.upserted", row: { kind: "turnHeader", state, sourceCommandId: "cmd-1" } }],
+      },
+    });
+    expect(parseTicketFrameEvents(headerFrame("failed"), "s1")).toEqual([
+      { ticketId: "", atMs: 1234, kind: "turn_failed", failReason: "turn_header_failed" },
+    ]);
+    expect(parseTicketFrameEvents(headerFrame("completedInterrupted"), "s1")).toEqual([
+      { ticketId: "", atMs: 1234, kind: "turn_cancelled", failReason: "turn_header_interrupted" },
+    ]);
+    // running/completedSuccess 不译（completedSuccess 由 assistantText complete 承载 summary）。
+    expect(parseTicketFrameEvents(headerFrame("running"), "s1")).toEqual([]);
+    expect(parseTicketFrameEvents(headerFrame("completedSuccess"), "s1")).toEqual([]);
+  });
+
+  it("parseTicketFrameEvents：同帧 assistantText 终态在先→turnHeader 不双发（同轮单事件）", () => {
+    const frame = {
+      topic: "conversation/s1",
+      sentAt: 1234,
+      payload: {
+        kind: "deltas",
+        deltas: [
+          { op: "row.appended", row: { kind: "assistantText", state: "failed" } },
+          { op: "row.upserted", row: { kind: "turnHeader", state: "failed", sourceCommandId: "cmd-1" } },
+        ],
+      },
+    };
+    expect(parseTicketFrameEvents(frame, "s1")).toEqual([
+      { ticketId: "", atMs: 1234, kind: "turn_failed", failReason: "assistant_row_failed" },
+    ]);
+  });
+
   it("parseTicketFrameEvents：topic 不匹配/帧形态异常→空数组（不抛错）", () => {
     expect(parseTicketFrameEvents(null, "s1")).toEqual([]);
     expect(

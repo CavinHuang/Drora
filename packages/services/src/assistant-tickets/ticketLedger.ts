@@ -453,6 +453,15 @@ export function parseTicketFrameEvents(
   if (payload.kind !== "deltas" || !Array.isArray(payload.deltas)) return events;
 
   let pendingUsage: AssistantTicketTurnEventInput["usage"] | undefined;
+  // 修复（2026-11-07 dev 实机，工单卡 running 根因）：轮在产出任何 assistantText 行
+  // 之前失败时（如 provider/配置错误在 prompt 阶段抛错），CLI 只发 turnHeader 行的
+  // 终态帧（state=failed/completedInterrupted）——旧解析只认 assistantText，失败信号
+  // 被静默丢弃 → 工单永久卡 running（实机 T-aef40cf3：host 已收 task_failed 事件而
+  // 台账零归账）。turnHeader 是轮级权威终态：failed→turn_failed、completedInterrupted→
+  // turn_cancelled；completedSuccess 不译（正常流必有 assistantText complete 行承载
+  // summary，双译会产无 summary 的 turn_completed）。同帧已有 assistantText 终态时
+  // 跳过（同轮不双发）；跨帧迟到重复由台账「终态不再改写」幂等吸收。
+  let sawAssistantTerminal = false;
   for (const delta of payload.deltas) {
     if (typeof delta !== "object" || delta === null) continue;
     const d = delta as {
@@ -479,8 +488,10 @@ export function parseTicketFrameEvents(
         if (rowState === "streaming") {
           events.push({ ticketId: "", atMs, kind: "turn_started" });
         } else if (rowState === "complete") {
+          sawAssistantTerminal = true;
           events.push({ ticketId: "", atMs, kind: "turn_completed", outputSummary: text });
         } else if (rowState === "failed") {
+          sawAssistantTerminal = true;
           events.push({
             ticketId: "",
             atMs,
@@ -488,12 +499,31 @@ export function parseTicketFrameEvents(
             failReason: "assistant_row_failed",
           });
         } else if (rowState === "interrupted") {
+          sawAssistantTerminal = true;
           events.push({
             ticketId: "",
             atMs,
             kind: "turn_cancelled",
             failReason: "assistant_row_interrupted",
           });
+        }
+      } else if (rowKind === "turnHeader") {
+        if (!sawAssistantTerminal) {
+          if (rowState === "failed") {
+            events.push({
+              ticketId: "",
+              atMs,
+              kind: "turn_failed",
+              failReason: "turn_header_failed",
+            });
+          } else if (rowState === "completedInterrupted") {
+            events.push({
+              ticketId: "",
+              atMs,
+              kind: "turn_cancelled",
+              failReason: "turn_header_interrupted",
+            });
+          }
         }
       }
     }

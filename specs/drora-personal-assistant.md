@@ -172,6 +172,25 @@ preset 无 bash、无写盘工具，只做路由、派发、盯单、汇报。
    执行链 fixture 同构——**真实执行面 host 侧由单测锁、fixture 只造投影事实，照 MSA15
    先例标注**；台账行入口 trigger 读点+off 禁用）。候选卡约言加 manage 指引后卡长预算
    界随校准（assistantRouterDecision.test 先例注记）。
+   **dev 实机修复批落地注记（2026-11-07，评估链三层挂点）**：dev 实机排查「大副评估中」
+   永久挂起，定位三层根因并全修（单测+实机日志双重验证）。①**帧盲区**：轮在产出
+   assistantText 行之前失败时 CLI 只发 turnHeader 终态帧（failed/completedInterrupted），
+   两处消费方（routerTurnSink 新模块+ticketLedger parseTicketFrameEvents）都只认
+   assistantText → 评估 output 永不 settle 毒化串行队列（后续所有评估连 admission 都
+   不进）/工单永久卡 running（实机 T-aef40cf3：host 收到 task_failed 而台账零归账）。
+   修复=两处都译 turnHeader 终态（sourceCommandId 归因轮次；completedSuccess 不译防
+   无 summary 双记；同帧 assistantText 终态在先不双发；跨帧重复由终态幂等吸收）。
+   ②**订阅死缓存**：sessions-index 订阅失败（启动期 agent 未跑）后旧实现把空快照
+   state 留缓存（disposed=false）→ listSessions 永远返回空集、台账三源永久缺席。
+   修复=失败即拆缓存（下次访问重试）+ bootstrap failed 订阅 reconcile 时拆除重建。
+   ③**快照无界等待**：订阅 ACK 后快照帧可长期不到达（实机实证），listSessions 的
+   await state.ready 无失败臂 → 评估链候选采集挂死整条队列。修复=listSessions 非阻塞
+   （快照未就绪=诚实返回不可用，候选空/Tier3 语义；订阅留缓存继续等，下一轮触发
+   自然拿到）。评估链另加 info 级诊断日志四点（开始/输入就绪/端口调用/turn 投递——
+   本批排查的可观测性缺口）。遗留登记：**assistant-tickets 后台订阅的快照帧为何
+   不到达**（attach 候选因此恒空，Tier3 诚实降级不影响主链）——疑 connection/
+   topic 路由层，随 harness 批深查。验收=assistantRouterTurnSink.test 9 项+
+   ticketLedger turnHeader 2 项+bootstrap 失败重建 1 项；实机日志三层修复各有效证。
    **P10 审查修复批落地注记（2026-11-07，工作流终审 12 findings 处置）**：①对话流合并
    键冲突取舍修正（发现 3）——mergeMateThreadRows 对 ticket 行（唯一可变行：换代/终态
    推进 updated_ms）改「新鲜胜」（atMs 更大者），trigger/decision 不可变行维持首见胜；

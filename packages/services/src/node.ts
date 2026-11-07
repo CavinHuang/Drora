@@ -671,6 +671,7 @@ import type {
   AssistantSessionsIndexWatchDelta,
 } from "./assistant-tickets/assistantPorts.js";
 import { setAssistantInventoryProvider } from "./assistant-tickets/assistantPorts.js";
+import { createRouterTurnSink } from "./assistant-tickets/routerTurnSink.js";
 // P8 全域工作台账（09 详设 §1.2/§1.3 v2 定案）：装配侧运行时（三源组装 provider +
 // bootstrap 常驻订阅/动态发现/退订界）与工单行读点。
 import {
@@ -3653,54 +3654,17 @@ export function createLocalServices(options: {
     commandId: string;
     onAcked?: () => void;
   }): Promise<{ ok: true; output: string } | { ok: false; reason: string }> {
-    let settleOutput:
-      | ((result: { ok: true; output: string } | { ok: false; reason: string }) => void)
-      | null = null;
-    const outputPromise = new Promise<
-      { ok: true; output: string } | { ok: false; reason: string }
-    >((resolve) => {
-      settleOutput = resolve;
+    // 修复（2026-11-07 dev 实机）：监听器收敛为 routerTurnSink（assistantText 双臂
+    // + turnHeader 终态归因——轮在产出 assistantText 之前失败时旧监听永不 settle，
+    // 串行评估队列被一轮毒化，后续所有评估永久「大副评估中」；详见 routerTurnSink.ts 头注）。
+    const sink = createRouterTurnSink({
+      sessionId: input.sessionId,
+      commandId: input.commandId,
     });
     const disposable = droraAgentService.onDynamicConversationFrame({
       workspacePath: getAssistantWorkspaceDir(),
       workspaceIdentity: ASSISTANT_IDENTITY,
-    })((candidate) => {
-      // 防御式解析（对齐 ticketLedger 帧纪律）：assistantText 行 complete → 该轮输出；
-      // failed/interrupted → 失败臂（不重试模型，服务侧降级 Tier3）。
-      if (typeof candidate !== "object" || candidate === null) return;
-      const frame = candidate as {
-        topic?: unknown;
-        payload?: { kind?: unknown; deltas?: unknown };
-      };
-      if (frame.topic !== `conversation/${input.sessionId}` || frame.payload?.kind !== "deltas")
-        return;
-      if (!Array.isArray(frame.payload.deltas)) return;
-      for (const delta of frame.payload.deltas) {
-        if (typeof delta !== "object" || delta === null) continue;
-        const d = delta as {
-          op?: unknown;
-          row?: { kind?: unknown; state?: unknown; text?: unknown };
-        };
-        if (
-          (d.op === "row.appended" || d.op === "row.upserted") &&
-          typeof d.row === "object" &&
-          d.row !== null &&
-          d.row.kind === "assistantText"
-        ) {
-          if (d.row.state === "complete" && typeof d.row.text === "string") {
-            settleOutput?.({ ok: true as const, output: d.row.text });
-            return;
-          }
-          if (d.row.state === "failed" || d.row.state === "interrupted") {
-            settleOutput?.({
-              ok: false as const,
-              reason: `Router 该轮 turn ${d.row.state === "failed" ? "失败" : "被中断"}（assistantText ${d.row.state}）`,
-            });
-            return;
-          }
-        }
-      }
-    });
+    })((candidate) => sink.handleFrame(candidate));
     try {
       await assistantSendV4({
         hostPath: getAssistantWorkspaceDir(),
@@ -3715,7 +3679,7 @@ export function createLocalServices(options: {
       });
       input.onAcked?.();
       // 双臂等待：complete→输出；failed/interrupted→{ok:false}（评估落 failed 降级 Tier3）。
-      return await outputPromise;
+      return await sink.output;
     } finally {
       disposable.dispose();
     }
@@ -3740,6 +3704,10 @@ export function createLocalServices(options: {
     return enqueueAssistantRouterTurn(async () => {
       try {
         const sessionId = await ensureAssistantRouterSession();
+        createServiceLogger("assistant-tickets").info("router turn 投递", {
+          sessionId,
+          textChars: card.length,
+        });
         return await sendAssistantRouterTurn({
           sessionId,
           text: card,
@@ -3918,7 +3886,17 @@ export function createLocalServices(options: {
           originalDispose();
         };
       } catch (error) {
-        createServiceLogger("assistant-tickets").warn("sessions-index 订阅失败（诚实降级）", error);
+        // 修复（2026-11-07 dev 实机，全域投影永久「就绪中」根因）：旧实现 resolve
+        // ready 后把空快照 state 留在缓存（disposed=false）——启动期 agent 未跑时
+        // 订阅失败一次，此后 listSessions 永远命中死缓存返回空集、watch 永无 delta，
+        // 台账三源永远缺席。失败即拆缓存：等待者按「已断开」诚实返回；下次 ensure
+        // 重建订阅（agent 就绪后自愈——启动竞态只输一阵子，不输一辈子）。
+        createServiceLogger("assistant-tickets").warn(
+          "sessions-index 订阅失败（诚实降级；已拆缓存，下次访问重试）",
+          error,
+        );
+        state.disposed = true;
+        assistantSessionsIndexSubs.delete(key);
         state.resolveReady?.();
         state.resolveReady = null;
       }
@@ -3932,8 +3910,19 @@ export function createLocalServices(options: {
     async listSessions(identity, hostPath) {
       const state = ensureAssistantSessionsIndexSub(identity, hostPath);
       if (!state) return { ok: false as const, reason: "会话索引不可用" };
-      await state.ready;
-      if (state.disposed) return { ok: false as const, reason: "会话索引已断开" };
+      // 修复（2026-11-07 dev 实机，评估链第三层挂点）：快照未落地（订阅在途/对端
+      // 不发首帧——实机 ACK 后快照可长期不到达）不得无限 await——评估链的候选集
+      // 采集等在这里会把整条串行队列挂死（无任何失败臂）。本轮按「快照未就绪」诚实
+      // 返回（候选=空，评估照常进行，Tier3 语义）；订阅留在缓存继续等快照，下一轮
+      // 触发自然拿到候选。bootstrap 首拉同语义：not-ok→failed→reconcile 重试（已建）。
+      let settled = false;
+      state.ready.then(() => {
+        settled = true;
+      });
+      await Promise.resolve();
+      if (!settled || state.disposed) {
+        return { ok: false as const, reason: "快照未就绪（订阅在途）" };
+      }
       return { ok: true as const, sessions: [...state.sessions.values()] };
     },
     async probeSession(identity, sessionId, hostPath) {

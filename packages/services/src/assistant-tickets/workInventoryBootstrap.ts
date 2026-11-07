@@ -308,6 +308,16 @@ export function createWorkInventoryBootstrap(
     } catch {
       return null; // mate 读点不可用（dispose 竞态/库关闭）→ 本轮跳过对账
     }
+    // 修复（2026-11-07 dev 实机）：failed 订阅（订阅失败/首拉不可用）此前常驻缓存
+    // 永不重试——desired 对账只补缺失键，failed 键一直在场 → 三源永久缺席。失败订阅
+    // 先拆除，让本轮 plan.subscribe 重建（配合 node.ts 订阅失败拆缓存，agent 就绪后
+    // 随下一次 refresh 触发自愈）。
+    for (const [key, subscription] of subscriptions) {
+      if (subscription.failed) {
+        subscriptions.delete(key);
+        subscription.dispose();
+      }
+    }
     const desired = deriveInventoryBootstrapTargets({
       tickets: ticketRows,
       offpeakTasks: offpeakCache ?? [],

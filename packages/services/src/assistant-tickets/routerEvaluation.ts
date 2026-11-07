@@ -130,8 +130,16 @@ export function createRouterEvaluation(deps: RouterEvaluationDeps): {
       return;
     }
     void (async () => {
+      logger.info("router 评估开始", {
+        decisionId: input.decisionId,
+        target: input.trigger.workspaceIdentity ?? null,
+      });
       // Tier2 候选集在评估链内采集（事件驱动；通道失败/缺席→空候选，不阻断评估）。
       const attachCandidates = await collectAttachCandidates(input.trigger.workspaceIdentity);
+      logger.info("router 评估输入就绪", {
+        decisionId: input.decisionId,
+        attachCandidates: attachCandidates.length,
+      });
       // P7 批 2（08 号详设 §4 方案乙）：候选卡附带有界台账速览——Router 无工具即可
       // 感知账本（查询意图判定/attach 佐证）；空台账缺席（不出现速览段）。
       // P8b（09 §1.6）：传入全域台账视图——速览段追加速览段全域会话/teams/闲时事实。
@@ -151,7 +159,16 @@ export function createRouterEvaluation(deps: RouterEvaluationDeps): {
         ...(attachCandidates.length > 0 ? { attachCandidates } : {}),
         ...(manageTargets.length > 0 ? { manageTargets } : {}),
       });
+      logger.info("router 端口调用（入串行队列）", {
+        decisionId: input.decisionId,
+        cardChars: card.input.length,
+      });
       const result = await router({ card: card.input });
+      logger.info("router 端口返回", {
+        decisionId: input.decisionId,
+        ok: result.ok,
+        ...(result.ok ? { outputChars: result.output.length } : { reason: result.reason }),
+      });
       // P7（08 号详设 §3.3）：query_status 臂 → host 直答——同事务落 answer_text +
       // decision 翻 outcome=status_replied（不建票、不派 worker、不进决策卡集；answer
       // 界 replyTextMax）。decision 配额计数在触发时已落，翻转不回冲（decision 类永不

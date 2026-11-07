@@ -480,8 +480,11 @@ function createBootstrapHarness() {
   }> = [];
   let metas: readonly WorkInventoryTaskMetaInput[] = [];
   let ticketRows: readonly AssistantWorkTicketRow[] = [];
+  // 修复批扩展：可切换的 listSessions 失败开关（failed 订阅重建验收）。
+  let failListSessions = false;
   const sessionsIndex: AssistantSessionsIndexPort = {
     async listSessions(identity, hostPath) {
+      if (failListSessions) return { ok: false as const, reason: "harness 模拟源缺席" };
       return {
         ok: true,
         sessions: [...(sessionsByTarget.get(targetKey(identity, hostPath)) ?? [])],
@@ -504,6 +507,9 @@ function createBootstrapHarness() {
   return {
     bootstrap,
     watchers,
+    setFailListSessions(next: boolean): void {
+      failListSessions = next;
+    },
     setTicketRows(rows: readonly AssistantWorkTicketRow[]): void {
       ticketRows = rows;
     },
@@ -524,6 +530,24 @@ describe("provider 变更指纹跳过（09 §4 对策后半：组装输出 hash 
   // 工单须落在 bootstrap 14d 窗内，否则不派生订阅目标、watcher 不注册（derive 首步）。
   const freshTicket = (overrides: Partial<WorkInventoryTicketRow> = {}): WorkInventoryTicketRow =>
     ticketRow({ updatedAtMs: Date.now(), ...overrides });
+
+  it("失败订阅重建（2026-11-07 dev 实机修复）：首拉失败→缺席；源恢复+refresh→重订阅出视图", async () => {
+    const harness = createBootstrapHarness();
+    harness.setFailListSessions(true);
+    harness.setTicketRows([freshTicket({ ticketId: "t-retry", targetWorkspaceIdentity: "D:/ws/a" })]);
+    harness.setSessions("D:/ws/a", [liteSession({ sessionId: "s-retry" })]);
+    harness.setMetas([]);
+    await flush();
+    // 首拉失败：三源缺席（全有或全无）——旧实现 failed 订阅常驻，此后永不恢复。
+    expect(harness.bootstrap.provider()).toBeNull();
+    // 源恢复 + refresh 触发 reconcile：failed 订阅被拆除重建（修复主断言）。
+    harness.setFailListSessions(false);
+    harness.bootstrap.refreshOffPeakCache();
+    await flush();
+    const view = harness.bootstrap.provider();
+    expect(view).not.toBeNull();
+    expect(view?.workspaces[0]?.rows.some((r) => r.kind === "session")).toBe(true);
+  });
 
   it("输入域未变：provider 重复读返回同一视图引用", async () => {
     const harness = createBootstrapHarness();

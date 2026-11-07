@@ -441,6 +441,8 @@ export const VOICE_INTERRUPT_FALLBACK = "en-US";   // 第三语言回退
 
 **底部转写浮层（2026-11-07 增补，用户裁定「照 Proma：单独渲染入口+屏幕下方+动画」）**：流式听写（§9.6.10）期 partial 的展示从 composer 上方预览条升级为**窗口级底部浮层**（`VoiceTranscriptOverlay`：fixed 底部居中、毛玻璃、focused pane 渲染单例）——partial 逐字滚动+尾部光标闪烁+录音声波指示（DESIGN.md Motion 约束：fast/low-drama，淡入滑入 150ms 级，禁长弹簧动画）；notice（错误轻提示）与停止按钮并入浮层，原 `DictationPreviewOverlay` 退役。§5.1 写入规则不变（partial 永不进正文）；多 pane 只在 focused 渲染（与 AnnouncementIndicator 同位先例）；系统级独立悬浮窗（跨 App 可见）记扩展位不做。
 
+**独立悬浮指示窗（2026-11-07 二次增补，用户裁定「2」=Proma 同款独立窗口）**：流式听写期把转写展示升级为**独立透明 BrowserWindow**（`VoiceTranscriptOverlay` 保留为窗口内 fallback——`voiceAsrStream*` 平台方法缺席/窗口创建失败时照旧渲染）。窗口参数照 Proma + 本仓 CUA 拖拽浮窗实证：`transparent` + `frame: false` + `alwaysOnTop(level "screen-saver")` + `skipTaskbar` + `focusable: false`（不抢焦点，showInactive 显示）+ `setVisibleOnAllWorkspaces(true, {visibleOnFullScreen: true})`；bounds = 光标所在 display 工作区底部居中（360×110 底边距 28）；rollup 多入口 `voice-transcript.html`。数据面：main 持 sauc 会话已有 Transcript/State 下行——指示窗由 **main 直接转发**（不经主窗口 renderer 中继），渲染独立 App（window query 参数路由，Proma `?window=voice-dictation-indicator` 同款）。生命周期：起录 show → 结束/错误/abort hide（复用销毁，不重建——Proma hide/show 先例，避免每句闪烁）；主窗内浮层与指示窗**互斥渲染**（usesExternalIndicator 路由，Proma 双模先例：Proma 前台=内嵌、外部=悬浮窗；本仓 v1 简化=流式听写期恒用悬浮窗+窗口内 fallback）。跨 App 写入文字不做（Proma 的 text-delivery 是全局注入能力，本仓听写仍绑 composer 会话域，§5.4）。
+
 ### 5.3 RequestingMic 超时与 ASR 错误处置（冻结）
 
 - 权限对话框被忽略/折叠 → **10s 超时**自动回 Idle + 轻提示（voice.dictation.requestingMicTimeout）；拒绝 → 提示 + 设置引导（IPlatformService optional 引导方法，照 openCuaPermissionOnboarding 模式，前期勘察未复验）。

@@ -1472,7 +1472,13 @@ exceptions:
   - id: voice-vendor-proxy-handler-unmanaged-dir
     rule: unmanaged-new-file
     paths: [packages/desktop/src/main/voiceVendorProxy.ts, packages/desktop/src/main/doubaoAsrService.ts]
-    reason: §15.8/§16.2 整段+流式代理与 §9.6.10 豆包流式 ASR handler（main 持 sauc WS，纯校验+帧编解码+转发，specs/voice-agent-integration.md §9.6.10）：白名单/上限/超时全部来自 shared contracts 单一出处，net.fetch 由 desktopMainIpcPlatform 装配注入；desktop main 目录为未受管 legacy 区（与 windowHostAttachmentRpcPolicy 先例同款），接管整个 main 目录不在本轮范围。
+  - id: voice-transcript-indicator-unmanaged-dir
+    rule: unmanaged-new-file
+    paths:
+      - packages/desktop/src/main/voiceTranscriptIndicatorWindow.ts
+      - packages/desktop/src/renderer/voice-transcript/voiceTranscriptApp.tsx
+      - packages/desktop/src/preload/voice-transcript-preload.cjs
+    reason: §15.8/§16.2 整段+流式代理、§9.6.10 豆包流式 ASR handler（main 持 sauc WS，纯校验+帧编解码+转发）与 §5.5 悬浮指示窗（voiceTranscriptIndicatorWindow 窗口生命周期/voiceTranscriptApp 渲染入口/voice-transcript-preload 最小桥，specs/voice-agent-integration.md §9.6.10+§5.5）：白名单/上限/超时全部来自 shared contracts 单一出处，net.fetch 由 desktopMainIpcPlatform 装配注入；desktop main 目录为未受管 legacy 区（与 windowHostAttachmentRpcPolicy 先例同款），接管整个 main 目录不在本轮范围。
   - id: session-features-attribution-header-edit
     rule: unmanaged-new-file
     paths: [apps/drora-cli/packages/adapters/src/model/runner-attribution.ts]

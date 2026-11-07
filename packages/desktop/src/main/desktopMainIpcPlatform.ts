@@ -1,6 +1,7 @@
 import { decorateRequestSecurityLogArgs } from "./request-security-edition/index.js";
 /* eslint-disable max-lines -- 桌面平台 IPC 集中装配，拆散会让权限边界更难审计；行数随平台能力增长。 */
-import { BrowserWindow, dialog, ipcMain, nativeTheme, net } from "electron";
+import { BrowserWindow, dialog, ipcMain, nativeTheme, net, screen } from "electron";
+import { join } from "node:path";
 import WebSocket from "ws";
 import { readDroraStdioTapDevState } from "@drora/services/node";
 import {
@@ -36,6 +37,9 @@ import {
   createVoiceVendorStreamHandler,
 } from "./voiceVendorProxy.js";
 import { createDoubaoAsrService } from "./doubaoAsrService.js";
+import {
+  createVoiceTranscriptIndicator,
+} from "./voiceTranscriptIndicatorWindow.js";
 import { resolveCommunityUrl } from "./desktopCommandHandlers.js";
 import { openInEditor } from "./openInEditor.js";
 import {
@@ -491,7 +495,33 @@ export function registerPlatformIpcHandlers(options: {
     voiceVendorStreamHandler.abort(payload),
   );
   // §9.6.10 豆包流式 ASR 通道族：常驻 service（Start/Audio/Abort 三通道共享会话表）；
-  // 下行按 streamId 路由到发起 Start 的 sender（窗口销毁吞异常，§16 sink 同款）。
+  // 下行按 streamId 路由到发起 Start 的 sender（窗口销毁吞异常，§16 sink 同款）；
+  // 悬浮指示窗（§5.5 二次增补）：起录 show、结束 hide，Transcript/State 同帧转发。
+  const transcriptIndicator = (() => {
+    const devUrl = process.env["ELECTRON_RENDERER_URL"];
+    return createVoiceTranscriptIndicator({
+      createWindow: (options) =>
+        new BrowserWindow({
+          ...options,
+          alwaysOnTop: true,
+          hasShadow: true,
+          show: false,
+          webPreferences: { nodeIntegration: false, contextIsolation: true },
+        }),
+      getCursorDisplayWorkArea: () => {
+        const point = screen.getCursorScreenPoint();
+        return screen.getDisplayNearestPoint(point).workArea;
+      },
+      resolveEntryUrl: (isDev, devUrl, dir) =>
+        isDev && devUrl
+          ? { url: `${devUrl}/voice-transcript.html` }
+          : { file: join(dir, "voice-transcript.html") },
+      rendererDevUrl: devUrl,
+      rendererDir: join(import.meta.dirname, "../renderer"),
+      preloadPath: join(import.meta.dirname, "../preload/voice-transcript-preload.cjs"),
+      logger: options.logger,
+    });
+  })();
   {
     const senders = new Map<string, Electron.WebContents>();
     const push = (channel: string, frame: { streamId: string }) => {
@@ -505,15 +535,25 @@ export function registerPlatformIpcHandlers(options: {
     };
     const doubaoAsr = createDoubaoAsrService({
       connect: (url, headers) => new WebSocket(url, { headers }),
-      sendTranscript: (frame) => push(PlatformChannels.VoiceAsrStreamTranscript, frame),
+      sendTranscript: (frame) => {
+        push(PlatformChannels.VoiceAsrStreamTranscript, frame);
+        transcriptIndicator.send(PlatformChannels.VoiceAsrStreamTranscript, frame);
+      },
       sendState: (frame) => {
         push(PlatformChannels.VoiceAsrStreamState, frame);
+        transcriptIndicator.send(PlatformChannels.VoiceAsrStreamState, frame);
+        if (frame.status === "ended" || frame.status === "error") {
+          transcriptIndicator.hide(); // 会话终：指示窗隐藏（窗体复用不销毁）。
+          transcriptIndicator.send("drora:voice-transcript-hide", { streamId: frame.streamId });
+        }
         senders.delete(frame.streamId); // ended/error 后不再需要路由。
       },
     });
     ipcMain.handle(PlatformChannels.VoiceAsrStreamStart, (event, payload: unknown) =>
       doubaoAsr.start(payload).then((result) => {
         senders.set(result.streamId, event.sender);
+        transcriptIndicator.show(); // 起录：悬浮指示窗显示（showInactive 不抢焦点）。
+        transcriptIndicator.send("drora:voice-transcript-show", { streamId: result.streamId });
         return result;
       }),
     );
@@ -523,7 +563,23 @@ export function registerPlatformIpcHandlers(options: {
     ipcMain.handle(PlatformChannels.VoiceAsrStreamAbort, (_event, payload: unknown) => {
       const streamId = (payload as { streamId?: string })?.streamId ?? "";
       senders.delete(streamId);
+      transcriptIndicator.hide();
+      transcriptIndicator.send("drora:voice-transcript-hide", { streamId });
       doubaoAsr.abort(payload);
+    });
+    // 指示窗「停止听写」→ 路由回发起听写的主窗 renderer（走主窗 ToggleStop 等价通道）。
+    ipcMain.on("drora:voice-transcript-stop-request", (event) => {
+      for (const window of BrowserWindow.getAllWindows()) {
+        if (window.webContents === event.sender || window.webContents.isDestroyed()) continue;
+        try {
+          window.webContents.send(PlatformChannels.VoiceAsrStreamAbort, { streamId: "*" });
+        } catch {
+          // 主窗已销毁：忽略。
+        }
+      }
+      // v1 简化：全局停止——由主窗 useVoiceDictation 的 stop 语义按 owner 落地
+      //（doubao 流式 stop = last 帧 + 尾句结算，见 §9.6.10 适配器）。
+      event.sender.send("drora:voice-transcript-hide", { streamId: "*" });
     });
   }
   ipcMain.handle(PlatformChannels.CaptureWindowScreenshot, async (event) => {

@@ -73,6 +73,7 @@ function V4ComposerVoiceEntryMounted({
     privacyDialogOpen,
     dictation,
     dictationHoldKey,
+    isVolcanoStreaming,
     tooltip,
   } = useVoiceComposerEntry({ sessionId, workspacePath, workspaceIdentity, isWebRemoteControl });
   const snapshot = useVoiceDictationSnapshot();
@@ -227,8 +228,14 @@ function V4ComposerVoiceEntryMounted({
     <div className="relative inline-flex items-center">
       {/* 底部转写浮层（§5.2 增补 2026-11-07，Proma 形态）：流式 partial + notice +
           停止按钮；fixed 底部居中（持有者入口渲染单例，录音态/notice 可见）。 */}
+      {/* 流式引擎（豆包）recording 期由独立悬浮窗展示（§5.5 二次增补）——窗口内浮层
+          仅 requestingMic/notice/非流式（批量）路径渲染。流式判定：engine=remote 且
+          火山卡（选型条件同 useVoiceDictation，简化用 asrStream 端口在场+火山 host）。 */}
       {(snapshot.inputLeg !== "idle" || noticeVisible) && (bound || noticeVisible) ? (
-        <VoiceTranscriptOverlay onStopPressed={() => dictation.toggleMic()} />
+        <VoiceTranscriptOverlay
+          suppressForStreaming={snapshot.inputLeg === "recording" && isVolcanoStreaming}
+          onStopPressed={() => dictation.toggleMic()}
+        />
       ) : null}
       <ControlHintTooltip title={tooltip}>
         {lastDictationFresh ? (

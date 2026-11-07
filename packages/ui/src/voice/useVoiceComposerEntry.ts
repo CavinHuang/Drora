@@ -46,6 +46,8 @@ export interface VoiceComposerEntryController {
   privacyDialogOpen: boolean;
   dictation: ReturnType<typeof useVoiceDictation>;
   dictationLang: string;
+  /** §5.5：当前 ASR 走豆包流式（火山卡命中）——窗口内浮层让位悬浮指示窗。 */
+  isVolcanoStreaming: boolean;
   /** §5.5.1 长按听写持键（appSettings；"off" = 组件不挂 window 监听；枚举单一出处）。 */
   dictationHoldKey: import("@drora/shared").VoiceDictationHoldKey;
   /** 可见时的 hover 提示（不可见为空串；组件按 view.visible 决定是否渲染）。 */
@@ -254,6 +256,11 @@ export function useVoiceComposerEntry({
     dictation,
     dictationLang,
     dictationHoldKey,
+    /** §5.5：当前 ASR 走豆包流式（火山卡命中）——窗口内浮层让位悬浮指示窗。 */
+    isVolcanoStreaming:
+      asrCapability?.engine === "remote" &&
+      asrStream != null &&
+      (vendorConnection?.baseUrl ?? "").includes("openspeech.bytedance.com"),
     tooltip: view.visible ? intl.formatMessage({ id: view.tooltipMessageId }) : "",
   };
 }

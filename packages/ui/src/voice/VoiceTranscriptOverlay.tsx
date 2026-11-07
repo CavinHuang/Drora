@@ -53,10 +53,17 @@ function WaitingDots() {
   );
 }
 
-export function VoiceTranscriptOverlay({ onStopPressed }: { onStopPressed: () => void }) {
+export function VoiceTranscriptOverlay({
+  onStopPressed,
+  suppressForStreaming = false,
+}: {
+  onStopPressed: () => void;
+  /** §5.5：流式引擎 recording 期由独立悬浮窗展示——窗口内浮层隐藏（等态/notice 仍显示）。 */
+  suppressForStreaming?: boolean;
+}) {
   const { intl } = useDroraIntl();
   const snapshot = useVoiceDictationSnapshot();
-  const recording = snapshot.inputLeg === "recording";
+  const recording = snapshot.inputLeg === "recording" && !suppressForStreaming;
   const requestingMic = snapshot.inputLeg === "requestingMic";
   const noticeCode = snapshot.notice?.code;
   const active = recording || requestingMic;

@@ -263,6 +263,7 @@ export default defineConfig(({ command, mode }) => {
           index: resolve(__dirname, "src/renderer/index.html"),
           "resource-manager": resolve(__dirname, "src/renderer/resource-manager.html"),
           "cua-permission-panel": resolve(__dirname, "src/renderer/cua-permission-panel.html"),
+          "voice-transcript": resolve(__dirname, "src/renderer/voice-transcript.html"),
           // 插件 UI 沙箱的受信 shell，经 drora-sandbox:// 提供
           "plugin-sandbox": resolve(__dirname, "src/renderer/plugin-sandbox.html"),
         },

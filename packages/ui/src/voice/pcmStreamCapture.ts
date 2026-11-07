@@ -75,7 +75,8 @@ export function startPcmStreamCapture(
         ctx.resume().then(() => true).catch(() => false),
         new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 300)),
       ]);
-      if (!resumed && ctx.state !== "running") {
+      const stateNow: string = ctx.state;
+      if (!resumed && stateNow !== "running") {
         for (const track of stream.getTracks()) track.stop();
         await ctx.close().catch(() => undefined);
         throw new Error("audio context suspended (no user gesture)");

@@ -191,10 +191,16 @@ export function createDispatchEngine(deps: DispatchEngineDeps): {
     }
     const handle = frameSource.subscribe(sessionId, workspaceIdentity || undefined, hostPath, (candidate) => {
       let becameTerminal = false;
-      for (const event of parseTicketFrameEvents(candidate, sessionId)) {
-        if (ledger.applyTicketTurnEvent({ ...event, ticketId })) {
-          becameTerminal = true;
+      // 2026-11-07 真机根修：帧回调异常不再沿 emitter 上抛（会中断后续帧分发）——
+      // 落 warn 由快照推送自愈（同台账终态幂等语义）。
+      try {
+        for (const event of parseTicketFrameEvents(candidate, sessionId)) {
+          if (ledger.applyTicketTurnEvent({ ...event, ticketId })) {
+            becameTerminal = true;
+          }
         }
+      } catch (error) {
+        logger.warn("assistant-tickets worker 帧落账异常（快照推送自愈）", error);
       }
       if (becameTerminal) unwatchSession(sessionId);
     });

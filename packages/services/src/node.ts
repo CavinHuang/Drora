@@ -3568,15 +3568,63 @@ export function createLocalServices(options: {
   // resolveWorkspaceKey 两侧一致会话帧才落进同一 emitter；candidate 上游 safeParse 已验。
   setAssistantFrameSource({
     subscribe(sessionId, workspaceIdentity, hostPath, onFrame) {
-      const disposable = droraAgentService.onDynamicConversationFrame({
+      // 2026-11-07 真机根修（「真实 Host 端到端」遗留真身）：worker 会话此前只有本地
+      // 动态帧监听、无人建立 v4 会话订阅——runtime 不向未订阅会话推帧，台账永收不到
+      // turn 事件（工单假 running，watchdog stale 误报链式放大）。照 readBotGroupRuntime
+      // Snapshot 先例：订阅期内持有一条后台订阅（start-if-needed——会复用派发已起的
+      // runtime，不落 sessions-index 的 existing-only 拒认路径），dispose 释放；订阅
+      // 建立失败不阻断本地监听（主窗口若订阅同会话帧仍可达——诚实降级不静默吞错）。
+      const target = {
         workspacePath: assistantHostPathFor(hostPath),
         ...(assistantIdentityFor(workspaceIdentity ?? "")
           ? { workspaceIdentity: assistantIdentityFor(workspaceIdentity ?? "") }
           : {}),
-      })((candidate) => {
-        onFrame(candidate);
+      };
+      const disposable = droraAgentService.onDynamicConversationFrame(target)((candidate) => {
+        // 2026-11-07 真机根修（全环最后一跳）：本发射器给出的是 wire 信封
+        // （{kind:"complete", topic, frame:TopicFrame}——candidate schema 只验路由层），
+        // 而 ledger 解析器消费内层 TopicFrame（{topic, payload:{snapshot|deltas}}）——
+        // 从 P1 起真实 Host 帧在此层错位被静默丢弃（fixture 直喂内层故测试恒绿）。
+        // complete 帧拆信封转发；fragment（分片）不在 mate 消费面——原样透传由解析器
+        // 诚实拒绝（不组装分片、不猜帧）。
+        const envelope = candidate as { kind?: string; frame?: unknown };
+        const inner =
+          envelope.kind === "complete" && envelope.frame !== undefined ? envelope.frame : candidate;
+        onFrame(inner);
       });
-      return { dispose: () => disposable.dispose() };
+      let subscriptionId: string | null = null;
+      let disposed = false;
+      void droraAgentService
+        .subscribeConversationV4({
+          ...target,
+          sessionId,
+        })
+        .then((result) => {
+          if (disposed) {
+            void droraAgentService
+              .unsubscribeConversationV4({ ...target, subscriptionId: result.ack.subscriptionId })
+              .catch(() => undefined);
+            return;
+          }
+          subscriptionId = result.ack.subscriptionId;
+        })
+        .catch((error: unknown) => {
+          createServiceLogger("assistant-tickets").warn("worker 会话帧订阅建立失败（本地监听降级）", {
+            sessionId,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        });
+      return {
+        dispose: () => {
+          disposed = true;
+          disposable.dispose();
+          if (subscriptionId !== null) {
+            void droraAgentService
+              .unsubscribeConversationV4({ ...target, subscriptionId })
+              .catch(() => undefined);
+          }
+        },
+      };
     },
   });
   // Router 端口（02 §1.1/§1.3）：assistant 虚拟 workspace 会话壳 + 轮转簿记（kv）+
@@ -3592,11 +3640,33 @@ export function createLocalServices(options: {
   function assistantModelSelection(): import("@drora/shared").ModelSelection | undefined {
     return readAssistantModelSelectionNested(assistantDatabase.raw);
   }
-  // 2026-11-07 真机根修（dev 实机「Model creation failed」）：未设偏好时裸建会话回落
-  // CLI 缺省模型——账户 GLM-5.3-Flash 属 registry 档位必选模型（reasoning-level-missing
-  // → turn 在 model_creation 相位秒败，工单假 running）。修法：无偏好时注入 Host 当前
-  // 生效的完整选择（含 reasoningLevel，与主 composer 同源）；有偏好但缺档位且 Host
-  // 生效选择同模型时采纳其档位。getView 失败=不带字段（现行为不变，诚实降级）。
+  // 2026-11-07 真机根修二段（dev 实机「Model creation failed」）：本 plan 的
+  // GLM-5.3-Flash 属 registry 档位必选模型（reasoning-level-missing → turn 在
+  // model_creation 相位秒败）；而 Host 侧的 preferredSelection 与 runtime 裸缺省
+  // 均为无档位 Flash（restore_unbound 实锤——不注入同样死）。档位元数据只在 CLI
+  // registry（drora-builtin.json modelMatch 规则），Host 无目录服务面——此处用
+  // 封闭兜底表（按 modelId 小写精确匹配；值=该模型族规则里首个真实思考档）补
+  // reasoningLevel；未知模型不补（CLI 诚实报错，不猜测伪造）。
+  const ASSISTANT_FALLBACK_REASONING_BY_MODEL: Readonly<Record<string, string>> = {
+    // coding-plan 账户版 GLM-5.3/Flash 档位族=low/high/max（07:43 实测 "enabled" 被拒
+    // ——Unsupported reasoning effort；[disabled,enabled] 是 zai/bigmodel 标准 API 模板族）。
+    "glm-5.3-flash": "low",
+    "glm-5.3": "low",
+    "glm-5.2": "high",
+    "glm-5.1": "enabled",
+    "glm-5": "enabled",
+    "glm-4.7": "enabled",
+    "glm-4.6": "enabled",
+    "glm-4.5": "enabled",
+  };
+  function withAssistantFallbackReasoning(
+    selection: import("@drora/shared").ModelSelection,
+  ): import("@drora/shared").ModelSelection {
+    if (selection.options?.reasoningLevel) return selection;
+    const fallback = ASSISTANT_FALLBACK_REASONING_BY_MODEL[selection.modelId.toLowerCase()];
+    if (fallback === undefined) return selection;
+    return { ...selection, options: { ...selection.options, reasoningLevel: fallback } };
+  }
   async function resolveAssistantModelSelection(): Promise<
     import("@drora/shared").ModelSelection | undefined
   > {
@@ -3604,24 +3674,29 @@ export function createLocalServices(options: {
     try {
       const view = await providerRuntime.modelSelection.getView();
       const preferred = view.preferredSelection ?? null;
-      if (preference) {
-        if (preference.options?.reasoningLevel) return preference;
-        if (
-          preferred &&
-          preferred.providerId === preference.providerId &&
-          preferred.modelId === preference.modelId &&
-          preferred.options?.reasoningLevel
-        ) {
-          return {
-            ...preference,
-            options: { ...preference.options, reasoningLevel: preferred.options.reasoningLevel },
-          };
-        }
-        return preference;
-      }
-      return preferred ?? undefined;
-    } catch {
-      return preference;
+      const resolved = preference
+        ? withAssistantFallbackReasoning(
+            preferred && preferred.providerId === preference.providerId && preferred.modelId === preference.modelId
+              ? preferred
+              : preference,
+          )
+        : preferred
+          ? withAssistantFallbackReasoning(preferred)
+          : undefined;
+      // 观测（2026-11-07 排障）：注入结果落日志——preferred 形态与最终注入形态一目了然。
+      createServiceLogger("assistant-tickets").info("大副会话模型选择解析", {
+        hasPreferred: preferred !== null,
+        preferredModel: preferred?.modelId ?? null,
+        preferredLevel: preferred?.options?.reasoningLevel ?? null,
+        injectModel: resolved?.modelId ?? null,
+        injectLevel: resolved?.options?.reasoningLevel ?? null,
+      });
+      return resolved;
+    } catch (error) {
+      createServiceLogger("assistant-tickets").warn("大副会话模型选择读取失败（裸建降级）", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return preference ? withAssistantFallbackReasoning(preference) : undefined;
     }
   }
   function assistantKvGet(key: string): string | undefined {

@@ -506,7 +506,14 @@ export function registerPlatformIpcHandlers(options: {
           alwaysOnTop: true,
           hasShadow: true,
           show: false,
-          webPreferences: { nodeIntegration: false, contextIsolation: true },
+          // webPreferences 放 options 之后仅追加安全字段——不能整体覆盖
+          //（options.webPreferences.preload 是指示窗桥的唯一注入通道，覆盖即丢失，
+          // 真机实证：bridge undefined → App 空态渲染 → 「窗口关闭」假象）。
+          webPreferences: {
+            ...options.webPreferences,
+            nodeIntegration: false,
+            contextIsolation: true,
+          },
         }),
       getCursorDisplayWorkArea: () => {
         const point = screen.getCursorScreenPoint();

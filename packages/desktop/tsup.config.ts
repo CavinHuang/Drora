@@ -313,7 +313,7 @@ export default defineConfig([
       "preload/pluginSandbox": "src/preload/pluginSandbox/index.ts",
       "preload/desktopPet": "src/preload/desktopPet.ts",
       // §5.5 流式听写悬浮指示窗：最小桥（Transcript/State 订阅 + stop/show/hide 事件）。
-      "preload/voice-transcript-preload": "src/preload/voice-transcript-preload.cjs",
+      "preload/voice-transcript-preload": "src/preload/voice-transcript-preload.ts",
     },
     outDir: "out",
     format: "cjs",

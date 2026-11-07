@@ -85,7 +85,7 @@ export function VoiceTranscriptOverlay({
   return (
     <div
       data-testid="voice-transcript-overlay"
-      className="pointer-events-none fixed bottom-8 left-1/2 z-40 w-[min(560px,calc(100vw-4rem))] -translate-x-1/2 animate-[voice-rise_150ms_ease-out]"
+      className="pointer-events-none fixed bottom-4 left-1/2 z-40 w-[min(560px,calc(100vw-4rem))] -translate-x-1/2 animate-[voice-rise_150ms_ease-out]"
     >
       <div className="pointer-events-auto rounded-2xl border border-border/40 bg-toast/60 shadow-2xl backdrop-blur-xl">
         {/* 主行：转写文本（两行滚动窗，最新常显）/ 等待 / 错误 */}

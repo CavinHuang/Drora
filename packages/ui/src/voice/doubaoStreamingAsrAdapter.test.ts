@@ -59,15 +59,15 @@ function fakePcmDeps() {
 const CONFIG = async () => ({
   baseUrl: "https://openspeech.bytedance.com",
   model: "volc.seedasr.sauc.duration",
-  apiKey: "app-1:token-1",
+  apiKey: "single-key-1",
 });
 
 describe("createDoubaoStreamingAsrAdapter（§9.6.10）", () => {
-  it("凭据非法（无冒号/空）→ start throw not-allowed（fail-closed 零出站）", async () => {
+  it("凭据空 → start throw not-allowed（fail-closed 零出站）；复合旧形态不再要求冒号", async () => {
     const { port } = makeStreamPort();
     const adapter = createDoubaoStreamingAsrAdapter({
       stream: port,
-      getVendorConfig: async () => ({ baseUrl: "https://openspeech.bytedance.com", model: "m", apiKey: "无冒号" }),
+      getVendorConfig: async () => ({ baseUrl: "https://openspeech.bytedance.com", model: "m", apiKey: "  " }),
     });
     await expect(adapter.start({ lang: "zh-CN" })).rejects.toMatchObject({ code: "not-allowed" });
     expect(port.start).not.toHaveBeenCalled();
@@ -128,7 +128,7 @@ describe("createDoubaoStreamingAsrAdapter（§9.6.10）", () => {
       getVendorConfig: async () => ({
         baseUrl: "https://openspeech.bytedance.com",
         model: "volc.seedasr.sauc.duration#duplex",
-        apiKey: "app-1:token-1",
+        apiKey: "single-key-1",
       }),
       pcmDeps: fakePcmDeps().deps,
     });

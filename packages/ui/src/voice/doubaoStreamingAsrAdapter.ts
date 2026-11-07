@@ -6,14 +6,13 @@
  * 句级语义原生恢复）；stop()=停抓取+发 last 帧+等尾句/会话结束（settle 超时兜底）；
  * abort()=中止上行+断订阅。错误映射 §5.3：WS 失败/超时 → network。
  *
- * 凭据：卡 apiKey 复合 "AppID:AccessToken"（parseDoubaoAsrCredentials）；modelId 承载
+ * 凭据：卡 apiKey = 新版控制台单 API Key（sauc 101 握手实证，与 TTS 统一）；modelId 承载
  * resourceId（默认 DOUBAO_ASR_RESOURCE_ID；"#duplex" 后缀切 duplex 端点）。
  * 混合预览不适用（引擎自身流式，§9.6.10）。
  */
 
 import {
   DOUBAO_ASR_RESOURCE_ID,
-  parseDoubaoAsrCredentials,
   type DoubaoAsrEndpointMode,
   type VoiceAsrStreamStateFrame,
   type VoiceAsrStreamTranscriptFrame,
@@ -26,8 +25,7 @@ import type { VoiceAsrPort, VoiceAsrSession } from "./voiceAsrPort.js";
 /** 平台 ASR 流通道聚合（platform 五方法；缺席=引擎不可用）。 */
 export interface DoubaoAsrStreamPort {
   start(request: {
-    appId: string;
-    accessKey: string;
+    apiKey: string;
     resourceId: string;
     endpointMode: DoubaoAsrEndpointMode;
     language: string;
@@ -60,9 +58,9 @@ export function createDoubaoStreamingAsrAdapter(deps: DoubaoStreamingAsrDeps): V
     },
     async start({ lang }: { lang: string }): Promise<VoiceAsrSession> {
       const config = await deps.getVendorConfig();
-      const credentials = config ? parseDoubaoAsrCredentials(config.apiKey) : null;
-      if (!credentials) {
-        throw new VoiceAsrError("not-allowed", "doubao asr credentials must be 'AppID:AccessToken'");
+      const apiKey = config?.apiKey.trim() ?? "";
+      if (!apiKey) {
+        throw new VoiceAsrError("not-allowed", "doubao asr api key is required");
       }
       const [resourceId, modeSuffix] = (config?.model?.trim() || DOUBAO_ASR_RESOURCE_ID).split("#");
       const endpointMode: DoubaoAsrEndpointMode = modeSuffix === "duplex" ? "duplex" : "async";
@@ -136,8 +134,7 @@ export function createDoubaoStreamingAsrAdapter(deps: DoubaoStreamingAsrDeps): V
       );
 
       const { streamId: id } = await deps.stream.start({
-        appId: credentials.appId,
-        accessKey: credentials.accessKey,
+        apiKey,
         resourceId: resourceId || DOUBAO_ASR_RESOURCE_ID,
         endpointMode,
         language: lang.split("-")[0] ?? "",

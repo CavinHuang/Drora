@@ -235,8 +235,8 @@ export function createDoubaoAsrService(deps: DoubaoAsrServiceDeps): {
       const request = parseVoiceAsrStreamStartRequest(payload);
       const streamId = randomUUID();
       const ws = deps.connect(doubaoAsrEndpoint(request.endpointMode), {
-        "X-Api-App-Key": request.appId,
-        "X-Api-Access-Key": request.accessKey,
+        // 2026-11-07 实测：sauc 已支持新版单 Key（101 握手实证）；与 TTS §15.9 统一。
+        "X-Api-Key": request.apiKey,
         "X-Api-Resource-Id": request.resourceId,
         "X-Api-Connect-Id": randomUUID(),
       });

@@ -9538,7 +9538,7 @@ const enUS: Record<string, string> = {
   "voice.settings.dictation.holdKey.rightAlt": "Right ⌥",
   "voice.settings.dictation.hybridPreview.label": "Live transcription preview",
   "settings.modelCapability.vendor.credentialHint.volcano.asr":
-    "Streaming ASR: enable “Streaming Speech Recognition” in the Volcano console (Speech Technology); credentials take “AppID:AccessToken” (colon-combined); default model volc.seedasr.sauc.duration.",
+    "Streaming ASR: enable “Streaming Speech Recognition” in the Volcano speech console; use a single API key (same console as TTS — one key works for both); default model volc.seedasr.sauc.duration.",
   "voice.settings.dictation.hybridPreview.description":
     "While holding with a cloud ASR engine, show live preview via system speech recognition; the final text written on release comes from the cloud engine.",
   "voice.settings.dictation.lang.auto": "Follow interface language",

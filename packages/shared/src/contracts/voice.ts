@@ -205,20 +205,11 @@ export function isVoiceVendorProxyAllowedHeaderKey(key: string): boolean {
 /** sauc 流式 ASR 的 WS 端点模式（async=bigmodel_async 服务端攒句；duplex=bigmodel 实时）。 */
 export type DoubaoAsrEndpointMode = "async" | "duplex";
 
-/** ASR 专用复合凭据（卡 apiKey = "AppID:AccessToken"，冒号分隔；与 §15.9 TTS 单 Key 无涉）。 */
-export interface DoubaoAsrCredentials {
-  appId: string;
-  accessKey: string;
-}
-
-/** 复合凭据解析：空串/缺段 = null（fail-closed，无出站）。 */
-export function parseDoubaoAsrCredentials(apiKey: string): DoubaoAsrCredentials | null {
-  const trimmed = apiKey.trim();
-  if (!trimmed) return null;
-  const sep = trimmed.indexOf(":");
-  if (sep <= 0 || sep >= trimmed.length - 1) return null;
-  return { appId: trimmed.slice(0, sep).trim(), accessKey: trimmed.slice(sep + 1).trim() };
-}
+/**
+ * ASR 凭据形态（2026-11-07 实测勘误）：sauc 端点已支持新版控制台单 API Key
+ * （X-Api-Key 单头 101 握手实证）——与 TTS §15.9 统一为单 Key，复合双头形态不实现
+ * （Proma 实证的旧版形态，本产品未发行无存量，spec §9.6.10 同步勘误）。
+ */
 
 /** sauc 资源 ID 单一出处（端点模式后缀由 modelId 预设承载）。 */
 export const DOUBAO_ASR_RESOURCE_ID = "volc.seedasr.sauc.duration";
@@ -232,8 +223,7 @@ export const VOICE_ASR_STREAM_LIMITS = {
 } as const;
 
 export interface VoiceAsrStreamStartRequest {
-  appId: string;
-  accessKey: string;
+  apiKey: string;
   resourceId: string;
   endpointMode: DoubaoAsrEndpointMode;
   /** BCP-47 源（voiceDictationLang；空串=端点默认）。 */
@@ -263,8 +253,7 @@ export interface VoiceAsrStreamStateFrame {
 
 export const voiceAsrStreamStartRequestSchema = z
   .object({
-    appId: z.string().min(1),
-    accessKey: z.string().min(1),
+    apiKey: z.string().min(1),
     resourceId: z.string().min(1),
     endpointMode: z.enum(["async", "duplex"]),
     language: z.string(),

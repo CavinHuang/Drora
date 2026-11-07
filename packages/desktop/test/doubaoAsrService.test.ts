@@ -20,8 +20,7 @@ import type {
  */
 
 const START_REQUEST = {
-  appId: "app-1",
-  accessKey: "token-1",
+  apiKey: "single-key-1",
   resourceId: "volc.seedasr.sauc.duration",
   endpointMode: "async" as const,
   language: "zh",
@@ -141,8 +140,7 @@ describe("会话状态机（deps 注入 fake WS）", () => {
     expect(connect).toHaveBeenCalledWith(
       doubaoAsrEndpoint("async"),
       expect.objectContaining({
-        "X-Api-App-Key": "app-1",
-        "X-Api-Access-Key": "token-1",
+        "X-Api-Key": "single-key-1",
         "X-Api-Resource-Id": "volc.seedasr.sauc.duration",
       }),
     );

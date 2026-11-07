@@ -8983,7 +8983,7 @@ const zhCN: Record<string, string> = {
   "voice.settings.dictation.holdKey.rightAlt": "右 ⌥",
   "voice.settings.dictation.hybridPreview.label": "实时预览转写",
   "settings.modelCapability.vendor.credentialHint.volcano.asr":
-    "语音识别（流式）：火山控制台「语音技术→流式语音识别大模型」开通，凭据填「AppID:AccessToken」（冒号分隔复合）；模型默认 volc.seedasr.sauc.duration。",
+    "语音识别（流式）：火山语音控制台「语音技术→流式语音识别大模型」开通，填单个 API Key（与语音合成同控制台、同一把 Key 可两用）；模型默认 volc.seedasr.sauc.duration。",
   "voice.settings.dictation.hybridPreview.description":
     "云端识别长按期间用系统语音识别在预览条实时显示听写内容，松开后以云端识别结果为准写入。",
   "voice.settings.dictation.lang.auto": "跟随界面语言",

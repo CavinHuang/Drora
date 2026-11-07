@@ -281,7 +281,7 @@ export function createRemoteAsrAdapter(deps: RemoteAsrAdapterDeps): VoiceAsrPort
         });
         throw new VoiceAsrError("network", `transcription HTTP ${response.status}`);
       }
-      const payload = (await response.json)() as { text?: unknown };
+      const payload = (await response.json()) as { text?: unknown };
       const text = typeof payload.text === "string" ? payload.text : "";
       // info 级（§5.3 真机排障增补）：空文本=「看似成功实则零转写」的唯一可见信号，
       // 此前 debug 级生产不落盘导致静音录入无法定性。§7.1 合规：只记音频字节数与

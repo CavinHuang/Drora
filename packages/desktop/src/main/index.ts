@@ -10,7 +10,7 @@ import { createLocalTtftExporter } from "./localTtftExporter.js";
 /* eslint-disable max-lines */
 import "./desktopEarlyDataBaseDirBootstrap.js";
 import "./desktopEarlyChromiumHardwareAccelerationBootstrap.js";
-import { powerMonitor, powerSaveBlocker } from "electron";
+import { powerMonitor, powerSaveBlocker, systemPreferences } from "electron";
 import { crashCapturePaths } from "./appCrashCaptureBootstrap.js";
 import { armsInitPromise } from "./appARMSBootstrap.js";
 import {
@@ -2179,6 +2179,21 @@ app.on("second-instance", (_event, argv, _workingDirectory, additionalData) => {
 
 app.whenReady().then(async () => {
   markMainLaunchAppReady();
+  // §5.3 真机排障（2026-11-07）：主动查询+请求系统 TCC 麦克风授权。背景：macOS 对
+  // 无授权进程返回静音数据流（不报错），Chromium getUserMedia 层完全无感——主动
+  // askForMediaAccess 强制走系统授权框，并在日志暴露真实 TCC 状态（granted/denied/
+  // not-determined）供排障定位。
+  {
+    const micStatus = systemPreferences.getMediaAccessStatus("microphone");
+    logger.info("voice.permission", "microphone tcc status", { status: micStatus });
+    if (micStatus !== "granted") {
+      const granted = await systemPreferences.askForMediaAccess("microphone");
+      logger.info("voice.permission", "microphone tcc ask resolved", {
+        granted,
+        statusAfter: systemPreferences.getMediaAccessStatus("microphone"),
+      });
+    }
+  }
   // 语音听写 mic 权限双 handler 显式登记（specs/voice-agent-integration.md §9.2 / TV-5
   // 方案：request + check 双 handler；audio 允许、含 video 拒绝、其余保持缺省现状）。
   applyVoiceMicPermissionPolicy(session.defaultSession, { logger });

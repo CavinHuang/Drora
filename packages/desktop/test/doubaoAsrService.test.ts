@@ -151,6 +151,19 @@ describe("会话状态机（deps 注入 fake WS）", () => {
     service.abort({ streamId });
   });
 
+  it("isLast 空 PCM 帧必须发送（结束标记不被防御丢弃——真机 last 帧丢失根因回归钉）", async () => {
+    const fake = fakeWs();
+    const service = createDoubaoAsrService({ connect: () => fake.ws, sendTranscript: () => undefined, sendState: () => undefined });
+    const pending = service.start(START_REQUEST);
+    fake.emitOpen();
+    const { streamId } = await pending;
+    const before = fake.sent.length;
+    service.sendAudio({ streamId, pcm: new ArrayBuffer(0), isLast: true });
+    expect(fake.sent.length).toBe(before + 1); // 空帧+last 必须发出
+    expect(fake.sent[fake.sent.length - 1]![1]! & 0x0f).toBe(0b0010); // last 标志位
+    service.abort({ streamId });
+  });
+
   it("Audio 上行：帧类型=audio；isLast 后帧仍可发（尾帧标志）", async () => {
     const fake = fakeWs();
     const service = createDoubaoAsrService({ connect: () => fake.ws, sendTranscript: () => undefined, sendState: () => undefined });

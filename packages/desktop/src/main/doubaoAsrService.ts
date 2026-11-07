@@ -198,6 +198,8 @@ export interface DoubaoAsrWsLike {
   once(event: "error", cb: (error: Error) => void): void;
   once(event: "close", cb: () => void): void;
   on(event: "message", cb: (data: Buffer) => void): void;
+  /** ws 库握手被拒事件（服务端非 101 响应）——body 是厂商拒绝原因。 */
+  on(event: "unexpected-response", cb: (res: { statusCode?: number; on?: (event: string, cb: (chunk: Buffer) => void) => void }) => void): void;
 }
 
 export interface DoubaoAsrServiceDeps {
@@ -316,6 +318,14 @@ export function createDoubaoAsrService(deps: DoubaoAsrServiceDeps): {
       const session = sessions.get(parsed.streamId);
       if (!session || session.closed) return;
       const pcm = (chunk as { pcm?: ArrayBuffer }).pcm;
+      // isLast 帧允许空 PCM（结束标记；renderer stop 以空 buffer+last 发信号——此前被
+      // 防御分支丢弃，服务端永不知音频结束、不回总结帧，stop 恒挂 8s 超时空结算——
+      // 真机日志实证 first chunk 后再无任何帧，2026-11-07 修复）。非 last 空帧仍丢弃。
+      if (parsed.isLast) {
+        session.ws.send(buildDoubaoAudioFrame(Buffer.from(pcm ?? new ArrayBuffer(0)), true));
+        session.closed = true;
+        return;
+      }
       if (!pcm || pcm.byteLength === 0 || pcm.byteLength > VOICE_ASR_STREAM_LIMITS.maxChunkBytes) {
         return; // 超限/空帧丢弃（防御；renderer 侧按 200ms 切块恒在限内）。
       }
@@ -323,11 +333,7 @@ export function createDoubaoAsrService(deps: DoubaoAsrServiceDeps): {
         session.firstChunk = true;
         logger.info("doubao asr first audio chunk uplinked", { bytes: pcm.byteLength });
       }
-      session.ws.send(buildDoubaoAudioFrame(Buffer.from(pcm), parsed.isLast));
-      if (parsed.isLast) {
-        // 音频已尽：等尾句（message 路径收尾）；会话级超时兜底仍在。
-        session.closed = true;
-      }
+      session.ws.send(buildDoubaoAudioFrame(Buffer.from(pcm), false));
     },
 
     abort(payload) {

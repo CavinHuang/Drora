@@ -287,7 +287,13 @@ export function createDoubaoAsrService(deps: DoubaoAsrServiceDeps): {
             return;
           }
           if (parsed.text.length > 0 || parsed.isFinal) {
+            logger.info("doubao asr transcript frame", {
+              textLength: parsed.text.length,
+              isFinal: parsed.isFinal,
+            });
             deps.sendTranscript({ streamId, text: parsed.text, isFinal: parsed.isFinal });
+          } else {
+            logger.info("doubao asr empty transcript frame", { isFinal: parsed.isFinal });
           }
           if (parsed.isFinal && (data[1]! & 0x0f) === FLAG_SERVER_LAST_SEQUENCE) {
             // 会话级结束（服务端 last 序列）：尾句已推，正常收尾。

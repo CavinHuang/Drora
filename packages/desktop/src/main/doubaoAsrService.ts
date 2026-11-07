@@ -215,6 +215,8 @@ interface Session {
   closed: boolean;
   firstChunk?: boolean;
   timer: ReturnType<typeof setTimeout>;
+  /** 会话诊断计数（结束 summary 日志用；§9.6.10 真机排障）。 */
+  stats: { chunks: number; bytes: number; transcripts: number; startedAt: number };
 }
 
 export function createDoubaoAsrService(deps: DoubaoAsrServiceDeps): {
@@ -232,6 +234,15 @@ export function createDoubaoAsrService(deps: DoubaoAsrServiceDeps): {
     if (!session) return;
     sessions.delete(streamId);
     clearTimeout(session.timer);
+    // 会话总结（一次长按一行全景：块数/字节/回帧数/时长——上行断流/服务端空回/正常
+    // 三态一眼分辨）。
+    logger.info("doubao asr session summary", {
+      chunks: session.stats.chunks,
+      kb: Math.round(session.stats.bytes / 1024),
+      transcriptFrames: session.stats.transcripts,
+      seconds: Math.round((Date.now() - session.stats.startedAt) / 1000),
+      endState: state?.status ?? "aborted",
+    });
     if (state) deps.sendState({ streamId, ...state });
   };
 
@@ -248,6 +259,7 @@ export function createDoubaoAsrService(deps: DoubaoAsrServiceDeps): {
       const session: Session = {
         ws,
         closed: false,
+        stats: { chunks: 0, bytes: 0, transcripts: 0, startedAt: Date.now() },
         timer: setTimeout(() => {
           try {
             ws.terminate();
@@ -289,6 +301,7 @@ export function createDoubaoAsrService(deps: DoubaoAsrServiceDeps): {
             return;
           }
           if (parsed.text.length > 0 || parsed.isFinal) {
+            session.stats.transcripts += 1;
             logger.info("doubao asr transcript frame", {
               textLength: parsed.text.length,
               isFinal: parsed.isFinal,
@@ -333,6 +346,8 @@ export function createDoubaoAsrService(deps: DoubaoAsrServiceDeps): {
         session.firstChunk = true;
         logger.info("doubao asr first audio chunk uplinked", { bytes: pcm.byteLength });
       }
+      session.stats.chunks += 1;
+      session.stats.bytes += pcm.byteLength;
       session.ws.send(buildDoubaoAudioFrame(Buffer.from(pcm), false));
     },
 

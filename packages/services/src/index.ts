@@ -88,7 +88,14 @@ export type {
 export { IKnowledgeIndexService } from "./knowledge/knowledgeIndex.js";
 // 模型能力档案服务（specs/model-capabilities.md §4 唯一所有者）— descriptor + 纯类型，
 // 实现工厂只在 node 侧（modelCapabilitiesService.ts）。
-export { IModelCapabilitiesService } from "./model-capabilities/index.js";
+// 修 bug（2026-11-07，dev 空窗根因）：IModelCapabilitiesService 带 channelName 描述符
+// 值（client/remoteServiceAccess 运行时消费），不能改成 export type——但原样从模块
+// 公共入口（model-capabilities/index）再导出会把 node 侧工厂 modelCapabilitiesService
+// 拖进浏览器包：vite dev 保留运行时 import，其 @drora/shared/node→atomicFileLock→
+// node:fs 依赖在 renderer 模块求值即崩（root 不挂载，CDP 实证链条 index.ts→
+// model-capabilities/index→modelCapabilitiesService→shared/node.ts）。改指 browser-safe
+// 的 contract.js（仅 shared+descriptors 依赖）——值导出保持、node 工厂隔离在 node 侧。
+export { IModelCapabilitiesService } from "./model-capabilities/contract.js";
 export type {
   KnowledgeSemanticPortStatus,
   KnowledgeSemanticPortState,

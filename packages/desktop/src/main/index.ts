@@ -239,6 +239,7 @@ import {
 import { createWebRemoteControlSharedHostAttachments } from "./webRemoteControlSharedHostAttachments.js";
 import { createDesktopHelpConfigReader } from "./desktopHelpConfig.js";
 import { registerPlatformIpcHandlers } from "./desktopMainIpcPlatform.js";
+import { ownsVoiceTranscriptIndicatorWindow } from "./voiceTranscriptIndicatorWindow.js";
 import {
   loadCliMcpFromUserDirectory,
   migrateLegacyCommonMcp,
@@ -1745,7 +1746,10 @@ function getApplicationWindowsExcludingCuaIndicator(): BrowserWindow[] {
     (win) =>
       !win.isDestroyed() &&
       !windowsCuaOperationIndicator.ownsWindow(win) &&
-      !droraDesktopPet.ownsWindow(win),
+      !droraDesktopPet.ownsWindow(win) &&
+      // 听写悬浮指示窗（§5.5 二次增补）：aux 面板不属于「应用主窗」语义——不排除时
+      // primaryWindowCoordinator 会把它当主窗「复用」（真机：主窗从未创建）。
+      !ownsVoiceTranscriptIndicatorWindow(win),
   );
 }
 
@@ -2441,8 +2445,14 @@ app.whenReady().then(async () => {
     });
   }
 
+  // 悬浮指示窗预建延后到主窗就绪后（§5.5 二次增补）：早于 ensurePrimaryWindow 的
+  // 预建会让面板成为 App 首窗、被协调器「复用」为主窗（真机：主窗从未创建）。
+  let pendingVoiceIndicatorPreload: (() => void) | null = null;
   registerPlatformIpcHandlers({
     fetchHelpConfig: readHelpConfig,
+    onVoiceTranscriptIndicatorReady: (preload) => {
+      pendingVoiceIndicatorPreload = preload;
+    },
     logger,
     // CDP-on-guest pivot：renderer `<webview>` dom-ready 上报 guest webContentsId → attach。
     attachBrowserGuest: (key, webContentsId, options) => {
@@ -2685,6 +2695,13 @@ app.whenReady().then(async () => {
   const primaryWindow = getApplicationWindowsExcludingCuaIndicator()[0];
   if (primaryWindow) {
     scheduleReportPerfAppStartAfterMainViewReady(primaryWindow.webContents, logger);
+  }
+
+  // 主窗就绪后才预建听写悬浮指示窗（§5.5 二次增补）：面板必须晚于主窗存在，
+  // 且已被 ownsVoiceTranscriptIndicatorWindow 从窗口列表语义中排除（双保险）。
+  if (pendingVoiceIndicatorPreload) {
+    pendingVoiceIndicatorPreload();
+    pendingVoiceIndicatorPreload = null;
   }
 
   // 启动后检测 CPU 架构是否匹配（如 Apple 芯片误装 x64 版本经 Rosetta 转译运行），

@@ -75,6 +75,9 @@ import { registerCuaPipActiveSessionIpc } from "./desktopCuaPipIpc.js";
 
 export function registerPlatformIpcHandlers(options: {
   fetchHelpConfig?: () => Promise<unknown>;
+  /** 悬浮指示窗预建时机钩子（§5.5 二次增补）：装配件在此回调里登记 preload，待主窗
+   * 就绪后调用——早于主窗创建的预建会让面板被 primaryWindowCoordinator 误当主窗。 */
+  onVoiceTranscriptIndicatorReady?: (preload: () => void) => void;
   logger: {
     info: (...args: unknown[]) => void;
     warn: (...args: unknown[]) => void;
@@ -530,9 +533,14 @@ export function registerPlatformIpcHandlers(options: {
       preloadPath: join(import.meta.dirname, "../preload/voice-transcript-preload.cjs"),
       logger: options.logger,
     });
-    // 启动期预建：App 非激活上下文完成窗口创建+页面预载（加载失败自动退避重试）——
-    // 按键时刻只余 showInactive（真机三轮实证的安全面）。
-    indicator.preload();
+    // 启动期预建（时机由装配方经 onVoiceTranscriptIndicatorReady 延后到主窗就绪之后
+    // ——真机教训：早于 ensurePrimaryWindow 的预建会让面板成为 App 首窗、被协调器
+    // 「复用」为主窗，真正的主窗从未创建；缺省兜底=立即预建）。
+    if (options.onVoiceTranscriptIndicatorReady) {
+      options.onVoiceTranscriptIndicatorReady(() => indicator.preload());
+    } else {
+      indicator.preload();
+    }
     return indicator;
   })();
   {

@@ -3,6 +3,7 @@ import type { BrowserWindow } from "electron";
 import {
   createVoiceTranscriptIndicator,
   indicatorBounds,
+  ownsVoiceTranscriptIndicatorWindow,
   type VoiceTranscriptIndicatorDeps,
 } from "../src/main/voiceTranscriptIndicatorWindow.js";
 
@@ -153,6 +154,18 @@ describe("悬浮指示窗生命周期（§5.5 二次增补）", () => {
     expect(created[0]!.allWorkspaces).toEqual([
       [true, { visibleOnFullScreen: true, skipTransformProcessType: true }],
     ]);
+  });
+
+  it("窗口所有权登记回归钉：创建的窗口必须可被 ownsWindow 识别（防主窗协调器误认）", () => {
+    const { deps, created } = makeDeps();
+    const indicator = createVoiceTranscriptIndicator(deps);
+    indicator.preload();
+    expect(created).toHaveLength(1);
+    expect(ownsVoiceTranscriptIndicatorWindow(created[0]!.win)).toBe(true);
+    expect(ownsVoiceTranscriptIndicatorWindow({})).toBe(false); // 无关窗口恒 false
+    // 销毁后登记随窗口对象存活（WeakSet 语义，不阻碍 GC）——destroy 幂等不误伤。
+    indicator.destroy();
+    expect(ownsVoiceTranscriptIndicatorWindow(created[0]!.win)).toBe(true);
   });
 
   it("启动期预建：preload 只创建不显示；加载失败退避重试；首按只走 show", async () => {

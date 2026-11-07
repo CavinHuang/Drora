@@ -98,6 +98,19 @@ export interface VoiceTranscriptIndicator {
   isAlive(): boolean;
 }
 
+/**
+ * 指示窗所有权登记（CUA 指示窗/桌宠 ownsWindow 同款先例）：App 各处窗口列表过滤
+ * （index.ts getApplicationWindowsExcludingCuaIndicator 等）凭此把悬浮条从「应用
+ * 主窗」语义里排除。2026-11-07 真机教训：预建的面板成为 App 首窗后，
+ * primaryWindowCoordinator.revealExistingWindow 把它当「已有主窗」show+focus 并跳过
+ * 主窗创建——用户看到只剩 Dock 图标、主窗从未出现。
+ */
+const ownedIndicatorWindows = new WeakSet<object>();
+
+export function ownsVoiceTranscriptIndicatorWindow(win: unknown): boolean {
+  return ownedIndicatorWindows.has(win as object);
+}
+
 export function createVoiceTranscriptIndicator(
   deps: VoiceTranscriptIndicatorDeps,
 ): VoiceTranscriptIndicator {
@@ -186,6 +199,7 @@ export function createVoiceTranscriptIndicator(
       }
     })();
     win = created;
+    ownedIndicatorWindows.add(created);
     return created;
   };
 

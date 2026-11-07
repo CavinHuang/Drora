@@ -90,8 +90,10 @@ test(
         timeout: 120_000,
       });
       await page.getByTestId("mate-side-pane").waitFor();
-      // P10a-2：待决策卡/告知卡在对话流与收件箱同卡双视图——卡片断言统一按收件箱容器
-      // （mate-inbox-list）收敛，断言语义不变（仍指向与 MSA01-17 相同的那张卡）。
+      // P10a-2（同日 UX 修复二轮）：页签真互斥（对话=默认页签，收件箱/台账/设置各占
+      // 满整窗）——各断言段先切到所属页签；待决策卡/告知卡在对话流与收件箱同卡双视图
+      // ——卡片断言统一按收件箱容器（mate-inbox-list）收敛，语义不变。
+      await page.getByTestId("mate-secondary-tab-inbox").click();
       const inbox = page.getByTestId("mate-inbox-list");
       await inbox.waitFor();
 
@@ -271,6 +273,7 @@ test(
 
       // MSA10（specs §9 W2 兜底，P2 审查修复补交互入口）：配置区 W1 worktree 开关——
       // 初始开（快照投影），点击关 → setWorktreeDisabled 事务落库 → 快照回填状态行
+      await page.getByTestId("mate-secondary-tab-settings").click();
       // 「关——声明写域」；再点回开恢复（开关只发动作，无本地副本）。
       const worktreeState = page.getByTestId("mate-worktree-state");
       await worktreeState.waitFor();
@@ -321,6 +324,7 @@ test(
       );
 
       // MSA12（2026-11-06 二轮审查，F4 auto 告知卡）：auto_notice×gate 决策 + 关联工单
+      await page.getByTestId("mate-secondary-tab-inbox").click();
       // 注入 → 决策档只读行卡（「已按 auto 规则自动执行」标签+原文首行+ticket.decisionId
       // 反查工单号）；无放行/忽略动作（decided_by=gate 不计放行率）；observe 档不渲染
       // （随决策档展示）。P10a-2 起告知卡在对话流内嵌同款行（双视图）——断言按收件箱
@@ -348,6 +352,7 @@ test(
       );
 
       // MSA13（P5 设置中心，06 号详设 §6）：高级区三输入一体保存→快照回显；Source
+      await page.getByTestId("mate-secondary-tab-settings").click();
       // 开关+GitHub 参数+身份映射行编辑→保存→已保存回执；模型 select 在无 registry 的
       // fixture 形态下诚实禁用（真实清单链在真机验收域）。
       const advanced = page.getByTestId("mate-config-advanced");
@@ -392,6 +397,7 @@ test(
       assert.equal(await modelSelect.isDisabled(), true);
 
       // MSA14（P7 对话式查询直答，08 号详设 §3.4；P10a-2 对话化）：注入 status_replied
+      await page.getByTestId("mate-secondary-tab-conversation").click();
       // 决策 → 对话流答复气泡（answer verbatim+「大副答复」标签+账本来源提示+知道了）
       // → dismiss 出清；无任何工单动作按钮。原收件箱卡区已撤（status_replied 的唯一
       // 呈现面=对话流；mate-query-reply-row 全页零残留即卡区撤除断言）。同刻并列组
@@ -426,6 +432,7 @@ test(
       // teams 徽标）→ 展开行列表（工单行点击下钻详情、会话行点击既有导航读点、闲时行
       // 禁用+提示）→「投影就绪中」与「无工作」两态区分。
       assert.equal(await page.getByTestId("mate-work-overview").count(), 0);
+      await page.getByTestId("mate-secondary-tab-inventory").click();
       await page.getByTestId("fixture-inject-inventory").click();
       const overview = page.getByTestId("mate-work-overview");
       await overview.waitFor();
@@ -520,6 +527,7 @@ test(
       // rhythm? 缺席）=区不渲染 → 注入投影后区出现+开关/间隔写入→快照回显 → 越界本地
       // 预检出界值文案；autonomy 决策卡=来源徽标「自主」+无建议区（不进候选卡评估
       // 循环——routerState 天然缺席）+brief verbatim 呈现。
+      await page.getByTestId("mate-secondary-tab-settings").click();
       assert.equal(await page.getByTestId("mate-config-rhythm").count(), 0);
       await page.getByTestId("fixture-inject-rhythm").click();
       const rhythmSection = page.getByTestId("mate-config-rhythm");
@@ -561,6 +569,7 @@ test(
       // 候选卡评估循环——09 §2.2.1：scheduleRouterEvaluation 零调用，routerState 缺席
       // =无建议区）；brief verbatim 首行呈现；放行/忽略动作照常（人工终审）。P10a-2 起
       // 同卡在对话流内嵌（双视图）——断言按收件箱容器收敛。
+      await page.getByTestId("mate-secondary-tab-inbox").click();
       await page.getByTestId("fixture-inject-autonomy").click();
       const autonomyCard = inbox.getByTestId("mate-decision-card");
       await autonomyCard.waitFor();
@@ -577,6 +586,7 @@ test(
       assert.equal(await autonomyCard.getByTestId("mate-decision-ignore").count(), 1);
 
       // MSA18（P10a-2 对话管理台，10 号详设 §2.1/§2.3 v2.1）：对话流=台账的消息投影
+      await page.getByTestId("mate-secondary-tab-conversation").click();
       // （零新状态所有者）；绝对时刻不做相对时长（纯 DOM 零定时器）。①四类消息——
       // 用户消息气泡（MSA11 触发原文 verbatim+绝对时刻 HH:MM+来源徽标）/决策卡内嵌
       // （MSA16 自主卡仍在待决——Y/N 就在对话现场）/答复气泡（MSA14 已验）/工单摘要行
@@ -659,7 +669,8 @@ test(
         await page.getByTestId("mate-thread-composer-off-hint").textContent(),
         /off 模式/,
       );
-      // off 下台账行管理入口同步禁用（管理动作零执行面；title 提示）。
+      // off 下台账行管理入口同步禁用（管理动作零执行面；title 提示）——切台账视图。
+      await page.getByTestId("mate-secondary-tab-inventory").click();
       const offpeakManageOff = page.getByTestId("mate-work-overview-offpeak-manage");
       await offpeakManageOff.waitFor();
       assert.equal(await offpeakManageOff.isDisabled(), true);
@@ -672,11 +683,13 @@ test(
       // ①决策卡 manage 呈现——建议区「管理动作」+动作（停掉当前回合）+对象（会话·
       // sess-inv-open）+理由+证据；E 追加说明不渲染（manage 无 brief 可改）。
       await page.getByTestId("fixture-mode-observe").click();
+      await page.getByTestId("mate-secondary-tab-conversation").click();
       await page.waitForFunction(
         () =>
           document.querySelector('[data-testid="mate-thread-composer-input"]')?.disabled === false,
       );
       await page.getByTestId("fixture-inject-manage").click();
+      await page.getByTestId("mate-secondary-tab-inbox").click();
       // 此时收件箱尚有 MSA16/MSA18 的待决卡，且同卡在对话流/收件箱双视图——按容器+
       // manage 臂内容锚定收件箱视角的本卡（strict mode，断言语义仍指向同一张卡）。
       const manageCard = inbox.locator('[data-testid="mate-decision-card"]', {
@@ -703,6 +716,7 @@ test(
           document.querySelector('[data-testid="fixture-manage-approve-input"]')?.textContent ?? "",
         ),
       );
+      await page.getByTestId("mate-secondary-tab-conversation").click();
       const manageResult = thread.getByTestId("mate-thread-manage-result");
       await manageResult.waitFor();
       assert.match(await manageResult.textContent(), /管理动作结果/);
@@ -722,6 +736,7 @@ test(
       // decision_card 出 manage 卡，永不直派 worker），文本含对象 id：fixture-last-trigger
       // 读点）；闲时行入口可点（导航主体仍禁用+title 提示——本 pane 无任务中心导航面语义
       // 不变）。
+      await page.getByTestId("mate-secondary-tab-inventory").click();
       const sessionManage = page.getByTestId("mate-work-overview-session-manage");
       await sessionManage.first().waitFor();
       assert.ok((await sessionManage.count()) >= 1, "session rows expose manage entries");

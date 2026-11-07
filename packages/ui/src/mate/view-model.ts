@@ -314,11 +314,13 @@ function mateThreadTicketRowFromSnapshot(
 }
 
 /**
- * 对话流首屏（P10a-2，10 号详设 §2.4）：快照截断版投影为 MateThreadRow 升序——
- * trigger 全量（用户消息气泡源）/decision 全量（渲染侧按 outcome 分流：待决策卡内嵌/
- * 答复气泡/auto 告知卡；其余 outcome 不出消息——其后果由工单摘要行/观察区承接）/
- * ticket 仅终态（非终态走工单区既有面）。更早历史经 readMateThread 分页（缺省全流——
- * 与快照首屏同口径；workspaceKey 过滤参数留给按域消费方，本面不传）。
+ * 对话流首屏（P10a-2，10 号详设 §2.4；P10 UX 修复 2026-11-07 真机反馈）：快照截断版
+ * 投影为 MateThreadRow 升序——trigger 全量（用户消息气泡源）/decision 全量（渲染侧按
+ * outcome 分流：待决策卡内嵌/答复气泡/auto 告知卡；其余 outcome 不出消息——其后果由
+ * 工单行/观察区承接）/**ticket 全量**（终态=摘要行；活动态 queued/dispatched/running/
+ * awaiting_output=进行中行——放行后的受理反馈不再沉默，随快照实时更新，终态后由摘要
+ * 行经同 id 合并新鲜胜自然接管）。更早历史经 readMateThread 分页（服务口径仍仅终态
+ * ——活动行只来自首屏快照，天然无重复）。
  */
 export function deriveMateThreadRows(snap: AssistantSnapshot): readonly MateThreadRow[] {
   const rows: MateThreadRow[] = [
@@ -330,13 +332,10 @@ export function deriveMateThreadRows(snap: AssistantSnapshot): readonly MateThre
     ),
   ];
   for (const ticket of snap.tickets) {
-    // 终态行才进对话流（done/failed；服务 readMateThread 同口径）。
-    if (
-      ticket.status === ASSISTANT_TICKET_STATUSES.done ||
-      ticket.status === ASSISTANT_TICKET_STATUSES.failed
-    ) {
-      rows.push(mateThreadTicketRowFromSnapshot(ticket));
-    }
+    // P10 UX 修复（2026-11-07 真机反馈）：全量工单进首屏——活动工单的「进行中行」
+    // 是放行后的唯一对话内反馈（此前 approve 后 queued/running 在对话流完全沉默，
+    // 用户以为发送无效）。活动行随快照 updatedAtMs 前移；终态后同 id 新鲜胜接管。
+    rows.push(mateThreadTicketRowFromSnapshot(ticket));
   }
   return rows.sort(compareMateThreadRowsAsc);
 }

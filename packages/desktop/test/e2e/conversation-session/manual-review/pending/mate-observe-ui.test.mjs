@@ -78,6 +78,8 @@ test(
         timeout: 120_000,
       });
       await page.getByTestId("mate-side-pane").waitFor();
+      // 页签真互斥（2026-11-07 UX 修复）：卡片/观察行/汇报卡在收件箱视图。
+      await page.getByTestId("mate-secondary-tab-inbox").click();
       // P10a-2（对话管理台批）：待决策卡在对话流与收件箱同卡双视图——卡片断言按收件箱
       // 容器（mate-inbox-list）收敛，断言语义不变。
       const inbox = page.getByTestId("mate-inbox-list");
@@ -85,8 +87,10 @@ test(
 
       // MOUI01（01 §6 场景 1）：未指名触发 → MateObserveRow would-accept，零执行、trust 积累。
       // 默认过滤档是「待决策」（观察行不在此档渲染）——先断言不出现，再切「观察中」档断言出现。
+      await page.getByTestId("mate-secondary-tab-settings").click();
       await page.getByTestId("mate-trigger-input").fill("帮我看看构建为什么红了");
       await page.getByTestId("mate-trigger-inferred").click();
+      await page.getByTestId("mate-secondary-tab-inbox").click();
       assert.equal(await page.getByTestId("mate-observe-row").count(), 0);
       await page.getByTestId("mate-filter-observe").click();
       await page.getByTestId("mate-observe-row").waitFor();
@@ -94,7 +98,10 @@ test(
         await page.getByTestId("mate-observe-row").textContent(),
         /帮我看看构建为什么红了/,
       );
+      // 信任条在台账页签（重构后归属）；计数断言与视图无关。
+      await page.getByTestId("mate-secondary-tab-inventory").click();
       assert.match(await page.getByTestId("mate-trust-bar").textContent(), /未指名可接受 1 次/);
+      await page.getByTestId("mate-secondary-tab-inbox").click();
       assert.equal(await page.getByTestId("mate-decision-card").count(), 0);
       assert.equal(await page.getByTestId("mate-ticket-row").count(), 0);
       // specs §11 能力审查修复批：观察行「忽略」按钮——dismissObservation UI 消费
@@ -110,8 +117,10 @@ test(
 
       // MOUI02（01 §6 场景 2）：点名触发 → 决策卡（verbatim 原文 + P1 未隔离徽标）→ 放行 →
       // dispatched/running 状态灯 → done 汇报卡（实耗 + output_summary）→ 打开会话落点。
+      await page.getByTestId("mate-secondary-tab-settings").click();
       await page.getByTestId("mate-trigger-input").fill("点名：修复登录页样式回归");
       await page.getByTestId("mate-trigger-explicit").click();
+      await page.getByTestId("mate-secondary-tab-inbox").click();
       const card = inbox.getByTestId("mate-decision-card");
       await card.waitFor();
       assert.match(await card.textContent(), /点名：修复登录页样式回归/);
@@ -138,8 +147,10 @@ test(
       assert.equal(await page.getByTestId("mate-decision-card").count(), 0);
 
       // MOUI04（01 §6 场景 3）：E 追加说明后放行 → brief=原文+追加段两段（原文不改写）。
+      await page.getByTestId("mate-secondary-tab-settings").click();
       await page.getByTestId("mate-trigger-input").fill("点名：E 改单场景");
       await page.getByTestId("mate-trigger-explicit").click();
+      await page.getByTestId("mate-secondary-tab-inbox").click();
       await inbox.getByTestId("mate-decision-card").waitFor();
       await inbox.getByTestId("mate-decision-edit").click();
       await inbox.getByTestId("mate-decision-appendix").fill("追加：移动端优先");
@@ -150,8 +161,10 @@ test(
       assert.match(appendedBrief, /追加：移动端优先/);
 
       // MOUI05（01 §6 场景 2 的 N 分支）：忽略决策卡 → 记 rejected，不派发不建票。
+      await page.getByTestId("mate-secondary-tab-settings").click();
       await page.getByTestId("mate-trigger-input").fill("点名：忽略分支场景");
       await page.getByTestId("mate-trigger-explicit").click();
+      await page.getByTestId("mate-secondary-tab-inbox").click();
       await inbox.getByTestId("mate-decision-card").waitFor();
       const reportsBeforeIgnore = await page.getByTestId("mate-report-done").count();
       await inbox.getByTestId("mate-decision-ignore").click();
@@ -161,6 +174,8 @@ test(
       assert.equal(await page.getByTestId("mate-report-done").count(), reportsBeforeIgnore);
 
       // MOUI06（01 §6 场景 5）：auto 恒禁用 + 达标 tooltip；快照 resync 重推后 UI 状态一致。
+      // 模式行在设置页签（重构后归属）。
+      await page.getByTestId("mate-secondary-tab-settings").click();
       assert.equal(await page.getByTestId("mate-mode-auto").isDisabled(), true);
       await page.getByTestId("mate-mode-auto-wrap").hover();
       // ControlHintTooltip 同时渲染可见内容与无障碍副本，strict mode 下取 first。

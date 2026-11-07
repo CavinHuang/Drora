@@ -38,6 +38,11 @@ export function MatePetSync({ platform }: { platform: IPlatformService }) {
   const previousAutonomyRef = useRef<{ readonly key: string | null } | null>(null);
   // 在途气泡闸的汇报键（null=无在途判定；判定落定时清除）。
   const pendingBubbleKeyRef = useRef<string | null>(null);
+  // 已发布气泡帧的汇报键（2026-11-07 覆盖竞态修复）：闸判定自带的配额计数推送会
+  // 重跑本 effect 并发布 bubble=null 帧覆盖刚发布的气泡帧——宠物窗有在展闩锁不受
+  // 影响，但 tray/诊断读点与任何帧重放消费者会看到 null 气泡帧（mate-source-pet
+  // MSP04 实测捕获）。同键帧补发气泡，不二次过闸（该键已裁决）。
+  const publishedBubbleKeyRef = useRef<string | null>(null);
   const mountedRef = useRef(true);
   useEffect(() => {
     mountedRef.current = true;
@@ -71,7 +76,16 @@ export function MatePetSync({ platform }: { platform: IPlatformService }) {
         });
       }
     };
+    const currentReportKey = projection.latestReport
+      ? `${projection.latestReport.ticketId}:${projection.latestReport.updatedAtMs}`
+      : null;
     if (!decision.show) {
+      // 同键闩锁补发（2026-11-07 竞态修复）：本帧汇报键=刚发布过气泡的键（典型=闸
+      // 判定的配额计数推送重跑）→ 补发带气泡帧，不发布 null 气泡覆盖帧。
+      if (currentReportKey !== null && currentReportKey === publishedBubbleKeyRef.current) {
+        publish(true);
+        return;
+      }
       // 在途闸期间跳过无弹泡帧（见文件头竞态注记）；无在途闸才发布常规帧。
       // P9：自主气泡命中独立发布（携带 autonomyBubble 的帧不受工单气泡在途闸牵连）。
       if (autonomyDecision.show) {
@@ -99,6 +113,7 @@ export function MatePetSync({ platform }: { platform: IPlatformService }) {
     gate
       .then((verdict) => {
         pendingBubbleKeyRef.current = null;
+        if (verdict.allowed) publishedBubbleKeyRef.current = reportKey;
         if (!mountedRef.current) return; // 卸载后不发布（无消费方）。
         publish(verdict.allowed);
       })

@@ -3,7 +3,7 @@ import type { AssistantMode } from "@drora/shared";
 import type { AssistantResult, IAssistantTicketService } from "@drora/services";
 
 import { logger } from "@/logger.js";
-import type { MateFilter, MateLocalUiState } from "@/mate/index.js";
+import type { MateFilter, MateLocalUiState, MateSecondaryView } from "@/mate/index.js";
 
 // Mate 工单 store（照 offPeakTaskStore 形态：create 单对象、service 作方法参数注入、
 // single-flight+代际丢弃）。与 offPeak 的关键差异：快照本体不进 store——唯一业务事实
@@ -35,6 +35,7 @@ export const EMPTY_MATE_WORKSPACE_STATE: MateLocalUiState = {
   selectedTicketId: null,
   expandedDecisionId: null,
   expandedWorkKeys: [],
+  secondaryView: "conversation",
 };
 
 interface MateState {
@@ -46,6 +47,8 @@ interface MateState {
   expandDecision(workspaceKey: string, decisionId: number | null): void;
   /** P8b（09 详设 §1.7）：总览卡 workspace 组展开/收起（幂等 toggle）。 */
   toggleWorkWorkspace(workspaceKey: string, groupKey: string): void;
+  /** 布局重构（2026-11-07）：次级视图页签切换（收件箱/台账/设置互斥）。 */
+  setSecondaryView(workspaceKey: string, view: MateSecondaryView): void;
 
   /** 本地触发（双测试按钮）；动作经 service，结果由调用方消费（toast 等）。 */
   recordTrigger(
@@ -286,6 +289,19 @@ export const useMateStore = create<MateState>((set, get) => {
           byWorkspace: {
             ...state.byWorkspace,
             [workspaceKey]: { ...current, expandedWorkKeys: expanded },
+          },
+        };
+      });
+    },
+    // 布局重构（2026-11-07）：次级视图页签切换（幂等赋值——同值重设无副作用）。
+    setSecondaryView(workspaceKey, view) {
+      set((state) => {
+        const current =
+          state.byWorkspace[workspaceKey] ?? EMPTY_MATE_WORKSPACE_STATE;
+        return {
+          byWorkspace: {
+            ...state.byWorkspace,
+            [workspaceKey]: { ...current, secondaryView: view },
           },
         };
       });

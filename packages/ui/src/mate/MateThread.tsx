@@ -7,7 +7,10 @@ import type {
   MateThreadRow,
 } from "@drora/services";
 import { useDroraIntl } from "@/i18n/IntlProvider.js";
+import { cn } from "@/components/lib/utils.js";
+import { ASSISTANT_TICKET_STATUSES } from "@drora/shared";
 import { Button } from "@/components/ui/button.js";
+import { Input } from "@/components/ui/input.js";
 import { useMateStore } from "@/store/mateStore.js";
 import { mateTicketLampTone } from "./statusTone.js";
 import { MateLamp } from "./MateLamp.js";
@@ -32,6 +35,7 @@ import {
   type MateErrorMessageId,
 } from "./view-model.js";
 import { firstPreviewLine } from "./MateTicketRow.js";
+import { mateStaleBadgeKind } from "./view-model.js";
 
 /**
  * 对话管理台（P10a-2，10 号详设 §2.1/§2.3 v2.1）：MateSidePane 顶部「对话」区。
@@ -61,6 +65,7 @@ export const MateThreadSection = memo(function MateThreadSection({
   expandedDecisionId,
   onToggleExpanded,
   onSelectTicket,
+  className,
 }: {
   snapshot: AssistantSnapshot;
   service: IAssistantTicketService;
@@ -71,6 +76,8 @@ export const MateThreadSection = memo(function MateThreadSection({
   onToggleExpanded: (decisionId: number | null) => void;
   /** 摘要行点击 → selectTicket（Surface C 详情下钻，复用既有选中域）。 */
   onSelectTicket: (ticketId: string) => void;
+  /** 容器布局类（面板主视图时 flex-1 占主体）；缺席=默认撑满。 */
+  className?: string;
 }) {
   const { intl } = useDroraIntl();
   const recordTrigger = useMateStore((state) => state.recordTrigger);
@@ -147,7 +154,7 @@ export const MateThreadSection = memo(function MateThreadSection({
 
   return (
     <section
-      className="flex flex-col gap-1.5 border-b border-border/50 px-3 py-2"
+      className={cn("flex flex-col gap-1.5 border-b border-border/50 px-3 py-2", className)}
       data-testid="mate-thread"
     >
       <header className="flex items-center gap-2 px-0.5">
@@ -157,7 +164,7 @@ export const MateThreadSection = memo(function MateThreadSection({
       </header>
       <div
         ref={listRef}
-        className="flex max-h-60 flex-col gap-2 overflow-y-auto px-0.5"
+        className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-0.5"
         data-testid="mate-thread-list"
       >
         {rows.length === 0 ? (
@@ -216,7 +223,7 @@ export const MateThreadSection = memo(function MateThreadSection({
           </p>
         ) : null}
         <div className="flex items-center gap-1.5">
-          <input
+          <Input
             type="text"
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
@@ -230,7 +237,7 @@ export const MateThreadSection = memo(function MateThreadSection({
             disabled={off}
             aria-label={intl.formatMessage({ id: "mate.thread.composer.placeholder" })}
             placeholder={intl.formatMessage({ id: "mate.thread.composer.placeholder" })}
-            className="min-w-0 flex-1 rounded-md border border-input-border bg-input px-2 py-1 text-ui-sm text-foreground placeholder:text-foreground-subtlest focus:border-input-border-focused focus:outline-none disabled:opacity-60"
+            className="flex-1"
             data-testid="mate-thread-composer-input"
           />
           <Button
@@ -316,8 +323,16 @@ const MateThreadRowView = memo(function MateThreadRowView({
         />
       );
     case "ticket":
-      return (
+      // P10 UX 修复：活动工单（queued/dispatched/running/awaiting）出「进行中行」
+      // （放行后的对话内受理反馈）；终态出摘要行（既有）。
+      return isMateThreadTicketTerminal(row.ticket.status) ? (
         <MateThreadTicketLine
+          row={row}
+          snapshot={snapshot}
+          onSelectTicket={onSelectTicket}
+        />
+      ) : (
+        <MateThreadActiveTicketLine
           row={row}
           snapshot={snapshot}
           onSelectTicket={onSelectTicket}
@@ -480,6 +495,71 @@ const MateThreadReplyBubble = memo(function MateThreadReplyBubble({
         </p>
       ) : null}
     </div>
+  );
+});
+
+/** 活动工单终态判定（终态=done/failed；其余为活动行）。 */
+function isMateThreadTicketTerminal(status: string): boolean {
+  return status === ASSISTANT_TICKET_STATUSES.done || status === ASSISTANT_TICKET_STATUSES.failed;
+}
+
+const MATE_THREAD_ACTIVE_STATUS_MESSAGE_ID: Record<string, string> = {
+  [ASSISTANT_TICKET_STATUSES.queued]: "mate.thread.active.queued",
+  [ASSISTANT_TICKET_STATUSES.dispatched]: "mate.thread.active.dispatched",
+  [ASSISTANT_TICKET_STATUSES.running]: "mate.thread.active.running",
+  [ASSISTANT_TICKET_STATUSES.awaitingOutput]: "mate.thread.active.awaiting",
+};
+
+/**
+ * 活动工单行（P10 UX 修复，2026-11-07 真机反馈）：灯+状态+brief——放行后对话流的
+ * 受理反馈（此前活动态在对话流沉默，用户以为发送无效）。stale 徽标直示「停滞待处理」
+ * （点行进详情可停止——停止即释放排队 FIFO）；queued 带排队原因 title 提示。
+ */
+const MateThreadActiveTicketLine = memo(function MateThreadActiveTicketLine({
+  row,
+  snapshot,
+  onSelectTicket,
+}: {
+  row: Extract<MateThreadRow, { kind: "ticket" }>;
+  snapshot: AssistantSnapshot;
+  onSelectTicket: (ticketId: string) => void;
+}) {
+  const { intl } = useDroraIntl();
+  const ticket = row.ticket;
+  const statusLabelId = MATE_THREAD_ACTIVE_STATUS_MESSAGE_ID[ticket.status];
+  const snapTicket = snapshot.tickets.find((item) => item.id === ticket.ticketId);
+  const staleKind = snapTicket ? mateStaleBadgeKind(snapTicket) : null;
+  return (
+    <button
+      type="button"
+      onClick={() => onSelectTicket(ticket.ticketId)}
+      data-testid="mate-thread-active-ticket"
+      className="flex w-full items-center gap-2 rounded-lg border border-border/60 bg-surface px-2 py-1.5 text-left transition-colors hover:bg-surface-hover"
+    >
+      <MateLamp tone={mateTicketLampTone(ticket.status)} />
+      {statusLabelId ? (
+        <span className="shrink-0 text-ui-xs font-medium text-warning">
+          {intl.formatMessage({ id: statusLabelId })}
+        </span>
+      ) : null}
+      <span className="min-w-0 flex-1 truncate text-ui-sm text-foreground">{ticket.brief}</span>
+      {staleKind ? (
+        <span
+          className="shrink-0 rounded-sm bg-warning-surface px-1.5 py-0.5 text-ui-xs text-warning-surface-foreground"
+          data-testid="mate-thread-active-stale"
+        >
+          {intl.formatMessage({ id: "mate.ticket.stale" })}
+        </span>
+      ) : null}
+      {snapTicket?.queuedReason ? (
+        <span
+          className="shrink-0 text-ui-xs text-foreground-subtlest"
+          title={snapTicket.queuedReason}
+        >
+          {intl.formatMessage({ id: "mate.thread.active.queuedHint" })}
+        </span>
+      ) : null}
+    </button>
   );
 });
 

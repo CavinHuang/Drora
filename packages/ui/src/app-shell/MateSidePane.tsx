@@ -1,4 +1,5 @@
 import { memo, useCallback, useMemo } from "react";
+import { cn } from "@/components/lib/utils.js";
 import { AnchorIcon, LoaderCircleIcon } from "lucide-react";
 import { ASSISTANT_MODES, ASSISTANT_STRENGTHS } from "@drora/shared";
 import { useDroraIntl } from "@/i18n/IntlProvider.js";
@@ -121,7 +122,9 @@ export const MateSidePane = memo(function MateSidePane({
   const selectTicket = useMateStore((state) => state.selectTicket);
   const expandDecision = useMateStore((state) => state.expandDecision);
   const toggleWorkWorkspace = useMateStore((state) => state.toggleWorkWorkspace);
-  const { filter, selectedTicketId, expandedDecisionId, expandedWorkKeys } = workspaceState;
+  const setSecondaryView = useMateStore((state) => state.setSecondaryView);
+  const { filter, selectedTicketId, expandedDecisionId, expandedWorkKeys, secondaryView } =
+    workspaceState;
 
   const viewModel = useMemo(
     () => (snapshot === null ? null : deriveMateViewModel(snapshot, filter)),
@@ -258,152 +261,209 @@ export const MateSidePane = memo(function MateSidePane({
   return (
     <div className="flex h-full min-h-0 flex-col" data-testid="mate-side-pane">
       <MateStatusStrip status={statusLine} quota={quotaLine} />
-      {/* P10a-2（10 号详设 §2.1/§2.3）：对话管理台——台账的消息投影（四类消息+composer
-          同链触发+readMateThread 分页）；status_replied 的答复气泡在此呈现，下方卡区
-          不再重复渲染。 */}
-      <MateThreadSection
-        snapshot={snapshot}
-        service={service}
-        workspaceKey={workspaceKey}
-        expandedDecisionId={expandedDecisionId}
-        onToggleExpanded={(id) => expandDecision(workspaceKey, id)}
-        onSelectTicket={(ticketId) => selectTicket(workspaceKey, ticketId)}
-      />
-      {/* P8b（09 详设 §1.7）：全域工作总览卡——面板顶部状态条下；三态区分在组件内
-          （旧 Host 缺席=卡不渲染），MateSidePane 只透传快照事实与既有导航通道。 */}
-      <MateWorkOverview
-        inventory={snapshot.inventory}
-        inventoryReady={snapshot.inventoryReady === true}
-        expandedKeys={expandedWorkKeys}
-        onToggleWorkspace={(groupKey) => toggleWorkWorkspace(workspaceKey, groupKey)}
-        onSelectTicket={(ticketId) => selectTicket(workspaceKey, ticketId)}
-        {...(onOpenMateSession ? { onOpenSession: handleOpenWorkSession } : {})}
-        onManageTarget={handleManageTarget}
-        manageDisabled={manageDisabled}
-      />
-      <MatePaneHeader
-        filter={filter}
-        counts={viewModel.counts}
-        budgetActive={budgetActive}
-        budgetMax={snapshot.budget.maxActivePerWorkspace}
-        onFilterChange={(next) => setFilter(workspaceKey, next)}
-      />
-      <MateTrustBar
-        trust={viewModel.trust}
-        mode={snapshot.mode}
-        service={service}
-        workspaceKey={workspaceKey}
-        allowlist={snapshot.allowlist}
-        budgetMax={snapshot.budget.maxActivePerWorkspace}
-      />
-      {/* P10a-2：收件箱视角容器标记（mate-inbox-list）——对话流内嵌同一张待决策卡后，
-          验收资产按容器收敛 locator（同源同卡不双写的两视图各自定位）。 */}
-      <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3" data-testid="mate-inbox-list">
-        {isEmpty ? (
-          <div
-            className="flex h-full flex-col items-center justify-center px-6 text-center"
-            data-testid="mate-pane-empty"
-          >
-            <AnchorIcon aria-hidden className="size-8 text-foreground-subtlest" />
-            <p className="mt-3 text-ui-base font-medium text-foreground">
-              {intl.formatMessage({ id: "mate.empty.title" })}
-            </p>
-            <p className="mt-1 text-ui-base text-foreground-subtle">
-              {intl.formatMessage({ id: "mate.empty.body" })}
-            </p>
-          </div>
-        ) : (
-          <div className="flex flex-col gap-4">
-            {/* P4 第二棒（04 详设 §4）：配额中心摘要卡（watchdog 通知+未投递摘要分节；
-                两节皆空整卡不渲染——组件内判定，容器不复制该口径）。 */}
-            <MateDigestCard snapshot={snapshot} service={service} workspaceKey={workspaceKey} />
-            {showDecisions && pendingDecisions.length > 0 ? (
-              <div className="flex flex-col gap-1.5">
-                {pendingDecisions.map((decision) => (
-                  <MateDecisionCard
-                    key={decision.id}
-                    decision={decision}
-                    service={service}
-                    workspaceKey={workspaceKey}
-                    expanded={expandedDecisionId === decision.id}
-                    onToggleExpanded={(id) => expandDecision(workspaceKey, id)}
-                  />
-                ))}
-              </div>
-            ) : null}
-            {/* F4：auto 告知卡区（spec §6「执行（出告知卡）」）。只读行卡随决策档展示；
-                工单号按 ticket.decisionId 反查，全量快照透传（裁剪降级在行卡内判定）。 */}
-            {showDecisions && autoNoticeDecisions.length > 0 ? (
-              <div className="flex flex-col gap-1.5">
-                {autoNoticeDecisions.map((decision) => (
-                  <MateAutoNoticeRow key={decision.id} decision={decision} snapshot={snapshot} />
-                ))}
-              </div>
-            ) : null}
-            {viewModel.groups.map((group) => (
-              <MateWorkspaceGroup key={group.key} group={group}>
-                {group.tickets.map((ticket) =>
-                  // queued 是工单行形态（排队灯档+queuedReason 进详情），不进汇报卡——
-                  // P2 软预算排队（specs §9）是活动前的等待态，汇报语义只属于终态。
-                  // P4 第二棒：awaiting_output 进汇报卡（核验滞留面=汇报语义的滞留态，
-                  // 04 详设 §3），dispatched/running/queued 仍为工单行。
-                  isMateAwaitingVerification(ticket.status) ? (
-                    <MateReportCard
-                      key={ticket.id}
-                      ticket={ticket}
-                      service={service}
-                      workspaceKey={workspaceKey}
-                      onOpenDetail={(ticketId) => selectTicket(workspaceKey, ticketId)}
-                      {...(onOpenMateSession ? { onOpenSession: handleOpenSession } : {})}
-                    />
-                  ) : isMateActiveTicket(ticket.status) || isMateQueuedTicket(ticket.status) ? (
-                    <MateTicketRow
-                      key={ticket.id}
-                      ticket={ticket}
-                      selected={selectedTicketId === ticket.id}
-                      onSelect={(ticketId) => selectTicket(workspaceKey, ticketId)}
-                    />
-                  ) : (
-                    <MateReportCard
-                      key={ticket.id}
-                      ticket={ticket}
-                      service={service}
-                      workspaceKey={workspaceKey}
-                      onOpenDetail={(ticketId) => selectTicket(workspaceKey, ticketId)}
-                      {...(onOpenMateSession ? { onOpenSession: handleOpenSession } : {})}
-                    />
-                  ),
-                )}
-              </MateWorkspaceGroup>
-            ))}
-            {showObserves && observeDecisions.length > 0 ? (
-              <div className="flex flex-col gap-1.5">
-                {observeDecisions.map((decision) => (
-                  <MateObserveRow key={decision.id} decision={decision} service={service} workspaceKey={workspaceKey} />
-                ))}
-              </div>
-            ) : null}
-          </div>
-        )}
+      {/* 布局重构（2026-11-07，同日 UX 修复二轮）：页签真互斥——对话也是页签（默认
+          激活，占满剩余空间=真正可用的主视图；首版「对话常驻顶部+次级页签对半分」把
+          设置挤到下半可视区外，工单开关 locator 不可见——真机与资产同证）。页签条钉
+          顶，选中谁谁占满，各自内部滚动。 */}
+      {/* 页签条（固定一行）：对话（默认）｜收件箱（待决策/告知/工单/汇报/观察）｜台账
+          （全域工作+信任）｜设置。badge=待决策数（有未决时提醒，无需切回去看）。 */}
+      <div
+        className="flex shrink-0 items-center gap-1 border-y border-border/50 px-2 py-1"
+        data-testid="mate-secondary-tabs"
+      >
+        {(
+          [
+            { view: "conversation", labelId: "mate.tab.conversation", badge: 0 },
+            { view: "inbox", labelId: "mate.tab.inbox", badge: pendingDecisions.length },
+            { view: "inventory", labelId: "mate.tab.inventory", badge: 0 },
+            { view: "settings", labelId: "mate.tab.settings", badge: 0 },
+          ] as const
+        ).map((item) => {
+          const active = secondaryView === item.view;
+          return (
+            <button
+              key={item.view}
+              type="button"
+              onClick={() => setSecondaryView(workspaceKey, item.view)}
+              aria-pressed={active}
+              data-testid={"mate-secondary-tab-" + item.view}
+              className={cn(
+                "rounded-md px-2 py-0.5 text-ui-xs transition-colors",
+                active
+                  ? "bg-selected font-medium text-foreground"
+                  : "text-foreground-subtle hover:bg-hover hover:text-foreground",
+              )}
+            >
+              {intl.formatMessage({ id: item.labelId })}
+              {item.badge > 0 ? (
+                <span
+                  className="ml-1 rounded-full bg-destructive px-1.5 text-[10px] leading-4 text-destructive-foreground"
+                  data-testid={"mate-secondary-tab-" + item.view + "-badge"}
+                >
+                  {item.badge}
+                </span>
+              ) : null}
+            </button>
+          );
+        })}
       </div>
-      {/* F1：触发目标=workspaceKey（AGENTS 身份键），MateConfigSection 不再区分
-          workspaceIdentity 形态——本地 tab 的 workspaceIdentity 恒 undefined，
-          旧的条件透传正是放行链断点。 */}
-      <MateConfigSection
-        service={service}
-        workspaceKey={workspaceKey}
-        mode={snapshot.mode}
-        allowlist={snapshot.allowlist}
-        worktreeDisabled={snapshot.worktreeDisabled}
-        dailyQuota={snapshot.quota?.quota}
-        budgetMaxActivePerWorkspace={snapshot.budget?.maxActivePerWorkspace}
-        modelPreference={snapshot.modelPreference ?? null}
-        trustGateThresholds={snapshot.trustGateThresholds}
-        watchdogIntervalMinutes={snapshot.watchdogIntervalMinutes}
-        rhythm={snapshot.rhythm}
-        sourcesConfig={snapshot.sourcesConfig}
-        identityMap={snapshot.identityMap}
-      />
+      {/* 次级视图容器：互斥渲染，各自 min-h-0 flex-1 + 内部滚动（不再多根滚动条）。 */}
+      {secondaryView === "conversation" ? (
+        <MateThreadSection
+          snapshot={snapshot}
+          service={service}
+          workspaceKey={workspaceKey}
+          expandedDecisionId={expandedDecisionId}
+          onToggleExpanded={(id) => expandDecision(workspaceKey, id)}
+          onSelectTicket={(ticketId) => selectTicket(workspaceKey, ticketId)}
+          className="min-h-0 flex-1"
+        />
+      ) : null}
+      {secondaryView === "inbox" ? (
+        <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3" data-testid="mate-inbox-list">
+          {/* 过滤头常驻（2026-11-07 UX 修复）：空态也保留切档入口——只有观察行而
+              默认档=待决策时，空态若连过滤头一起隐藏，用户将无法切到「观察中」（四资
+              产实跑同证）。空态只替换内容区，不吞头。 */}
+          <div className="flex flex-col gap-4">
+            <MatePaneHeader
+              filter={filter}
+              counts={viewModel.counts}
+              budgetActive={budgetActive}
+              budgetMax={snapshot.budget.maxActivePerWorkspace}
+              onFilterChange={(next) => setFilter(workspaceKey, next)}
+            />
+          </div>
+          {isEmpty ? (
+            <div
+              className="flex h-full flex-col items-center justify-center px-6 text-center"
+              data-testid="mate-pane-empty"
+            >
+              <AnchorIcon aria-hidden className="size-8 text-foreground-subtlest" />
+              <p className="mt-3 text-ui-base font-medium text-foreground">
+                {intl.formatMessage({ id: "mate.empty.title" })}
+              </p>
+              <p className="mt-1 text-ui-base text-foreground-subtle">
+                {intl.formatMessage({ id: "mate.empty.body" })}
+              </p>
+            </div>
+          ) : (
+            <div className="mt-4 flex flex-col gap-4">
+              {/* P4 第二棒（04 详设 §4）：配额中心摘要卡（两节皆空整卡不渲染）。 */}
+              <MateDigestCard snapshot={snapshot} service={service} workspaceKey={workspaceKey} />
+              {showDecisions && pendingDecisions.length > 0 ? (
+                <div className="flex flex-col gap-1.5">
+                  {pendingDecisions.map((decision) => (
+                    <MateDecisionCard
+                      key={decision.id}
+                      decision={decision}
+                      service={service}
+                      workspaceKey={workspaceKey}
+                      expanded={expandedDecisionId === decision.id}
+                      onToggleExpanded={(id) => expandDecision(workspaceKey, id)}
+                    />
+                  ))}
+                </div>
+              ) : null}
+              {showDecisions && autoNoticeDecisions.length > 0 ? (
+                <div className="flex flex-col gap-1.5">
+                  {autoNoticeDecisions.map((decision) => (
+                    <MateAutoNoticeRow key={decision.id} decision={decision} snapshot={snapshot} />
+                  ))}
+                </div>
+              ) : null}
+              {viewModel.groups.map((group) => (
+                <MateWorkspaceGroup key={group.key} group={group}>
+                  {group.tickets.map((ticket) =>
+                    isMateAwaitingVerification(ticket.status) ? (
+                      <MateReportCard
+                        key={ticket.id}
+                        ticket={ticket}
+                        service={service}
+                        workspaceKey={workspaceKey}
+                        onOpenDetail={(ticketId) => selectTicket(workspaceKey, ticketId)}
+                        {...(onOpenMateSession ? { onOpenSession: handleOpenSession } : {})}
+                      />
+                    ) : isMateActiveTicket(ticket.status) || isMateQueuedTicket(ticket.status) ? (
+                      <MateTicketRow
+                        key={ticket.id}
+                        ticket={ticket}
+                        selected={selectedTicketId === ticket.id}
+                        onSelect={(ticketId) => selectTicket(workspaceKey, ticketId)}
+                      />
+                    ) : (
+                      <MateReportCard
+                        key={ticket.id}
+                        ticket={ticket}
+                        service={service}
+                        workspaceKey={workspaceKey}
+                        onOpenDetail={(ticketId) => selectTicket(workspaceKey, ticketId)}
+                        {...(onOpenMateSession ? { onOpenSession: handleOpenSession } : {})}
+                      />
+                    ),
+                  )}
+                </MateWorkspaceGroup>
+              ))}
+              {showObserves && observeDecisions.length > 0 ? (
+                <div className="flex flex-col gap-1.5">
+                  {observeDecisions.map((decision) => (
+                    <MateObserveRow
+                      key={decision.id}
+                      decision={decision}
+                      service={service}
+                      workspaceKey={workspaceKey}
+                    />
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          )}
+        </div>
+      ) : null}
+      {secondaryView === "inventory" ? (
+        <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3" data-testid="mate-inventory-view">
+          <MateTrustBar
+            trust={viewModel.trust}
+            mode={snapshot.mode}
+            service={service}
+            workspaceKey={workspaceKey}
+            allowlist={snapshot.allowlist}
+            budgetMax={snapshot.budget.maxActivePerWorkspace}
+          />
+          {/* P8b（09 详设 §1.7）：全域工作总览卡——台账页签主体。 */}
+          <MateWorkOverview
+            inventory={snapshot.inventory}
+            inventoryReady={snapshot.inventoryReady === true}
+            expandedKeys={expandedWorkKeys}
+            onToggleWorkspace={(groupKey) => toggleWorkWorkspace(workspaceKey, groupKey)}
+            onSelectTicket={(ticketId) => selectTicket(workspaceKey, ticketId)}
+            {...(onOpenMateSession ? { onOpenSession: handleOpenWorkSession } : {})}
+            onManageTarget={handleManageTarget}
+            manageDisabled={manageDisabled}
+          />
+        </div>
+      ) : null}
+      {secondaryView === "settings" ? (
+        <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3" data-testid="mate-settings-view">
+          {/* F1：触发目标=workspaceKey（AGENTS 身份键），MateConfigSection 不再区分
+              workspaceIdentity 形态。旧版 shrink-0 常驻巨块退役——设置进页签，
+              视口还给对话与卡区。 */}
+          <MateConfigSection
+            service={service}
+            workspaceKey={workspaceKey}
+            mode={snapshot.mode}
+            allowlist={snapshot.allowlist}
+            worktreeDisabled={snapshot.worktreeDisabled}
+            dailyQuota={snapshot.quota?.quota}
+            budgetMaxActivePerWorkspace={snapshot.budget?.maxActivePerWorkspace}
+            modelPreference={snapshot.modelPreference ?? null}
+            trustGateThresholds={snapshot.trustGateThresholds}
+            watchdogIntervalMinutes={snapshot.watchdogIntervalMinutes}
+            rhythm={snapshot.rhythm}
+            sourcesConfig={snapshot.sourcesConfig}
+            identityMap={snapshot.identityMap}
+          />
+        </div>
+      ) : null}
     </div>
   );
 });

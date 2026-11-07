@@ -76,7 +76,11 @@ test(
         timeout: 120_000,
       });
       await page.getByTestId("mate-side-pane").waitFor();
+      // 页签真互斥（2026-11-07 UX 修复）：卡片/观察行/汇报卡在收件箱视图。
+      await page.getByTestId("mate-secondary-tab-inbox").click();
 
+      // 信任条在台账页签（2026-11-07 页签真互斥重构后归属）。
+      await page.getByTestId("mate-secondary-tab-inventory").click();
       const trustBar = page.getByTestId("mate-trust-bar");
       await trustBar.waitFor();
 

@@ -563,7 +563,7 @@ describe("F2 mateTriggerOutcomeFeedbackMessageId（触发反馈封闭映射）",
 });
 
 describe("P10a-2 deriveMateThreadRows（对话流首屏投影）", () => {
-  it("三源合并升序；同刻并列组按 trigger→decision→ticket 呈现序；非终态工单不进流", () => {
+  it("三源合并升序；同刻并列组按 trigger→decision→ticket 呈现序；活动工单进流（P10 UX 修复）", () => {
     const snap = snapshot({
       triggers: [
         trigger({ id: "TR-2", atMs: T0 + 10 }),
@@ -599,11 +599,14 @@ describe("P10a-2 deriveMateThreadRows（对话流首屏投影）", () => {
       "ticket", // T-done @T0（同刻并列组：ticket 最后）
       "trigger", // TR-2 @T0+10
       "decision", // d2 @T0+10
+      "ticket", // T-run @T0+99（活动行：放行后的对话内受理反馈——P10 UX 修复）
     ]);
-    // 非终态（running）工单不进流——活动态走工单区既有面。
-    expect(rows.some((row) => row.kind === "ticket" && row.ticket.ticketId === "T-run")).toBe(
-      false,
+    // 活动工单进流（P10 UX 修复 2026-11-07 真机反馈）：approve 后 queued/running
+    // 不再沉默——渲染层按 status 分流活动行/终态摘要行；终态后同 id 新鲜胜接管。
+    const activeRow = rows.find(
+      (row) => row.kind === "ticket" && row.ticket.ticketId === "T-run",
     );
+    expect(activeRow).toBeDefined();
   });
 
   it("工单摘要行携带预览口径字段与换代标注（generationCount 透传）", () => {

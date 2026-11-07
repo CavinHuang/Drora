@@ -42,7 +42,7 @@ export type {
 // 自测直连 "./petProjection.js" 消费，不经 barrel 外泄。
 // P9：deriveMateAutonomyBubble 同为发布方消费面（自主 report 帧差分，09 详设 §2.2）。
 export { deriveMateAutonomyBubble, deriveMatePetBubble, projectMatePet } from "./petProjection.js";
-export type { MateLocalUiState } from "./contract.js";
+export type { MateLocalUiState, MateSecondaryView } from "./contract.js";
 export { mateTicketLampTone, MATE_LAMP_TONE_CLASS } from "./statusTone.js";
 export type { MateLampTone } from "./statusTone.js";
 export { MateLamp } from "./MateLamp.js";

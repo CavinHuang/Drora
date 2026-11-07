@@ -80,6 +80,8 @@ test(
         timeout: 120_000,
       });
       await page.getByTestId("mate-side-pane").waitFor();
+      // 页签真互斥（2026-11-07 UX 修复）：卡片/观察行/汇报卡在收件箱视图。
+      await page.getByTestId("mate-secondary-tab-inbox").click();
       // P10a-2（对话管理台批）：待决策卡在对话流与收件箱同卡双视图——卡片断言按收件箱
       // 容器（mate-inbox-list）收敛，断言语义不变。
       const inbox = page.getByTestId("mate-inbox-list");

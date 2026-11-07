@@ -260,6 +260,15 @@ export const mateMessagesEn = {
   "mate.thread.composer.placeholder":
     "Message the Mate (named trigger via the admission gate)",
   "mate.thread.composer.send": "Send",
+  "mate.thread.active.queued": "Queued",
+  "mate.thread.active.dispatched": "Dispatched",
+  "mate.thread.active.running": "Running",
+  "mate.thread.active.awaiting": "Awaiting verification",
+  "mate.thread.active.queuedHint": "waiting for slot",
+  "mate.tab.conversation": "Chat",
+  "mate.tab.inbox": "Inbox",
+  "mate.tab.inventory": "Overview",
+  "mate.tab.settings": "Settings",
   "mate.thread.composer.off":
     "The Mate is off: the conversation is read-only and input is disabled (reads execute nothing either).",
 
@@ -527,6 +536,15 @@ export const mateMessagesZh = {
   "mate.thread.loadFailed": "更早消息加载失败，可重试。",
   "mate.thread.composer.placeholder": "给大副发消息（点名触发，经准入门）",
   "mate.thread.composer.send": "发送",
+  "mate.thread.active.queued": "排队中",
+  "mate.thread.active.dispatched": "已派发",
+  "mate.thread.active.running": "进行中",
+  "mate.thread.active.awaiting": "待核验",
+  "mate.thread.active.queuedHint": "等待释放",
+  "mate.tab.conversation": "对话",
+  "mate.tab.inbox": "收件箱",
+  "mate.tab.inventory": "台账",
+  "mate.tab.settings": "设置",
   "mate.thread.composer.off":
     "大副处于 off 模式：对话只读、输入停用（读意图也零执行）。",
 

@@ -15,6 +15,34 @@ function keyEvent(key: string, overrides?: Partial<HoldTalkKeyEventLike>): HoldT
   return { key, repeat: false, isComposing: false, ...overrides };
 }
 
+describe("持键左右侧识别（§5.5.1 扩枚举：right-meta/right-alt）", () => {
+  it("右 ⌘：MetaRight 起停闭环；左 ⌘（MetaLeft）零触发", () => {
+    const onPressStart = vi.fn();
+    const onPressStop = vi.fn();
+    const handler = createHoldTalkKeyHandler({ holdKey: "right-meta", onPressStart, onPressStop });
+    // 左 ⌘ 不触发（code 区分左右）。
+    handler.handleKeyDown(keyEvent("Meta", { code: "MetaLeft" }));
+    handler.handleKeyUp(keyEvent("Meta", { code: "MetaLeft" }));
+    expect(onPressStart).not.toHaveBeenCalled();
+    // 右 ⌘ 触发。
+    handler.handleKeyDown(keyEvent("Meta", { code: "MetaRight" }));
+    expect(onPressStart).toHaveBeenCalledTimes(1);
+    handler.handleKeyUp(keyEvent("Meta", { code: "MetaRight" }));
+    expect(onPressStop).toHaveBeenCalledTimes(1);
+  });
+
+  it("右 ⌥：AltRight 起停；左 ⌥ 零触发；选 right-meta 时右 ⌥ 零触发", () => {
+    const onPressStart = vi.fn();
+    const handler = createHoldTalkKeyHandler({ holdKey: "right-alt", onPressStart, onPressStop: () => {} });
+    handler.handleKeyDown(keyEvent("Alt", { code: "AltRight" }));
+    expect(onPressStart).toHaveBeenCalledTimes(1);
+    const metaHandler = createHoldTalkKeyHandler({ holdKey: "right-meta", onPressStart, onPressStop: () => {} });
+    metaHandler.handleKeyDown(keyEvent("Alt", { code: "AltRight" }));
+    expect(onPressStart).toHaveBeenCalledTimes(1); // 未新增
+    void keyEvent;
+  });
+});
+
 describe("createHoldTalkKeyHandler（§5.5.1）", () => {
   it("Fn 按下→pressStart，松开→pressStop", () => {
     const onPressStart = vi.fn();

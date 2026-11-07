@@ -1,5 +1,6 @@
 /* oxlint-disable eslint(max-lines) -- AppSettings schema 聚合历史迁移、默认值和 patch 校验，拆分会削弱设置迁移的单一入口。 */
 import { z } from "zod";
+import { VOICE_DICTATION_HOLD_KEYS } from "./contracts/voice.js";
 import {
   desktopPetCharacterIdSchema,
   desktopPetSizeSchema,
@@ -545,8 +546,8 @@ const appSettingsObjectSchema = z.object({
   voicePersonaId: z.string().default(""),
   voiceToolBriefEnabled: z.boolean().default(false),
   voicePrivacyDisclosureAcknowledged: z.boolean().default(false),
-  // §5.5.1 长按听写持键（specs/voice-agent-integration.md §6.1 行 10）。
-  voiceDictationHoldKey: z.enum(["off", "fn"]).default("off"),
+  // §5.5.1 长按听写持键（specs/voice-agent-integration.md §6.1 行 10；枚举单一出处）。
+  voiceDictationHoldKey: z.enum(VOICE_DICTATION_HOLD_KEYS).default("off"),
   // §5.5.2 混合流式预览（§6.1 行 11）。
   voiceDictationHybridPreview: z.boolean().default(true),
   taskAutoArchiveEnabled: z.boolean().default(false),
@@ -670,7 +671,7 @@ export const appSettingsPatchSchema = z.object({
   voicePersonaId: z.string().optional(),
   voiceToolBriefEnabled: z.boolean().optional(),
   voicePrivacyDisclosureAcknowledged: z.boolean().optional(),
-  voiceDictationHoldKey: z.enum(["off", "fn"]).optional(),
+  voiceDictationHoldKey: z.enum(VOICE_DICTATION_HOLD_KEYS).optional(),
   voiceDictationHybridPreview: z.boolean().optional(),
   taskAutoArchiveEnabled: z.boolean().optional(),
   taskAutoArchiveOlderThanDays: z.number().int().positive().max(365).optional(),

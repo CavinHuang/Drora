@@ -33,7 +33,7 @@ const {
       voiceToolBriefEnabled: false,
       voicePrivacyDisclosureAcknowledged: true,
       // §5.5 两新键（默认与 schema 一致：off / true）。
-      voiceDictationHoldKey: "off" as "off" | "fn",
+      voiceDictationHoldKey: "off" as import("@drora/shared").VoiceDictationHoldKey,
       voiceDictationHybridPreview: true,
     },
   };
@@ -651,6 +651,25 @@ describe("§5.5 长按听写 window 监听装配（组件级端到端，全域�
     });
     expect(useVoiceSessionStore.getState().inputLeg).toBe("recording");
     window.dispatchEvent(new Event("blur"));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(useVoiceSessionStore.getState().inputLeg).toBe("idle");
+  });
+
+  it("右 ⌘（right-meta）：MetaRight keydown→keyup 端到端（松开转写）", async () => {
+    setSettings({ voiceDictationHoldKey: "right-meta" });
+    renderEntry();
+    window.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "Meta", code: "MetaRight", bubbles: true }),
+    );
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(useVoiceSessionStore.getState().inputLeg).toBe("recording");
+    window.dispatchEvent(
+      new KeyboardEvent("keyup", { key: "Meta", code: "MetaRight", bubbles: true }),
+    );
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0);
     });

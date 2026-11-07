@@ -454,7 +454,7 @@ composerTextInsertRequest 无回执类型；注入后乐观回 Idle，final 文�
 
 - **长按 Fn（🌐）键 = 按住说话，松开 = 停止并转写**；与既有「点按 mic 按钮切换」**并存**（同一状态机两条触发面，长按是新增入口不是替换）。
 - **键捕获层**（ui/voice/voiceHoldTalk.ts，纯逻辑核心可 fake 事件单测）：window 级 keydown/keyup 捕获（不要求 composer 聚焦——长按肌肉记忆是窗口全局的）。识别 `event.key === "Fn"`；守卫：`event.repeat` 忽略；`isComposing` 忽略。
-- **平台现实与降级**：macOS 的 Fn/🌐 受系统设置「按下 🌐 键时」抢占（非「无操作」时系统消费，应用收不到——CDP 实测探针已备，事件可达性以实测为准）；因此**持键可配置**（§6.1 行 10：`voiceDictationHoldKey`，枚举 `"off" | "fn"`，v1 两值；Fn 实测不可达时用户可关，未来可扩右 ⌘ 等）。设置行文案注明系统设置前置条件。
+- **平台现实与降级**：macOS 的 Fn/🌐 受系统设置「按下 🌐 键时」抢占（非「无操作」时系统消费，应用收不到）；因此**持键可配置**（§6.1 行 10：`voiceDictationHoldKey`）。**2026-11-07 扩枚举**（用户换键裁定）：`"off" | "fn" | "right-meta" | "right-alt"`——推荐 **右 ⌘（`right-meta`，`key==="Meta" && code==="MetaRight"`）**：macOS 键盘事件可靠、单独按住零字符输出、Mac 听写类工具通行约定；右 ⌥（`right-alt`）备选。**冲突记档**：右 ⌘ 按住期间若再按字母（⌘+X 快捷键用法）会同时触发起录——录音指示可见、松开即停（可能空转写→aborted 提示），属可接受噪声；左 ⌘/左 ⌥ 不触发（左右侧经 `code` 精确区分）。默认仍 `"off"`（用户显式选键）。设置行文案：Fn 项才注系统设置前置条件，右 ⌘/右 ⌥ 开箱即用。
 - **状态机接线**（useVoiceDictation 增两段显式 API，复用 §3.2 全部状态与守卫）：
   - `pressStart()`：idle → 走既有起录链（RequestingMic 隐私门/授权 → Recording）；非 idle 持有者 → no-op（已在录）。
   - `pressStop()`：recording 持有者 → 走既有停止链（session.stop → final → 注入 → stopRecording）；requestingMic 持有者 → 持有者取消（abortEpisode，语义=松手放弃本次）；idle → no-op。
@@ -491,7 +491,7 @@ composerTextInsertRequest 无回执类型；注入后乐观回 Idle，final 文�
 | 6 | ASR 引擎 | `voiceAsrEngine` | `"webSpeech"` | 是 |
 | 7 | 工具简报 | `voiceToolBriefEnabled` | `false`（Phase 2 生效） | 是 |
 | 8 | 隐私披露已确认 | `voicePrivacyDisclosureAcknowledged` | `false`；**首次开启任一语音能力时必须先展示三条披露并显式确认**（FD-5：确认门覆盖两个开启入口——设置页任一语音开关的开启动作，以及入口可见但 `acknowledged=false` 时点按 mic 的兜底门，两入口共用同一 reader 守卫；确认后**中止本次动作**，再次显式点按才开始——与披露 3「仅点按后开启」一致，不做「确认即连续开录」；取消则开关回落 / 回 Idle） | 是 |
-| 10 | 长按听写持键 | `voiceDictationHoldKey` | `"off"`（**关**——Fn 可达性依赖系统设置「按下 🌐 键时=无操作」，不默认开启防「设了没反应」；用户开启即按住说话松开转写，§5.5.1） | 是 |
+| 10 | 长按听写持键 | `voiceDictationHoldKey` | `"off"`（**关**——不默认开启防误触；选项：Fn（🌐，需系统设置「按下 🌐=无操作」）/ 右 ⌘（推荐，开箱即用）/ 右 ⌥，§5.5.1） | 是 |
 | 11 | 混合流式预览 | `voiceDictationHybridPreview` | `true`（remote 腿长按期间 webSpeech 实时预览；webSpeech 不可用时自然无效，§5.5.2） | 是 |
 
 消费读取一律经 reader 函数收口（照 `isTaskNotificationSoundEnabled` taskNotificationPreferences.ts:33 先例：播放/入口消费点不直接读 store，保证设置关闭后运行时行为一致）。权限引导走 IPlatformService optional 方法；权限结果是一次性生产事件经同通道回报 renderer；Web/手机缺席即不出入口（能力探测，不写 UA 分支）。

@@ -37,8 +37,7 @@ export const VOICE_SETTINGS_KEYS = {
   personaId: "voicePersonaId",
   toolBriefEnabled: "voiceToolBriefEnabled",
   privacyDisclosureAcknowledged: "voicePrivacyDisclosureAcknowledged",
-  // §5.5.1：长按听写持键（"off" | "fn"；Fn 可达性依赖系统设置「按下 🌐=无操作」，
-  // 默认 off）。
+  // §5.5.1：长按听写持键（VOICE_DICTATION_HOLD_KEYS 单一出处；默认 off）。
   dictationHoldKey: "voiceDictationHoldKey",
   // §5.5.2：remote 腿长按期间 webSpeech 实时预览（混合流式）。
   dictationHybridPreview: "voiceDictationHybridPreview",
@@ -108,6 +107,18 @@ export interface VoiceVendorProxyFetchResponse {
   contentType: string | null;
   bodyBase64: string;
 }
+
+/**
+ * 长按听写持键枚举（§5.5.1 单一出处；validationAppSettings z.enum / protocol wire /
+ * 捕获层匹配 / 设置 Select 全部引用此处）。
+ * - "off"：默认关。
+ * - "fn"：macOS 🌐，需系统设置「按下 🌐 键时=无操作」。
+ * - "right-meta"：右 ⌘（推荐——事件可靠、零字符输出、听写工具通行约定）。
+ * - "right-alt"：右 ⌥（备选）。
+ * 左侧修饰键不触发（左右侧经 event.code 精确区分）。
+ */
+export const VOICE_DICTATION_HOLD_KEYS = ["off", "fn", "right-meta", "right-alt"] as const;
+export type VoiceDictationHoldKey = (typeof VOICE_DICTATION_HOLD_KEYS)[number];
 
 // ---------------------------------------------------------------------------
 // 真流式播报（specs/model-capabilities.md §16，2026-11-06 用户裁定「直接立项 B」）

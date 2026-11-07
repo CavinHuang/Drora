@@ -309,8 +309,8 @@ export interface AppSettings {
   voicePersonaId?: string;
   voiceToolBriefEnabled?: boolean;
   voicePrivacyDisclosureAcknowledged?: boolean;
-  /** 长按听写持键（spec §5.5.1；"off" | "fn"，undefined 走 default "off"）。 */
-  voiceDictationHoldKey?: "off" | "fn";
+  /** 长按听写持键（spec §5.5.1；枚举单一出处 contracts/voice.ts，undefined 走 default "off"）。 */
+  voiceDictationHoldKey?: import("./contracts/voice.js").VoiceDictationHoldKey;
   /** 混合流式预览（spec §5.5.2；undefined 走 default true）。 */
   voiceDictationHybridPreview?: boolean;
   /** 自动归档旧会话的总开关 */

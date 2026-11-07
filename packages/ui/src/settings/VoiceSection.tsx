@@ -22,6 +22,7 @@ import {
   SelectValue,
 } from "@/components/ui/select.js";
 import { Switch } from "@/components/ui/switch.js";
+import type { VoiceDictationHoldKey } from "@drora/shared";
 import { Input } from "@/components/ui/input.js";
 import { Button } from "@/components/ui/button.js";
 import { useDroraIntl } from "@/i18n/IntlProvider.js";
@@ -237,7 +238,7 @@ export function VoiceSection() {
             <Select
               value={settings?.voiceDictationHoldKey ?? "off"}
               onValueChange={(value) => {
-                void updateSettings({ voiceDictationHoldKey: value as "off" | "fn" });
+                void updateSettings({ voiceDictationHoldKey: value as VoiceDictationHoldKey });
               }}
             >
               <SelectTrigger
@@ -252,6 +253,12 @@ export function VoiceSection() {
                 </SelectItem>
                 <SelectItem value="fn">
                   {intl.formatMessage({ id: "voice.settings.dictation.holdKey.fn" })}
+                </SelectItem>
+                <SelectItem value="right-meta">
+                  {intl.formatMessage({ id: "voice.settings.dictation.holdKey.rightMeta" })}
+                </SelectItem>
+                <SelectItem value="right-alt">
+                  {intl.formatMessage({ id: "voice.settings.dictation.holdKey.rightAlt" })}
                 </SelectItem>
               </SelectContent>
             </Select>

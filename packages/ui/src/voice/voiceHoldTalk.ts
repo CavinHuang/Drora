@@ -12,9 +12,11 @@
  * pressStop 兜住（§5.5.1）。
  */
 
+import type { VoiceDictationHoldKey } from "@drora/shared";
+
 export interface HoldTalkKeyConfig {
-  /** 持键选择；"off" = 捕获层静默（pressStart/pressStop 永不触发）。 */
-  holdKey: "off" | "fn";
+  /** 持键选择（VOICE_DICTATION_HOLD_KEYS 单一出处）；"off" = 捕获层静默。 */
+  holdKey: VoiceDictationHoldKey;
   onPressStart: () => void;
   onPressStop: () => void;
 }
@@ -22,8 +24,24 @@ export interface HoldTalkKeyConfig {
 /** 装配层事件形状（DOM KeyboardEvent 的最小消费面，测试注入 fake）。 */
 export interface HoldTalkKeyEventLike {
   key: string;
+  /** 左右侧物理键区分（"MetaRight"/"AltRight"/"Fn"…；右侧持键识别依赖此字段）。 */
+  code?: string;
   repeat: boolean;
   isComposing: boolean;
+}
+
+/** 持键匹配（§5.5.1）：fn 按 key 识别；右侧修饰键按 code 精确区分左右（左侧不触发）。 */
+function matchesHoldKey(holdKey: VoiceDictationHoldKey, event: HoldTalkKeyEventLike): boolean {
+  switch (holdKey) {
+    case "fn":
+      return event.key === "Fn";
+    case "right-meta":
+      return event.key === "Meta" && event.code === "MetaRight";
+    case "right-alt":
+      return event.key === "Alt" && event.code === "AltRight";
+    default:
+      return false; // "off"
+  }
 }
 
 /** 按住状态由调用方可见（装配层 blur 兜底判断「正在长按」用）。 */
@@ -38,14 +56,12 @@ export interface HoldTalkKeyHandler {
 
 export function createHoldTalkKeyHandler(config: HoldTalkKeyConfig): HoldTalkKeyHandler {
   let holding = false;
-  const matchesHoldKey = (event: HoldTalkKeyEventLike): boolean =>
-    config.holdKey === "fn" && event.key === "Fn";
   return {
     get holding() {
       return holding;
     },
     handleKeyDown(event) {
-      if (!matchesHoldKey(event) || event.repeat || event.isComposing) {
+      if (!matchesHoldKey(config.holdKey, event) || event.repeat || event.isComposing) {
         return;
       }
       if (holding) {
@@ -55,7 +71,7 @@ export function createHoldTalkKeyHandler(config: HoldTalkKeyConfig): HoldTalkKey
       config.onPressStart();
     },
     handleKeyUp(event) {
-      if (!matchesHoldKey(event) || !holding) {
+      if (!matchesHoldKey(config.holdKey, event) || !holding) {
         return;
       }
       holding = false;

@@ -45,8 +45,8 @@ export interface VoiceComposerEntryController {
   privacyDialogOpen: boolean;
   dictation: ReturnType<typeof useVoiceDictation>;
   dictationLang: string;
-  /** §5.5.1 长按听写持键（appSettings；"off" = 组件不挂 window 监听）。 */
-  dictationHoldKey: "off" | "fn";
+  /** §5.5.1 长按听写持键（appSettings；"off" = 组件不挂 window 监听；枚举单一出处）。 */
+  dictationHoldKey: import("@drora/shared").VoiceDictationHoldKey;
   /** 可见时的 hover 提示（不可见为空串；组件按 view.visible 决定是否渲染）。 */
   tooltip: string;
 }

@@ -156,23 +156,47 @@ function pickAuthoritativeResult(results: ServerResult[]): ServerResult | null {
 
 export function parseDoubaoServerMessage(frame: Buffer): ParsedDoubaoServerMessage | null {
   if (frame.byteLength < 8) return null;
+  // 帧头布局（Proma doubao-asr-service.ts parseServerMessage 同源；此前按固定偏移
+  // 4/8 解——服务端数据帧带序列号（flags=SERVER_SEQUENCE/LAST 时头后多 4B 序列号）
+  // 全部错位 → JSON 解析失败被静默丢弃 → transcriptFrames=0 而上行正常（真机
+  // session summary 实证形态，2026-11-07 终极根因）：
+  //   headerSize = 首字节低 4 位 × 4；hasSequence → +4B 序列号；SERVER_ERROR 帧
+  //   另有 code(4B)+size(4B)+message；正常帧 payloadSize@offset+payload。
+  const headerSize = (frame[0]! & 0x0f) * 4;
   const messageType = (frame[1]! >> 4) & 0x0f;
   const flags = (frame[1]! >> 0) & 0x0f;
   const serialization = (frame[2]! >> 4) & 0x0f;
   const compression = (frame[2]! >> 0) & 0x0f;
-  const payloadSize = frame.readUInt32BE(4);
-  const payload = frame.subarray(8, 8 + payloadSize);
-  const decompressed = compression === COMPRESSION_GZIP ? gunzipSync(payload) : payload;
-  // 序列 flags：0b0001=普通序列（带序号）、0b0011=最后序列（会话级结束）——必须严格等于
-  // LAST，按位与会把普通序列（0b0001&0b0011≠0）误判为会话终。
+  let offset = headerSize;
+  const hasSequence = flags === FLAG_SERVER_SEQUENCE || flags === FLAG_SERVER_LAST_SEQUENCE;
+  if (hasSequence) {
+    offset += 4;
+  }
+  // 序列 flags：0b0001=普通序列（带序号）、0b0011=最后序列（会话级结束）——严格等于
+  // LAST 判会话终。
   const isSessionEnd = flags === FLAG_SERVER_LAST_SEQUENCE;
 
   if (messageType === MESSAGE_SERVER_ERROR) {
-    return { text: "", isFinal: false, errorMessage: decompressed.toString("utf8").slice(0, 200) };
+    if (frame.byteLength < offset + 8) return null;
+    const code = frame.readUInt32BE(offset);
+    offset += 4;
+    const size = frame.readUInt32BE(offset);
+    offset += 4;
+    const message = frame.subarray(offset, offset + size).toString("utf8");
+    return {
+      text: "",
+      isFinal: false,
+      errorMessage: `server error ${code}: ${message.slice(0, 160)}`,
+    };
   }
   if (messageType !== MESSAGE_FULL_SERVER_RESPONSE || serialization !== SERIALIZATION_JSON) {
     return null;
   }
+  if (frame.byteLength < offset + 4) return null;
+  const payloadSize = frame.readUInt32BE(offset);
+  offset += 4;
+  const payload = frame.subarray(offset, offset + payloadSize);
+  const decompressed = compression === COMPRESSION_GZIP ? gunzipSync(payload) : payload;
   let parsed: ServerPayload;
   try {
     parsed = JSON.parse(decompressed.toString("utf8")) as ServerPayload;

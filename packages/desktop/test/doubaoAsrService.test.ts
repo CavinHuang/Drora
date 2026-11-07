@@ -62,9 +62,11 @@ describe("帧编解码（sauc 二进制协议）", () => {
         (0b0001 << 4) | 0b0001,
         0x00,
       ]);
+      const seq = Buffer.alloc(4);
+      seq.writeUInt32BE(1, 0);
       const size = Buffer.alloc(4);
       size.writeUInt32BE(body.length, 0);
-      return Buffer.concat([header, size, body]);
+      return Buffer.concat([header, seq, size, body]);
     };
     // 两个候选：confidence 高者胜。
     const candidates = encode(
@@ -192,9 +194,11 @@ describe("会话状态机（deps 注入 fake WS）", () => {
     const serverFrame = (payload: unknown, flags: number) => {
       const body = gzipSync(Buffer.from(JSON.stringify(payload), "utf8"));
       const header = Buffer.from([0x11, (0b1001 << 4) | flags, 0x11, 0]);
+      const seq = Buffer.alloc(4);
+      seq.writeUInt32BE(1, 0);
       const size = Buffer.alloc(4);
       size.writeUInt32BE(body.length, 0);
-      return Buffer.concat([header, size, body]);
+      return Buffer.concat([header, seq, size, body]);
     };
     fake.emitMessage(serverFrame({ result: { text: "实时" } }, 0b0001));
     fake.emitMessage(serverFrame({ result: { text: "完整句。", utterances: [{ definite: true }] } }, 0b0011));

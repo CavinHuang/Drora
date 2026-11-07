@@ -17,6 +17,7 @@
 
 import { logger } from "@/logger.js";
 import {
+  VOICE_ASR_ENGINE_SILENT_TIMEOUT_MS,
   VOICE_ASR_SPONTANEOUS_END_SETTLE_MS,
   VOICE_ASR_STOP_SETTLE_TIMEOUT_MS,
 } from "./voiceTuning.js";
@@ -73,6 +74,8 @@ export interface WebSpeechAsrAdapterDeps {
   stopSettleTimeoutMs?: number;
   /** §9.9.4-L4 自发 onend 看门狗窗口，缺省 voiceTuning 值；测试可缩短。 */
   spontaneousEndSettleMs?: number;
+  /** §5.3 引擎静默死看门狗窗口；测试可缩短。 */
+  engineSilentTimeoutMs?: number;
 }
 
 export function createWebSpeechAsrAdapter(deps: WebSpeechAsrAdapterDeps = {}): VoiceAsrPort {
@@ -101,6 +104,7 @@ export function createWebSpeechAsrAdapter(deps: WebSpeechAsrAdapterDeps = {}): V
     });
   const stopSettleTimeoutMs = deps.stopSettleTimeoutMs ?? VOICE_ASR_STOP_SETTLE_TIMEOUT_MS;
   const spontaneousEndSettleMs = deps.spontaneousEndSettleMs ?? VOICE_ASR_SPONTANEOUS_END_SETTLE_MS;
+  const engineSilentTimeoutMs = deps.engineSilentTimeoutMs ?? VOICE_ASR_ENGINE_SILENT_TIMEOUT_MS;
 
   const partialSubscribers = new Set<(text: string) => void>();
   let activeSession: ActiveSession | null = null;
@@ -148,22 +152,60 @@ export function createWebSpeechAsrAdapter(deps: WebSpeechAsrAdapterDeps = {}): V
       recognition.lang = lang;
 
       recognition.addEventListener("result", (event) => {
+        this.clearEngineSilentTimer();
         this.handleResult(event as WebSpeechRecognitionEventLike);
       });
       recognition.addEventListener("error", (event) => {
+        this.clearEngineSilentTimer();
         this.handleError((event as WebSpeechRecognitionErrorEventLike).error);
       });
       recognition.addEventListener("end", () => {
+        this.clearEngineSilentTimer();
         this.handleEnd();
+      });
+      // §5.3 引擎静默死看门狗的生命信号：speechstart 一到即证引擎活（死引擎实测
+      // 事件流停在 audiostart——start→audiostart→零事件）。
+      recognition.addEventListener("speechstart", () => {
+        this.clearEngineSilentTimer();
       });
     }
 
     start(): void {
       try {
         this.recognition.start();
+        this.armEngineSilentWatchdog();
       } catch (error) {
         // InvalidStateError：引擎已在运行（重复 start）。记 warn 并继续——会话仍持有引擎实例。
         logger.warn("voice.asr", "recognition start rejected", error);
+        this.armEngineSilentWatchdog();
+      }
+    }
+
+    /** §5.3 引擎静默死看门狗：起录后窗口内无任何生命事件（speechstart/result/error/end）
+     * → 引擎服务不可达（Electron 无语音服务密钥的静默空转形态）。 */
+    private armEngineSilentWatchdog(): void {
+      this.clearEngineSilentTimer();
+      this.engineSilentTimer = setTimeout(() => {
+        this.engineSilentTimer = null;
+        if (this.dead) {
+          return;
+        }
+        logger.warn("voice.asr", "engine silent after start; treating as network-dead engine");
+        if (this.stopping) {
+          // 用户已松开：按静音结算（空 final），错误通道不上抛（stop 结算即出腿）。
+          this.dead = true;
+          closeSession(this);
+          this.resolveStop({ final: this.stopFlushBuffer.trim() });
+          return;
+        }
+        this.handleError("network");
+      }, engineSilentTimeoutMs);
+    }
+
+    private clearEngineSilentTimer(): void {
+      if (this.engineSilentTimer != null) {
+        clearTimeout(this.engineSilentTimer);
+        this.engineSilentTimer = null;
       }
     }
 
@@ -269,6 +311,8 @@ export function createWebSpeechAsrAdapter(deps: WebSpeechAsrAdapterDeps = {}): V
     }
 
     private stopResolve: ((value: { final: string }) => void) | null = null;
+    /** §5.3 引擎静默死看门狗句柄。 */
+    private engineSilentTimer: ReturnType<typeof setTimeout> | null = null;
 
     private clearSettleTimer(): void {
       if (this.settleTimer != null) {
@@ -276,8 +320,9 @@ export function createWebSpeechAsrAdapter(deps: WebSpeechAsrAdapterDeps = {}): V
         this.settleTimer = null;
       }
       // §9.9.4-L4：abort/stop/结算清理点同步清看门狗（并行已修的 abort/resolveStop
-      // 路径不重复——此处仅清理本看门狗自己的定时器）。
+      // 路径不重复——此处仅清理本看门狗自己的定时器）；§5.3 静默看门狗同点清理。
       this.clearSpontaneousEndTimer();
+      this.clearEngineSilentTimer();
     }
 
     private clearSpontaneousEndTimer(): void {

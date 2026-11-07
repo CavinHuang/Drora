@@ -7,6 +7,11 @@
 
 /** 权限对话框被忽略/折叠后的 RequestingMic 超时（§5.3：10s 自动回 Idle + 轻提示）。 */
 export const VOICE_REQUESTING_MIC_TIMEOUT_MS = 10_000;
+/**
+ * §5.3 引擎静默死看门狗：webSpeech 起录后该窗口内无 speechstart/result/error/end
+ * 任一事件 → abort + network 出腿（Electron 无语音服务密钥的静默空转形态）。
+ */
+export const VOICE_ASR_ENGINE_SILENT_TIMEOUT_MS = 8_000;
 
 /** lastDictation 暂存 TTL（§5.4：注入后乐观暂存 300s，过期恢复菜单项不渲染）。 */
 export const VOICE_LAST_DICTATION_TTL_MS = 300_000;

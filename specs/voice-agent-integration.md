@@ -443,6 +443,7 @@ export const VOICE_INTERRUPT_FALLBACK = "en-US";   // 第三语言回退
 
 - 权限对话框被忽略/折叠 → **10s 超时**自动回 Idle + 轻提示（voice.dictation.requestingMicTimeout）；拒绝 → 提示 + 设置引导（IPlatformService optional 引导方法，照 openCuaPermissionOnboarding 模式，前期勘察未复验）。
 - ASR 运行中失败：`not-allowed`/`service-not-allowed` → 权限提示 + 设置引导，回 Idle；`network` → **保留已注入文本** + 「语音服务不可用」提示，回 Idle；`audio-capture` → 设备检查提示；`aborted`/onend 无结果 → 同静音超时处理。**不自动重启**（防后台白跑与隐私顾虑），重试 = 用户再次点按。修复 speech-input.tsx:151-153 静默关闭的先例行为。
+- **引擎静默死看门狗（2026-11-07 增补，真机实测发现）**：Electron 的 SpeechRecognition 可「启动开麦后零事件静默空转」（无 Google 语音服务密钥的发行形态——实测事件流 `start→audiostart→8s 零事件`，无 result 无 error 无 onend，§5.3 既有错误映射全部够不着）。webSpeech 适配器起录后 **`VOICE_ASR_ENGINE_SILENT_TIMEOUT_MS`（8s）**内无 `speechstart`/`result`/`error`/`end` 任一事件 → 主动 abort 引擎并按 `network` 出腿（复用「语音服务不可用」提示 + 引导切云端引擎的语义；阈值放 voiceTuning，§2.1 冻结不进 wire）。副作用记档：真静音 ≥8s 的用户会提前收到该提示（正常引擎下 speechstart 秒到不受影响；提示文案不指责用户）。混合预览引擎同款看门狗不适用（预览是增强不是依赖，静默降级语义不变）。
 
 ### 5.4 注入失败与 lastDictation
 

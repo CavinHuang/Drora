@@ -62,6 +62,10 @@ class FakeRecognition extends EventTarget implements WebSpeechRecognitionLike {
   emitEnd(): void {
     this.dispatchEvent(new Event("end"));
   }
+
+  emitSpeechstart(): void {
+    this.dispatchEvent(new Event("speechstart"));
+  }
 }
 
 function result(transcript: string, isFinal: boolean): WebSpeechRecognitionResultLike {
@@ -80,6 +84,7 @@ function createHarness(
   overrides?: Partial<{
     recognition: FakeRecognition;
     getUserMedia: () => Promise<{ getTracks(): { stop(): void }[] }>;
+    engineSilentTimeoutMs?: number;
   }>,
 ): Harness {
   const recognition = overrides?.recognition ?? new FakeRecognition();
@@ -97,6 +102,7 @@ function createHarness(
         return { getTracks: () => [{ stop: () => stoppedTracks.push("mic") }] };
       }),
     stopSettleTimeoutMs: VOICE_ASR_STOP_SETTLE_TIMEOUT_MS,
+    engineSilentTimeoutMs: overrides?.engineSilentTimeoutMs,
   });
   return {
     adapter,
@@ -309,6 +315,55 @@ describe("§9.9.4-L4 自发 onend 看门狗", () => {
       expect(errors).toEqual([]); // 未判死。
       await vi.advanceTimersByTimeAsync(60); // 顺延窗口耗尽且无新事件 → 判死。
       expect(errors).toEqual(["no-speech"]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe("§5.3 引擎静默死看门狗（Electron 无语音服务密钥形态）", () => {
+  it("起录后窗口内零生命事件 → network 出腿 + 音轨停（回退即红：旧实现 Recording 悬挂零反馈）", async () => {
+    vi.useFakeTimers();
+    try {
+      const h = createHarness({ engineSilentTimeoutMs: 50 });
+      const session = await h.start();
+      const errors: string[] = [];
+      session.onError((error) => errors.push(error.code));
+      await vi.advanceTimersByTimeAsync(60);
+      expect(errors).toEqual(["network"]);
+      expect(h.stoppedTracks).toEqual(["mic"]);
+      expect(h.recognition.abortCalls).toBeGreaterThanOrEqual(0); // closeSession 停轨路径
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("speechstart 一到即证引擎活 → 看门狗解除，静默窗口后不出错", async () => {
+    vi.useFakeTimers();
+    try {
+      const h = createHarness({ engineSilentTimeoutMs: 50 });
+      const session = await h.start();
+      const errors: string[] = [];
+      session.onError((error) => errors.push(error.code));
+      h.recognition.emitSpeechstart();
+      await vi.advanceTimersByTimeAsync(200);
+      expect(errors).toEqual([]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("用户先松开（stop 中）后窗口耗尽 → 空 final 静音结算、不上抛 error", async () => {
+    vi.useFakeTimers();
+    try {
+      const h = createHarness({ engineSilentTimeoutMs: 50 });
+      const session = await h.start();
+      const errors: string[] = [];
+      session.onError((error) => errors.push(error.code));
+      const stopPromise = session.stop();
+      await vi.advanceTimersByTimeAsync(60);
+      await expect(stopPromise).resolves.toEqual({ final: "" });
+      expect(errors).toEqual([]);
     } finally {
       vi.useRealTimers();
     }

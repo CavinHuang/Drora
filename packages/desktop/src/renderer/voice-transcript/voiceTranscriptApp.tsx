@@ -29,7 +29,8 @@ interface Bridge {
   onShow(handler: () => void): () => void;
   onHide(handler: () => void): () => void;
 }
-const bridge = (window as unknown as { voiceTranscriptBridge?: Bridge }).voiceTranscriptBridge ?? null;
+const bridge =
+  (window as unknown as { voiceTranscriptBridge?: Bridge }).voiceTranscriptBridge ?? null;
 
 function WaveBars() {
   return (
@@ -38,7 +39,11 @@ function WaveBars() {
         <span
           key={i}
           className="w-[2.5px] rounded-full animate-[voice-wave_1.2s_ease-in-out_infinite]"
-          style={{ animationDelay: `${i * 0.15}s`, height: "5px", background: "rgba(120,140,255,0.75)" }}
+          style={{
+            animationDelay: `${i * 0.15}s`,
+            height: "5px",
+            background: "rgba(120,140,255,0.75)",
+          }}
         />
       ))}
     </span>
@@ -105,9 +110,7 @@ function VoiceTranscriptApp() {
             {errorMessage != null ? (
               <span style={{ fontSize: 13, color: "#f2b8b5" }}>{errorMessage}</span>
             ) : (
-              partial || (
-                <span style={{ color: "rgba(232,234,240,0.45)" }}>正在聆听，请说话…</span>
-              )
+              partial || <span style={{ color: "rgba(232,234,240,0.45)" }}>正在聆听，请说话…</span>
             )}
             {phase === "recording" ? (
               <span
@@ -135,7 +138,10 @@ function VoiceTranscriptApp() {
           }}
         >
           <span style={{ fontSize: 11, color: "rgba(232,234,240,0.45)" }}>
-            {errorMessage != null ? "流式语音识别" : "正在聆听 · 松开结束"}
+            {/* §5.5.1 auto 模式：短按免提继续（再按一下结束）、长按松开结束——两种肌肉记忆并存。 */}
+            {errorMessage != null
+              ? "流式语音识别"
+              : "正在聆听 · 再按一下结束（按住说话则松开结束）"}
           </span>
           {phase === "recording" ? (
             <button

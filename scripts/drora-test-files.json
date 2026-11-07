@@ -149,6 +149,7 @@
   "packages/desktop/test/upstreamReplayFixtureResolution.test.ts",
   "packages/desktop/test/upstreamReplayServer.test.ts",
   "packages/desktop/test/viteRendererConfig.test.ts",
+  "packages/desktop/test/voiceTranscriptIndicatorWindow.test.ts",
   "packages/desktop/test/voiceVendorProxy.test.ts",
   "packages/desktop/test/webRemoteControlActionRequests.test.ts",
   "packages/desktop/test/webRemoteControlAuthGateFixture.test.ts",

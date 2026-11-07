@@ -23,12 +23,7 @@ export const INDICATOR_BOTTOM_MARGIN = 28;
 
 /** 最小窗口能力面（测试替身实现用）。 */
 export interface VoiceTranscriptIndicatorWindow {
-  setBounds(bounds: {
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-  }): void;
+  setBounds(bounds: { x: number; y: number; width: number; height: number }): void;
   showInactive(): void;
   hide(): void;
   isDestroyed(): boolean;
@@ -36,9 +31,12 @@ export interface VoiceTranscriptIndicatorWindow {
 }
 
 /** 光标所在 display 工作区底部居中 bounds。 */
-export function indicatorBounds(
-  workArea: { x: number; y: number; width: number; height: number },
-): { x: number; y: number; width: number; height: number } {
+export function indicatorBounds(workArea: {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}): { x: number; y: number; width: number; height: number } {
   return {
     x: workArea.x + Math.round((workArea.width - INDICATOR_WIDTH) / 2),
     y: workArea.y + workArea.height - INDICATOR_HEIGHT - INDICATOR_BOTTOM_MARGIN,
@@ -63,7 +61,11 @@ export interface VoiceTranscriptIndicatorDeps {
   }): BrowserWindow;
   getCursorDisplayWorkArea(): { x: number; y: number; width: number; height: number };
   /** 渲染入口地址：dev=rendererDevUrl + query；打包=loadFile。 */
-  resolveEntryUrl(isDev: boolean, devUrl: string | undefined, dir: string): { url?: string; file?: string };
+  resolveEntryUrl(
+    isDev: boolean,
+    devUrl: string | undefined,
+    dir: string,
+  ): { url?: string; file?: string };
   rendererDevUrl?: string;
   rendererDir: string;
   /** 指示窗 preload（桥：ipcRenderer 直订通道 + requestStop invoke）。 */
@@ -104,14 +106,23 @@ export function createVoiceTranscriptIndicator(
       skipTaskbar: true,
       focusable: false,
       show: false,
-      webPreferences: {},
+      // 2026-11-07 真机终因修复：此前此处传空 webPreferences——deps.preloadPath 声明了
+      // 却从未消费，BrowserWindow 无 preload → voiceTranscriptBridge 永不注入 → App
+      // 恒 idle display:none（CDP 实证 bridge undefined、root 空文本）→ 透明窗零渲染
+      // =「悬浮条看不见/疑似没置顶」。装配点的展开顺序修复保住的是这里的 preload，
+      // 两处缺一即桥断。
+      webPreferences: { preload: deps.preloadPath },
     });
     created.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
     created.setAlwaysOnTop(true, "screen-saver");
     created.once("closed", () => {
       win = null;
     });
-    const entry = deps.resolveEntryUrl(deps.rendererDevUrl != null, deps.rendererDevUrl, deps.rendererDir);
+    const entry = deps.resolveEntryUrl(
+      deps.rendererDevUrl != null,
+      deps.rendererDevUrl,
+      deps.rendererDir,
+    );
     if (entry.url) {
       created.webContents.once("did-fail-load", (_e, code, desc) => {
         deps.logger.warn("voice transcript indicator load failed", { code, desc });

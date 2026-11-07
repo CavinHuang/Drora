@@ -32,17 +32,25 @@ interface Bridge {
 const bridge =
   (window as unknown as { voiceTranscriptBridge?: Bridge }).voiceTranscriptBridge ?? null;
 
+/**
+ * 2026-11-07 修复：独立入口页面不引入 Tailwind（CDP 实证样式表零工具类），此前从
+ * 窗口内浮层抄来的 className（flex/w-[2.5px]/animate-[voice-wave…]）在这里全是死类
+ * ——inline span 宽高被忽略，声波条不可见且零动画（「动画没有了」真因）。本文件约定
+ * 自包含：全部内联样式 + voice-transcript.html 里的 @keyframes。
+ */
 function WaveBars() {
   return (
-    <span aria-hidden className="flex h-4 items-end gap-[3px]">
+    <span aria-hidden style={{ display: "flex", alignItems: "flex-end", gap: 3, height: 16 }}>
       {[0, 1, 2, 3].map((i) => (
         <span
           key={i}
-          className="w-[2.5px] rounded-full animate-[voice-wave_1.2s_ease-in-out_infinite]"
           style={{
-            animationDelay: `${i * 0.15}s`,
-            height: "5px",
+            width: 2.5,
+            height: 5,
+            borderRadius: 999,
             background: "rgba(120,140,255,0.75)",
+            animation: "voice-wave 1.2s ease-in-out infinite",
+            animationDelay: `${i * 0.15}s`,
           }}
         />
       ))}
@@ -54,6 +62,9 @@ function VoiceTranscriptApp() {
   const [partial, setPartial] = React.useState("");
   const [phase, setPhase] = React.useState<"idle" | "recording" | "error">("idle");
   const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
+  // 每次起录递增 → key 变化重挂载 → voice-rise 入场动画逐会话重放（display 切换不
+  // 触发 CSS animation 重放，第二次起录起就没有入场动画的根因）。
+  const [showSeq, setShowSeq] = React.useState(0);
   React.useEffect(() => {
     if (!bridge) return;
     const unsubs = [
@@ -72,6 +83,7 @@ function VoiceTranscriptApp() {
         setPartial("");
         setPhase("recording");
         setErrorMessage(null);
+        setShowSeq((n) => n + 1);
       }),
       bridge.onHide(() => setPhase("idle")),
     ];
@@ -79,7 +91,11 @@ function VoiceTranscriptApp() {
   }, []);
   const visible = phase !== "idle" || errorMessage != null;
   return (
-    <div style={{ display: visible ? "block" : "none" }} data-testid="voice-transcript-indicator">
+    <div
+      key={showSeq}
+      style={{ display: visible ? "block" : "none" }}
+      data-testid="voice-transcript-indicator"
+    >
       <div
         style={{
           borderRadius: 16,

@@ -8974,7 +8974,7 @@ const zhCN: Record<string, string> = {
   "voice.settings.dictation.lang.en": "English (US)",
   "voice.settings.dictation.holdKey.label": "长按听写",
   "voice.settings.dictation.holdKey.description":
-    "按住所选键说话、松开转写（与点按 mic 并存）。推荐右侧主键（mac 右 ⌘ / Windows 右 Win，开箱即用）；选 Fn 需先在系统设置 → 键盘 →「按下 🌐 键时」选「无操作」，否则按键被系统拦截。",
+    "点一下开始、再点一下结束（免提）；或按住说话、松开结束（与点按 mic 并存）。推荐右侧主键（mac 右 ⌘ / Windows 右 Win，开箱即用）；选 Fn 需先在系统设置 → 键盘 →「按下 🌐 键时」选「无操作」，否则按键被系统拦截。",
   "voice.settings.dictation.holdKey.off": "关闭",
   "voice.settings.dictation.holdKey.fn": "Fn（🌐）",
   "voice.settings.dictation.holdKey.rightMeta": "右侧 Meta 键（推荐）",

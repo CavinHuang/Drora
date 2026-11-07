@@ -83,12 +83,36 @@ function V4ComposerVoiceEntryMounted({
   pressStartRef.current = dictation.pressStart;
   const pressStopRef = useRef(dictation.pressStop);
   pressStopRef.current = dictation.pressStop;
+  // §5.5.1 auto 模式（Blurt 同款，2026-11-07 增补）：会话进行中按下 = 立即停止
+  //（免提模式的停止键）；空闲按下 = 起录并计时；松开 ≥300ms = push-to-talk 停止，
+  //<300ms = 免提模式继续录（下一次按下停）——短按不再因启动延迟（app 初始化期
+  // WS+开麦 2-3s）被 pressStop 取消（真机 18:36 日志：按 0.8s 松开即取消的根因）。
+  const stopPressRef = useRef(false);
+  const pressDownAtRef = useRef(0);
   useEffect(() => {
     if (dictationHoldKey === "off") return;
     const handler = createHoldTalkKeyHandler({
       holdKey: dictationHoldKey,
-      onPressStart: () => pressStartRef.current(),
-      onPressStop: () => pressStopRef.current(),
+      onPressStart: () => {
+        const leg = useVoiceSessionStore.getState().inputLeg;
+        if (leg !== "idle") {
+          // 会话进行中（含免提模式与起录在途）：本次按下 = 停止。
+          stopPressRef.current = true;
+          pressStopRef.current();
+          return;
+        }
+        stopPressRef.current = false;
+        pressDownAtRef.current = Date.now();
+        pressStartRef.current();
+      },
+      onPressStop: () => {
+        if (stopPressRef.current) return; // 键下已停止。
+        const heldMs = Date.now() - pressDownAtRef.current;
+        if (heldMs >= 300) {
+          pressStopRef.current(); // push-to-talk：松开停止。
+        }
+        // <300ms 短按：免提模式继续录（下一次按下停止）。
+      },
     });
     return attachHoldTalkKeyListeners(handler, window);
   }, [dictationHoldKey]);

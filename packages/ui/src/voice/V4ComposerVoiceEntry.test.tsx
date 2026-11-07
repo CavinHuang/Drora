@@ -635,6 +635,7 @@ describe("§5.5 长按听写 window 监听装配（组件级端到端，全域�
       await vi.advanceTimersByTimeAsync(0);
     });
     expect(useVoiceSessionStore.getState().inputLeg).toBe("recording");
+    vi.advanceTimersByTime(350); // auto 模式：按住 ≥300ms 松开才停（短按=免提）。
     pressKey("Fn", "keyup");
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0);
@@ -650,11 +651,51 @@ describe("§5.5 长按听写 window 监听装配（组件级端到端，全域�
       await vi.advanceTimersByTimeAsync(0);
     });
     expect(useVoiceSessionStore.getState().inputLeg).toBe("recording");
+    vi.advanceTimersByTime(350); // 起录后经过 ≥300ms（blur 兜底与时长无关，但对齐真实节奏）。
     window.dispatchEvent(new Event("blur"));
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0);
     });
     expect(useVoiceSessionStore.getState().inputLeg).toBe("idle");
+  });
+
+  it("auto 模式：短按（<300ms）起录不取消——免提继续；下一次按下停止", async () => {
+    vi.useFakeTimers();
+    try {
+      setSettings({ voiceDictationHoldKey: "right-meta" });
+      renderEntry();
+      // 短按：keydown 后立即 keyup（模拟 ~50ms）。
+      window.dispatchEvent(new KeyboardEvent("keydown", { key: "Meta", code: "MetaRight", bubbles: true }));
+      vi.advanceTimersByTime(50);
+      window.dispatchEvent(new KeyboardEvent("keyup", { key: "Meta", code: "MetaRight", bubbles: true }));
+      await act(async () => { await vi.advanceTimersByTimeAsync(300); });
+      // 免提模式：起录在途不被取消（requestingMic 或 recording，但绝不回 idle）。
+      const legAfterTap = useVoiceSessionStore.getState().inputLeg;
+      expect(legAfterTap).not.toBe("idle");
+      // 下一次按下 = 停止。
+      window.dispatchEvent(new KeyboardEvent("keydown", { key: "Meta", code: "MetaRight", bubbles: true }));
+      await act(async () => { await vi.advanceTimersByTimeAsync(500); });
+      expect(useVoiceSessionStore.getState().inputLeg).toBe("idle");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("auto 模式：按住 ≥300ms 松开 = push-to-talk 停止", async () => {
+    vi.useFakeTimers();
+    try {
+      setSettings({ voiceDictationHoldKey: "right-meta" });
+      renderEntry();
+      window.dispatchEvent(new KeyboardEvent("keydown", { key: "Meta", code: "MetaRight", bubbles: true }));
+      await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+      expect(useVoiceSessionStore.getState().inputLeg).toBe("recording");
+      vi.advanceTimersByTime(500); // 按住 500ms。
+      window.dispatchEvent(new KeyboardEvent("keyup", { key: "Meta", code: "MetaRight", bubbles: true }));
+      await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+      expect(useVoiceSessionStore.getState().inputLeg).toBe("idle");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("右 ⌘（right-meta）：MetaRight keydown→keyup 端到端（松开转写）", async () => {
@@ -667,6 +708,7 @@ describe("§5.5 长按听写 window 监听装配（组件级端到端，全域�
       await vi.advanceTimersByTimeAsync(0);
     });
     expect(useVoiceSessionStore.getState().inputLeg).toBe("recording");
+    vi.advanceTimersByTime(350); // auto 模式：按住 ≥300ms 松开才停。
     window.dispatchEvent(
       new KeyboardEvent("keyup", { key: "Meta", code: "MetaRight", bubbles: true }),
     );
@@ -688,6 +730,7 @@ describe("§5.5 长按听写 window 监听装配（组件级端到端，全域�
     expect(useVoiceSessionStore.getState().inputLeg).toBe("recording");
     // repeat 按下不重触发（守卫）；随后正常 keyup 停止。
     window.dispatchEvent(new KeyboardEvent("keydown", { key: "Fn", repeat: true, bubbles: true }));
+    vi.advanceTimersByTime(350); // auto 模式：按住 ≥300ms 松开才停。
     pressKey("Fn", "keyup");
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0);

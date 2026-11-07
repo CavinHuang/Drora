@@ -9529,7 +9529,7 @@ const enUS: Record<string, string> = {
   "voice.settings.dictation.lang.en": "English (US)",
   "voice.settings.dictation.holdKey.label": "Hold-to-talk key",
   "voice.settings.dictation.holdKey.description":
-    "Hold the selected key to talk and release to transcribe (works alongside the mic button). The right Meta key is recommended (⌘ on macOS / Win on Windows, works out of the box); for Fn, set System Settings → Keyboard → “Press 🌐 key to” to “Do Nothing” first.",
+    "Tap once to start, tap again to finish (hands-free); or hold to talk and release to finish (works alongside the mic button). The right Meta key is recommended (⌘ on macOS / Win on Windows, works out of the box); for Fn, set System Settings → Keyboard → “Press 🌐 key to” to “Do Nothing” first.",
   "voice.settings.dictation.holdKey.off": "Off",
   "voice.settings.dictation.holdKey.fn": "Fn (🌐)",
   "voice.settings.dictation.holdKey.rightMeta": "Right Meta (recommended)",

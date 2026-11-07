@@ -66,10 +66,20 @@ export function startPcmStreamCapture(
       audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
     });
     const ctx = createCtx();
-    // autoplay policy 兜底（§16 TTS 播放器同款）：suspended 的 ctx 不会驱动
-    // ScriptProcessor——零 PCM 上行、服务端只回元数据帧（真机排障实证形态）。
+    // autoplay policy 兜底（真机排障实证形态）：suspended 的 ctx 不驱动
+    // ScriptProcessor——getUserMedia 成功、零 PCM 上行、服务端只回元数据帧（静默
+    // 空转）。resume 需要用户手势（物理按键是真手势，程序派发事件不是）；等 300ms
+    // 仍 suspended → fail-visible 抛错（audio-capture 族），不留静默空转。
     if (ctx.state === "suspended") {
-      void ctx.resume().catch(() => undefined);
+      const resumed = await Promise.race([
+        ctx.resume().then(() => true).catch(() => false),
+        new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 300)),
+      ]);
+      if (!resumed && ctx.state !== "running") {
+        for (const track of stream.getTracks()) track.stop();
+        await ctx.close().catch(() => undefined);
+        throw new Error("audio context suspended (no user gesture)");
+      }
     }
     const source = ctx.createMediaStreamSource(stream);
     // ScriptProcessorNode 已废弃但在 Electron/Chromium 稳定可用（Proma 同款）；AudioWorklet

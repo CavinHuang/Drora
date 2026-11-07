@@ -98,11 +98,15 @@ function emitReadyToShow(fake: FakeWindow) {
   for (const cb of fake.onceHandlers.get("ready-to-show") ?? []) cb();
 }
 
-function makeDeps(overrides: Partial<VoiceTranscriptIndicatorDeps> = {}) {
+function makeDeps(
+  overrides: Partial<VoiceTranscriptIndicatorDeps> = {},
+  wrapWindow?: (fake: FakeWindow) => void,
+) {
   const created: FakeWindow[] = [];
   const deps: VoiceTranscriptIndicatorDeps = {
     createWindow: (options) => {
       const fake = makeFakeWindow(options as Record<string, unknown>);
+      wrapWindow?.(fake);
       created.push(fake);
       return fake.win;
     },
@@ -143,9 +147,36 @@ describe("悬浮指示窗生命周期（§5.5 二次增补）", () => {
     expect(options["minimizable"]).toBe(false);
     expect(options["maximizable"]).toBe(false);
     expect(options["fullscreenable"]).toBe(false);
-    // 运行时不再改级（screen-saver 级变更已弃——首按序列异常面之一）。
+    // 运行时不再改级（screen-saver 级变更已弃——独立复现器实证触发主窗延迟隐藏）。
     expect(created[0]!.alwaysOnTop).toEqual([]);
-    expect(created[0]!.allWorkspaces).toEqual([[true, { visibleOnFullScreen: true }]]);
+    // skipTransformProcessType 回归钉（Dock 图标消失机制=进程类型被转 UIElement）。
+    expect(created[0]!.allWorkspaces).toEqual([
+      [true, { visibleOnFullScreen: true, skipTransformProcessType: true }],
+    ]);
+  });
+
+  it("启动期预建：preload 只创建不显示；加载失败退避重试；首按只走 show", async () => {
+    let loadAttempts = 0;
+    const { deps, created } = makeDeps({}, (fake) => {
+      // 模拟 dev Vite 未就绪：首次 loadURL reject，重试成功。
+      const original = fake.win.loadURL.bind(fake.win);
+      fake.win.loadURL = ((url: string) => {
+        loadAttempts += 1;
+        return loadAttempts === 1
+          ? Promise.reject(new Error("ERR_CONNECTION_REFUSED"))
+          : original(url);
+      }) as typeof fake.win.loadURL;
+    });
+    const indicator = createVoiceTranscriptIndicator(deps);
+    indicator.preload();
+    expect(created).toHaveLength(1);
+    expect(created[0]!.showInactiveCalls).toBe(0); // 预建不显示
+    await new Promise((resolve) => setTimeout(resolve, 700)); // 0.5s 退避后第二次尝试
+    expect(loadAttempts).toBeGreaterThanOrEqual(2);
+    emitReadyToShow(created[0]!);
+    indicator.show();
+    expect(created).toHaveLength(1); // 首按不重建（创建已在启动期完成）
+    expect(created[0]!.showInactiveCalls).toBe(1);
   });
 
   it("首次显示门：加载中 show 挂起，ready-to-show 接管；hide 取消待显", () => {

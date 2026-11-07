@@ -494,10 +494,11 @@ export function registerPlatformIpcHandlers(options: {
   );
   // §9.6.10 豆包流式 ASR 通道族：常驻 service（Start/Audio/Abort 三通道共享会话表）；
   // 下行按 streamId 路由到发起 Start 的 sender（窗口销毁吞异常，§16 sink 同款）；
-  // 悬浮指示窗（§5.5 二次增补）：起录 show、结束 hide，Transcript/State 同帧转发。
+  // 悬浮指示窗（§5.5 二次增补，2026-11-07 恒外置定案）：启动期预建 + 按键时刻仅
+  // showInactive（真机三轮实证「按键时刻创建」是 macOS Space/进程类型异常触发面）。
   const transcriptIndicator = (() => {
     const devUrl = process.env["ELECTRON_RENDERER_URL"];
-    return createVoiceTranscriptIndicator({
+    const indicator = createVoiceTranscriptIndicator({
       createWindow: (options) =>
         new BrowserWindow({
           ...options,
@@ -529,6 +530,10 @@ export function registerPlatformIpcHandlers(options: {
       preloadPath: join(import.meta.dirname, "../preload/voice-transcript-preload.cjs"),
       logger: options.logger,
     });
+    // 启动期预建：App 非激活上下文完成窗口创建+页面预载（加载失败自动退避重试）——
+    // 按键时刻只余 showInactive（真机三轮实证的安全面）。
+    indicator.preload();
+    return indicator;
   })();
   {
     const senders = new Map<string, Electron.WebContents>();
@@ -558,19 +563,11 @@ export function registerPlatformIpcHandlers(options: {
       },
     });
     ipcMain.handle(PlatformChannels.VoiceAsrStreamStart, (event, payload: unknown) => {
-      // §5.5 双模路由（Proma usesExternalIndicator 同款，2026-11-07 三轮真机症状后
-      // 从「恒用悬浮窗」回撤）：主窗前台 = 窗口内浮层展示，**不创建外置面板**——macOS
-      // 对「App 激活期首次创建全工作区非激活面板」敏感（真机先后出现：整 App 隐藏 /
-      // Dock 图标消失+主窗沉底，均只在首按创建序列），Proma 的外置条仅在自家非前台
-      // 时创建，此路径它从不执行。主窗非前台（对其他 App 听写）= 外置悬浮条。
-      const senderWindow = BrowserWindow.fromWebContents(event.sender);
-      const useExternalIndicator = senderWindow == null || senderWindow.isFocused() !== true;
-      if (useExternalIndicator) {
-        // 指示窗零等待反馈（真机实证修复）：invoke 即显示——不等 WS 连接（串行链 2s+
-        // 期间用户看到的「按住无反应/闪现即失」）；连接失败经 sendState error 路径 hide。
-        transcriptIndicator.show();
-        transcriptIndicator.send("drora:voice-transcript-show", { streamId: "pending" });
-      }
+      // 恒外置（2026-11-07 定案，前置=启动期预建已完成创建/预载）：按键时刻仅剩
+      // showInactive（真机三轮实证安全）；指示窗零等待反馈——invoke 即显示，不等
+      // WS 连接（串行链 2s+ 的「按住无反应/闪现即失」）；失败经 sendState error 路径 hide。
+      transcriptIndicator.show();
+      transcriptIndicator.send("drora:voice-transcript-show", { streamId: "pending" });
       return doubaoAsr
         .start(payload)
         .then((result) => {
@@ -578,10 +575,8 @@ export function registerPlatformIpcHandlers(options: {
           return result;
         })
         .catch((error: unknown) => {
-          if (useExternalIndicator) {
-            transcriptIndicator.hide();
-            transcriptIndicator.send("drora:voice-transcript-hide", { streamId: "pending" });
-          }
+          transcriptIndicator.hide();
+          transcriptIndicator.send("drora:voice-transcript-hide", { streamId: "pending" });
           throw error;
         });
     });

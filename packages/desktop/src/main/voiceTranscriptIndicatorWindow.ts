@@ -86,6 +86,8 @@ export interface VoiceTranscriptIndicatorDeps {
 }
 
 export interface VoiceTranscriptIndicator {
+  /** 启动期预建：App 非激活上下文创建窗口+预载（不显示）；按键时刻只余 showInactive。 */
+  preload(): void;
   /** 起录显示（幂等：已建窗 setBounds + 就绪即 showInactive；首建加载中由 ready-to-show 门接管）。 */
   show(): void;
   /** 结束/错误隐藏（不销毁——复用避免每句闪烁，Proma hide/show 先例）。 */
@@ -137,11 +139,17 @@ export function createVoiceTranscriptIndicator(
       // 两处缺一即桥断。
       webPreferences: { preload: deps.preloadPath },
     });
-    created.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+    // skipTransformProcessType（2026-11-07）：Electron 文档明示 setVisibleOnAllWorkspaces
+    // 在 macOS 默认「transform the process type」(UIElement ↔ Foreground App)——真机
+    // 「Dock 图标消失 + 主窗沉底」正是进程被转 UIElement(accessory) 的机制；此选项
+    // 专治，必须带上。
+    created.setVisibleOnAllWorkspaces(true, {
+      visibleOnFullScreen: true,
+      skipTransformProcessType: true,
+    });
     // 2026-11-07 弃运行时改级：构造器 alwaysOnTop:true（floating 级）已够压普通窗；
-    // 运行时 setAlwaysOnTop(true,"screen-saver") 是 NSWindow level 变更，发生在首按
-    // 创建序列里（Proma 无此调用），与首按 Space 异常同时在场——按 Proma 平行实现
-    // 移除，异常面收敛到与 Proma 完全同构。
+    // 运行时 setAlwaysOnTop(true,"screen-saver") 是 NSWindow level 变更——独立复现器
+    // 实证其触发主窗延迟隐藏（T4 +5s mainVis=hidden），永久弃用。
     created.once("closed", () => {
       win = null;
     });
@@ -157,19 +165,40 @@ export function createVoiceTranscriptIndicator(
       deps.rendererDevUrl,
       deps.rendererDir,
     );
-    if (entry.url) {
-      created.webContents.once("did-fail-load", (_e, code, desc) => {
-        deps.logger.warn("voice transcript indicator load failed", { code, desc });
-      });
-      void created.loadURL(entry.url);
-    } else if (entry.file) {
-      void created.loadFile(entry.file);
-    }
+    // 加载失败退避重试：启动期预建时 dev Vite 可能未就绪（0.5s/1.5s/4s 三退避）。
+    void (async () => {
+      for (const delayMs of [0, 500, 1500, 4000]) {
+        if (created.isDestroyed()) return;
+        if (delayMs > 0) await new Promise((resolve) => setTimeout(resolve, delayMs));
+        try {
+          if (entry.url) {
+            await created.loadURL(entry.url);
+          } else if (entry.file) {
+            await created.loadFile(entry.file);
+          }
+          return;
+        } catch (error) {
+          deps.logger.warn("voice transcript indicator load failed, retrying", {
+            attemptDelayMs: delayMs,
+            message: error instanceof Error ? error.message.slice(0, 120) : String(error),
+          });
+        }
+      }
+    })();
     win = created;
     return created;
   };
 
   return {
+    /**
+     * 启动期预建（2026-11-07 恒外置定案的关键）：在 App 非激活/无用户交互的上下文
+     * 创建窗口并预载页面（不显示）——真机三轮实证「按键时刻的创建序列」是 macOS
+     * Space/进程类型异常的触发面，而「对已存在窗口 showInactive」从未翻车；预建后
+     * 首按只剩 showInactive。
+     */
+    preload() {
+      ensure();
+    },
     show() {
       const w = ensure();
       if (w.isDestroyed()) return;

@@ -37,9 +37,7 @@ import {
   createVoiceVendorStreamHandler,
 } from "./voiceVendorProxy.js";
 import { createDoubaoAsrService } from "./doubaoAsrService.js";
-import {
-  createVoiceTranscriptIndicator,
-} from "./voiceTranscriptIndicatorWindow.js";
+import { createVoiceTranscriptIndicator } from "./voiceTranscriptIndicatorWindow.js";
 import { resolveCommunityUrl } from "./desktopCommandHandlers.js";
 import { openInEditor } from "./openInEditor.js";
 import {
@@ -504,7 +502,10 @@ export function registerPlatformIpcHandlers(options: {
         new BrowserWindow({
           ...options,
           alwaysOnTop: true,
-          hasShadow: true,
+          // 2026-11-07 修正：透明窗原生阴影按整窗口矩形涂抹（跟不上圆角面板），在面板
+          // 下方透明死区晕出暗色区域（真机截图「黄色区域」问题）；投影由面板自身
+          // boxShadow 提供，原生阴影必须关。
+          hasShadow: false,
           show: false,
           // webPreferences 放 options 之后仅追加安全字段——不能整体覆盖
           //（options.webPreferences.preload 是指示窗桥的唯一注入通道，覆盖即丢失，

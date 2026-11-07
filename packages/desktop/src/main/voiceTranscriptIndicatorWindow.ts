@@ -16,9 +16,14 @@
 import { join } from "node:path";
 import type { BrowserWindow } from "electron";
 
-/** 指示窗尺寸与底边距（Proma INDICATOR_* 同值）。 */
+/**
+ * 指示窗尺寸与底边距（宽度照 Proma INDICATOR_WIDTH）。高度 2026-11-07 修正：recording
+ * 态内容实测 84px（真字体克隆实测）+2px 容差——原 120 在面板下留 36px 透明死区，叠加
+ * 原生 hasShadow 阴影按整窗口矩形（非圆角内容）涂抹，真机截图呈「面板下方暗色空区」
+ * 假象（用户圈问的黄色区域）。内容单行截断（nowrap）保证高度恒定。
+ */
 export const INDICATOR_WIDTH = 480;
-export const INDICATOR_HEIGHT = 120;
+export const INDICATOR_HEIGHT = 86;
 export const INDICATOR_BOTTOM_MARGIN = 28;
 
 /** 最小窗口能力面（测试替身实现用）。 */

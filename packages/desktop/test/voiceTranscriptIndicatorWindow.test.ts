@@ -133,9 +133,10 @@ describe("悬浮指示窗生命周期（§5.5 二次增补）", () => {
     expect(created[0]!.setBoundsCalls).toHaveLength(2);
     expect(indicatorBounds({ x: 0, y: 0, width: 1920, height: 1080 })).toEqual({
       x: 720,
-      y: 932,
+      // 高度贴内容（86=84 实测+2 容差，真机「面板下暗色死区」修复回归钉）。
+      y: 966,
       width: 480,
-      height: 120,
+      height: 86,
     });
   });
 

@@ -1,6 +1,19 @@
 import { decorateRequestSecurityLogArgs } from "./request-security-edition/index.js";
 /* eslint-disable max-lines -- 桌面平台 IPC 集中装配，拆散会让权限边界更难审计；行数随平台能力增长。 */
-import { BrowserWindow, dialog, ipcMain, nativeTheme, net, screen } from "electron";
+import {
+  BrowserWindow,
+  clipboard,
+  dialog,
+  ipcMain,
+  nativeTheme,
+  net,
+  screen,
+  systemPreferences,
+  app,
+} from "electron";
+import { execFile } from "node:child_process";
+import { spawn } from "node:child_process";
+import { createInterface as createReadlineInterface } from "node:readline";
 import { join } from "node:path";
 import WebSocket from "ws";
 import { readDroraStdioTapDevState } from "@drora/services/node";
@@ -37,6 +50,11 @@ import {
   createVoiceVendorStreamHandler,
 } from "./voiceVendorProxy.js";
 import { createDoubaoAsrService } from "./doubaoAsrService.js";
+import { createVoiceGlobalKeyTapService } from "./voiceGlobalKeyTapService.js";
+import {
+  insertTextAtFrontmostCursor,
+  type TextInsertionDeps,
+} from "./voiceTextInsertionService.js";
 import { createVoiceTranscriptIndicator } from "./voiceTranscriptIndicatorWindow.js";
 import { resolveCommunityUrl } from "./desktopCommandHandlers.js";
 import { openInEditor } from "./openInEditor.js";
@@ -611,6 +629,81 @@ export function registerPlatformIpcHandlers(options: {
       // v1 简化：全局停止——由主窗 useVoiceDictation 的 stop 语义按 owner 落地
       //（doubao 流式 stop = last 帧 + 尾句结算，见 §9.6.10 适配器）。
       event.sender.send("drora:voice-transcript-hide", { streamId: "*" });
+    });
+  }
+  // §5.6 系统级听写通道族（2026-11-08）：右 ⌥+右 ⌘ 弦全局触发（原生 key-tap helper，
+  // Electron globalShortcut 注册不了纯修饰键组合且不辨左右）→ renderer toggle；
+  // 全局会话终稿注入前台 App（剪贴板快照+⌘V+还原）。macOS only，Web/手机方法缺席。
+  {
+    const binaryPath = app.isPackaged
+      ? join(process.resourcesPath, "macos-key-tap", "drora-key-tap")
+      : join(import.meta.dirname, "..", "..", "resources", "macos-key-tap", "drora-key-tap");
+    // 广播到应用窗（指示窗/桌宠排除——照 stop-request 路由先例）。
+    const broadcastToAppWindows = (channel: string, payload: unknown) => {
+      for (const window of BrowserWindow.getAllWindows()) {
+        if (window.webContents.isDestroyed()) continue;
+        try {
+          window.webContents.send(channel, payload);
+        } catch {
+          // 窗口已销毁：忽略。
+        }
+      }
+    };
+    const keyTap = createVoiceGlobalKeyTapService({
+      spawnHelper: () => spawn(binaryPath, [], { stdio: ["ignore", "pipe", "ignore"] }),
+      readLines: (child, onLine) => {
+        const stdout = (child as { stdout?: NodeJS.ReadableStream }).stdout;
+        if (stdout) createReadlineInterface({ input: stdout }).on("line", onLine);
+      },
+      resolveTarget: () => (BrowserWindow.getFocusedWindow() != null ? "composer" : "global"),
+      sendTrigger: (event) => broadcastToAppWindows(PlatformChannels.VoiceGlobalTrigger, event),
+      sendState: (frame) => broadcastToAppWindows(PlatformChannels.VoiceGlobalTriggerState, frame),
+    });
+    ipcMain.handle(PlatformChannels.VoiceGlobalTriggerSetEnabled, (_event, payload: unknown) => {
+      const enabled = (payload as { enabled?: unknown })?.enabled === true;
+      if (enabled && process.platform !== "darwin") {
+        return { status: "denied" as const };
+      }
+      if (enabled) {
+        keyTap.start();
+      } else {
+        keyTap.stop();
+      }
+      return {
+        status: keyTap.isRunning() ? ("listening" as const) : ("denied" as const),
+      };
+    });
+    ipcMain.handle(PlatformChannels.VoiceGlobalInsertText, (_event, payload: unknown) => {
+      const text = (payload as { text?: unknown })?.text;
+      if (typeof text !== "string") {
+        return { success: false, errorMessage: "invalid payload" };
+      }
+      const insertionDeps: TextInsertionDeps = {
+        // Electron 44 W3C 异步 clipboard：read()/write() ClipboardItem[]（快照原样回写）。
+        readText: () => clipboard.readText(),
+        readAll: () => clipboard.read(),
+        writeText: (text) => clipboard.writeText(text),
+        writeAll: (items) => clipboard.write(items as Electron.ClipboardItem[]),
+        clear: () => clipboard.clear(),
+        // mac=osascript 合成 ⌘V（System Events keystroke，需辅助功能权限）；
+        // Windows（SendInput）记档不实现（§5.6 v1 macOS only）。
+        triggerPaste: () =>
+          new Promise<void>((resolve, reject) => {
+            execFile(
+              "/usr/bin/osascript",
+              ["-e", 'tell application "System Events" to keystroke "v" using command down'],
+              { timeout: 2000 },
+              (error) => (error ? reject(error) : resolve()),
+            );
+          }),
+        isTrustedAccessibilityClient: () => systemPreferences.isTrustedAccessibilityClient(false),
+        sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+        setTimeoutUnref: (cb, ms) => {
+          const timer = setTimeout(cb, ms);
+          timer.unref?.();
+        },
+      };
+      return insertTextAtFrontmostCursor(text, insertionDeps);
     });
   }
   ipcMain.handle(PlatformChannels.CaptureWindowScreenshot, async (event) => {

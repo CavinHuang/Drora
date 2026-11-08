@@ -493,6 +493,17 @@ export const PlatformChannels = {
   VoiceAsrStreamState: "drora:voice-asr-stream-state",
   VoiceAsrStreamAbort: "drora:voice-asr-stream-abort",
   /**
+   * §5.6 系统级听写（2026-11-08）：Trigger（main→renderer 事件，右 ⌥+右 ⌘ 弦触发，
+   * main 已按前台 App 判定 target=composer|global）→ InsertText（renderer→main
+   * invoke，全局会话终稿注入前台 App）→ TriggerState（main→renderer 事件，输入监控
+   * 权限态变化）。详见 contracts/voice.ts 系统级听写块。
+   */
+  VoiceGlobalTrigger: "drora:voice-global-trigger",
+  VoiceGlobalInsertText: "drora:voice-global-insert-text",
+  VoiceGlobalTriggerState: "drora:voice-global-trigger-state",
+  /** §5.6：renderer→main invoke——开关驱动 key-tap helper 启停（关闭=零常驻进程）。 */
+  VoiceGlobalTriggerSetEnabled: "drora:voice-global-trigger-set-enabled",
+  /**
    * Renderer → Main：`<webview>` guest dom-ready 后上报 webContentsId，
    * main 用 BrowserGuestManager attach 该 guest（fire-and-forget）。CDP-on-guest pivot。
    */
@@ -1329,6 +1340,26 @@ export interface PlatformChannelMap {
   [PlatformChannels.VoiceAsrStreamAbort]: {
     request: { streamId: string };
     response: void;
+  };
+  // §5.6 系统级听写：main→renderer 事件（弦触发 + main 判定的 target）。
+  [PlatformChannels.VoiceGlobalTrigger]: {
+    request: import("./contracts/voice.js").VoiceGlobalTriggerEvent;
+    response: void;
+  };
+  // §5.6：renderer→main invoke——全局会话终稿注入前台 App。
+  [PlatformChannels.VoiceGlobalInsertText]: {
+    request: { text: string };
+    response: import("./contracts/voice.js").VoiceGlobalInsertResult;
+  };
+  // §5.6：main→renderer 事件——输入监控权限态（denied→引导，granted→恢复监听）。
+  [PlatformChannels.VoiceGlobalTriggerState]: {
+    request: import("./contracts/voice.js").VoiceGlobalTriggerStateFrame;
+    response: void;
+  };
+  // §5.6：renderer→main invoke——开关驱动 key-tap helper 启停。
+  [PlatformChannels.VoiceGlobalTriggerSetEnabled]: {
+    request: { enabled: boolean };
+    response: import("./contracts/voice.js").VoiceGlobalTriggerStateFrame;
   };
   // CDP-on-guest pivot：renderer `<webview>` 上报 guest webContentsId → main attach。
   [PlatformChannels.BrowserViewAttachGuest]: {

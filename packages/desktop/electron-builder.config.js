@@ -862,6 +862,13 @@ export default {
             from: "resources/macos-window-bounds/drora-window-bounds",
             to: "macos-window-bounds/drora-window-bounds",
           },
+          {
+            // §5.6 系统级听写全局触发 key-tap（CGEventTap 右 ⌥+右 ⌘ 弦，需「输入监控」
+            // 权限）。缺失时触发服务 spawn 失败走退避重试并终态 denied，设置页开关置灰
+            // fail-closed，不挡安装包。
+            from: "resources/macos-key-tap/drora-key-tap",
+            to: "macos-key-tap/drora-key-tap",
+          },
           // Computer Use Helper 随包资产：整个 .app 原样拷贝，保持其既有代码签名
           // 与 TCC 身份不被破坏。主进程/安装器按
           // process.resourcesPath/cua-helper/<HELPER_APP_NAME> 解析（见

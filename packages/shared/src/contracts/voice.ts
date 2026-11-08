@@ -41,7 +41,33 @@ export const VOICE_SETTINGS_KEYS = {
   dictationHoldKey: "voiceDictationHoldKey",
   // §5.5.2：remote 腿长按期间 webSpeech 实时预览（混合流式）。
   dictationHybridPreview: "voiceDictationHybridPreview",
+  // §5.6：系统级听写总开关（默认 false——需用户显式开启并授予输入监控/辅助功能）。
+  globalDictationEnabled: "voiceGlobalDictationEnabled",
 } as const;
+
+// ---------------------------------------------------------------------------
+// 系统级听写（specs/voice-agent-integration.md §5.6，2026-11-08 立项）
+// ---------------------------------------------------------------------------
+
+/** 弦触发事件（main→renderer）：main 已按前台 App 判定目标。 */
+export interface VoiceGlobalTriggerEvent {
+  /** composer=Drora 前台（走应用内注入链）；global=其他 App 前台（终稿走注入服务）。 */
+  target: "composer" | "global";
+}
+
+/** 终稿注入结果（renderer→main invoke 返回）。 */
+export interface VoiceGlobalInsertResult {
+  /** true=已写入前台 App 光标位置；false=兜底（文本留在剪贴板）。 */
+  success: boolean;
+  /** 失败原因（success=false 时给 UI 提示）。 */
+  errorMessage?: string;
+}
+
+/** 触发器权限态（main→renderer 事件）。 */
+export interface VoiceGlobalTriggerStateFrame {
+  /** listening=key-tap 正常；denied=输入监控未授权（设置页引导）。 */
+  status: "listening" | "denied";
+}
 
 /** 跨窗口 claim 键（经既有 BroadcastHub 通用 claim 通道，Main 不解析语义）。 */
 export const VOICE_BROADCAST_CLAIM_KEY = {

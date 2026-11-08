@@ -99,6 +99,13 @@ const REQUIRED_LOCAL_RUNTIME_ASSETS = [
               join(desktopRoot, "resources", "macos-window-bounds", "drora-window-bounds"),
             ),
         },
+        {
+          // §5.6 系统级听写全局触发 key-tap（缺失时能力 fail-closed 置灰）。
+          label: "macOS key tap helper",
+          script: "prepare:macos-key-tap",
+          isReady: () =>
+            existsSync(join(desktopRoot, "resources", "macos-key-tap", "drora-key-tap")),
+        },
       ]
     : []),
 ];

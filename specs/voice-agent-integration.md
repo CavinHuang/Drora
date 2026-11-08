@@ -481,6 +481,26 @@ composerTextInsertRequest 无回执类型；注入后乐观回 Idle，final 文�
 
 ---
 
+### 5.6 系统级听写——对任意 App 语音输入（2026-11-08 立项，用户裁定）
+
+**目标**：Drora 在后台时，任何 App 里按**右 ⌥+右 ⌘（裸修饰组合，无字母键）**触发听写，转写终稿**写入当前前台 App 的光标位置**；外置悬浮条（§5.5 二次增补）承载过程反馈。
+
+**触发键可行性记档（方案成立前提）**：Electron `globalShortcut` 注册不了纯修饰键组合（accelerator 必须含非修饰键），且不区分左右修饰键——用户指定的「右 ⌥+右 ⌘」唯一路线是原生 **CGEventTap**（Blurt/Karabiner 同路线）：listen-only tap 监听 `flagsChanged`，跟踪右 ⌥（keycode 61）与右 ⌘（keycode 54）状态，**两者同时按下瞬间触发一次 toggle**（任一释放才允许下次触发）；listen-only 不吞事件、不影响其他 App 的正常修饰键使用。helper 形态照 `macos-window-bounds` 先例：`native/macos-key-tap/main.swift` 常驻进程 + stdout 行协议 JSON，由 main spawn/解析。
+
+**权限双项（macOS TCC，两项都要引导）**：
+- **输入监控（Input Monitoring）**——key-tap helper 的事件监听权限；CGEventTapCreate 被拒时 helper 上报 denied 行，main 引导至系统设置对应面板（照 CUA 授权引导先例）。权限主体 = helper 二进制。
+- **辅助功能（Accessibility）**——终稿注入的 `⌘V` 合成（main 经 osascript System Events keystroke，`systemPreferences.isTrustedAccessibilityClient` 探测）。权限主体 = 主进程。
+
+**终稿注入（Proma text-insertion-service 同款实证方案）**：剪贴板全格式快照（text/html/rtf/image/可读 buffer）→ 写入终稿 → osascript 合成 ⌘V（80ms 就绪延迟）→ **10s 后还原原剪贴板**（用户未改动时）→ 失败兜底=文本留在剪贴板+悬浮条提示「已复制到剪贴板」。Windows 路线（SendInput）记档不实现（v1 macOS only）。
+
+**路由（Proma `targetIsProma` 同款）**：chord 触发时按前台 App 判定 target——**前台=Drora → 转发为应用内听写 toggle**（与右 ⌘ 同一状态机，终稿进 composer，注入服务不参与）；**前台=其他 App → 全局会话**（采集照旧在主窗 renderer 跑——后台不受影响，悬浮条展示，终稿走注入）。应用内右 ⌘ 单键与全局 chord 语义互斥无冲突（chord 需两键同按，单 ⌘ 不触发 helper）。
+
+**状态机**：复用 §5.5.1 auto 模式的 toggle 语义（chord 一次=开始/停止切换；无需 keyup，天然适配 tap 触发）。隐私披露门（FD-5）对全局会话同样生效——首次开启需确认。
+
+**v1 边界记档**：触发键固定（右 ⌥+右 ⌘）不可配置（减少设置面，改键需求出现再开）；Windows/Linux 不渲染入口；全局会话终稿注入失败不重试（兜底=剪贴板）；helper 崩溃自动重启（指数退避，上限 3 次/分钟）。
+
+---
+
 ## 6. 设置面设计
 
 ### 6.1 voice 分节开关 × 默认值 × 持久化键 × 广播字段（EG-3 裁决，建议，待拍板）

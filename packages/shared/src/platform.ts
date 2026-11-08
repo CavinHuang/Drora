@@ -1212,6 +1212,20 @@ export interface IPlatformService {
   ): () => void;
   voiceAsrStreamAbort?(payload: { streamId: string }): Promise<void>;
 
+  /**
+   * §5.6 系统级听写（specs/voice-agent-integration.md §5.6）：右 ⌥+右 ⌘ 弦全局触发
+   * （main 原生 key-tap helper）+ 全局会话终稿注入前台 App。Web/手机不实现——
+   * 方法缺席=能力不可用，设置页入口置灰。
+   */
+  onVoiceGlobalTrigger?(
+    handler: (event: import("./contracts/voice.js").VoiceGlobalTriggerEvent) => void,
+  ): () => void;
+  onVoiceGlobalTriggerState?(
+    handler: (frame: import("./contracts/voice.js").VoiceGlobalTriggerStateFrame) => void,
+  ): () => void;
+  voiceGlobalTriggerSetEnabled?(payload: { enabled: boolean }): Promise<import("./contracts/voice.js").VoiceGlobalTriggerStateFrame>;
+  voiceGlobalInsertText?(payload: { text: string }): Promise<import("./contracts/voice.js").VoiceGlobalInsertResult>;
+
   /** 可信宿主导航自己承载的 guest；main 负责本地 HTML 的目录授权。 */
   browserViewLoadUrl?(payload: { webContentsId: number; url: string }): Promise<void>;
 

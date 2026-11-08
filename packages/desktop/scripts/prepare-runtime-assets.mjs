@@ -30,6 +30,8 @@ const localRuntimeScripts = [
   ...(nativeSearchReleasePlan.enabled ? ["prepare:native-search"] : []),
   ...(shouldPrepareWindowsBrowserImportHelper ? ["prepare:browser-import-helper"] : []),
   ...(shouldPrepareMacosWindowBounds ? ["prepare:macos-window-bounds"] : []),
+  // §5.6 系统级听写全局触发 key-tap（与 window-bounds 同为 darwin Swift helper）。
+  ...(shouldPrepareMacosWindowBounds ? ["prepare:macos-key-tap"] : []),
 ];
 
 function runTimedPnpmScript(scriptName) {

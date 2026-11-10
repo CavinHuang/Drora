@@ -1,21 +1,29 @@
 #!/usr/bin/env node
-// mac 发射契约验收（第十五轮：原版 asar 真实调用对齐）。
+// mac 发射契约验收（R10 认证模型换代版，2026-11-10）。
 // 用法：node test/mac-launch-contract.mjs [helper.app]
-//   缺省 helper = packages/desktop/resources/cua-helper（官方 staging 副本）。
+//   缺省 helper = packages/zcode-cua-helper/dist-cua-helper 自建产物。
+// 官方 0.6.5 契约（SEA 逐字证据）：producer 零 token（token 族 0 出现）、
+// LS 发射向量 buildHelperOpenArgs 无 token 参数、helper 无 token 门、
+// authenticate=身份声明（client_type/workspace/session），presentation 角色
+// 由 peerVerdict+peerPresentationEligible 门复核。
 // 覆盖：
-//   A. 一次性 token 文件：`.tokens/.broker-token-<pid>-<16hex>`、目录 0700、
-//      文件 0600、内容即 token、唯一名重试语义。
-//   B. 原版 Uxe 参数序：--socket → --token-file → --presentation-token-file →
-//      --version → --expected-app-bundle-path → --exit-log → --launcher-pid。
-//   C. E2E：以原版完整参数向量直启 helper（产品配方 launcher），authenticate
-//      用 token 过 / 错 token 拒 / broker_info 认领成功。
+//   A. token 链退役（导出移除 + 向量零 token 旗）；
+//   B. 官方参数序：--socket → --version → --expected-app-bundle-path →（变体旗）→
+//      guard(deadline/cancel) → --exit-log → --launcher-pid →（逃生旗）→ --ghost-cursor-overlay → --pip-mode；
+//   C. E2E：完整向量直启 helper（双 dev 逃生旗走 same-uid peer 路径），
+//      authenticate 身份过 / token 参数被忽略 / broker_info 认领成功；
+//   C2. callBrokerMethod 免 token 通路；
+//   F. presentation 角色：same-uid 逃生 + launcher 世系过 / tool 角色不可越权；
+//   H. runtime 消费层免 token env → broker 真值；
+//   G. 真实 LaunchServices 发射（opt-in MAC_LAUNCH_CONTRACT_OPEN=1，免 token 轮询）；
+//   D. services 侧 agent env：不再携带 broker token 键。
 import { spawn, execFileSync } from "node:child_process";
 import { strict as assert } from "node:assert";
 import { connect } from "node:net";
-import { randomBytes, randomUUID } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { randomUUID } from "node:crypto";
+import { existsSync, mkdirSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { join, resolve } from "node:path";
 import process from "node:process";
 
 const packageRoot = new URL("..", import.meta.url).pathname;
@@ -24,112 +32,63 @@ const helperApp =
   resolve(packageRoot, "../zcode-cua-helper/dist-cua-helper/Drora Computer Use.app");
 const mod = await import("../broker/server/helper-launcher.js");
 
-// —— A. token 文件格式 ——
 const home = join(tmpdir(), `cua-launch-${Date.now()}`);
 mkdirSync(home, { recursive: true });
 const socketPath = join(home, "broker.sock");
-const token = randomBytes(32).toString("hex");
-const tokenFile = await mod.writeOneShotHelperTokenFile({ socketPath, token });
-const tokensDir = dirname(tokenFile);
-assert.equal(tokensDir, join(home, ".tokens"), "token dir is <socketDir>/.tokens");
-assert.equal(statSync(tokensDir).mode & 0o777, 0o700, "tokens dir mode 0700");
-assert.match(tokenFile, /\.broker-token-\d+-[0-9a-f]{16}$/, "token filename shape");
-assert.equal(statSync(tokenFile).mode & 0o777, 0o600, "token file mode 0600");
-assert.equal(readFileSync(tokenFile, "utf8"), token, "content is token");
-console.log("A. token file: dir 0700 / file 0600 / name shape OK");
+const exitLogPath = `${socketPath}.exit.log`;
 
-// —— B. 原版参数序 ——
+// —— A. token 链退役（负契约）——
+assert.equal(typeof mod.writeOneShotHelperTokenFile, "undefined", "one-shot token writer retired");
+const probeArgs = mod.JC(
+  { appPath: helperApp, socketPath, version: "3.17.2" },
+  process.pid,
+);
+assert.ok(!probeArgs.includes("--token-file") && !probeArgs.includes("--presentation-token-file"),
+  "launch vector carries no token flags");
+console.log("A. token 链退役：writer 移除 / 向量零 token 旗 OK");
+
+// —— B. 官方参数序（R10 后 JC 实序）——
 const argsDeadline = String(Date.now() + 30000);
 const cancelDir = join(home, ".launch-cancel");
 mkdirSync(cancelDir, { recursive: true });
-const cancelSentinel = join(
-  cancelDir,
-  `.broker-launch-cancel-${randomUUID()}.sentinel`,
-);
-const args = mod.JC({
-  appPath: helperApp,
-  socketPath,
-  tokenFile,
-  presentationTokenFile: "/tmp/presentation-token",
-  version: "3.14.3",
-  expectedAppBundlePath: helperApp,
-  brokerLaunchGuard: {
-    deadlineEpochMs: Number(argsDeadline),
-    cancelFilePath: cancelSentinel,
+const cancelSentinel = join(cancelDir, `.broker-launch-cancel-${randomUUID()}.sentinel`);
+const args = mod.JC(
+  {
+    appPath: helperApp,
+    socketPath,
+    version: "3.17.2",
+    expectedAppBundlePath: helperApp,
+    brokerLaunchGuard: { deadlineEpochMs: Number(argsDeadline), cancelFilePath: cancelSentinel },
+    exitLogPath,
+    allowUnsignedLauncherLocalDev: true,
+    allowExternalBrokerClientLocalDev: true,
+    ghostCursorOverlay: true,
+    pipMode: true,
   },
-  exitLogPath: `${socketPath}.exit.log`,
-  ghostCursorOverlay: true,
-  pipMode: true,
-}, process.pid);
-const expectedPrefix = [
+  process.pid,
+);
+const expectedVector = [
   "-n", "-g", helperApp, "--args",
   "--socket", socketPath,
-  "--token-file", tokenFile,
-  "--presentation-token-file", "/tmp/presentation-token",
-  "--version", "3.14.3",
+  "--version", "3.17.2",
   "--expected-app-bundle-path", helperApp,
   "--broker-launch-deadline-epoch-ms", argsDeadline,
   "--broker-launch-cancel-file", cancelSentinel,
-  "--exit-log", `${socketPath}.exit.log`,
+  "--exit-log", exitLogPath,
   "--launcher-pid", String(process.pid),
+  "--allow-unsigned-launcher-local-dev",
+  "--allow-external-broker-client-local-dev",
   "--ghost-cursor-overlay",
   "--pip-mode",
 ];
-assert.deepEqual(args, expectedPrefix);
-console.log("B. arg vector matches original Uxe order");
+assert.deepEqual(args, expectedVector);
+console.log("B. arg vector matches official 0.6.5 order (token-free)");
 
-// —— C. 原版向量 E2E ——
-// E2E 段（C/C2/F）需要：① 可执行 helper（官方 staging 或自建产物）；
-// ② 产品 launcher 祖先（ZCode 签名进程）——CI runner 没有，设
-// MAC_LAUNCH_CONTRACT_E2E=0 时只跑离线段（A/B），供 CI 锁发射契约形状。
-// 全新 checkout 无官方 staging 资产时自动降级为离线段（与 CI 的 E2E=0 等效）。
+// —— C. E2E（官方向量直启；需可执行 helper，CI 可 MAC_LAUNCH_CONTRACT_E2E=0 跳过）——
 const runE2E =
-  process.env.MAC_LAUNCH_CONTRACT_E2E !== "0" && existsSync(join(helperApp, "Contents", "MacOS", "Drora Computer Use"));
-const launcherPid = (() => {
-  let pid = process.pid;
-  for (let i = 0; i < 16; i += 1) {
-    const out = execFileSync("ps", ["-o", "ppid=", "-p", String(pid)], { encoding: "utf8" }).trim();
-    const ppid = Number.parseInt(out, 10);
-    if (!Number.isInteger(ppid) || ppid <= 1) break;
-    pid = ppid;
-  }
-  return pid;
-})();
+  process.env.MAC_LAUNCH_CONTRACT_E2E !== "0" &&
+  existsSync(join(helperApp, "Contents", "MacOS", "Drora Computer Use"));
 const exe = join(helperApp, "Contents", "MacOS", "Drora Computer Use");
-if (runE2E) {
-assert.ok(existsSync(exe), "helper executable exists");
-const exitLogPath = `${socketPath}.exit.log`;
-const presentationToken = randomBytes(32).toString("hex");
-const presentationTokenFile = join(home, ".tokens", "presentation-token");
-writeFileSync(presentationTokenFile, presentationToken, { mode: 0o600 });
-const child = spawn(
-  exe,
-  [
-    "--socket", socketPath,
-    "--token-file", tokenFile,
-    "--presentation-token-file", presentationTokenFile,
-    "--version", "3.14.3",
-    "--expected-app-bundle-path", helperApp,
-    "--exit-log", exitLogPath,
-    "--launcher-pid", String(launcherPid),
-    "--ghost-cursor-overlay",
-    "--pip-mode",
-  ],
-  { stdio: ["ignore", "pipe", "pipe"] },
-);
-let stdout = "";
-child.stdout.on("data", (d) => (stdout += d));
-const ready = await new Promise((res) => {
-  const deadline = Date.now() + 30000;
-  const poll = () => {
-    if (stdout.includes('"ready":true') || child.exitCode !== null || Date.now() > deadline) {
-      return res(stdout.includes('"ready":true'));
-    }
-    setTimeout(poll, 200);
-  };
-  poll();
-});
-assert.ok(ready, `helper ready (stderr tail: ${stdout.slice(-200)})`);
 const exchange = (requests) =>
   new Promise((res, rej) => {
     const sock = connect(socketPath);
@@ -155,133 +114,126 @@ const exchange = (requests) =>
     });
     setTimeout(() => (sock.destroy(), rej(new Error("exchange timeout"))), 10000);
   });
-const replies = await exchange([
-  { id: 1, method: "authenticate", params: { token } },
-  { id: 2, method: "broker_info", params: {} },
-]);
-assert.equal(replies[0].ok, true, "token authenticate passes");
-assert.equal(replies[1].ok, true, "broker_info claim with token passes");
-const bad = await exchange([{ id: 3, method: "authenticate", params: { token: "wrong" } }]);
-assert.equal(bad[0].ok, false, "wrong token rejected");
-assert.equal(bad[0].error?.code, "not_authorized");
-// callBrokerMethod 的 token 通路（同一条存活连接面上验证）
-const broker = await import("../broker/index.js");
-// 用只读方法（screen_capture_status）：ping 不在 READ_ONLY 集，会触发 controller
-// 租约仲裁——测试进程树外的生产 helper 持全局租约时必 busy，属环境噪声。
-const pinged = await broker.callBrokerMethod({
-  socketPath,
-  method: "screen_capture_status",
-  token,
-  timeoutMs: 3000,
-});
-assert.ok(pinged === "unknown" || typeof pinged === "string", "callBrokerMethod with token works");
-let rejected = false;
-try {
-  await broker.callBrokerMethod({
+if (runE2E) {
+  assert.ok(existsSync(exe), "helper executable exists");
+  // 同源新向量的裸 args 直启（官方门序：无 --launcher-pid → launcher 门整体跳过；
+  // 双逃生旗（路线 A 折叠 allow=true 的产物）使 unsigned 测试进程按 same-uid
+  // peer 逃生接入，presentation 走官方「双逃生并开」短路）。
+  const child = spawn(
+    exe,
+    [
+      "--socket", socketPath,
+      "--version", "3.17.2",
+      "--expected-app-bundle-path", helperApp,
+      "--exit-log", exitLogPath,
+      "--allow-unsigned-launcher-local-dev",
+      "--allow-external-broker-client-local-dev",
+      "--ghost-cursor-overlay",
+      "--pip-mode",
+    ],
+    { stdio: ["ignore", "pipe", "pipe"] },
+  );
+  let stdout = "";
+  child.stdout.on("data", (d) => (stdout += d));
+  const ready = await new Promise((res) => {
+    const deadline = Date.now() + 30000;
+    const poll = () => {
+      if (stdout.includes('"ready":true') || child.exitCode !== null || Date.now() > deadline) {
+        return res(stdout.includes('"ready":true'));
+      }
+      setTimeout(poll, 200);
+    };
+    poll();
+  });
+  assert.ok(ready, `helper ready (stdout tail: ${stdout.slice(-300)})`);
+  // C. 身份声明过认领；token 参数被官方语义忽略（带伪 token 仍 ok）。
+  const replies = await exchange([
+    { id: 1, method: "authenticate", params: { client_type: "zcode_cua_mcp" } },
+    { id: 2, method: "broker_info", params: {} },
+  ]);
+  assert.equal(replies[0].ok, true, "identity authenticate passes");
+  assert.equal(replies[1].ok, true, "broker_info claim passes");
+  assert.equal(replies[1].result?.bundle_id, "dev.drora.cua-helper", "broker_info identity");
+  const bogusToken = await exchange([
+    { id: 3, method: "authenticate", params: { client_type: "zcode_cua_mcp", token: "bogus-token-ignored" } },
+  ]);
+  assert.equal(bogusToken[0].ok, true, "token param ignored per official 0.6.5");
+  console.log("C. E2E: identity authenticate / broker_info claim / token param ignored OK");
+
+  // C2. callBrokerMethod 免 token 通路（只读方法，不触 controller 仲裁）。
+  const broker = await import("../broker/index.js");
+  const pinged = await broker.callBrokerMethod({
     socketPath,
     method: "screen_capture_status",
-    token: "wrong-token",
     timeoutMs: 3000,
   });
-} catch (error) {
-  rejected = /auth/i.test(error?.message ?? "");
-}
-assert.ok(rejected, "callBrokerMethod with wrong token rejected as auth error");
-// F. presentation 角色：PiP 方法须 presentation 权限，工具角色不可越权
-const pipExchange = (requests) => exchange(requests);
-const presReplies = await pipExchange([
-  { id: 1, method: "authenticate", params: { token: presentationToken } },
-  { id: 2, method: "pip_session_handshake", params: {} },
-]);
-assert.equal(presReplies[0].ok, true, "presentation token authenticate passes");
-assert.equal(presReplies[0].result?.role, "presentation", "role is presentation");
-assert.notEqual(
-  presReplies[1].error?.message ?? "",
-  "PiP session methods require presentation authority",
-  "presentation role passes the pip authority gate",
-);
-const toolRolePip = await pipExchange([
-  { id: 1, method: "authenticate", params: { token } },
-  { id: 2, method: "pip_session_handshake", params: {} },
-]);
-assert.equal(toolRolePip[1].ok, false, "tool role cannot invoke pip methods");
-assert.match(toolRolePip[1].error?.message ?? "", /presentation authority/);
-// SIGTERM 触发优雅 drain；无 AX 授权的 adhoc 产物上 post-drain mouseUp 会失败，
-// 按原版语义 refuse unsafe shutdown（不退出，两侧代码一致）→ 测试用 SIGKILL 兜底。
-  // H. runtime 消费层 token 端到端（node_repl 宿主的实际入口）：
-  // createComputerUseRuntime 从 env 读 socket/token → brokerExchange 自动
-  // authenticate → 只读方法成功；错 token 时 authenticate 被拒。
+  assert.ok(typeof pinged === "string", `callBrokerMethod token-free works (got ${JSON.stringify(pinged)})`);
+  console.log("C2. callBrokerMethod token-free passthrough OK");
+
+  // F. presentation 角色：same-uid 逃生 verdict + launcher 世系（本测试进程直系）→ 过；
+  // tool 角色调用 pip 会话方法 → presentation authority 拒。
+  const presReplies = await exchange([
+    { id: 1, method: "authenticate", params: { client_type: "zcode_cua_mcp", role: "presentation" } },
+    { id: 2, method: "pip_session_handshake", params: {} },
+  ]);
+  assert.equal(presReplies[0].ok, true, "presentation role authenticate passes (escape+lineage)");
+  assert.equal(presReplies[0].result?.role, "presentation", "role is presentation");
+  assert.notEqual(
+    presReplies[1].error?.message ?? "",
+    "PiP session methods require presentation authority",
+    "presentation role passes the pip authority gate",
+  );
+  const toolRolePip = await exchange([
+    { id: 1, method: "authenticate", params: { client_type: "zcode_cua_mcp" } },
+    { id: 2, method: "pip_session_handshake", params: {} },
+  ]);
+  assert.equal(toolRolePip[1].ok, false, "tool role cannot invoke pip methods");
+  assert.match(toolRolePip[1].error?.message ?? "", /presentation authority/);
+  console.log("F. presentation role: escape+lineage pass / tool role rejected OK");
+
+  // H. runtime 消费层：免 token env → authenticate → broker 真值。
   const runtime = await import("../runtime.js");
   const rt = runtime.createComputerUseRuntime({
     brokerSocketPath: socketPath,
-    env: { DRORA_CUA_PERMISSION_BROKER_TOKEN: token },
+    env: {},
   });
   const status = await rt.execute({ toolName: "screen_capture_status", arguments: {} });
-  // adhoc 产物无屏幕录制授权时真实值为 "denied"；断言点在"认证通过并拿到 broker 真值"
   assert.ok(
     ["granted", "denied", "unknown", "not-determined"].includes(status),
-    `runtime execute with token returns broker status (got ${JSON.stringify(status)})`,
+    `runtime execute token-free returns broker status (got ${JSON.stringify(status)})`,
   );
-  const rtBad = runtime.createComputerUseRuntime({
-    brokerSocketPath: socketPath,
-    env: { DRORA_CUA_PERMISSION_BROKER_TOKEN: "wrong" },
-  });
-  await assert.rejects(
-    () => rtBad.execute({ toolName: "screen_capture_status", arguments: {} }),
-    (error) => /auth/i.test(error?.message ?? ""),
-    "runtime execute with wrong token auth-rejected",
-  );
-  console.log("H. runtime consumer layer: token env → authenticate → broker result OK");
-  child.kill();
-  setTimeout(() => { try { child.kill(9); } catch {} }, 2000);
-child.stdout.destroy();
-child.stderr.destroy();
-await new Promise((r) => setTimeout(r, 300));
-console.log("C. full original vector E2E: ready / token auth / broker_info / bad-token rejected");
-console.log("C2. callBrokerMethod token passthrough (screen_capture_status): ok / wrong-token auth-rejected");
-console.log("F. presentation role: pip gate passes with presentation token / tool role rejected");
-console.log(existsSync(exitLogPath) ? "   exit-log file written" : "   exit-log not yet flushed (non-fatal)");
+  console.log("H. runtime consumer layer: token-free env → broker result OK");
 
-// —— G. 真实 LaunchServices 发射（生产路径，opt-in：MAC_LAUNCH_CONTRACT_OPEN=1）——
-// 前序段落都是直连可执行文件 spawn；生产实际走 `/usr/bin/open` 经 LaunchServices：
-// 不继承测试进程 env（token 只能靠文件交付）、stdout 不可见（ready 只能靠 socket 探测）。
-// 本段以原版 q9 白名单环境发起真实 open，验证 token 文件交付 + LS 接单 + 认领 + 终止。
-if (process.env.MAC_LAUNCH_CONTRACT_OPEN === "1" && runE2E) {
-  const openSocketPath = join(home, "open-broker.sock");
-  const openToken = randomBytes(32).toString("hex");
-  const openTokenFile = await mod.writeOneShotHelperTokenFile({
-    socketPath: openSocketPath,
-    token: openToken,
-  });
-  // launcher = 进程树顶端最近的桌面主进程（dev.zcode.app/8A5X4JJ39T，与场景二同配方）
-  const openArgs = mod.JC(
-    {
-      appPath: helperApp,
-      socketPath: openSocketPath,
-      tokenFile: openTokenFile,
-      exitLogPath: `${openSocketPath}.exit.log`,
-    },
-    launcherPid,
-  );
-  // q9 白名单环境（证明 helper 不依赖测试进程的任何其它 env）
-  const openEnv = {};
-  for (const key of ["HOME", "TMPDIR", "TMP", "TEMP", "USER", "LOGNAME", "SHELL", "TERM", "LANG"]) {
-    if (process.env[key]) openEnv[key] = process.env[key];
-  }
-  openEnv.PATH = "/usr/bin:/bin:/usr/sbin:/sbin";
-  const { execFileSync: efs } = await import("node:child_process");
-  efs("/usr/bin/open", openArgs, { env: openEnv, timeout: 10000 });
-  // stdout 不可见：轮询 socket connect + token authenticate 直到 ready
-  let lastErr = null;
-  const pollAuth = async () => {
-    try {
-      const replies = await new Promise((res, rej) => {
-        const sock = connect(openSocketPath);
+  // G. 真实 LaunchServices 发射（opt-in；免 token，身份轮询认领）。
+  if (process.env.MAC_LAUNCH_CONTRACT_OPEN === "1") {
+    const openSocketPath = join(home, "open-broker.sock");
+    const openArgs = mod.JC(
+      {
+        appPath: helperApp,
+        socketPath: openSocketPath,
+        exitLogPath: `${openSocketPath}.exit.log`,
+        allowUnsignedLauncherLocalDev: true,
+        allowExternalBrokerClientLocalDev: true,
+      },
+      process.pid,
+    );
+    const openEnv = {};
+    for (const key of ["HOME", "TMPDIR", "TMP", "TEMP", "USER", "LOGNAME", "SHELL", "TERM", "LANG"]) {
+      if (process.env[key]) openEnv[key] = process.env[key];
+    }
+    openEnv.PATH = "/usr/bin:/bin:/usr/sbin:/sbin";
+    const { execFileSync: efs } = await import("node:child_process");
+    efs("/usr/bin/open", openArgs, { env: openEnv, timeout: 10000 });
+    let openReplies = null;
+    let lastErr = null;
+    const ask = (sockPath) =>
+      new Promise((res, rej) => {
+        const sock = connect(sockPath);
         let buf = "";
         const out = [];
         sock.on("error", (e) => (sock.destroy(), rej(e)));
         sock.on("connect", () => {
-          sock.write(JSON.stringify({ id: 1, method: "authenticate", params: { token: openToken } }) + "\n");
+          sock.write(JSON.stringify({ id: 1, method: "authenticate", params: { client_type: "zcode_cua_mcp" } }) + "\n");
           sock.write(JSON.stringify({ id: 2, method: "broker_info", params: {} }) + "\n");
         });
         sock.on("data", (d) => {
@@ -300,63 +252,60 @@ if (process.env.MAC_LAUNCH_CONTRACT_OPEN === "1" && runE2E) {
         });
         setTimeout(() => (sock.destroy(), rej(new Error("open poll timeout"))), 3000);
       });
-      return replies;
-    } catch (error) {
-      lastErr = error?.message ?? String(error);
-      return null;
+    const openDeadline = Date.now() + 25000;
+    while (Date.now() < openDeadline) {
+      try {
+        openReplies = await ask(openSocketPath);
+        if (openReplies?.[0]?.ok === true) break;
+      } catch (error) {
+        lastErr = error?.message ?? String(error);
+      }
+      await new Promise((r) => setTimeout(r, 300));
     }
-  };
-  let openReplies = null;
-  const openDeadline = Date.now() + 25000;
-  while (Date.now() < openDeadline) {
-    openReplies = await pollAuth();
-    if (openReplies && openReplies[0]?.ok === true) break;
-    await new Promise((r) => setTimeout(r, 300));
+    if (openReplies?.[0]?.ok !== true) {
+      console.log("DIAG lastErr:", lastErr);
+      const logP = `${openSocketPath}.exit.log`;
+      if (existsSync(logP)) console.log("DIAG exit-log:", readFileSync(logP, "utf8").slice(-800));
+    }
+    assert.ok(openReplies?.[0]?.ok === true, "LS launch: identity authenticate passes");
+    assert.equal(openReplies[1]?.result?.bundle_id, "dev.drora.cua-helper", "LS launch broker_info claims");
+    const helperPid = openReplies[1].result.pid;
+    console.log(`G. real LaunchServices open: token-free claim (helper pid=${helperPid})`);
+    process.kill(helperPid);
+    setTimeout(() => { try { process.kill(helperPid, 9); } catch {} }, 2000);
+    await new Promise((r) => setTimeout(r, 500));
   }
-  if (openReplies?.[0]?.ok !== true) {
-    console.log("DIAG lastErr:", lastErr);
-    console.log("DIAG exit-log:", readFileSync(`${openSocketPath}.exit.log`, "utf8").slice(-800));
-  }
-  assert.ok(openReplies?.[0]?.ok === true, "LS launch: token file delivered, authenticate passes");
-  assert.equal(openReplies[1]?.result?.bundle_id, "dev.drora.cua-helper", "LS launch broker_info claims");
-  const helperPid = openReplies[1].result.pid;
-  console.log(`G. real LaunchServices open: LS accepted args, token file delivered (helper pid=${helperPid})`);
-  process.kill(helperPid);
-  setTimeout(() => { try { process.kill(helperPid, 9); } catch {} }, 2000);
-  await new Promise((r) => setTimeout(r, 500));
-}
+
+  child.kill();
+  setTimeout(() => { try { child.kill(9); } catch {} }, 2000);
+  child.stdout.destroy();
+  child.stderr.destroy();
+  await new Promise((r) => setTimeout(r, 300));
+  console.log(existsSync(exitLogPath) ? "   exit-log file written" : "   exit-log not yet flushed (non-fatal)");
 } // end runE2E
 
-
-
-// —— D. services 侧 agent env 分支：host 带 token → env 注入 token 键 ——
-// 直接验证 buildCuaProductHelperAgentEnv 对"带 token 的 host"注入
-// DRORA_CUA_PERMISSION_BROKER_TOKEN（最小 fake host，走 transport 分支）。
-// services dist 依赖 tsconfig 路径映射，plain node 多数不可加载；可加载则验证 D 段。
-const services = await import(resolve(
-  packageRoot,
-  "../../services/dist/node.js",
-)).catch(() => null);
+// —— D. services 侧 agent env：token 键退役（fake host 走 transport 分支）——
+const services = await import(resolve(packageRoot, "../../services/dist/node.js")).catch(() => null);
 if (services?.buildCuaProductHelperAgentEnv) {
   const fakeHost = {
     running: true,
     socketPath,
     pluginAuthority: "authority-x",
-    token,
-    presentationToken: randomBytes(32).toString("hex"),
     async start() {
-      return { socketPath, pluginAuthority: "authority-x", token };
+      return { socketPath, pluginAuthority: "authority-x" };
     },
     async checkHealth() {
       return { ok: true };
     },
   };
   const env = await services.buildCuaProductHelperAgentEnv(fakeHost);
-  assert.equal(env.DRORA_CUA_PERMISSION_BROKER_TOKEN, token, "agent env carries token");
-  console.log("D. agent spawn env carries DRORA_CUA_PERMISSION_BROKER_TOKEN");
+  assert.equal(env.DRORA_CUA_PERMISSION_BROKER_TOKEN, undefined, "agent env carries no broker token");
+  assert.equal(env.ZCODE_CUA_PERMISSION_BROKER_TOKEN, undefined, "agent env carries no ZCODE broker token either");
+  assert.equal(env.ZCODE_CUA_PERMISSION_BROKER_SOCKET, socketPath, "agent env carries socket (ZCODE_ face)");
+  console.log("D. agent spawn env: token-free / socket ZCODE_ face OK");
 } else {
   console.log("D. services dist 未构建，跳过（agent env 分支由 typecheck+人工覆盖）");
 }
 
 rmSync(home, { recursive: true, force: true });
-console.log("\nmac 发射契约验收通过 ✓");
+console.log("\nmac 发射契约验收通过 ✓（R10 认证模型换代版）");

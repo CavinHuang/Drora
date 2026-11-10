@@ -32,6 +32,9 @@ test:unit:affected、test:coverage 或 lint-staged 测试入口。
   scripts/drora-test-files.json；真实进程/发布类串行隔离组（vitest 工程 drora-fork-isolated）清单见
   scripts/drora-isolated-test-files.json，用 pnpm exec vitest run --project drora-fork-isolated 执行。
   双清单由 scripts/upstream/generate-drora-test-files.mjs 生成并在各段删除测试后重跑收敛。
+  入口带文件参数时按归属分流（scripts/run-drora-tests.mjs）：清单内文件/目录/未知 filter 仍原样交给
+  vitest run --project drora；精确命中 node:test 保留集的文件改由 node --import tsx --test 执行
+  （node:test 套件按契约不在 vitest 清单内，直接给 vitest 必然 "No test files found"）。
 - node:test 保留集：pnpm test:unit:node（scripts/run-node-unit-tests.mjs 发现机制，不进 Vitest 清单）；
   CLI 全包回归入口 pnpm test:upstream-cli。
 - 工程执行工具回归：pnpm test:engineering-tools。

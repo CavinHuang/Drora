@@ -26,14 +26,16 @@ import process from "node:process";
 
 const packageRoot = new URL("..", import.meta.url).pathname;
 const OURS = process.argv[2] ?? resolve(packageRoot, "dist-cua-helper/Drora Computer Use.app");
-// 双轨参照（第五十一轮）：官方 3.14.3 收紧了连接级 peer 验证（原生签名校验，
-// "cua broker rejected connection: peer verification failed"），拒绝一切非
-// ZCode 签名进程的 broker 质询——本 harness（无签名 node）从此无法质询 3.14.3
-// 的方法面。因此：
-//   形态锚 ORIG_FORM = 3.14.3 staging（随包字节/版本/启动门——无需连接质询的面）；
+// 双轨参照（第五十一轮建立；第六十七轮换锚）：官方 3.14.3 起收紧了连接级 peer
+// 验证（原生签名校验，"cua broker rejected connection: peer verification
+// failed"），拒绝一切非 ZCode 签名进程的 broker 质询——本 harness（无签名 node）
+// 从此无法质询 3.14.3+ 的方法面。因此：
+//   形态锚 ORIG_FORM = 3.17.2 staging（specs/cua-3.17.2-alignment.md 对齐权威；
+//     随包字节/版本/启动门——无需连接质询的面；3.14.3 副本已转
+//     cua-helper-3.14.3-reference/ 供切段/字节对账用）；
 //   行为锚 ORIG_BEHAVIOR = 3.11.2 reference（连接/方法面 parity 锚定官方最后
-//   一个可质询版本；本机 /Applications/ZCode_副本.app 的随包 Helper）。
-// 3.14.3 peer 收紧与路线 A（ad-hoc 桌面宿主）不兼容：照搬会拒掉自家宿主，
+//   一个可质询版本）。
+// peer 收紧与路线 A（ad-hoc 桌面宿主）不兼容：照搬会拒掉自家宿主，
 // 属签名身份决策的前置项，见 spec §七.2 与 manifest 第五十一轮。
 const ORIG_FORM =
   process.argv[3] ?? resolve(packageRoot, "../desktop/resources/cua-helper/ZCode Computer Use.app");
@@ -47,7 +49,7 @@ const appExeName = (app) =>
   basename(app).startsWith("Drora") ? "Drora Computer Use" : "ZCode Computer Use";
 for (const [label, app] of [
   ["ours", OURS],
-  ["form-orig(3.14.3)", ORIG_FORM],
+  ["form-orig(3.17.2)", ORIG_FORM],
   ["behavior-orig(3.11.2)", ORIG_BEHAVIOR],
 ]) {
   if (!existsSync(join(app, "Contents", "MacOS", appExeName(app)))) {

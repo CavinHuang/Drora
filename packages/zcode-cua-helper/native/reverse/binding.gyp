@@ -5,18 +5,26 @@
   "targets": [
     {
       "target_name": "ax_native_win",
-      "sources": ["src/ax_native_win.cc"],
+      "sources": [
+        "src/ax_native_win.cc"
+      ],
       "include_dirs": [
         "node_modules/node-addon-api",
         "<(win_sdk)/cppwinrt",
         "<(win_sdk)/um",
         "<(win_sdk)/shared"
       ],
-      "defines": ["NAPI_DISABLE_CPP_EXCEPTIONS", "NAPI_VERSION=9"],
+      "defines": [
+        "NAPI_DISABLE_CPP_EXCEPTIONS",
+        "NAPI_VERSION=9"
+      ],
       "msvs_settings": {
         "VCCLCompilerTool": {
           "ExceptionHandling": 1,
-          "AdditionalOptions": ["/utf-8", "/permissive-"]
+          "AdditionalOptions": [
+            "/utf-8",
+            "/permissive-"
+          ]
         }
       },
       "conditions": [
@@ -39,6 +47,38 @@
                   "runtimeobject.lib"
                 ]
               }
+            }
+          }
+        ]
+      ]
+    },
+    {
+      "target_name": "ax_native_mac_rebuilt",
+      "sources": [
+        "src/ax_native_mac.mm"
+      ],
+      "include_dirs": [
+        "../../../../node_modules/node-addon-api"
+      ],
+      "defines": [
+        "NAPI_DISABLE_CPP_EXCEPTIONS",
+        "NAPI_VERSION=9"
+      ],
+      "conditions": [
+        [
+          "OS=='mac'",
+          {
+            "xcode_settings": {
+              "CLANG_CXX_LANGUAGE_STANDARD": "c++17",
+              "MACOSX_DEPLOYMENT_TARGET": "12.0",
+              "OTHER_LDFLAGS": [
+                "-framework",
+                "AppKit",
+                "-framework",
+                "ApplicationServices",
+                "-framework",
+                "CoreGraphics"
+              ]
             }
           }
         ]

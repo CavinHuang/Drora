@@ -84,8 +84,21 @@ async function readInstalledRuntimePackage() {
       if (error?.code !== "ENOENT") throw error;
     }
   }
+  // 修复（R4.2，方案 specs/cua-gap-remediation-2026-11-09.md）：此前这里只有一行
+  // 候选路径就 exit 1，失败原因不可辨识（是漏 pnpm install，还是本仓 zone-decision
+  // 布局下本就不装 @zcode/zcode-cua producer）。保持非零退出（CI 门语义不变），
+  // 但给出显式诊断路径：① 安装态问题 → pnpm install；② 布局差异 → --runtime-package-dir
+  // 显式指定；③ 本仓开源树（workspace 包 packages/zcode-cua 替代 producer 安装）下
+  // 本门禁不适用，应在装有依赖锁 producer 的环境（CI cua-version-check）运行。
   console.error(
     `[cua-version] installed Helper runtime package is unavailable: ${candidates.join(", ")}`,
+  );
+  console.error(
+    "[cua-version] 诊断路径：\n" +
+      "  1) 若依赖锁声明了 @zcode/zcode-cua（catalog 或直连 git 锁），先在仓库根运行 pnpm install 后重试；\n" +
+      "  2) producer 安装在非默认位置时，用 --runtime-package-dir <dir> 显式指定其 package.json 所在目录；\n" +
+      "  3) 本仓开源树已用 workspace 包 packages/zcode-cua 替代 @zcode/zcode-cua producer 安装，\n" +
+      "     该环境下本门禁属预期失败——请在装有依赖锁 producer 的环境（CI cua-version-check）运行。",
   );
   process.exit(1);
 }

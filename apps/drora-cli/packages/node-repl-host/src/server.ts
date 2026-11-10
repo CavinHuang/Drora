@@ -453,11 +453,12 @@ if (!isMainThread && isWorkerCallData(workerData)) {
 export function captureComputerUseRuntimeFromEnvironment(
   env: NodeJS.ProcessEnv = process.env,
 ): ComputerUseRuntime | undefined {
-  const socketPath = env.DRORA_CUA_PERMISSION_BROKER_SOCKET?.trim();
+  // R10 键归一：切段消费 ZCODE_ 名（45:2 实证），producer 注入面已切 ZCODE_；DRORA_ 旧值兜底一轮。
+  const socketPath = env.ZCODE_CUA_PERMISSION_BROKER_SOCKET?.trim() ?? env.DRORA_CUA_PERMISSION_BROKER_SOCKET?.trim();
   if (!socketPath) return undefined;
   return createComputerUseRuntime({
     brokerSocketPath: socketPath,
-    refreshMarkerPath: env.DRORA_CUA_PERMISSION_BROKER_REFRESH_MARKER?.trim(),
+    refreshMarkerPath: env.ZCODE_CUA_PERMISSION_BROKER_REFRESH_MARKER?.trim() ?? env.DRORA_CUA_PERMISSION_BROKER_REFRESH_MARKER?.trim(),
   });
 }
 

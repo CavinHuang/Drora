@@ -39,7 +39,7 @@ import { randomBytes as Sse, randomUUID } from "node:crypto";
 import { Cb, Dse, bb, jW, qc, use } from "./helper-installer.js";
 import { CuaHelperError, callBrokerMethod, probeHelperHealth } from "../index.js";
 import { $z } from "./helper-verifier.js";
-import { Ez, Fz, Hc, Mz, Ss, Tz, YC, ha, qC, xz } from "./helper-launcher.js";
+import { Ez, Fz, Hc, Mz, Ss, Tz, YC, ha, qC, xz, disableMultiCursorOverlayRequested } from "./helper-launcher.js";
 import { Hr, bn } from "./trust-policy.js";
 import { NC, jU } from "./cua-spec.js";
 import { Ps, cb, db, lb, sb } from "./orphan-reaper.js";
@@ -197,7 +197,11 @@ export function vse(e) {
     // 路线 A 分发（第五十轮）：adhoc 包的自建 Helper 以产品 bundle id 分发
     // （build-cua-helper-app.mjs --identifier 签名、无证书链），复核放宽到产品
     // id 的 identifier 锚；dev 线仍限隔离 dev id，语义不变。
-    let n = e.adhocDistribution === true ? Ss : DEV_CUA_HELPER_BUNDLE_ID_VALUE;
+    // 修复原因（2026-11-09）：2026-09-28 改名裁定漏网点（同 orphan-reaper.ts Nh）——
+    // 锚值 Ss/DEV_CUA_HELPER_BUNDLE_ID_VALUE 是还原区官方 id，自建 Helper 实际是
+    // Drora 身份（单一出处 broker-helper-constants.js），live 复核恒拒。锚值随
+    // Drora 常量树走（rootDir 折叠故内联，test/restored-smoke.mjs 钉一致性）。
+    let n = e.adhocDistribution === true ? "dev.drora.cua-helper" : "dev.drora.cua-helper.dev";
     if (t !== n)
       throw new qn(
         "Ad-hoc Computer Use Helper live verification is restricted to the isolated dev bundle identifier",
@@ -476,7 +480,10 @@ export async function KW(e) {
   };
 }
 
-export var $se = Ss,
+// 修复原因（2026-11-09）：2026-09-28 改名裁定漏网点（同 vse/Nh）——host 期望 id 兜底
+// 随 Drora 常量树（dev.drora.cua-helper，单一出处 broker-helper-constants.js；
+// rootDir 折叠故内联，test/restored-smoke.mjs 钉一致性）。
+export var $se = "dev.drora.cua-helper",
   GW = jU + 2e3,
   Zse = 5e3,
   Hse = ".screen-recording-preflight",
@@ -513,14 +520,7 @@ export var $se = Ss,
     get socketPath() {
       return this.handle?.socketPath ?? null;
     }
-    // 第十五轮：token 模式回归——handle 携带发射时铸造的 broker token，
-    // 供 services 构建 agent spawn env（客户端 authenticate 用）。
-    get token() {
-      return this.handle?.token ?? null;
-    }
-    get presentationToken() {
-      return this.handle?.presentationToken ?? null;
-    }
+    // R10：token/presentationToken getter 随 token 模型退役移除（官方 0.6.5 零 token）。
     get pluginAuthority() {
       return this.resolverPluginAuthority ?? null;
     }
@@ -634,15 +634,11 @@ export var $se = Ss,
           deadlineEpochMs: A() + C + D,
           now: A(),
         });
-      let zn = process.platform === "darwin" ? randomBytes(32).toString("hex") : void 0,
-        Un = process.platform === "darwin" ? randomBytes(32).toString("hex") : void 0;
       try {
         await this.options.launcher.launch({
           appPath: p,
           expectedAppBundlePath: p,
-          // 原版 mac 3.11.2 语义：host 铸造 broker token，经一次性文件交付
-          // （LaunchServices 不透传 env）。win32 走 env-token 旧线，不注入。
-          ...(zn ? { token: zn, presentationToken: Un } : {}),
+          // R10 认证模型换代：token 免铸造（官方 0.6.5 producer/consumer 零 token）。
           ...(k
             ? {
                 controllerVariant: k,
@@ -651,6 +647,12 @@ export var $se = Ss,
           ...(xz()
             ? {
                 disableCpsActivation: !0,
+              }
+            : {}),
+          // 第二轮 R7.4：multi-cursor overlay 诊断开关随发射向量下发（官方同款条件）。
+          ...(disableMultiCursorOverlayRequested(this.options.env)
+            ? {
+                disableMultiCursorOverlay: !0,
               }
             : {}),
           socketPath: c,
@@ -704,8 +706,7 @@ export var $se = Ss,
           ((O, L) =>
             probeHelperHealth(O, {
               timeoutMs: L,
-              // token 模式：若其它客户端抢先认领，窗口关闭后无 token 探针会误判失败
-              ...(zn ? { token: zn } : {}),
+              // R10：探针免 token（authenticate 走身份声明，官方 0.6.5 形态）。
             }))
         )(c, C);
         let M = this.options.expectedBundleId ?? $se;
@@ -787,7 +788,6 @@ export var $se = Ss,
         helperAppPath: p,
         bundleId: j.bundleId,
         pid: B,
-        ...(zn ? { token: zn, presentationToken: Un } : {}),
       }),
         (this.pendingReservedTuple = null));
       try {
@@ -1293,7 +1293,6 @@ export var $se = Ss,
           probeHelperHealth(r, {
             timeoutMs: o,
             // token 模式（原版 mac 发射链）：窗口关闭后的探针必须带 token authenticate
-            ...(this.handle?.token ? { token: this.handle.token } : {}),
           }))
       )(this.handle.socketPath, t);
     }
@@ -1309,7 +1308,6 @@ export var $se = Ss,
             socketPath: r,
             method: "permission_status",
             timeoutMs: o,
-            ...(this.handle?.token ? { token: this.handle.token } : {}),
           }))
       )(this.handle.socketPath, t);
     }
@@ -1351,7 +1349,6 @@ export var $se = Ss,
             socketPath: r,
             method: "screen_capture_probe",
             timeoutMs: o,
-            ...(this.handle?.token ? { token: this.handle.token } : {}),
           }))
       )(this.handle.socketPath, t);
     }

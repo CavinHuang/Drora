@@ -3,9 +3,11 @@
 // execute({ toolName, arguments }) → 以每次调用一条连接的方式与 Helper broker 交换，
 // 连接/鉴权/协议封装复用 broker/client.ts 的 brokerExchange（per-call 连接语义）。
 import { BrokerError, BROKER_SOCKET_ENV, brokerExchange } from "./broker/client.js";
-const BROKER_TOKEN_ENV = "ZCODE_CUA_PERMISSION_BROKER_TOKEN";
-// 客户端注入键（与 shared/runtimeEnv 捕获/恢复通道同名）；兼容读旧 ZCODE 名。
-const BROKER_TOKEN_ENV_DRORA = "DRORA_CUA_PERMISSION_BROKER_TOKEN";
+// R10（2026-11-10，manifest 七十七轮）：token env 死读清理——官方 0.6.5 全线零 token
+// （切段 upstream/zcode-cua-0.6.5.index.js:44889-44896 createComputerUseRuntime 无
+// token 读；:37522/:37551-37556 authenticate 载荷仅 clientApiVersion+身份字段），
+// ZCODE_CUA_PERMISSION_BROKER_TOKEN / DRORA_CUA_PERMISSION_BROKER_TOKEN 两键的
+// 读取与常量随之退役；BROKER_SOCKET_ENV（ZCODE_ 面，R1 级键迁移产物）保留。
 function readTrimmed(env, key) {
     const raw = env[key];
     if (typeof raw !== "string")
@@ -15,7 +17,6 @@ function readTrimmed(env, key) {
 export function createComputerUseRuntime(options = {}) {
     const env = options.env ?? process.env;
     const socketPath = options.brokerSocketPath ?? readTrimmed(env, BROKER_SOCKET_ENV);
-    const token = readTrimmed(env, BROKER_TOKEN_ENV_DRORA) ?? readTrimmed(env, BROKER_TOKEN_ENV);
     return {
         async execute(input) {
             if (options.ensureBrokerAvailable)
@@ -28,11 +29,13 @@ export function createComputerUseRuntime(options = {}) {
             if (input.signal?.aborted) {
                 throw new BrokerError("Computer Use request was aborted.", { code: "cancelled" });
             }
+            // R10：brokerExchange 的 authenticate 不再携带 token（官方 0.6.5 authenticate
+            // 载荷仅 clientApiVersion+身份字段，切段 :37551-37556）；空参数 authenticate
+            // 由 Helper 侧 peer 身份模型置位为 tool 角色。
             const result = (await brokerExchange({
                 socketPath,
                 method: input.toolName,
                 params: (input.arguments ?? {}),
-                ...(token ? { authenticateParams: { token } } : {}),
             }));
             if (result && result.ok === false) {
                 // 透传 Helper 的错误码与消息（method_not_found / not_authorized / ...）

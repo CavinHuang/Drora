@@ -9,8 +9,10 @@ import type { CuaPipSessionService } from "./cuaPipSession.js";
 
 export interface CuaPipPresentationCredentials {
   socketPath: string;
-  /** 第十五轮 token 模式：PiP 客户端以 role=presentation authenticate（客户端消费为演进项） */
-  presentationToken?: string;
+  // R10：presentation 走 authenticate role+peer 资格门（specs 见 manifest 七十七轮）。
+  // 官方 0.6.5 切段客户端（S$，src/broker/server/windows-helper-host.ts）恒以
+  // role:"presentation" authenticate、无 token 参数；presentationToken 选项属我方
+  // 包装层第十五轮叠加，随 token 模型退役删除。
 }
 
 type PipSessionClientResolution =
@@ -113,11 +115,10 @@ export function createCuaPipSessionService(options: {
     }
     if (current?.key === key) return { client: current.client };
     current?.client.close();
+    // R10：presentation 走 authenticate role+peer 资格门（specs 见 manifest 七十七轮）。
+    // 切段客户端恒发 role:"presentation"，无需（也不再接受）presentationToken 传参。
     const client = clientFactory({
       socketPath: credentials.socketPath,
-      ...(credentials.presentationToken
-        ? { presentationToken: credentials.presentationToken }
-        : {}),
       onDiagnostic: (diagnostic) => {
         const message = `[cua-pip-session] ${diagnostic.code}: ${diagnostic.message}`;
         if (diagnostic.code === "version_mismatch") logger.warn(undefined, message);

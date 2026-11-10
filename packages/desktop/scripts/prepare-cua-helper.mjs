@@ -15,7 +15,7 @@
 // 若按 DRORA_ENABLE_MAC_SIGN 关折叠会让签名包的 Helper 恒拒启。
 // 构建失败即失败：发布构建不允许静默降级为"不带 Helper 的包"。
 import process from "node:process";
-import { existsSync, readFileSync, rmSync } from "node:fs";
+import { chmodSync, existsSync, readFileSync, rmSync, statSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -25,7 +25,15 @@ const scriptDir = dirname(fileURLToPath(import.meta.url));
 const desktopRoot = resolve(scriptDir, "..");
 const workspaceRoot = resolve(desktopRoot, "../..");
 const helperAppName = "Drora Computer Use.app";
-const packagingStageRoot = join(desktopRoot, "bundled-cua-helper");
+
+const target = getTargetPlatform();
+// R5（方案 specs/cua-gap-remediation-2026-11-09.md）：staging 布局加 <targetArch> 段。
+// 此前 staging 落根目录（bundled-cua-helper/Drora Computer Use.app），而
+// electron-builder.config.js 的主规则 from 是 bundled-cua-helper/<arch>/Drora Computer
+// Use.app —— 恒 ENOENT，实际入包全靠 existsSync 整目录兜底，打包门被架空。
+// 加 arch 段后主规则命中（面向未来多 arch 打包保持官方形态语义），兜底降级为
+// 可见告警路径（config 侧同批改造）。
+const packagingStageRoot = join(desktopRoot, "bundled-cua-helper", target.arch);
 const stagedHelperApp = join(packagingStageRoot, helperAppName);
 const builtHelperApp = join(
   workspaceRoot,
@@ -35,7 +43,6 @@ const builtHelperApp = join(
   helperAppName,
 );
 
-const target = getTargetPlatform();
 if (target.os !== "darwin") {
   console.log(`[prepare:cua-helper] target ${target.os}-${target.arch} 非 darwin，跳过`);
   process.exit(0);
@@ -84,4 +91,15 @@ if (!existsSync(join(builtHelperApp, "Contents", "MacOS", "Drora Computer Use"))
 
 rmSync(packagingStageRoot, { recursive: true, force: true });
 execFileSync("/usr/bin/ditto", [builtHelperApp, stagedHelperApp], { stdio: "inherit" });
+// R5（方案 specs/cua-gap-remediation-2026-11-09.md）：addon 入包对齐官方权限位 755。
+// 证据：官方参照副本（resources/cua-helper-3.14.3-reference 与 3.11.2-reference、
+// 官方签名 staging 副本 resources/cua-helper）的 Resources/ax_native.node 均为
+// rwxr-xr-x；自建产物（dist-cua-helper …/ax_native.node）与钉扎源
+// native/ax_native_mac.node 均为 rw-r--r--。ditto 保留源权限位，staging 后统一
+// chmod 755，保证打包产物（extraResources 直接拷贝 staging）与官方形态一致。
+const stagedAddon = join(stagedHelperApp, "Contents", "Resources", "ax_native.node");
+if (existsSync(stagedAddon) && (statSync(stagedAddon).mode & 0o777) !== 0o755) {
+  chmodSync(stagedAddon, 0o755);
+  console.log(`[prepare:cua-helper] chmod 755 ${stagedAddon}（对齐官方权限位）`);
+}
 console.log(`[prepare:cua-helper] staged ${stagedHelperApp}`);

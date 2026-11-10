@@ -692,55 +692,37 @@ var ActionTier = {
   T1_INPUT: "t1_input",
   SAFETY_CONTROL: "safety_control",
 };
+// 还原自 0.6.5 切段 :39819-39849（R4.3）：tier 表随十四工具面收缩对齐——
+// paste 为 T1_INPUT；被剔除的 17 个非官方工具不再登记（toolAnnotationsFor 仅按
+// TOOL_NAMES 消费，多余条目会掩盖 manifest drift 报错）。
 var READ_ONLY_TOOLS = /* @__PURE__ */ new Set([
   "list_apps",
   "list_windows",
   "get_app_state",
-  "screenshot",
-  "zoom",
-  "list_displays",
-  "cursor_position",
   "request_access",
-  "wait",
-  "read_clipboard",
 ]);
-var SAFETY_CONTROL_TOOLS = /* @__PURE__ */ new Set(["left_mouse_up", "stop_computer_control"]);
+var SAFETY_CONTROL_TOOLS = /* @__PURE__ */ new Set(["stop_computer_control"]);
 var TIER_TABLE = Object.freeze({
-  // OBSERVATION (9)
+  // OBSERVATION (4)
   list_apps: ActionTier.READ_ONLY,
-  open_application: ActionTier.T1_INPUT,
   list_windows: ActionTier.READ_ONLY,
   get_app_state: ActionTier.READ_ONLY,
-  screenshot: ActionTier.READ_ONLY,
-  zoom: ActionTier.READ_ONLY,
-  list_displays: ActionTier.READ_ONLY,
-  switch_display: ActionTier.T1_INPUT,
-  cursor_position: ActionTier.READ_ONLY,
-  // POINTER (10)
+  // POINTER (3)
   left_click: ActionTier.T1_INPUT,
-  double_click: ActionTier.T1_INPUT,
-  triple_click: ActionTier.T1_INPUT,
-  right_click: ActionTier.T1_INPUT,
-  middle_click: ActionTier.T1_INPUT,
   scroll: ActionTier.T1_INPUT,
   left_click_drag: ActionTier.T1_INPUT,
-  mouse_move: ActionTier.T1_INPUT,
-  left_mouse_down: ActionTier.T1_INPUT,
-  left_mouse_up: ActionTier.SAFETY_CONTROL,
-  // KEYBOARD (5)
+  // KEYBOARD (4)
   type: ActionTier.T1_INPUT,
   set_value: ActionTier.T1_INPUT,
   select_text: ActionTier.T1_INPUT,
   key: ActionTier.T1_INPUT,
-  hold_key: ActionTier.T1_INPUT,
   // SEMANTIC (1)
   perform_action: ActionTier.T1_INPUT,
-  // RUNTIME (5)
+  // PASTE (1)
+  paste: ActionTier.T1_INPUT,
+  // RUNTIME (2)
   request_access: ActionTier.READ_ONLY,
   stop_computer_control: ActionTier.SAFETY_CONTROL,
-  wait: ActionTier.READ_ONLY,
-  read_clipboard: ActionTier.READ_ONLY,
-  write_clipboard: ActionTier.T1_INPUT,
 });
 function classifyTier(name) {
   if (READ_ONLY_TOOLS.has(name)) return ActionTier.READ_ONLY;
@@ -2532,6 +2514,17 @@ var holdKeySchema = z
     duration: finiteFloat,
     app_ref: appRefNullable,
     strategy: strategyEnum.default("auto"),
+    return_state: returnStateEnum.default("none"),
+  })
+  .strict();
+// 还原自 0.6.5 切段 :40383-40388（R4.3，方案 specs/cua-gap-remediation-2026-11-09.md）：
+// paste 为官方 0.6.5 十四工具面新增项，Helper 内原子完成「保存剪贴板 → 写入 →
+// 发粘贴键 → 还原」，取代 host 侧 read_clipboard/write_clipboard 四步拼装。
+var pasteSchema = z
+  .object({
+    text: z.string(),
+    format: z.enum(["text", "md", "html"]).default("text"),
+    app_ref: appRefNullable,
     return_state: returnStateEnum.default("none"),
   })
   .strict();
@@ -4356,6 +4349,19 @@ async function callPointerAction(deps, method, params, targets) {
   };
   return callBroker(dispatchCheckedDeps, method, params, { kind: "action" });
 }
+// 还原自 0.6.5 切段 :42543-42546（R4.3）：element_scroll/raw 动作把命中的 native
+// 元素指纹作为 element_provenance 下推（仅 win32），供 Helper 侧 AX 派发溯源。
+function elementPointerProvenance(...resolved) {
+  const records =
+    process.platform === "win32"
+      ? resolved.flatMap((target: any, endpoint_index: number) =>
+          target?.native && target?.fingerprint
+            ? [{ native: target.native, bounds: target.fingerprint.bounds, endpoint_index }]
+            : [],
+        )
+      : [];
+  return records.length ? { element_provenance: records } : {};
+}
 async function resolveExpectedPid(deps, appRef2, alreadyVerified = false) {
   if (appRef2 === void 0 || appRef2 === null) return void 0;
   const directPid = extractAppRefPid(appRef2);
@@ -4799,11 +4805,17 @@ var middleClickTool = clickToolDef({
     'Middle-click a target. NO ACCESSIBILITY equivalent: on macOS it is a verified background window event; Linux/Windows retain their foreground raw route. Under auto an element target fails closed; a coordinate falls through to the same raw event and is bound to the current raster internally. Example: middle_click(target={"type":"coordinate","x":120,"y":80}, strategy="event"). ' +
     SKILL_REF,
 });
+// 还原自 0.6.5 切段 :42883-43014（R4.3，方案 specs/cua-gap-remediation-2026-11-09.md）：
+// 0.5.14 面 scroll 无 a11y 派发；0.6.5 起 element target 在 strategy=auto/a11y 下先走
+// broker 方法 element_scroll（Helper 侧 AX 滚动容器派发），仅当能力确认缺失
+// （action_unavailable+action_sent=false 或 method_not_found）且 strategy 允许时回退
+// raw scroll；raw 参数同步下推 strategy 与 element_provenance。postActionObserve 调用
+// 保持本还原稿既有形态（不带 dispatch/effectKind 增量，该项不属本批刷新范围）。
 var scrollTool = {
   name: "scroll",
   title: "Scroll",
   description:
-    'Scroll at a target. scroll_amount is clamped to 0..100. Scroll has NO accessibility actuation: it is always a raw event, so under strategy=auto or a11y an element target fails closed. On macOS strategy=event is background/window-scoped; Linux/Windows retain their foreground raw route. A coordinate is bound to the current raster inside CUA. Example: scroll(target={"type":"coordinate","x":200,"y":300}, scroll_direction="down", scroll_amount=10, strategy="event"). ' +
+    'Scroll at a target. scroll_amount is clamped to 0..100. An element target scrolls through accessibility when available (Windows UIA Scroll pattern on the element\'s scroll container \u2014 background-safe, no focus move): amount maps to ~10% of the scroll range per unit (10 \u2248 full range, 100 = end), and a call already at the range end is a successful no-op \u2014 re-observe to confirm position. strategy=a11y requires an element target and fails closed when a11y scroll is unavailable; strategy=auto tries a11y first and falls back to the raw coordinate scroll only when a11y scroll is proven unavailable (the Windows raw route requires the target app frontmost); strategy=event is always raw. A coordinate target is always raw (macOS background/window-scoped; Linux/Windows foreground-gated). A coordinate is bound to the current raster inside CUA. Example: scroll(target={"type":"element","index":4}, scroll_direction="down", scroll_amount=10). ' +
     SKILL_REF,
   inputSchema: scrollSchema,
   buildHandler: (deps) => async (input) => {
@@ -4828,9 +4840,12 @@ var scrollTool = {
     let point;
     let targetAppRef;
     let targetIsElement = false;
+    let targetNative;
+    let elementProvenance = {};
     try {
       const resolved = resolveTarget(target, {
         session: toolSession(deps),
+        appRef: args.app_ref,
       });
       if (!(resolved as any).point) {
         return toolError2(
@@ -4840,21 +4855,62 @@ var scrollTool = {
       point = (resolved as any).point;
       targetAppRef = resolved.app_ref;
       targetIsElement = resolved.isElement;
-      if (strategy === "a11y") {
+      targetNative = (resolved as any).native ?? null;
+      elementProvenance = elementPointerProvenance(resolved);
+      if (strategy === "a11y" && !targetNative) {
         return toolError2(
-          "scroll has no accessibility actuation; strategy=a11y requires an accessibility operation (AX/UIA/AT-SPI), but scrolling is implemented as raw pointer input. Use strategy=event (background/window-scoped on macOS) or keyboard navigation against a focused element.",
+          "strategy=a11y scroll requires an element target: accessibility scrolling actuates the element's scroll container (Windows UIA). A coordinate target is raw-only \u2014 use strategy=event, or target an element (e.g. a list item) to scroll its container.",
         );
       }
     } catch (e) {
       return pointerResolveError(e);
+    }
+    if (targetNative && strategy !== "event") {
+      const native = targetNative;
+      try {
+        await callPointerAction(
+          deps,
+          "element_scroll",
+          {
+            native,
+            direction: args.scroll_direction,
+            amount: applied,
+          },
+          [target],
+        );
+        return postActionObserve(deps, {
+          note:
+            scrollNote(applied, requested) +
+            " (scrolled via accessibility on the element's scroll container; re-observe to confirm position.)",
+          app_ref: targetAppRef,
+          return_state: args.return_state,
+        });
+      } catch (e) {
+        const code = (e as any)?.code;
+        const details = (e as any)?.details;
+        const actionProvenUnsent =
+          details !== null &&
+          typeof details === "object" &&
+          !Array.isArray(details) &&
+          details.action_sent === false;
+        const capabilityMiss =
+          (code === "action_unavailable" && actionProvenUnsent) || code === "method_not_found";
+        if (strategy === "a11y" || !capabilityMiss) {
+          return pointerDispatchErrorResult(deps, e, {
+            method: "element_scroll",
+            note: "Scroll may already have reached the target container.",
+            appRef: args.app_ref ?? targetAppRef,
+            returnState: args.return_state ?? "none",
+          });
+        }
+      }
     }
     try {
       const scopedAppRef = frameScopedAppRef(deps, args.app_ref ?? targetAppRef, target);
       const expectedPid = await resolveExpectedPid(
         deps,
         scopedAppRef,
-        frameProvenance.length > 0 ||
-          (targetIsElement && (args.app_ref === void 0 || args.app_ref === null)),
+        frameProvenance.length > 0 || targetIsElement,
       );
       const result = await callPointerAction(
         deps,
@@ -4863,6 +4919,9 @@ var scrollTool = {
           point,
           direction: args.scroll_direction,
           amount: applied,
+          // 漏传会把显式物理滚轮降成后台窗口消息，发送成功也可能没有滚动效果。
+          strategy,
+          ...elementProvenance,
           ...(frameProvenance.length > 0 ? { frame_provenance: frameProvenance } : {}),
           ...(expectedPid !== void 0
             ? {
@@ -6341,6 +6400,55 @@ var writeClipboardTool = {
     }
   },
 };
+// 还原自 0.6.5 切段 :44138-44183（R4.3）：paste 走 broker 原生方法（Helper 内原子
+// 「保存剪贴板 → 写入 → 发粘贴键 → 还原」），取代 host 侧 read/write_clipboard
+// 四步拼装；rich format（md/html）仅在 provided-paste 路径可用，否则 Helper 拒绝。
+var pasteTool = {
+  name: "paste",
+  title: "Paste",
+  description:
+    'Paste text into the target app through the system pasteboard, then restore the user\'s previous clipboard contents. Use it for rich text, or for a target set_value cannot set; for plain text into a settable element, set_value is the better path. A paste no app reads fails with a timeout rather than reporting success. format="md"/"html" declare rich pasteboard flavors where the provided-paste path exists; without it they are refused as unimplemented and "text" is the fallback. Example: paste(text="line one\nline two", app_ref={"pid":1234}). ' +
+    SKILL_REF2,
+  inputSchema: pasteSchema,
+  buildHandler: (deps) => async (input) => {
+    const args = input;
+    const hasAppRef = args.app_ref !== void 0 && args.app_ref !== null;
+    if (hasAppRef && !appRefHasIdentity(args.app_ref)) {
+      return toolError3(
+        'paste was called with an app_ref that has no pid, bundle_id, or name, so it cannot be scoped to a target app. Call get_app_state first to bind a pid, then paste(text=..., app_ref={"pid":...}). action_sent=false.',
+      );
+    }
+    try {
+      if (hasAppRef) {
+        await verifyCompoundKeyboardAppRef(deps, args.app_ref, "paste");
+      }
+      await callBroker(
+        deps,
+        "paste",
+        { app_ref: args.app_ref, text: args.text, format: args.format },
+        { kind: "action" },
+      );
+    } catch (error51) {
+      const receipt = keyboardDispatchErrorResult(deps, error51, {
+        note: "Paste may already have reached the target app.",
+        appRef: args.app_ref,
+        returnState: args.return_state,
+      });
+      if (receipt) return receipt;
+      if (shouldPropagateToWrapper(error51)) throw error51;
+      return toolError3(
+        error51 instanceof Error ? error51.message : String(error51),
+        brokerErrorDetails(error51),
+      );
+    }
+    return postActionObserve(deps, {
+      note: "Paste delivered: an app read the pasted text from the pasteboard. The paste shortcut cannot name a target field, so confirm the text landed in the field you meant. If it landed elsewhere, use set_value on a settable element instead.",
+      app_ref: args.app_ref,
+      return_state: args.return_state,
+      effectKind: "keyboard_input",
+    });
+  },
+};
 var keyboardRuntimeTools = [
   // KEYBOARD (5)
   typeTool,
@@ -6350,6 +6458,9 @@ var keyboardRuntimeTools = [
   holdKeyTool,
   // SEMANTIC (1)
   performActionTool,
+  // PASTE (1)——0.6.5 十四工具面新增（R4.3）；其余保留项（hold_key/wait/read/write
+  // clipboard 等）为还原稿既有 ToolDef，不再进 TOOL_NAMES 暴露面，仅经包入口导出。
+  pasteTool,
   // RUNTIME (5)
   requestAccessTool,
   stopComputerControlTool,
@@ -6575,6 +6686,8 @@ export {
   parseScreenshotCaptureWindows,
   parseTarget,
   parseTopology,
+  pasteSchema,
+  pasteTool,
   performActionSchema,
   performActionTool,
   pidBranch,

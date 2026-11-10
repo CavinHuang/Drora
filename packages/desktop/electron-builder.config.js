@@ -777,11 +777,13 @@ export default {
     // 路线 A adhoc 分发签名链（第五十一轮自 afterPack 迁移，并新增 addon 字节恢复）：
     // electron-builder 的 mac 签名准备发生在 afterPack 之后——它会把包内嵌套 Mach-O
     // （含 extraResources 的 cua-helper ax_native.node）重签为 adhoc（identifier 加
-    // hash 后缀），破坏「原生层与官方随包字节一致」（spec §一）。因此在签名完成后：
-    // ① 恢复仓内官方原始 addon 字节（该文件自带官方 Developer ID 签名，与官方发行
-    //    形态一致）；② 整包 --deep ad-hoc 重签以新封条覆盖（恢复后的字节与封条恒
-    //    匹配）。正式签名构建（DRORA_ENABLE_MAC_SIGN=1）由 electron-builder 以真实
-    //    身份签名，不走此分支。
+    // hash 后缀），破坏「原生层与钉扎产物字节一致」（spec §一，2026-11-09 改口）。
+    // 因此在签名完成后：① 把包内 addon 恢复为仓内钉扎的自建产物字节
+    //    （native/ax_native_mac.node——裁定①兑现后的自建 addon，见
+    //    specs/cua-3.17.2-alignment.md「达标换装」；早前注释称“官方原始字节/自带
+    //    官方 Developer ID 签名”属换装前旧口径，失实已勘）；② 整包 --deep ad-hoc
+    // 重签以新封条覆盖（恢复后的字节与封条恒匹配）。正式签名构建
+    // （DRORA_ENABLE_MAC_SIGN=1）由 electron-builder 以真实身份签名，不走此分支。
     if (context.electronPlatformName === "darwin" && process.env.DRORA_ENABLE_MAC_SIGN !== "1") {
       runTimedSync("afterSign:adhoc-resign", () => {
         const appName = `${context.packager?.appInfo?.productFilename ?? "Drora"}.app`;
@@ -875,29 +877,55 @@ export default {
           // desktopCuaHelperInstaller.ts 与 services/node.ts resolveBundledCuaHelperAppPath），
           // 运行时校验 bundle id、TeamIdentifier 与可执行文件架构，签名无效即 fail-closed。
           // 源恒为 prepare:cua-helper（第五十轮）staging 的自建 SEA Helper
-          // （bundled-cua-helper/，路线 A 折叠 CUA_HELPER_ALLOW_UNSIGNED_LAUNCHER）——
-          // 官方签名副本（resources/cua-helper）只作 parity 参照物，其 launcher 门
-          // 钉死 dev.zcode.app + 8A5X4JJ39T，Drora 永远拉不起，不得入包。
-          // 本兜底告警只在准备步骤被绕过（如直接 build:no-runtime-assets）时出现。
-          ...(existsSync(resolve(desktopPackageRoot, "bundled-cua-helper"))
+          // （R5 起 staging 带 <arch> 段：bundled-cua-helper/<arch>/，路线 A 折叠
+          // CUA_HELPER_ALLOW_UNSIGNED_LAUNCHER）——官方签名副本（resources/cua-helper）
+          // 只作 parity 参照物，其 launcher 门钉死 dev.zcode.app + 8A5X4JJ39T，Drora
+          // 永远拉不起，不得入包。
+          // 形态记档：官方 .app 顶层另有一份 CodeResources（旧签名形态残留，
+          // `_CodeSignature/CodeResources` 的历史冗余副本）。属官方旧打包管线的
+          // 副产物而非现行必需资产，自建产物不携带、不仿制（R5 记档裁定）。
+          // R5 兜底门控：主规则（bundledCuaHelperSource，带 <arch> 段）命中时不走
+          // 兜底；仅当门=true 而主规则源缺失（如旧布局残留或准备步骤被绕过）时，
+          // 整目录兜底拷贝介入且必发绕过告警；门=false（未检测到真实 producer）时
+          // 不再兜底——此前 bundled-cua-helper 目录存在即静默入包，打包门被架空。
+          ...(shouldPackageComputerUseHelper && !existsSync(bundledCuaHelperSource)
+            ? existsSync(resolve(desktopPackageRoot, "bundled-cua-helper"))
+              ? [
+                  (() => {
+                    console.warn(
+                      "[electron-builder] WARN: 主规则源 " + bundledCuaHelperSource + " 缺失，" +
+                        "回退整目录拷贝 bundled-cua-helper → cua-helper（可能为旧布局残留或" +
+                        "prepare 步骤被绕过）。该兜底绕过 <arch> 段主规则，请重跑 " +
+                        "prepare:cua-helper 刷新 staging 布局；afterPack 的 " +
+                        "assertPackagedCuaHelper 仍会校验最终落位。",
+                    );
+                    return { from: "bundled-cua-helper", to: "cua-helper", filter: ["**/*"] };
+                  })(),
+                ]
+              : [
+                  (() => {
+                    console.warn(
+                      "[electron-builder] WARN: packages/desktop/bundled-cua-helper 缺失，" +
+                        "本包不携带 Computer Use Helper（官方发行物恒带）。" +
+                        "该包的「电脑控制」权限引导将不可用；正式 mac 构建请走 pnpm build " +
+                        "（含 prepare:cua-helper 自建 staging）后重新打包。",
+                    );
+                    return null;
+                  })(),
+                ].filter((entry) => entry !== null)
+            : []),
+          ...(!shouldPackageComputerUseHelper &&
+          existsSync(resolve(desktopPackageRoot, "bundled-cua-helper"))
             ? [
-                {
-                  from: "bundled-cua-helper",
-                  to: "cua-helper",
-                  filter: ["**/*"],
-                },
-              ]
-            : [
                 (() => {
                   console.warn(
-                    "[electron-builder] WARN: packages/desktop/bundled-cua-helper 缺失，" +
-                      "本包不携带 Computer Use Helper（官方发行物恒带）。" +
-                      "该包的「电脑控制」权限引导将不可用；正式 mac 构建请走 pnpm build " +
-                      "（含 prepare:cua-helper 自建 staging）后重新打包。",
+                    "[electron-builder] WARN: 未检测到真实 Computer Use producer（占位包/" +
+                      "未安装），跳过 bundled-cua-helper 入包——打包门不再被 staging 目录存在性架空（R5）。",
                   );
                   return null;
                 })(),
-              ].filter((entry) => entry !== null)),
+              ].filter((entry) => entry !== null)
+            : []),
         ]
       : []),
     {

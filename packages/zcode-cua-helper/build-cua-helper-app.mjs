@@ -8,7 +8,7 @@
 // Windows 端走 packages/zcode-cua-helper/build.mjs（dist/windows-helper.js）。
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdirSync, writeFileSync, copyFileSync, rmSync, readFileSync, existsSync } from "node:fs";
+import { mkdirSync, writeFileSync, copyFileSync, rmSync, readFileSync, existsSync, readdirSync } from "node:fs";
 import { createRequire } from "node:module";
 import { join, resolve } from "node:path";
 import process from "node:process";
@@ -46,8 +46,11 @@ function run(cmd, args, opts = {}) {
 
 // 1) CJS bundle（SEA 只接受 CJS 主脚本）
 // 构建期常量折叠（对齐原版构建机制：发行构建折叠身份/dev 常量，缺省保持 parity 基线）
-// 第五十一轮：缺省版本随官方现行线（3.14.3 / pipeline-293504-ab4d5e6b）。
-const helperVersion = process.env.CUA_HELPER_VERSION?.trim() || "3.14.3";
+// 第六十七轮起：官方 3.17.2 的 Helper CFBundleShortVersionString 已随 App 版本走
+// （官方 plist=3.17.2，不再固定 CUA 版本号）；本仓缺省改为读根 package.json 版本
+// （specs/cua-3.17.2-alignment.md 台账 16 裁定②）。第五十一轮旧缺省 3.14.3 退役。
+const appVersion = JSON.parse(readFileSync(join(workspaceRoot, "package.json"), "utf8")).version;
+const helperVersion = process.env.CUA_HELPER_VERSION?.trim() || appVersion;
 const helperBuildId = process.env.CUA_HELPER_BUILD_ID?.trim() || "local-dev";
 const esbuildDefine = {
   __DRORA_CUA_HELPER_VERSION__: JSON.stringify(helperVersion),
@@ -191,8 +194,10 @@ try {
 } catch {}
 
 // 原生插件（AX / 窗口服务集成）随包放入 Resources。
-// darwin 用仓库内原版二进制副本 ax_native_mac.node（与官方 .app 内字节一致，
-// 修复历史 bug：此前引用不存在的 native/ax_native.node 导致构建 ENOENT）。
+// darwin 用 native/ax_native_mac.node。第七十二轮起=自建逆向重建产物（不再官方
+// 字节拷贝，用户裁定①）：ax_native_mac.mm 由 generate-mac-rebuilt.py 生成、node-gyp
+// 编译，parity 锚=官方 3.17.2 addon（sha256 b169b8dc…ceaea），136 导出面/全树 1000
+// 节点/ghost 状态机/调色板 44 键全量探针 MATCH（manifest 七十二轮）。
 // Resources 不 staging node_modules：原版 SEA blob 的 sharp 解析基不含 Resources
 // 相对基（strings 实证），该目录在原版包内不被 load-sharp 消费，能力无关
 //（spec: specs/mac-cua-helper-app-alignment.md §二.3）。
@@ -200,15 +205,17 @@ const nativeAddon = join(packageRoot, "native", "ax_native_mac.node");
 if (!existsSync(nativeAddon)) {
   throw new Error(`mac native addon missing: ${nativeAddon}`);
 }
-// .node 对齐（spec §一：原生层字节级一致）：钉扎官方 3.14.3 基线 SHA-256。
+// .node 对齐（spec §一：原生层字节级一致）：钉扎基线 SHA-256。
 // 原生插件是能力底座，任何字节变化都意味着能力面漂移，必须显式升版：
 // 更新基线常量或临时以 CUA_NATIVE_ADDON_SHA256 覆盖（仅在审计过的升级时）。
 const NATIVE_ADDON_SHA256_BASELINE =
   process.env.CUA_NATIVE_ADDON_SHA256?.trim() ||
-  // 第五十一轮：基线升级到本机官方 3.14.3（pipeline-293504-ab4d5e6b）随包 addon。
-  // 3.11.2 → 3.14.3 纯增量（117 → 125 导出，无删除，方法面零变化），旧值
-  // 1ecb13fd2a54b316eff0e5c7d055e21689574d8f8b01c1d951c71335a7c3a5c1。
-  "5b46401f8561dc94ac8c8e1707fafe925a965f78a30ce2b246437965d8a61440";
+  // 第七十二轮：基线切换为自建逆向重建产物（裁定①，官方 3.17.2 parity 达标）。
+  // 自建产物无"官方字节"可言，钉扎值=可复现构建的当前产物；重跑
+  // generate-mac-rebuilt.py + make 产物字节会变（时间戳），换装须同步本值。
+  // 旧值（第五十一轮官方 3.14.3 拷贝）：
+  // 5b46401f8561dc94ac8c8e1707fafe925a965f78a30ce2b246437965d8a61440。
+  "4214ee9be3d1394ad2355f99fe65dffba5dc29f315a1d553b56d1d9e6e13d5ef";
 const addonHash = createHash("sha256").update(readFileSync(nativeAddon)).digest("hex");
 if (addonHash !== NATIVE_ADDON_SHA256_BASELINE) {
   throw new Error(
@@ -229,6 +236,27 @@ const officialStagedApp = resolve(
 );
 const stagedNodeModules = join(officialStagedApp, "Contents", "Resources", "node_modules");
 if (existsSync(stagedNodeModules)) {
+  // 第六十七轮起（官方 3.17.2 对齐）：内嵌 node_modules 从"整目录 blind ditto"升级为
+  // 显式清单+条目数校验（specs/cua-3.17.2-alignment.md P4）——官方 3.17.2 的 Helper 内嵌
+  // 6 包集（@img/colour、@img/sharp-darwin-arm64、@img/sharp-libvips-darwin-arm64、
+  // detect-libc、semver、sharp，load-sharp 经 execPath 解析）。staging 源漂移（缺包/多包）
+  // 时构建期 fail-fast，防 form 漂移进发行物。
+  const expectedTopLevel = ["@img", "detect-libc", "semver", "sharp"];
+  const expectedScopedUnderImg = ["colour", "sharp-darwin-arm64", "sharp-libvips-darwin-arm64"];
+  const actualTopLevel = readdirSync(stagedNodeModules).filter((e) => !e.startsWith(".")).sort();
+  const missing = expectedTopLevel.filter((p) => !actualTopLevel.includes(p));
+  const extra = actualTopLevel.filter((p) => !expectedTopLevel.includes(p));
+  let scopedMissing = [];
+  if (!missing.includes("@img")) {
+    scopedMissing = expectedScopedUnderImg.filter(
+      (p) => !existsSync(join(stagedNodeModules, "@img", p)),
+    );
+  }
+  if (missing.length > 0 || extra.length > 0 || scopedMissing.length > 0) {
+    throw new Error(
+      `[build-cua-helper-app] official staging node_modules drift vs 3.17.2 manifest: missing=[${missing}] extra=[${extra}] scopedMissing=[${scopedMissing}]`,
+    );
+  }
   run("/usr/bin/ditto", [stagedNodeModules, join(resourcesDir, "node_modules")]);
 } else {
   console.warn(

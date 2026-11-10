@@ -1,9 +1,9 @@
 {
   "name": "@drora/drora-cua",
-  "version": "0.6.3",
+  "version": "0.6.5",
   "private": true,
-  "description": "API-compatible placeholder package for Computer Use. This build ships without Computer Use: every runtime surface reports unavailable and fails closed.",
-  "droraCuaPlaceholder": true,
+  "description": "Drora Computer Use engine restored from the official zcode-cua 0.6.5 runtime: MCP tool surface, broker client, and Helper runtime contracts.",
+  "droraCuaPlaceholder": false,
   "license": "Apache-2.0",
   "type": "module",
   "exports": {
@@ -60,7 +60,7 @@
     "build": "tsc -p tsconfig.json && esbuild src/mcp/errors.ts src/mcp/client.ts src/mcp/session.ts src/mcp/tools.ts src/mcp/server.ts --outdir=. --outbase=src",
     "typecheck": "tsc --noEmit",
     "clean": "node ../../scripts/clean-dist.mjs",
-    "test": "node test/restored-smoke.mjs && node test/embedded-build-id.mjs && node test/mac-launch-contract.mjs && node test/cua-tool-layer-smoke.mjs"
+    "test": "node test/restored-smoke.mjs && node test/embedded-build-id.mjs && node test/mac-launch-contract.mjs && node test/cua-tool-layer-smoke.mjs && node test/tool-surface-065.mjs && node test/lazy-discovery-bridge.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.29.0",

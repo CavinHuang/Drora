@@ -50,6 +50,8 @@ import {
   resolveBundledGlmBinaryPath,
   resolveDroraHome,
 } from "./desktopRuntimeEnv.js";
+// R1.1：launcher pid 注入键与切段消费方共用 services 常量区单一出处（契约键不散写）。
+import { ZCODE_CUA_LAUNCHER_PID_ENV } from "@drora/services/node";
 import { ingestHostNetworkCapture } from "./resourceManagerNetwork.js";
 import { buildHostE2ECoverageEnv } from "./e2eCoverage.js";
 import { createFeedbackLogArchiveFromExportLogs } from "./exportLogs.js";
@@ -288,12 +290,20 @@ export function spawnHostProcess(
       // macOS-only: the Computer Use Helper launcher runs inside this forked host utilityProcess, whose
       // code-signing identity is a nested Electron helper (NOT dev.drora.app). Publish THIS (main
       // Electron) process's pid — which IS dev.drora.app — so helperLauncher passes it as
-      // `--launcher-pid` and the Helper's signature/peer verification succeeds instead of
-      // health-timing out. Env-name mirror of services' LAUNCHER_PID_ENV. Not set on
-      // Windows/Linux (CUA is macOS-only; nothing reads it there) to keep the host env pristine.
+      // `--launcher-pid` and the Helper's launcher-liveness watchdog binds the Helper's lifetime to
+      // the app, not a utilityProcess. Not set on Windows/Linux (CUA is macOS-only; nothing reads it
+      // there) to keep the host env pristine.
+      // R1.1 键名修复（specs/cua-gap-remediation-2026-11-09.md，审查 H3）：原注入键
+      // DRORA_CUA_LAUNCHER_PID 全仓零消费者，而运行链消费方（0.6.5 冻结切段
+      // resolveLauncherPid，upstream/zcode-cua-0.6.5.index.js:7152；node-repl-host dist
+      // mcp/server.js:78448 同源内联）读 ZCODE_CUA_LAUNCHER_PID，缺省回退 host 自身
+      // pid——launcher 语义错位 + 同机官方 ZCode 终端泄漏的官方 pid 会顶替本进程值
+      // （2026-11-09 本机取证：孤儿 Helper 实测绑定官方 ZCode pid 1299）。键名服从
+      // 冻结切段消费面（env 路由先例见第二十八轮方案 A/ZCODE_HOME），DRORA_ 名零
+      // 消费者直接切换、不保留双写，常量出处 services ZCODE_CUA_LAUNCHER_PID_ENV。
       ...(process.platform === "darwin"
         ? {
-            DRORA_CUA_LAUNCHER_PID: String(process.pid),
+            [ZCODE_CUA_LAUNCHER_PID_ENV]: String(process.pid),
             // 第二十八轮接缝修复（方案 A，spec §七.0）：CUA 安装链（豁免区
             // zcode-cua）以 ZCODE_HOME||~/.zcode 解析 helper 安装根，而 Drora
             // 的数据根/standalone 枚举走 DRORA_HOME||~/.drora——不路由会让

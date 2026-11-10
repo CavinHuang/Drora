@@ -114,10 +114,19 @@ export var Ooe = Object.freeze({
 export var Yz = new Set(["textfield", "textarea", "securefield", "combobox"]),
   Doe = new Set([...Yz, "slider", "stepper"]);
 
+// 修复原因（2026-11-09，embedded-build-id 链路）：2026-09-28 Helper 身份 Drora 化裁定
+// （specs/drora-rename.md 豁免区2修订"191 处散落字面量随常量走"）漏掉了本函数——随包
+// 分发的 Helper 是 Drora 身份（dev.drora.cua-helper，单一出处 broker-helper-constants.js），
+// 而期望 id 仍取还原区官方值 Ss，生产形态（bn=false）下 env 覆盖通道也不可用，导致
+// 安装校验恒 mismatch。期望 id 改随 Drora 常量树（与 drora-helper-locations 的
+// resolveHelperAppName 同边界语义；rootDir 折叠使 src 无法 import 包根常量文件，故内联
+// 并由 test/restored-smoke.mjs 断言与单一出处一致）；launcher 门锚（dev.zcode.app/TeamID）
+// 不受影响，签名信任门仍在（id 仅一致性检查）。
 export function Nh(e = process.env) {
   let t: any = bn(e),
     n = t ? e.ZCODE_CUA_HELPER_BUNDLE_ID?.trim() : void 0;
-  return n || (t && Ps(e) ? DEV_CUA_HELPER_BUNDLE_ID_VALUE : Ss);
+  // 期望 id 兜底改走 Drora 常量树（见上修复原因）；dev 变体覆盖通道（env）语义不变。
+  return n || (t && Ps(e) ? "dev.drora.cua-helper.dev" : "dev.drora.cua-helper");
 }
 
 export function Loe(e) {

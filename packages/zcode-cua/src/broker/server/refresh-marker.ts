@@ -9,7 +9,7 @@ import { randomBytes as fre } from "node:crypto";
 // env 键与 Drora 注入/消费链统一为 DRORA_ 名（shared/runtimeEnv 捕获、mcp-config 注入、
 // node-repl-host 读取全是 DRORA 名；原版为 ZCODE_ 名，45/46 轮发现的"同函数混血键"地雷
 // 曾让本注入器的 marker 互斥静默失效）。
-export var Fu = "DRORA_CUA_PERMISSION_BROKER_REFRESH_MARKER";
+export var Fu = "ZCODE_CUA_PERMISSION_BROKER_REFRESH_MARKER";
 
 export function Bu(e) {
   let t = e.trim();
@@ -24,7 +24,9 @@ export function yh(e = process.env) {
   return t === "1" || t === "true" || t === "on";
 }
 
-export var WC = "pipeline-293504-ab4d5e6b";
+// 修复原因（2026-11-10 第二轮 R7.2）：钉扎 buildId 停在 3.14.3 线（官方 3.17.2 out/host
+// Mx="pipeline-326130-a2d1ba73" @~729600；本仓 0.6.5 切段 :6943 同钉 326130，同仓新旧并存）。
+export var WC = "pipeline-326130-a2d1ba73";
 
 export var yre = 3e4,
   YU = 12e4,

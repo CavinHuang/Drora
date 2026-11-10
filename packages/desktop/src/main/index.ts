@@ -2447,11 +2447,12 @@ app.whenReady().then(async () => {
 
   // 悬浮指示窗预建延后到主窗就绪后（§5.5 二次增补）：早于 ensurePrimaryWindow 的
   // 预建会让面板成为 App 首窗、被协调器「复用」为主窗（真机：主窗从未创建）。
-  let pendingVoiceIndicatorPreload: (() => void) | null = null;
+  // ref 对象持有：回调赋值的 let 会被 TS 控制流窄化为 null（闭包赋值不参与分析）。
+  const pendingVoiceIndicatorPreloadRef: { current: (() => void) | null } = { current: null };
   registerPlatformIpcHandlers({
     fetchHelpConfig: readHelpConfig,
     onVoiceTranscriptIndicatorReady: (preload) => {
-      pendingVoiceIndicatorPreload = preload;
+      pendingVoiceIndicatorPreloadRef.current = preload;
     },
     logger,
     // CDP-on-guest pivot：renderer `<webview>` dom-ready 上报 guest webContentsId → attach。
@@ -2699,9 +2700,9 @@ app.whenReady().then(async () => {
 
   // 主窗就绪后才预建听写悬浮指示窗（§5.5 二次增补）：面板必须晚于主窗存在，
   // 且已被 ownsVoiceTranscriptIndicatorWindow 从窗口列表语义中排除（双保险）。
-  if (pendingVoiceIndicatorPreload) {
-    pendingVoiceIndicatorPreload();
-    pendingVoiceIndicatorPreload = null;
+  if (pendingVoiceIndicatorPreloadRef.current) {
+    pendingVoiceIndicatorPreloadRef.current();
+    pendingVoiceIndicatorPreloadRef.current = null;
   }
 
   // 启动后检测 CPU 架构是否匹配（如 Apple 芯片误装 x64 版本经 Rosetta 转译运行），

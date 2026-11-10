@@ -3,6 +3,11 @@ import { randomBytes } from "node:crypto";
 import { chmod, lstat, mkdir, open, readFile, stat, unlink } from "node:fs/promises";
 import { createConnection, createServer } from "node:net";
 import { dirname } from "node:path";
+// 还原自发行 bundle（官方 3.17.2 / 0.6.5，SEA offset ~85211920 区）：broker 请求会话域
+// （AsyncLocalStorage）——ghost 会话域守卫（nativeAxSource withGhostRequestSessionScope）与
+// PiP capture 绑定从这里取当前请求的 session/actionTitle；来源=请求参数 pip_session_context
+// （session_id/action_title，≤255、无 NUL，非法置 null）。
+import { AsyncLocalStorage } from "node:async_hooks";
 import {
   dispatchRequest,
   errorResponse,
@@ -15,6 +20,39 @@ import { CUA_BROKER_IPC_VERSION } from "../ipcVersion.js";
 import { silentBrokerLogger } from "../logging.js";
 import { tokensMatch } from "../brokerAuth.js";
 import { isPipSessionBrokerMethod, isReadOnlyBrokerMethod } from "../types.js";
+
+var brokerRequestScopeStorage = new AsyncLocalStorage<{ sessionId: unknown; actionTitle: unknown }>();
+export function runWithBrokerRequestSession(
+  sessionId: unknown,
+  actionTitleOrOperation: unknown,
+  maybeOperation?: () => any,
+) {
+  const operation: () => any =
+    typeof actionTitleOrOperation === "function" ? (actionTitleOrOperation as () => any) : maybeOperation!;
+  const actionTitle =
+    typeof actionTitleOrOperation === "function" ? null : actionTitleOrOperation;
+  return brokerRequestScopeStorage.run({ sessionId, actionTitle }, operation);
+}
+export function currentBrokerRequestSession() {
+  return brokerRequestScopeStorage.getStore()?.sessionId ?? null;
+}
+export function currentBrokerRequestActionTitle() {
+  return brokerRequestScopeStorage.getStore()?.actionTitle ?? null;
+}
+export function brokerRequestScopeFromParams(params) {
+  const context = (params as any)?.pip_session_context;
+  if (typeof context !== "object" || context === null)
+    return { sessionId: null, actionTitle: null };
+  const record2: any = context;
+  const sessionId = typeof record2.session_id === "string" ? record2.session_id.trim() : "";
+  const actionTitle =
+    typeof record2.action_title === "string" ? record2.action_title.trim() : "";
+  const valid = (v: string) => v.length > 0 && v.length <= 255 && !v.includes("\0");
+  return {
+    sessionId: valid(sessionId) ? sessionId : null,
+    actionTitle: valid(actionTitle) ? actionTitle : null,
+  };
+}
 
 var DEFAULT_MAX_LINE_BYTES = 16 * 1024 * 1024;
 var DEFAULT_REQUEST_TIMEOUT_MS = 15e3;
@@ -79,8 +117,13 @@ export var CuaPermissionBrokerServer = class {
   stopInFlight = null;
   serverCloseInFlight = null;
   verifyPeer;
-  authToken;
-  presentationAuthToken;
+  // 还原自发行 bundle（官方 3.17.2 SEA server 字段表：verifyPeer/
+  // peerPresentationEligible/useSocketLock…——无任何 token 字段）。3.11.2 血统的
+  // authToken/presentationAuthToken 双 token 链在官方 3.14.3 认证模型换代（52 轮
+  // 定性「token 链移除」）即已删除，0.6.5/3.17.2 沿用；2026-11-10 R10 认证模型
+  // 对齐移除 token 覆层，authenticate 走 peer 身份模型（verdict 挂 conn +
+  // presentation 角色门 peerPresentationEligible 复核）。
+  peerPresentationEligible;
   useSocketLock;
   lockFilePath;
   idleExit;
@@ -112,16 +155,8 @@ export var CuaPermissionBrokerServer = class {
     this.maxLineBytes = options.maxLineBytes ?? DEFAULT_MAX_LINE_BYTES;
     this.requestTimeoutMs = normalizeRequestTimeoutMs(options.requestTimeoutMs);
     this.gracefulStopTimeoutMs = normalizeGracefulStopTimeoutMs(options.gracefulStopTimeoutMs);
-    this.authToken = options.authToken ?? null;
-    this.presentationAuthToken = options.presentationAuthToken ?? null;
-    if (
-      this.authToken !== null &&
-      this.presentationAuthToken !== null &&
-      tokensMatch(this.authToken, this.presentationAuthToken)
-    ) {
-      throw new Error("tool and presentation broker tokens must be different");
-    }
     this.verifyPeer = options.verifyPeer;
+    this.peerPresentationEligible = options.peerPresentationEligible;
     this.useSocketLock = options.useSocketLock === true;
     this.lockFilePath = options.lockFilePath ?? `${this.socketPath}.lock`;
     this.idleExit = options.idleExit
@@ -590,16 +625,20 @@ export var CuaPermissionBrokerServer = class {
       socket.destroy();
       return;
     }
-    if (this.verifyPeer && !this.verifyPeer(socket)) {
+    // 还原自发行 bundle（官方 0.6.5 win32 entry :21140-21159）：verifyPeer 返回
+    // verdict 对象（{pid, parentPid, identifier}）挂 conn 供 authenticate 的
+    // presentation 角色门复核；布尔 false = 拒连。token developmentNoAuth 预置位
+    // 随 token 链一并移除——官方无 token，authenticate 是唯一认证置位面。
+    const peerVerdict = this.verifyPeer ? this.verifyPeer(socket) : true;
+    if (this.verifyPeer && !peerVerdict) {
       this.logger.warn(void 0, "cua broker rejected connection: peer verification failed");
       socket.destroy();
       return;
     }
-    // 与原版一致：两端 token 都未配置（dev）才默认放行；配置了任一 token 就必须走 authenticate。
-    const developmentNoAuth = this.authToken === null && this.presentationAuthToken === null;
     const conn: any = {
-      authenticated: developmentNoAuth,
-      authRole: developmentNoAuth ? "tool" : null,
+      authenticated: false,
+      authRole: null,
+      peerVerdict: typeof peerVerdict === "object" ? peerVerdict : null,
       closeAfterWrite: false,
       processing: Promise.resolve(),
       closed: false,
@@ -824,7 +863,12 @@ export var CuaPermissionBrokerServer = class {
         return errorResponseFromException(request.id, error51);
       }
     }
-    const work = dispatchRequest(this.backend, request);
+    // 还原自发行 bundle（官方 3.17.2 / 0.6.5）：业务派发包进请求会话域（pip_session_context
+    // 的 session/actionTitle），供 ghost 会话域守卫与 PiP capture 绑定在异步链内读取。
+    const requestScope = brokerRequestScopeFromParams(request.params);
+    const work = runWithBrokerRequestSession(requestScope.sessionId, requestScope.actionTitle, () =>
+      dispatchRequest(this.backend, request),
+    );
     const canSoftTimeout =
       isReadOnlyBrokerMethod(request.method) &&
       Number.isFinite(this.requestTimeoutMs) &&
@@ -855,25 +899,29 @@ export var CuaPermissionBrokerServer = class {
       }
     }
   }
-  // authenticate 处理：连接身份已由 verifyPeer 的签名三道门证明，这里只承载 client_hello 寻址与
-  // 角色声明。presentation 角色不能自报：只有对端 SecCode identifier 属于 ZCode 主进程的连接才可声明。
+  // authenticate 处理：官方 0.6.5 逐字还原（win32 entry :21405-21426 / 3.17.2 SEA
+  // 同文）——无 token 比对。tool 角色按 client_hello 声明身份置位；presentation
+  // 角色不能自报：须连接层 verifyPeer 已产出 verdict 且 peerPresentationEligible
+  // 复核通过（对端 identifier 属于宿主主进程），否则 not_authorized 并断开
+  // （observed 文案逐字，品牌词 ZCode→Drora）。
   handleAuthenticate(conn, request) {
     const identity = parseConnectionIdentity(request.params, conn.connectionId);
-    // authenticate 处理（与原版发行物一致）：token 未配置 → no-op ok（让带 token 的 client
-    // 也能连 dev server）；配置了 → 常量时间比对，成功置位、失败回 not_authorized 并标记断开。
-    if (this.authToken === null && this.presentationAuthToken === null) {
-      this.markConnectionAuthenticated(conn, identity, "tool");
-      return okResponse(request.id, { authenticated: true });
+    if (request.params?.role === "presentation") {
+      if (conn.peerVerdict && this.peerPresentationEligible?.(conn.peerVerdict) === true) {
+        this.markConnectionAuthenticated(conn, identity, "presentation");
+        return okResponse(request.id, { authenticated: true, role: "presentation" });
+      }
+      conn.closeAfterWrite = true;
+      const observed = conn.peerVerdict
+        ? `peer pid=${conn.peerVerdict.pid} parent=${String(conn.peerVerdict.parentPid)} identifier=${JSON.stringify(conn.peerVerdict.identifier ?? null)}`
+        : "the connection carries no verified peer identity";
+      return errorResponse(
+        request.id,
+        "not_authorized",
+        `presentation authority requires a verified Drora host peer (${observed})`,
+      );
     }
-    if (tokensMatch(this.authToken ?? "", request.params?.token)) {
-      this.markConnectionAuthenticated(conn, identity, "tool");
-      return okResponse(request.id, { authenticated: true });
-    }
-    if (tokensMatch(this.presentationAuthToken ?? "", request.params?.token)) {
-      this.markConnectionAuthenticated(conn, identity, "presentation");
-      return okResponse(request.id, { authenticated: true, role: "presentation" });
-    }
-    conn.closeAfterWrite = true;
-    return errorResponse(request.id, "not_authorized", "invalid or missing broker auth token");
+    this.markConnectionAuthenticated(conn, identity, "tool");
+    return okResponse(request.id, { authenticated: true });
   }
 };

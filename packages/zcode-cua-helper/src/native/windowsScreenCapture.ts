@@ -83,11 +83,71 @@ function normalizeOutcome(value, operation) {
   }
   throw new WindowsScreenCaptureError(fixedFailureCode(value) ?? "capture_failed", operation);
 }
+// 还原自发行 bundle（官方 0.6.5 win32 entry :29994-30030）：复合截图回执校验——
+// 成功回执在单窗形状之上还带 captured（逐窗 {window_id,pid,owner_bundle_id,bounds}）
+// 与 gaps（{window_id,reason}，如 outside_root_bounds）；任一条目畸形按
+// capture_failed 拒绝，不让半张合成图进入像素契约。
+function isValidCapturedEntry(value) {
+  if (!value || typeof value !== "object") return false;
+  const entry = value;
+  return (
+    Number.isSafeInteger(entry.window_id) &&
+    entry.window_id > 0 &&
+    Number.isSafeInteger(entry.pid) &&
+    entry.pid > 0 &&
+    typeof entry.owner_bundle_id === "string" &&
+    entry.owner_bundle_id.length > 0 &&
+    isValidBounds(entry.bounds)
+  );
+}
+function isValidGapEntry(value) {
+  if (!value || typeof value !== "object") return false;
+  const entry = value;
+  return (
+    Number.isSafeInteger(entry.window_id) &&
+    entry.window_id > 0 &&
+    typeof entry.reason === "string" &&
+    entry.reason.length > 0
+  );
+}
+function normalizeCompositeOutcome(value) {
+  if (isValidSuccess(value)) {
+    const composite = value;
+    const captured = Array.isArray(composite.captured) ? composite.captured : [];
+    const gaps = Array.isArray(composite.gaps) ? composite.gaps : [];
+    if (!captured.every(isValidCapturedEntry) || !gaps.every(isValidGapEntry)) {
+      throw new WindowsScreenCaptureError("capture_failed", "window");
+    }
+    return {
+      format: "png",
+      data: composite.data,
+      width: composite.width,
+      height: composite.height,
+      bounds: copyBounds(composite.bounds),
+      captured,
+      gaps,
+    };
+  }
+  throw new WindowsScreenCaptureError(fixedFailureCode(value) ?? "capture_failed", "window");
+}
 function supported(native) {
   try {
     return native.isScreenCaptureSupported?.() === true;
   } catch {
     return false;
+  }
+}
+function validateWindowParams(params) {
+  if (
+    !Number.isSafeInteger(params.windowId) ||
+    params.windowId <= 0 ||
+    !Number.isSafeInteger(params.pid) ||
+    params.pid <= 0 ||
+    typeof params.expectedCanonicalBundleId !== "string" ||
+    params.expectedCanonicalBundleId.trim().length === 0 ||
+    (params.expectedBounds !== void 0 && !isValidBounds(params.expectedBounds))
+  ) {
+    throw new WindowsScreenCaptureError("invalid_target", "window");
   }
 }
 export function createWindowsScreenCaptureBridge(native) {
@@ -96,8 +156,13 @@ export function createWindowsScreenCaptureBridge(native) {
     typeof native.captureMonitorPngAsync === "function" &&
     typeof native.captureWindowPngVerifiedAsync === "function";
   const available = hasCompleteAbi && supported(native);
+  // 还原自发行 bundle（官方 0.6.5 win32 entry :30035）：composite 能力独立探测——
+  // captureWindowPngCompositeAsync 缺导出时 compositeAvailable=false，captureWindowComposite
+  // 按官方同款 unsupported 拒绝（win.ts 消费侧据此回退单窗 verified 抓图）。
+  const compositeAvailable = available && typeof native.captureWindowPngCompositeAsync === "function";
   return {
     available,
+    compositeAvailable,
     async captureMonitor(bounds) {
       if (!available) {
         throw new WindowsScreenCaptureError("unsupported", "monitor");
@@ -116,17 +181,7 @@ export function createWindowsScreenCaptureBridge(native) {
       if (!available) {
         throw new WindowsScreenCaptureError("unsupported", "window");
       }
-      if (
-        !Number.isSafeInteger(params.windowId) ||
-        params.windowId <= 0 ||
-        !Number.isSafeInteger(params.pid) ||
-        params.pid <= 0 ||
-        typeof params.expectedCanonicalBundleId !== "string" ||
-        params.expectedCanonicalBundleId.trim().length === 0 ||
-        (params.expectedBounds !== void 0 && !isValidBounds(params.expectedBounds))
-      ) {
-        throw new WindowsScreenCaptureError("invalid_target", "window");
-      }
+      validateWindowParams(params);
       try {
         return normalizeOutcome(
           await native.captureWindowPngVerifiedAsync(
@@ -142,5 +197,66 @@ export function createWindowsScreenCaptureBridge(native) {
         throw new WindowsScreenCaptureError("capture_failed", "window");
       }
     },
+    // 还原自发行 bundle（官方 0.6.5 win32 entry :30076-30122）：root+popups 复合
+    // 抓图。popups 1..64、逐窗 bounds 校验；native 抛非 WindowsScreenCaptureError
+    // 统一收敛 capture_failed。
+    async captureWindowComposite(params) {
+      if (!compositeAvailable) {
+        throw new WindowsScreenCaptureError("unsupported", "window");
+      }
+      const rootParams = {
+        windowId: params.root.windowId,
+        pid: params.root.pid,
+        expectedCanonicalBundleId: params.root.expectedCanonicalBundleId,
+        ...(params.root.expectedBounds !== void 0 ? { expectedBounds: params.root.expectedBounds } : {}),
+      };
+      const rootInvalid = (() => {
+        try {
+          validateWindowParams(rootParams);
+          return null;
+        } catch (error51) {
+          return error51;
+        }
+      })();
+      if (rootInvalid) throw rootInvalid;
+      if (
+        !Array.isArray(params.popups) ||
+        params.popups.length === 0 ||
+        params.popups.length > 64 ||
+        params.popups.some(
+          (popup) =>
+            !Number.isSafeInteger(popup.windowId) ||
+            popup.windowId <= 0 ||
+            !Number.isSafeInteger(popup.pid) ||
+            popup.pid <= 0 ||
+            !isValidBounds(popup.expectedBounds),
+        )
+      ) {
+        throw new WindowsScreenCaptureError("invalid_target", "window");
+      }
+      try {
+        return normalizeCompositeOutcome(
+          await native.captureWindowPngCompositeAsync({
+            root: {
+              windowId: rootParams.windowId,
+              pid: rootParams.pid,
+              expectedCanonicalBundleId: rootParams.expectedCanonicalBundleId,
+              ...(rootParams.expectedBounds !== void 0
+                ? { expectedBounds: copyBounds(rootParams.expectedBounds) }
+                : {}),
+            },
+            popups: params.popups.map((popup) => ({
+              windowId: popup.windowId,
+              pid: popup.pid,
+              expectedBounds: copyBounds(popup.expectedBounds),
+            })),
+          }),
+        );
+      } catch (error51) {
+        if (error51 instanceof WindowsScreenCaptureError) throw error51;
+        throw new WindowsScreenCaptureError("capture_failed", "window");
+      }
+    },
   };
 }
+

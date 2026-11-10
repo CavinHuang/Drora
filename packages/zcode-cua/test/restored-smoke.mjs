@@ -18,6 +18,16 @@ const { HELPER_APP_NAME } = await import("@drora/drora-cua/broker/helperConstant
 
 // —— 常量与契约 ——
 check("HELPER_APP_NAME", HELPER_APP_NAME === "Drora Computer Use.app");
+// 期望 bundle id 兜底随 Drora 常量树（2026-09-28 改名裁定漏网点修复，见
+// src/broker/server/orphan-reaper.ts Nh 注释；此处钉生产形态兜底与单一出处
+// broker-helper-constants.js 一致）。
+const { HELPER_BUNDLE_ID } = await import("@drora/drora-cua/broker/helperConstants");
+const { Nh: expectedHelperBundleId } = await import("../broker/server/orphan-reaper.js");
+check(
+  "HELPER_BUNDLE_ID（Nh 生产兜底单一出处）",
+  HELPER_BUNDLE_ID === "dev.drora.cua-helper" &&
+    expectedHelperBundleId({ ZCODE_RUNTIME_ENV: "production" }) === HELPER_BUNDLE_ID,
+);
 check("HELPER_ADDON_ENV", server.HELPER_ADDON_ENV === "ZCODE_CUA_HELPER_ADDON");
 check(
   "WINDOWS_DEV_CONTROL_PROTOCOL",

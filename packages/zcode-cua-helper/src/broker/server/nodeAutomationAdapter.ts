@@ -3,6 +3,11 @@ import {
   WindowsScreenCaptureError,
   createWindowsScreenCaptureBridge,
 } from "../../native/windowsScreenCapture.js";
+import {
+  instrumentWindowsOperationNative,
+  readWindowsMenuContent,
+  readWindowsOperationScene,
+} from "../../native/windows-operation-request.js";
 import { BrokerError, launchFailed, permissionDenied } from "../types.js";
 import { withIbusBypassAsync, withIbusBypassSync } from "./linuxIbusBypass.js";
 
@@ -126,7 +131,15 @@ async function writeNativeClipboardText(write, text) {
   throw clipboardError("write_clipboard", "malformed");
 }
 export function createNodeAutomationAdapter(options) {
-  const { native, system } = options;
+  const { system } = options;
+  // 还原自发行 bundle（官方 0.6.5 win32 entry :31279-31280）：win32 平台在 adapter
+  // 入口即对 native addon 做操作请求 instrument（mutations 集方法进 Proxy——操作
+  // 关联守卫 + evidence 采集；WeakMap 幂等，与 win.ts createAxWinReadOnlySource 的
+  // 二次 instrument 共享同一包装）。非 win32 原样传递（mac 官方形态无此链）。
+  const native =
+    (options.platform ?? process.platform) === "win32"
+      ? instrumentWindowsOperationNative(options.native)
+      : options.native;
   const backgroundNative = native;
   const probeAccessibility = wrapOptionalNativeMethod(native.probeAccessibility);
   const probeAccessibilityStatus = wrapOptionalNativeMethod(native.probeAccessibilityStatus);
@@ -139,11 +152,50 @@ export function createNodeAutomationAdapter(options) {
   );
   const clickAtPoint = wrapOptionalNativeMethod(native.clickAtPoint);
   const clickElementAtPoint = wrapOptionalNativeMethod(native.clickElementAtPoint);
+  // 还原自官方发行 bundle（win32 0.6.5 dist/windows-helper.js:31305-31316）：
+  // R8 守卫链依赖的三个 additive ABI——hitTestInvokeAtPointAsync（32034）、
+  // classifyPostMessageDelivery（32036）、postMessageClickAsync（32037）。
+  // 旧 addon 缺导出时 wrapOptionalNativeMethod 返回 undefined，electronInputHandlers
+  // 的守卫/降级分支按能力缺失 fail-closed（与官方同款）。
+  const hitTestInvokeAtPointAsync = wrapOptionalNativeMethod(
+    native.hitTestInvokeAtPointAsync,
+  );
+  // 还原自官方 31308-31310：UIA 模式梯原语（elementPatternCallAsync）。
+  const elementPatternCallAsync = wrapOptionalNativeMethod(native.elementPatternCallAsync);
+  const classifyPostMessageDelivery = wrapOptionalNativeMethod(
+    native.classifyPostMessageDelivery,
+  );
+  const postMessageClickAsync = wrapOptionalNativeMethod(native.postMessageClickAsync);
+  // 还原自发行 bundle（官方 0.6.5 win32 entry :31305-31340）：postMessage 后台投递
+  // 族与 UIA 读回族 additive ABI——char/key/scroll/drag 后台投递、XAML 加速器、
+  // 元素值读回与写后读回。旧 addon 缺导出时为 undefined，electronInputHandlers 的
+  // 后台投递族（dispatchWindowsElementInsertion/BackgroundKeyed/BackgroundScroll/
+  // BackgroundDrag）与 axReadOnly 的读回链按能力缺失走官方同款降级
+  //（回退前台派发 / 裸写路径）。
+  const postMessageCharAsync = wrapOptionalNativeMethod(native.postMessageCharAsync);
+  const postMessageKeyAsync = wrapOptionalNativeMethod(native.postMessageKeyAsync);
+  const postMessageScrollAsync = wrapOptionalNativeMethod(native.postMessageScrollAsync);
+  const postMessageDragAsync = wrapOptionalNativeMethod(native.postMessageDragAsync);
+  const invokeAcceleratorAsync = wrapOptionalNativeMethod(native.invokeAcceleratorAsync);
+  const elementValueReadAsync = wrapOptionalNativeMethod(native.elementValueReadAsync);
+  const setValueReadbackAsync = wrapOptionalNativeMethod(native.setValueReadbackAsync);
   const preventActivation = wrapOptionalNativeMethod(native.preventActivation);
   const reenableActivation = wrapOptionalNativeMethod(native.reenableActivation);
   const isFocusStealPrevented = wrapOptionalNativeMethod(native.isFocusStealPrevented);
   const activateApplication = wrapOptionalNativeMethod(native.activateApplication);
+  // 还原自官方发行 bundle（win32 0.6.5 dist/windows-helper.js:31346-31351）：
+  // hasActiveInputHolds（32051）/ getForegroundRootWindowId（32053）/
+  // frameWindowContext（32054）/ restoreForegroundWindow（32058）四个守卫域 ABI。
+  // 消费方：electronInputHandlers.ts 的 key-hold 防误路由、foregroundRestoreScope、
+  // windowsForegroundWindowGate 菜单宿主门（均已还原，此前因 adapter 缺字段恒 no-op）。
+  const hasActiveInputHolds = wrapOptionalNativeMethod(native.hasActiveInputHolds);
   const activateWindow = wrapOptionalNativeMethod(native.activateWindow);
+  const getForegroundRootWindowId = wrapOptionalNativeMethod(
+    native.getForegroundRootWindowId,
+  );
+  const frameWindowContext = wrapOptionalNativeMethod(native.frameWindowContext);
+  const enumerateSurfacesForFrame = wrapOptionalNativeMethod(native.enumerateSurfacesForFrame);
+  const restoreForegroundWindow = wrapOptionalNativeMethod(native.restoreForegroundWindow);
   const activateAppFrameSurface = wrapOptionalNativeMethod(native.activateAppFrameSurface);
   const terminateApplication = wrapOptionalNativeMethod(native.terminateApplicationVerified);
   const platform2 = options.platform ?? process.platform;
@@ -159,11 +211,6 @@ export function createNodeAutomationAdapter(options) {
   const pasteboardFinishProvidedPaste = wrapOptionalNativeMethod(
     native.pasteboardFinishProvidedPaste,
   );
-  const hasProvidedPaste =
-    platform2 === "darwin" &&
-    typeof pasteboardBeginProvidedPaste === "function" &&
-    typeof pasteboardAwaitProvidedRead === "function" &&
-    typeof pasteboardFinishProvidedPaste === "function";
   const readClipboardTextAsync = wrapOptionalNativeMethod(native.readClipboardTextAsync);
   const dpiAwarenessInfo = wrapOptionalNativeMethod(native.dpiAwarenessInfo);
   const writeClipboardTextAsync = wrapOptionalNativeMethod(native.writeClipboardTextAsync);
@@ -175,6 +222,23 @@ export function createNodeAutomationAdapter(options) {
       nativeClipboardSessionReady = false;
     }
   }
+  // 还原自官方发行 bundle（win32 0.6.5 dist/windows-helper.js:31381-31383）：
+  // providedPaste 能力门是平台条件式——darwin 只看三件套导出；win32 是硬门，
+  // 要求 isInteractiveSession()===true（nativeClipboardSessionReady，31374-31381
+  // 同源已在上方计算）+ 三件套 + markDispatched 存在。此前还原稿把 darwin 分支
+  // 写成整条 && 链，win32 永远 false——官方 0.6.5 win addon 四导出齐全时
+  // provided-paste 路径（paste handler）整条死路，本批对齐官方条件式。
+  const hasProvidedPasteExports =
+    typeof pasteboardBeginProvidedPaste === "function" &&
+    typeof pasteboardAwaitProvidedRead === "function" &&
+    typeof pasteboardFinishProvidedPaste === "function";
+  const hasProvidedPaste =
+    platform2 === "darwin"
+      ? hasProvidedPasteExports
+      : platform2 === "win32" &&
+        nativeClipboardSessionReady &&
+        hasProvidedPasteExports &&
+        typeof pasteboardMarkProvidedPasteDispatched === "function";
   const hasNativeClipboard =
     platform2 === "win32" &&
     nativeClipboardSessionReady &&
@@ -253,6 +317,9 @@ export function createNodeAutomationAdapter(options) {
   const typeTextGlobal = typeTextGlobalRaw
     ? (text) => withIbusBypassSync(() => typeTextGlobalRaw(text))
     : void 0;
+  // 还原自官方发行 bundle（win32 0.6.5 dist/windows-helper.js:31478 / surface 32087）：
+  // type_text 截断双语义依赖的异步原语；缺失时 handler 回退同步 typeTextGlobal。
+  const typeTextGlobalAsync = wrapOptionalNativeMethod(native.typeTextGlobalAsync);
   const pressKeyGlobal = wrapOptionalNativeMethod(native.pressKeyGlobal);
   const typeTextToPidVerified = wrapOptionalNativeMethod(native.typeTextToPidVerified);
   const pressKeyToPidVerified = wrapOptionalNativeMethod(native.pressKeyToPidVerified);
@@ -548,7 +615,12 @@ export function createNodeAutomationAdapter(options) {
         : system.supportsScreenCapture !== false,
     providedPaste: hasProvidedPaste
       ? {
-          begin: (text, format) => pasteboardBeginProvidedPaste(text, format),
+          // 还原自官方发行 bundle（win32 0.6.5 dist/windows-helper.js:31762）：
+          // begin 桥签名带第三参 expectedReaderPid（paste handler 侧的读者钉扎）。
+          // 我方 paste 消费侧仍按已记档分歧（specs/cua-gap-remediation-2026-11-09.md
+          // R3.5 注）两参调用——桥此处对齐官方签名，undefined 透传与缺参等价，无行为变化。
+          begin: (text, format, expectedReaderPid) =>
+            pasteboardBeginProvidedPaste(text, format, expectedReaderPid),
           awaitRead: (token, timeoutMs, graceMs, minHoldMs) =>
             pasteboardAwaitProvidedRead(token, timeoutMs, graceMs, minHoldMs),
           // 旧 addon 没有这个导出：缺失时 awaitRead 退化成旧语义（任何读取都算），
@@ -867,14 +939,45 @@ export function createNodeAutomationAdapter(options) {
     // 全局坐标鼠标/键盘与 PiP 都是 additive ABI；旧 addon 缺任一 export 时逐项不暴露，
     // 由 handler 返回 not_authorized，而不是把调用拖到运行时 TypeError。
     clickAtPoint,
+    // 还原自官方发行 bundle（win32 0.6.5 dist/windows-helper.js:32032）：inline wrap。
+    clickAtPointAsync: wrapOptionalNativeMethod(native.clickAtPointAsync),
     clickElementAtPoint,
+    // 还原自官方 32034-32037：R8 守卫链三件 + UIA 模式梯（32035）。
+    hitTestInvokeAtPointAsync,
+    elementPatternCallAsync,
+    classifyPostMessageDelivery,
+    postMessageClickAsync,
+    // 还原自官方 32038-32044：postMessage 后台投递族 + 加速器 + 读回（W3 机械域）。
+    postMessageCharAsync,
+    postMessageKeyAsync,
+    postMessageScrollAsync,
+    postMessageDragAsync,
+    invokeAcceleratorAsync,
+    elementValueReadAsync,
+    setValueReadbackAsync,
     // Linux synthetic gate (no-op) takes effect only when the native addon
     // doesn't expose the real macOS primitives; on macOS the real exports win.
     preventActivation: preventActivation ?? linuxNoFocusGate?.preventActivation,
     reenableActivation: reenableActivation ?? linuxNoFocusGate?.reenableActivation,
     isFocusStealPrevented: isFocusStealPrevented ?? linuxNoFocusGate?.isFocusStealPrevented,
     activateApplication,
+    // 还原自官方 32051-32058（顺序同官方）：守卫域四件 + W3 机械域三件——
+    // windowsOperationScene/windowsMenuContent（操作场景读回，官方 :32056-32057，
+    // 经 readWindowsOperationScene/readWindowsMenuContent 包一层：两段读 + decorative
+    // 标记/菜单形状校验）与 enumerateSurfacesForFrame（:32058）。native 缺
+    // windowsOperationScene 导出时前两者 undefined（mac 官方形态，菜单观察整链休眠）。
+    hasActiveInputHolds,
     activateWindow,
+    getForegroundRootWindowId,
+    frameWindowContext,
+    windowsOperationScene: native.windowsOperationScene
+      ? (root, host) => readWindowsOperationScene(native, root, host)
+      : void 0,
+    windowsMenuContent: native.windowsOperationScene
+      ? (pid, id) => readWindowsMenuContent(native, pid, id)
+      : void 0,
+    enumerateSurfacesForFrame,
+    restoreForegroundWindow,
     activateAppFrameSurface,
     pipStart,
     pipStartVerified,
@@ -903,6 +1006,8 @@ export function createNodeAutomationAdapter(options) {
     // held background/split button (never a dispatch path).
     mouseUpToPid,
     typeTextGlobal,
+    // 还原自官方 32087：截断双语义异步原语（wrap 见 31478 注释）。
+    typeTextGlobalAsync,
     pressKeyGlobal,
     holdKeyGlobal,
     cancelInputHoldsForSession,

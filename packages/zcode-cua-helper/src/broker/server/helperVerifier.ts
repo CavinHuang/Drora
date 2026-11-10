@@ -27,3 +27,16 @@ export function resolveZCodeLauncherCodeRequirement(env = process.env) {
     : `(${DEFAULT_CUA_LAUNCHER_BUNDLE_IDS.map((id) => `identifier "${id}"`).join(" or ")})`;
   return `anchor apple generic and ${identifierRequirement} and certificate leaf[subject.OU] = "${teamId}"`;
 }
+
+// peer 签名门 requirement（官方 SEA resolveCuaPeerTeamRequirement 逐字，2026-11-10 R10）：
+// 与 launcher 门不同——纯 team 锚（无 identifier 约束），用于 verifyPeer 的
+// audit_token/父进程双签名门（任何同 Team 签名进程可作 peer，presentation 角色
+// 资格另由 isPresentationPeerEligible 把关）。
+export function resolveCuaPeerTeamRequirement(env = process.env) {
+  return `anchor apple generic and certificate leaf[subject.OU] = "${resolvePinnedTeamId(env)}"`;
+}
+function resolvePinnedTeamId(env = process.env) {
+  const localDevelopmentRuntime = isCuaLocalDevelopmentRuntime(env);
+  const teamOverride = localDevelopmentRuntime ? env.ZCODE_CUA_HELPER_TEAM_ID?.trim() : void 0;
+  return teamOverride && SAFE_CODESIGN_TOKEN.test(teamOverride) ? teamOverride : HELPER_TEAM_ID;
+}

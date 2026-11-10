@@ -11,7 +11,7 @@ export const DRORA_TOOL_ENV_PASSTHROUGH_ENV_KEY = "DRORA_TOOL_ENV_PASSTHROUGH_JS
 /** Desktop Main 将服务端裁决的单功能灰度结果传给 Local/Remote Host。 */
 export const DRORA_DESKTOP_CONTEXT_PROMPT_ENABLED_ENV = "DRORA_DESKTOP_CONTEXT_PROMPT_ENABLED";
 export const DRORA_CUA_PRODUCT_HELPER_ENV_KEY = "DRORA_CUA_PRODUCT_HELPER";
-export const DRORA_CUA_BROKER_SOCKET_ENV_KEY = "DRORA_CUA_PERMISSION_BROKER_SOCKET";
+export const DRORA_CUA_BROKER_SOCKET_ENV_KEY = "ZCODE_CUA_PERMISSION_BROKER_SOCKET";
 // 官方命令端点（agent 侧代理，技术方案 5.8）：地址与 session token 只由 agent 按 session 注入
 // Bash/tool 子进程，不随 agent 全局 env 继承。
 export const DRORA_OFFICIAL_ENDPOINT_ENV_KEY = "DRORA_OFFICIAL_ENDPOINT";
@@ -72,7 +72,7 @@ const SANITIZED_RUNTIME_ENV_KEYS = [
   // 可能装着旧版 Helper —— 那些版本认 bearer token，一旦这个变量随 agent 全局 env 漏给别的
   // MCP server / Bash 子进程，同一个 confused-deputy 又成立。剔除一个已不用的键是零成本的。
   "DRORA_CUA_PERMISSION_BROKER_TOKEN",
-  "DRORA_CUA_PERMISSION_BROKER_REFRESH_MARKER",
+  "ZCODE_CUA_PERMISSION_BROKER_REFRESH_MARKER",
   "DRORA_CUA_PLUGIN_AUTHORITY",
   // 官方命令端点的地址与 token 属于某一个 session，由 agent 定向注入；从父进程继承来的
   // 值（例如嵌套运行的 agent）一律剔除，避免一个 session 拿着另一个 session 的 token。
@@ -107,7 +107,7 @@ const NON_TOOL_PASSTHROUGH_RUNTIME_ENV_KEYS = [
   "NODE_NO_WARNINGS",
   // CUA broker 凭据不得经 tool-env-passthrough 恢复到 Bash/tool 子进程（否则等于绕过上面的剔除）。
   DRORA_CUA_BROKER_SOCKET_ENV_KEY,
-  "DRORA_CUA_PERMISSION_BROKER_REFRESH_MARKER",
+  "ZCODE_CUA_PERMISSION_BROKER_REFRESH_MARKER",
   "DRORA_CUA_PLUGIN_AUTHORITY",
   DRORA_OFFICIAL_ENDPOINT_ENV_KEY,
   DRORA_OFFICIAL_ENDPOINT_TOKEN_ENV_KEY,
@@ -162,7 +162,7 @@ const capturedDroraAgentTelemetryEnv: Record<string, string> = {};
 function captureDroraCuaBrokerCredentials(env: Record<string, string | undefined>): void {
   const socket = env[DRORA_CUA_BROKER_SOCKET_ENV_KEY]?.trim();
   const pluginAuthority = env[DRORA_CUA_PLUGIN_AUTHORITY_ENV_KEY]?.trim();
-  const refreshMarker = env["DRORA_CUA_PERMISSION_BROKER_REFRESH_MARKER"]?.trim();
+  const refreshMarker = env["ZCODE_CUA_PERMISSION_BROKER_REFRESH_MARKER"]?.trim();
   // 第十五轮：broker token 模式回归（原版 mac 3.11.2 发射链经一次性 token 文件
   // 启动 Helper 后，客户端必须以同一 token authenticate）。与 socket 同批捕获，
   // 同受 confused-deputy 剔除约束（sanitize 列表已含本键）。

@@ -11,7 +11,16 @@ import {
   permissionDenied,
 } from "../types.js";
 import { AxSnapshotCache, decideSnapshotMode, diffAxSnapshots } from "./axSnapshot.js";
-import { createGetSkyshotHandler } from "./axSkyshot.js";
+// 清退（2026-11-10 R10 后续）：createGetSkyshotHandler（./axSkyshot.js）已随
+// get_skyshot broker 方法删除——skyshot/SkyshotDiffer/get_skyshot 在官方 0.6.5
+// win entry 与官方 mac SEA（3.17.2）双零命中；axSkyshot.ts 整文件删除。
+// 还原自发行 bundle（官方 0.6.5 win32 entry :21534-21595/:23003）：投递轨迹封套
+//（appendAttempt/finalizeDelivery，windowsDeliveryReceipt.ts）、写后读回裁决
+//（windowsValueReadback.ts）与 win32 操作域的菜单期望标记
+//（windows-operation-request.ts expectWindowsMenu）。
+import { appendAttempt, finalizeDelivery } from "./windowsDeliveryReceipt.js";
+import { applyAxEchoSurfaceTrust, classifyReplacementReadback } from "./windowsValueReadback.js";
+import { expectWindowsMenu } from "../../native/windows-operation-request.js";
 import {
   canonicalizeCuaBundleId,
   resolvePidBundleId,
@@ -877,6 +886,89 @@ export function createAxReadOnlyMethods(
           "element_set_value",
         );
       }
+      // 还原自发行 bundle（官方 0.6.5 win32 entry :22798-22866）：win32 写后读回
+      // 裁决链。setValueReadbackAsync + winAxElementFromToken + winAxElementRelease
+      // 三 additive ABI 齐备时走读回：!readback.ok → readback_job_unavailable（写
+      // 可能已开始，action_sent=true）；!writeOk 且 dispatch_status 非 not_sent →
+      // native_write_uncertain（附 ax 轨迹 possibly_sent 封套）；!writeOk 且未派发 →
+      // notSettable；成功 → classifyReplacementReadback 裁决（confirmed/pending/
+      // suspected_noop/unreadable）+ Chromium 直接宿主 AX-echo 降级，封套 reason=
+      // directed_value_set（post_message 路径）/value_pattern_set（UIA 模式路径）。
+      // 缺任一 ABI（mac 官方形态）时整链跳过，落下方裸写路径。
+      const setValueReadback = source.setValueReadbackAsync?.bind(source);
+      const fromToken = source.winAxElementFromToken?.bind(source);
+      const releaseRef = source.winAxElementRelease?.bind(source);
+      if (setValueReadback && fromToken && releaseRef) {
+        const token = fromToken(ref);
+        if (token.ok) {
+          try {
+            const hostWindowId = (await source.elementWindowId?.(ref)) ?? 0;
+            const readback: any = await setValueReadback(token.element, hostWindowId, value);
+            if (!readback.ok) {
+              throw elementUnavailable(
+                "element_set_value could not complete; the write may already have started. Re-observe before retrying.",
+                {
+                  action_sent: true,
+                  reason: "readback_job_unavailable",
+                },
+              );
+            }
+            if (!readback.writeOk) {
+              if (readback.dispatch_status && readback.dispatch_status !== "not_sent") {
+                throw elementUnavailable(
+                  "element_set_value: the native write may have started; verify the field before any further action.",
+                  {
+                    action_sent: true,
+                    reason: "native_write_uncertain",
+                    delivery: {
+                      path: readback.path ?? "ax",
+                      effect: "unverifiable",
+                      attempts: [{ path: readback.path ?? "ax", dispatch_status: "possibly_sent" }],
+                      escalated: false,
+                    },
+                  },
+                );
+              }
+              throw notSettable(
+                `element_set_value: the element did not accept the value (read-only or no value pattern). Target an inner editable element instead, or use type with strategy=event for insertion semantics, or click the field and type_text. action_sent=false.`,
+                {
+                  action_sent: false,
+                  reason: "action_unsupported",
+                },
+              );
+            }
+            const verdict = applyAxEchoSurfaceTrust(
+              classifyReplacementReadback(readback.before, readback.after, value),
+              options.isChromiumHostWindow?.(hostWindowId) === true,
+            );
+            const delivery = {
+              path: readback.path ?? "ax",
+              effect: readback.focus_unchanged === false ? "unverifiable" : verdict.effect,
+              attempts: [
+                {
+                  path: readback.path ?? "ax",
+                  dispatch_status: "sent",
+                  reason: readback.path === "post_message" ? "directed_value_set" : "value_pattern_set",
+                },
+              ],
+              escalated: false,
+              readback: {
+                verify: verdict.verify,
+                ...(readback.focus_unchanged !== void 0 ? { focus_unchanged: readback.focus_unchanged } : {}),
+                ...(verdict.idempotent ? { idempotent: true } : {}),
+                ...(verdict.axEchoDemoted ? { axEchoDemoted: true } : {}),
+              },
+            };
+            return {
+              action_sent: true,
+              dispatch_status: "accepted",
+              delivery,
+            };
+          } finally {
+            releaseRef(token.element);
+          }
+        }
+      }
       const dispatch = assertActionSucceeded(
         await elementSetValue(ref, value),
         "element_set_value",
@@ -895,7 +987,16 @@ export function createAxReadOnlyMethods(
       const ref = await refForAction(source, registry2, params, "element_perform_action");
       const live = await readLiveForAction(source, ref, "element_perform_action");
       const allowed = live.actions ?? [];
-      if (!allowed.includes(action)) {
+      // 还原自发行 bundle（官方 0.6.5 win32 entry :22896-22905）：UIA 模式梯在场
+      //（elementPatternCallAsync + 强引用桥）时 AXPress 不再要求 allowed 预列——
+      // invoke/toggle/select/expand 梯自证可达性，allowed 空的菜单/可Invoke元素也能按。
+      const doubleInvoke = params.click_count === 2 && action === "AXPress";
+      const windowsPress =
+        action === "AXPress" &&
+        source.elementPatternCallAsync &&
+        source.winAxElementFromToken &&
+        source.winAxElementRelease;
+      if (!allowed.includes(action) && !windowsPress) {
         throw actionUnavailable(
           `element_perform_action: action ${JSON.stringify(action)} is not available on this element; allowed: ${allowed.length ? JSON.stringify(allowed) : "[]"}. action_sent=false. Call get_app_state and pass one of the target element's \`actions\`.`,
           {
@@ -904,6 +1005,100 @@ export function createAxReadOnlyMethods(
             allowed_actions: allowed,
           },
         );
+      }
+      // 还原自官方 :22906-22981：Chromium 元素单击分流——AXPress（非双击）且 UIA
+      // 梯 + classify + postMessage click 三件在场时，宿主是 chromium 直接宿主则
+      // 降级为后台坐标点击（UIA Invoke 在 Chromium 里不触发合成事件）。降级前逐
+      // 项校验宿主窗与元素 bounds（stale_element_geometry）；downgradeDelivery 随
+      // 轨迹封套（chromium_element_downgrade → sent/refused/possibly）。
+      const classifyForDowngrade = source.classifyPostMessageDelivery;
+      const postClickForDowngrade = source.postMessageClickAsync;
+      const chromiumDowngrade =
+        action === "AXPress" &&
+        !doubleInvoke &&
+        windowsPress &&
+        typeof classifyForDowngrade === "function" &&
+        typeof postClickForDowngrade === "function";
+      let downgradeDeliveryCarry = null;
+      if (chromiumDowngrade && classifyForDowngrade && postClickForDowngrade) {
+        const hostWindowId = await source.elementWindowId?.(ref);
+        if (!hostWindowId) {
+          throw elementUnavailable(
+            "element_perform_action: the element's host window could not be resolved before dispatch; re-observe the app and retry. action_sent=false.",
+            { action_sent: false, reason: "stale_element_geometry" },
+          );
+        }
+        const probe = await classifyForDowngrade(hostWindowId, "mouse_click");
+        if (probe && typeof probe === "object" && probe.host === "chromium") {
+          const pid = live.ownerPid;
+          const [ex, ey, ew, eh] = live.bounds;
+          const centerValid =
+            Number.isFinite(ex) &&
+            Number.isFinite(ey) &&
+            ew > 0 &&
+            eh > 0 &&
+            typeof pid === "number" &&
+            pid > 0;
+          if (!centerValid) {
+            throw elementUnavailable(
+              "element_perform_action: the Chromium element's screen bounds or host window could not be verified before dispatch; re-observe the app and retry. action_sent=false.",
+              { action_sent: false, reason: "stale_element_geometry" },
+            );
+          }
+          const cx = ex + ew / 2;
+          const cy = ey + eh / 2;
+          let downgradeDelivery = appendAttempt(null, {
+            path: "post_message",
+            dispatch_status: "not_sent",
+            reason: "chromium_element_downgrade",
+          });
+          let outcome;
+          try {
+            outcome = await postClickForDowngrade(hostWindowId, pid, cx, cy, "left", 1);
+          } catch {
+            throw elementUnavailable(
+              "element_perform_action: background delivery is unknown; re-observe before retrying.",
+              {
+                action_sent: true,
+                delivery: finalizeDelivery(
+                  appendAttempt(downgradeDelivery, {
+                    path: "post_message",
+                    dispatch_status: "possibly_sent",
+                    reason: "threw",
+                  }),
+                ),
+              },
+            );
+          }
+          if (outcome.ok && !outcome.error) {
+            downgradeDelivery = appendAttempt(downgradeDelivery, {
+              path: "post_message",
+              dispatch_status: "sent",
+            });
+            return {
+              action_sent: true,
+              dispatch_status: "accepted",
+              delivery: finalizeDelivery(downgradeDelivery),
+            };
+          }
+          const error51 = outcome.error ?? "unknown";
+          const possiblySent = error51.startsWith("possibly");
+          downgradeDelivery = appendAttempt(downgradeDelivery, {
+            path: "post_message",
+            dispatch_status: possiblySent ? "possibly_sent" : "not_sent",
+            reason: error51,
+          });
+          if (possiblySent) {
+            throw elementUnavailable(
+              "element_perform_action: background delivery may have partly reached the target; re-observe before retrying.",
+              {
+                action_sent: true,
+                delivery: finalizeDelivery(downgradeDelivery),
+              },
+            );
+          }
+          downgradeDeliveryCarry = downgradeDelivery;
+        }
       }
       if (options.onDiagnostic) {
         await recordElementAction(
@@ -917,14 +1112,106 @@ export function createAxReadOnlyMethods(
         );
       }
       const verificationBaseline = { ...live };
-      const rawOutcome = await elementPerformAction(ref, action);
+      // 还原自官方 :23000-23016：菜单展开期望——AXExpand/AXShowMenu/AXPress(带菜单)
+      // 在 win32 操作域里标记 expectWindowsMenu("expand")（右键菜单证据链入口）。
+      const patternForAction = {
+        AXPress: "invoke",
+        AXToggle: "toggle",
+        AXSelect: "select",
+        AXExpand: "expand",
+      };
+      if (
+        action === "AXExpand" ||
+        action === "AXShowMenu" ||
+        (action === "AXPress" && (live.hasMenu || live.actions?.includes("AXShowMenu")))
+      ) {
+        expectWindowsMenu("expand");
+      }
+      // 还原自官方 :23013-23066：UIA 模式梯。强引用桥 + elementPatternCallAsync 在场
+      // 时按梯级逐模式调原生（hasMenu 优先 expand——先 Invoke 会把子菜单当叶命令；
+      // 双击走 invoke_double；其余按动作映射梯 invoke→toggle→select→expand→legacy）。
+      // pattern_absent 换下一级；busy/unavailable → uia_busy/uia_unavailable 拒绝；
+      // 梯尽 → cannot_complete；全程 patternDelivery 轨迹。缺 ABI（mac 官方形态）
+      // 退回同步 elementPerformAction。
+      const pattern = patternForAction[action];
+      const fromToken = source.winAxElementFromToken?.bind(source);
+      const patternCall = source.elementPatternCallAsync?.bind(source);
+      const releaseRef = source.winAxElementRelease?.bind(source);
+      if (doubleInvoke && !(fromToken && patternCall && releaseRef)) {
+        throw actionUnavailable("Double Invoke is unavailable. action_sent=false.", { action_sent: false });
+      }
+      let rawOutcome;
+      let patternDelivery = downgradeDeliveryCarry;
+      if (pattern && fromToken && patternCall && releaseRef) {
+        const token = fromToken(ref);
+        if (token.ok) {
+          try {
+            const hostWindowId = (await source.elementWindowId?.(ref)) ?? 0;
+            const ladder = doubleInvoke
+              ? ["invoke_double"]
+              : action === "AXPress"
+                ? live.hasMenu
+                  ? ["expand", "invoke", "toggle", "select", "legacy"]
+                  : ["invoke", "toggle", "select", "expand", "legacy"]
+                : [pattern];
+            rawOutcome = { ok: false, axError: "action_unsupported" };
+            for (const rung of ladder) {
+              const call: any = await patternCall(token.element, hostWindowId, rung);
+              patternDelivery = appendAttempt(patternDelivery, {
+                path: "ax",
+                dispatch_status:
+                  call.result === "invoked"
+                    ? "sent"
+                    : ["timeout", "possibly_sent"].includes(call.result)
+                      ? "possibly_sent"
+                      : "not_sent",
+                reason: `${rung}:${call.result}`,
+              });
+              if (call.result === "invoked") {
+                rawOutcome = { ok: true, axError: null };
+                break;
+              }
+              if (call.pattern_absent === true) continue;
+              if (call.result === "busy" || call.result === "unavailable") {
+                throw elementUnavailable(
+                  `element_perform_action could not complete (${call.result}). action_sent=false.`,
+                  {
+                    action_sent: false,
+                    reason: `uia_${call.result}`,
+                    delivery: finalizeDelivery(patternDelivery),
+                  },
+                );
+              }
+              rawOutcome = { ok: false, axError: "cannot_complete" };
+              break;
+            }
+            if (rawOutcome && typeof rawOutcome === "object" && rawOutcome.axError === "action_unsupported") {
+              throw actionUnavailable(
+                "element_perform_action: no supported action pattern. action_sent=false.",
+                {
+                  action_sent: false,
+                  delivery: finalizeDelivery(patternDelivery),
+                },
+              );
+            }
+          } finally {
+            releaseRef(token.element);
+          }
+        } else {
+          rawOutcome = { ok: false, axError: "invalid_element" };
+        }
+      } else {
+        rawOutcome = await elementPerformAction(ref, action);
+      }
       if (options.onDiagnostic && action === "AXPress") {
         recordPressFocus(rawOutcome, live, kindFor, options.onDiagnostic);
       }
       const dispatch = assertActionSucceeded(rawOutcome, "element_perform_action");
-      return action === "AXPress"
-        ? verifySelectablePress(source, ref, verificationBaseline, dispatch)
-        : dispatch;
+      const verified =
+        action === "AXPress"
+          ? await verifySelectablePress(source, ref, verificationBaseline, dispatch)
+          : dispatch;
+      return patternDelivery ? { ...verified, delivery: finalizeDelivery(patternDelivery) } : verified;
     };
   }
   if (source.elementSelectText) {
@@ -956,9 +1243,52 @@ export function createAxReadOnlyMethods(
       );
     };
   }
-  // 原版 63 表方法（第十轮重放）：AX 树结构化快照（含 diff），注册条件与原版一致
-  // （methods 组装末尾无条件挂载，无障碍可用性由 handler 内 captureApp 判定）。
-  methods.get_skyshot = createGetSkyshotHandler(source);
+  // 还原自发行 bundle（官方 3.17.2 / 0.6.5，SEA offset 85310963-85312580）：元素级滚动
+  // handler（能力门控 source.elementScroll；官方 mac 3.17.2 addon 无 scrollElement 导出，
+  // 本块不注册=官方行为）。参数校验文案逐字（direction up|down|left|right / amount 1..100）。
+  if (source.elementScroll) {
+    const elementScroll = source.elementScroll.bind(source);
+    methods.element_scroll = async (params) => {
+      const direction = typeof params.direction === "string" ? params.direction : "";
+      if (direction !== "up" && direction !== "down" && direction !== "left" && direction !== "right") {
+        throw permissionDenied(
+          "element_scroll: direction must be one of up|down|left|right. action_sent=false.",
+          { action_sent: false },
+        );
+      }
+      const rawAmount = params.amount;
+      if (
+        typeof rawAmount !== "number" ||
+        !Number.isSafeInteger(rawAmount) ||
+        rawAmount < 1 ||
+        rawAmount > 100
+      ) {
+        throw permissionDenied(
+          "element_scroll: amount must be an integer 1..100. action_sent=false.",
+          { action_sent: false },
+        );
+      }
+      const ref = await refForAction(source, registry2, params, "element_scroll");
+      await readLiveForAction(source, ref, "element_scroll");
+      const outcome = await elementScroll(ref, direction, rawAmount);
+      if (
+        outcome &&
+        typeof outcome === "object" &&
+        "ok" in outcome &&
+        outcome.ok === false &&
+        outcome.axError === "action_unsupported"
+      ) {
+        throw actionUnavailable(
+          "element_scroll: no scrollable container in the element's ancestor chain (or the axis is not scrollable). action_sent=false. Use strategy=event for a raw coordinate scroll, or target an element inside a scrollable list.",
+          { action_sent: false, reason: "no_scrollable_container" },
+        );
+      }
+      return assertActionSucceeded(outcome, "element_scroll");
+    };
+  }
+  // 清退（2026-11-10 R10 后续）：methods.get_skyshot 注册已随方法删除——官方
+  // v3.1 协议瘦身 49→43（win entry :19750 墓碑），get_skyshot 在官方 win entry
+  // 与 mac SEA 双零命中（2026-11-10 strings 实证）。
   return methods;
 }
 function normalizeApp(app) {

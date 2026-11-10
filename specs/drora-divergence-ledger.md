@@ -133,4 +133,29 @@
 
 - **能力范围**：`packages/zcode-cua/broker-helper-constants.js|d.ts`、broker.js|d.ts、index.d.ts、package.json 与 zcode-cua-plugin 三文件、third-party 清单——zone take-theirs 曾覆盖为上游原生值（HELPER_APP_NAME="ZCode Computer Use.app"、BUNDLE_ID=dev.zcode.cua-helper、包名 @drora/zcode-cua 0.6.5）。
 - **裁定**：15 文件恢复本仓 HEAD（Helper Drora 化裁定 2026-09-28 的单一出处，R3 冻结 0.6.3+本仓常量），仅并入上游新增 `HELPER_GHOST_CURSOR_OVERLAY_ARG`（值一致）与 broker re-export 三处增量；包名 `@drora/drora-cua` 全仓统一（改名引擎的 @drora/zcode-cua 名不采纳，58 文件收敛）。
+- **R3 修订（2026-11-09 用户裁定）**：对齐目标由「上游开源仓」改为「官方 3.17.2 发行 bundle」——producer 切段与 Helper SEA JS 按 bundle 证据还原至 0.6.5，addon 改逆向重建源自建（不再随包分发官方字节拷贝）；详见 `specs/cua-3.17.2-alignment.md` §3。**本条身份五常量与包名权威不变。**
 - **下次同步注意**：上游 zcode-cua 再演进时，Helper 身份五常量与包名以本仓为权威；新增 re-export/常量可并入但值域按本仓命名。
+
+## 台账 16：CUA 3.17.2 对齐的版本/license/win32 三裁定（2026-11-09 登记）
+
+- **能力范围**：`apps/drora-cli/packages/zcode-cua-plugin/{.zcode-plugin/plugin.json,package.json}`、`packages/zcode-cua/package.json` 的 version/license 字段；`packages/zcode-cua-helper/build-cua-helper-app.mjs` 的 `CUA_HELPER_VERSION` 缺省（Helper `CFBundleShortVersionString` 版本线）；win32 runtime（vendored `@zcode/zcode-cua-helper-runtime` 0.6.3）。
+- **裁定**（`specs/cua-3.17.2-alignment.md` §2）：① parity 达标后版本号 0.6.3→0.6.5、license MIT→Apache-2.0 跟随官方翻转（官方 0.6.5 manifest 已翻 Apache-2.0）；② Helper 版本线对齐官方「随 App 版本」策略（官方 3.17.2 Helper plist 版本=3.17.2，不再固定 CUA 版本号）；③ win32 线维持 0.6.3 随线，Windows 侧 3.17.2 实现由用户另行开展，本仓 darwin 改动以 win32 无损套件为零漂移底线。
+- **下次同步注意**：版本一致性脚本（`check-version-coherence.mjs`/`check-cua-baseline.mjs`）基线值随本役 P2/P4 批更新；上游若再翻 license 或版本策略，按官方跟随并在本条补记。
+
+## 台账 17：CUA 桥接 env 键双轨——ZCODE_ 键面=冻结切段消费面 / DRORA_ 名=内部面（2026-11-10 登记，差距修复 R1 批）
+
+- **能力范围**：`packages/services/src/node.ts` 四桥接键常量区
+  （`ZCODE_CUA_LAUNCHER_PID_ENV` / `ZCODE_CUA_BUNDLED_HELPER_APP_PATH_ENV` /
+  `ZCODE_CUA_HELPER_INSTALL_VARIANT_ENV` / `ZCODE_CUA_WIN_HELPER_RECIPE_ENV`）、
+  `packages/desktop/src/main/desktopHostProcess.ts` launcher-pid 注入。
+- **分歧性质**：0.6.5 冻结切段 env 键保 ZCODE 名（P3 有意决策，段头注释），我方
+  host 侧消费面（`drora-helper-locations.js` 等）用 DRORA_ 名。桥接一律走注入侧
+  /env 路由（先例=manifest 第二十八轮方案 A：`ZCODE_HOME=resolveDroraHome()` 把
+  Drora 数据根路由进豁免区），零改动冻结资产。其中 launcher-pid 因 DRORA_ 名全仓
+  零消费者**直接切换不双写**（避免两名字义）；其余三键 DRORA_ 侧保留，形成
+  「ZCODE_ 键面=切段桥接面、DRORA_ 名=我方内部面」双轨。契约键单一出处=services
+  常量区，注释锚消费方切段行号，禁止字符串散写。
+- **下次同步注意**：上游切段再演进时，桥接键以切段消费面实际键名为准同步；新增
+  桥接键先进 services 常量区定义再引用。`ZCODE_HOME` 透传受 SANITIZED 键表负向
+  测试钉住（cuaLazyLaunchBridge.node-test.mjs），同步时勿将 ZCODE_ 键加进清洗表。
+  详见 `docs/cua-restoration-manifest.md` 第七十三轮 R1.1/R1.2。

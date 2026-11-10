@@ -68,7 +68,7 @@ export async function buildCuaProductHelperAgentEnv(
         Partial<
           Pick<
             CuaHelperHost,
-            "running" | "checkHealth" | "reservedTransport" | "token" | "presentationToken"
+            "running" | "checkHealth" | "reservedTransport"
           > & {
             waitForTransport(timeoutMs?: number): Promise<CuaHelperTransportHandle>;
           }
@@ -150,7 +150,7 @@ export async function buildCuaProductHelperAgentEnv(
         [BROKER_SOCKET_ENV]: transport.socketPath,
         [DRORA_CUA_PLUGIN_AUTHORITY_ENV_KEY]: transport.pluginAuthority,
         // 第十五轮 token 模式：host 发射时铸造、handle 携带；无 token（旧 Helper）省键。
-        ...(host.token ? { [DRORA_CUA_BROKER_TOKEN_ENV_KEY]: host.token } : {}),
+        // R10 认证模型换代：broker token env 注入退役（官方 0.6.5 producer/consumer 零 token）。
       };
     }
     // 原来只在 1s 超时后读取预留 tuple，Host 已安全占住 socket 时也会白等。
@@ -164,7 +164,7 @@ export async function buildCuaProductHelperAgentEnv(
       return {
         [BROKER_SOCKET_ENV]: reserved.socketPath,
         [DRORA_CUA_PLUGIN_AUTHORITY_ENV_KEY]: reserved.pluginAuthority,
-        ...(host.token ? { [DRORA_CUA_BROKER_TOKEN_ENV_KEY]: host.token } : {}),
+        // R10 认证模型换代：broker token env 注入退役（官方 0.6.5 producer/consumer 零 token）。
       };
     }
     // 有界 deadline race：cold launch 没在 1s 内 ready 且无预留才 fail-closed。waitForCuaHelperStartup
@@ -185,7 +185,7 @@ export async function buildCuaProductHelperAgentEnv(
     return {
       [BROKER_SOCKET_ENV]: handle.socketPath,
       [DRORA_CUA_PLUGIN_AUTHORITY_ENV_KEY]: handle.pluginAuthority,
-      ...(host.token ? { [DRORA_CUA_BROKER_TOKEN_ENV_KEY]: host.token } : {}),
+      // R10 认证模型换代：broker token env 注入退役（官方 0.6.5 producer/consumer 零 token）。
     };
   } catch (error) {
     // caller_timeout 仅表示共享的 30s startup 仍在后台运行；trackCuaProductHelperStartup 会在其
@@ -207,7 +207,7 @@ export async function buildCuaProductHelperAgentEnv(
         return {
           [BROKER_SOCKET_ENV]: reserved.socketPath,
           [DRORA_CUA_PLUGIN_AUTHORITY_ENV_KEY]: reserved.pluginAuthority,
-          ...(host.token ? { [DRORA_CUA_BROKER_TOKEN_ENV_KEY]: host.token } : {}),
+          // R10 认证模型换代：broker token env 注入退役（官方 0.6.5 producer/consumer 零 token）。
         };
       }
     }

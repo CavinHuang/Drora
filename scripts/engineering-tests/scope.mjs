@@ -32,7 +32,14 @@ async function resolvePushBase(root, head, remote) {
 
 async function firstPushBase(root, head) {
   // 首次推送没有 remote SHA；只使用已确认的集成分支，缺失时严格报错，不猜测其他分支。
-  const staging = await commit(root, "origin/staging");
+  // 修复（2026-11-10）：本仓无 staging 流——回退远端显式声明的默认分支 origin/HEAD
+  //（remote 自身设置的 symref，属"已确认"而非猜测；两者皆缺才报错）。
+  let staging;
+  try {
+    staging = await commit(root, "origin/staging");
+  } catch {
+    staging = await commit(root, "origin/HEAD");
+  }
   return (await git(root, ["merge-base", staging, head])).toString().trim();
 }
 

@@ -297,7 +297,6 @@ modules:
       [
         packages/desktop/src/drora-extensions/contract.ts,
         packages/desktop/src/drora-extensions/desktopPet.ts,
-        packages/desktop/src/drora-extensions/updateFeed.ts,
       ]
     layers: { app: "." }
     owner: drora
@@ -1865,7 +1864,9 @@ exceptions:
     rule: unmanaged-new-file
     paths:
       - packages/zcode-cua/src/**
-    reason: The whole drora-cua producer package (broker, native adapters, tools) entered the repo after the gate timestamp as pre-existing code moved from a separate repository; adopting its internal layers needs a dedicated CONTRACT pass (it has known internal cycles by design), not a mechanical split in this branch.
+      - packages/zcode-cua-helper/src/**
+      - packages/zcode-cua/upstream/**
+    reason: The whole drora-cua producer package (broker, native adapters, tools) entered the repo after the gate timestamp as pre-existing code moved from a separate repository; adopting its internal layers needs a dedicated CONTRACT pass (it has known internal cycles by design), not a mechanical split in this branch. helper src 并入同准入（2026-11-09 CUA 3.17.2 对齐 P4 新增 ghostCursorTurnLifecycle.ts，specs/cua-3.17.2-alignment.md；同属发行 bundle 还原区，同理不经机械拆分）。
   # —— v3.17.1 集成（specs/upstream-v3.17.1-migration.md D07）：快照重生成后仅存的两个
   #    非上游路径候选；其余 24 条 unmanaged-new-file 由 upstream-snapshot 按 U2 转换树重生成准入。
   - id: shared-semver-relocation-unmanaged-file
@@ -1890,3 +1891,14 @@ exceptions:
       - apps/drora-cli/packages/core/src/tool/handlers/generate-image.ts
       - apps/drora-cli/packages/bootstrap/src/drora-protocol/generate-image-port.ts
     reason: agent 内置文生图工具的 CLI 四件（契约 schema、端口接口、handler、协议端口实现），全部照 VaultSearch 同族先例文件在既有未受管目录的同位新增；跨 contracts/core/bootstrap 三包散落，逐文件精确路径准入；接管整个 drora-cli 大模块需要独立的模块边界重构，不在本批范围。
+  # —— CUA 差距修复 R2（specs/cua-gap-remediation-2026-11-09.md 决策点 D1=选项 A）：
+  #    pre-launch 占位编排新文件 path-exact 准入。cua-permission-broker/ 是 services 内
+  #    既有未受管聚合（index.ts 已是 @drora/drora-cua 合并后的薄 re-export shim，存量
+  #    token 链/windows dev host/pip session 共 13 文件未经边界梳理，且 node.ts、services
+  #    根 barrel、accessor.ts 存在目录外 deep import）；照 drora-cua-unmanaged-new-files
+  #    先例口径，接管该目录需单独的 CONTRACT pass，不并入本差距修复批。
+  - id: cua-lazy-pre-launch-unmanaged-new-file
+    rule: unmanaged-new-file
+    paths:
+      - packages/services/src/cua-permission-broker/cuaLazyPreLaunch.ts
+    reason: R2 pre-launch 占位编排（specs/cua-gap-remediation-2026-11-09.md R2/D1=选项 A）——与同目录既有 standalone token 链同一聚合的纯编排层；cua-permission-broker/ 目录整体接管需要单独的模块边界梳理（存量转发 shim 与多消费方 deep import 定界），不在本批范围。

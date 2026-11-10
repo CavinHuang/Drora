@@ -105,6 +105,16 @@ export {
   resolveStandaloneStatusLaunchCandidates,
 } from "./cuaStandaloneStatusLaunch.js";
 
+// R2 pre-launch 占位（specs/cua-gap-remediation-2026-11-09.md D1=选项 A）：决策/并发/
+// 预算编排层，发射与探活由 node.ts 闭包注入（与设置页 standalone 发射共用同一机制）。
+export {
+  ensureStandaloneHelperPreLaunchedForLazySpawn,
+} from "./cuaLazyPreLaunch.js";
+export type {
+  LazySpawnStandaloneHelperPreLaunchOptions,
+  LazySpawnStandaloneHelperPreLaunchOutcome,
+} from "./cuaLazyPreLaunch.js";
+
 export { createCuaPipSessionService } from "./cuaPipSessionService.js";
 export { ICuaPipSessionService } from "./cuaPipSession.js";
 export type { CuaPipPresentationCredentials } from "./cuaPipSessionService.js";

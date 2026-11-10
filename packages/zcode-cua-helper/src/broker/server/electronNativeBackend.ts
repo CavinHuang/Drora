@@ -1,18 +1,13 @@
 /* oxlint-disable eslint(max-lines) -- 还原自官方发行 bundle 的单模块源码，保持 producer 仓库的原始文件边界，不拆分。 */
-import { win32 } from "node:path";
+import { parseAppFrameSurfaceSet } from "../../lib/app-frame-surfaces.js";
 import { displayTopologyFingerprint } from "../../lib/display-topology.js";
 import {
   BrokerError,
   elementUnavailable,
-  foregroundRequired,
-  invalidRequest,
-  launchFailed,
   notAuthorized,
-  permissionDenied,
 } from "../types.js";
 import { AxTokenRegistry, createAxReadOnlyMethods } from "./axReadOnly.js";
-import { createElectronDisplaySelection } from "./electronDisplaySelection.js";
-import { cuaBundleIdsEqual, resolvePidIdentity } from "./cuaAppIdentity.js";
+import { cuaBundleIdsEqual } from "./cuaAppIdentity.js";
 import { createElectronDisplayTopology } from "./electronDisplayTopology.js";
 import {
   createElectronInputHandlers,
@@ -41,9 +36,19 @@ import { createPipAutoStarter } from "./pipAutoStart.js";
 import { createForeignWindowScreenCaptureProbe } from "./screenCaptureProbe.js";
 import { snapshotWindowServerWindows } from "./windowServerSnapshot.js";
 
-// PNG buffer → base64（screenshot 返回契约）。Buffer.from 兼容 Uint8Array 输入。
-function toBase64(bytes) {
-  return Buffer.from(bytes).toString("base64");
+// 还原自发行 bundle（官方 3.17.2 / 0.6.5 SEA：var pasteSerialTail @ 85520859、
+// function runPasteSerial @ 85520900，方案锚 SEA offset 85520900 + strings
+// 468185-468186）。R3.4（specs/cua-gap-remediation-2026-11-09.md）：paste 全局
+// 串行化——providedPaste 分支整体经此链排队，前一次 paste（含其收尾 finish）
+// 完成前下一次 paste 不 begin，消除两次并发 paste 交叉占用系统粘贴板的窗口。
+// tail 链吞掉前序结果（then(run, run) 成败都续跑；tail 重置为已消化错误），
+// 返回值仍是本次 body 的原始结果/拒绝。
+var pasteSerialTail = Promise.resolve();
+function runPasteSerial(body) {
+  const run = async () => body();
+  const result = pasteSerialTail.then(run, run);
+  pasteSerialTail = result.then(() => void 0, () => void 0);
+  return result;
 }
 
 function captureScreenshotWindows(adapter, displayBounds) {
@@ -164,6 +169,98 @@ function buildStableAppFrameSurfaceSet(snapshot, before, after) {
     },
   };
 }
+// 还原自发行 bundle（官方 0.6.5 win32 entry :28206-28264）：win32 capture_surfaces
+// 组装。两源：①无 composition 但有 windows_capture_root（单窗 verified 抓图回执）→
+// 单 surface 集（before/after 同指纹）；②screenshot_composition.method===
+// root_wgc_plus_popup_wgc_premultiplied_composite → root+popups 逐条校验后按
+// layer 排序组集，并回填快照 surface 域的身份增强（tid/start_time/generation/
+// producer/operation_association）。两者皆无（mac 或无截图）返回 {}，surface 事实
+// 不虚构。
+function buildWindowsAppFrameSurfaceSet(snapshot) {
+  const composition = snapshot.screenshot_composition;
+  if (!composition && snapshot.windows_capture_root) {
+    const root = snapshot.windows_capture_root;
+    const fingerprint3 = JSON.stringify(root);
+    const set2 = {
+      presentation_window_id: root.presentation_window_id,
+      before_fingerprint: fingerprint3,
+      after_fingerprint: fingerprint3,
+      order: "front_to_back",
+      surfaces: [root],
+    };
+    return parseAppFrameSurfaceSet(set2)
+      ? { capture_surfaces: set2 }
+      : { capture_surfaces_status: "capture_surfaces_unavailable" };
+  }
+  if (!composition || typeof composition !== "object" || composition.method !== "root_wgc_plus_popup_wgc_premultiplied_composite") {
+    return {};
+  }
+  const entries = [composition.root, ...composition.popups];
+  const malformed = entries.some(
+    (entry) =>
+      !Number.isSafeInteger(entry.window_id) ||
+      entry.window_id <= 0 ||
+      !Number.isSafeInteger(entry.pid) ||
+      entry.pid <= 0 ||
+      typeof entry.owner_bundle_id !== "string" ||
+      entry.owner_bundle_id.length === 0 ||
+      !Number.isSafeInteger(entry.layer) ||
+      !Array.isArray(entry.bounds) ||
+      entry.bounds.length !== 4 ||
+      !entry.bounds.every((part) => typeof part === "number" && Number.isFinite(part)),
+  );
+  if (malformed) {
+    return { capture_surfaces_status: "capture_surfaces_unavailable" };
+  }
+  const surfaces = entries
+    .map((entry) => ({
+      actual_window_id: entry.window_id,
+      presentation_window_id: snapshot.window.presentation_window_id ?? composition.root.window_id,
+      surface_kind: entry.surface_kind,
+      relation: entry.relation,
+      owner_pid: entry.pid,
+      owner_bundle_id: entry.owner_bundle_id,
+      layer: entry.layer,
+      bounds: entry.bounds,
+    }))
+    .map((surface) => {
+      const facts = snapshot.surfaces?.find((s) => s.actual_window_id === surface.actual_window_id);
+      return {
+        ...surface,
+        // 截图 root 表示像素原点；面板与逻辑主窗的归属不能被重置成 presentation_root。
+        ...facts ? { surface_kind: facts.surface_kind, relation: facts.relation } : {},
+        ...facts?.owner_tid ? { owner_tid: facts.owner_tid } : {},
+        ...facts?.process_start_time ? { process_start_time: facts.process_start_time } : {},
+        ...facts?.window_generation ? { window_generation: facts.window_generation } : {},
+        ...facts?.producer_id ? { producer_id: facts.producer_id } : {},
+        ...facts?.operation_association ? { operation_association: facts.operation_association } : {},
+      };
+    })
+    .sort((a, b) => a.layer - b.layer);
+  const fingerprint2 = JSON.stringify(
+    surfaces.map((surface) => [
+      surface.actual_window_id,
+      surface.presentation_window_id,
+      surface.owner_pid,
+      surface.owner_bundle_id,
+      surface.owner_tid,
+      surface.process_start_time,
+      surface.window_generation,
+      surface.producer_id,
+      surface.layer,
+      ...surface.bounds,
+    ]),
+  );
+  return {
+    capture_surfaces: {
+      presentation_window_id: snapshot.window.presentation_window_id ?? composition.root.window_id,
+      before_fingerprint: fingerprint2,
+      after_fingerprint: fingerprint2,
+      order: "front_to_back",
+      surfaces,
+    },
+  };
+}
 var MAC_BACKGROUND_WINDOW_SETTLE_ATTEMPTS = 30;
 function hasOnscreenWindow(windows) {
   return Array.isArray(windows) && windows.some((window) => window?.onscreen !== false);
@@ -180,693 +277,21 @@ async function settleApplicationWindow(axSource, appRef) {
   return false;
 }
 
-// —— open_application helper 家族（原版 63 表最后一项，底稿：官方 SEA payload）——
-function textParam(value) {
-  return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
-}
-function urlListParam(value) {
-  if (typeof value === "string") {
-    const trimmed = value.trim();
-    return trimmed.length > 0 ? [trimmed] : undefined;
-  }
-  if (!Array.isArray(value)) return undefined;
-  const urls = value.filter((item) => typeof item === "string" && item.trim().length > 0);
-  return urls.length > 0 ? urls : undefined;
-}
-function positiveInt(value) {
-  return typeof value === "number" && Number.isInteger(value) && value > 0 ? value : undefined;
-}
-function optionalText(value) {
-  return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
-}
-function launchHintPayload(value, target) {
-  const record = value && typeof value === "object" && !Array.isArray(value) ? value : {};
-  const pid = positiveInt(record.pid) ?? null;
-  const bundleId =
-    optionalText(record.bundle_id) ?? optionalText(record.bundleId) ?? target.bundleId ?? null;
-  const name = optionalText(record.name) ?? target.name ?? bundleId ?? (pid ? `pid ${pid}` : null);
-  if (!pid && !bundleId && !name) return null;
-  return {
-    pid,
-    bundle_id: bundleId,
-    name,
-    active: typeof record.active === "boolean" ? record.active : false,
-  };
-}
-function appPayload(app) {
-  return {
-    pid: app.pid,
-    bundle_id: app.bundle_id ?? null,
-    name: app.name ?? null,
-    active: app.active ?? false,
-  };
-}
-function positiveWindowId(value) {
-  return typeof value === "number" && Number.isSafeInteger(value) && value > 0 ? value : null;
-}
-async function openAppDelay(ms) {
-  await new Promise((resolve) => setTimeout(resolve, ms));
-}
-var OPEN_APPLICATION_RESOLVE_ATTEMPTS = 30;
-function canonicalWindowsExecutable(value) {
-  const trimmed = value?.trim();
-  if (!trimmed || !win32.isAbsolute(trimmed)) return null;
-  const withoutDevicePrefix = trimmed.startsWith("\\\\?\\") ? trimmed.slice(4) : trimmed;
-  return win32.normalize(withoutDevicePrefix).toLowerCase();
-}
-function exactNameMatches(app, targetName) {
-  const expected = targetName?.trim().toLocaleLowerCase();
-  return Boolean(
-    expected && typeof app.name === "string" && app.name.trim().toLocaleLowerCase() === expected,
-  );
-}
-async function settleLiveActiveApp(axSource, found, target, excludedPids, budgetMs) {
-  const steps = Math.max(1, Math.ceil(budgetMs / 100));
-  for (let i = 0; i < steps; i += 1) {
-    const apps = await axSource.listApplications();
-    const matches = apps.filter((app) => {
-      if (excludedPids?.has(app.pid)) return false;
-      if (target.pid) return app.pid === target.pid;
-      if (target.bundleId && !cuaBundleIdsEqual(app.bundle_id, target.bundleId, { loose: true })) {
-        return false;
-      }
-      if (
-        target.name &&
-        app.name?.trim().toLocaleLowerCase() !== target.name.trim().toLocaleLowerCase()
-      ) {
-        return false;
-      }
-      return Boolean(target.bundleId || target.name);
-    });
-    const preferred = matches.find((app) => app.pid === found.pid);
-    if (preferred?.active) return preferred;
-    if (!target.pid) {
-      const activeSibling = matches.find((app) => app.active);
-      if (activeSibling) return activeSibling;
-    }
-    await openAppDelay(100);
-  }
-  return null;
-}
-async function settleLiveActive(axSource, pid, budgetMs) {
-  const steps = Math.max(1, Math.ceil(budgetMs / 100));
-  let active = false;
-  for (let i = 0; i < steps; i += 1) {
-    const apps = await axSource.listApplications();
-    const match = apps.find((app) => app.pid === pid);
-    active = match?.active ?? false;
-    if (active) break;
-    if (i + 1 < steps) await openAppDelay(100);
-  }
-  return active;
-}
-async function resolveOpenedApp(axSource, target, options: any = {}) {
-  const rawLaunchHint = launchHintPayload(options.launchResult, target);
-  const launchHint =
-    rawLaunchHint?.pid && options.excludedPids?.has(rawLaunchHint.pid) ? null : rawLaunchHint;
-  const platform2 = options.platform ?? "darwin";
-  const isWindows = platform2 === "win32";
-  if (!axSource) {
-    return isWindows ? null : launchHint;
-  }
-  const windowsAppUserModelId =
-    isWindows && options.windowsAppUserModelId?.trim()
-      ? options.windowsAppUserModelId.trim()
-      : undefined;
-  if (windowsAppUserModelId) {
-    if (!axSource.applicationInfoByAumid) return null;
-    let found = null;
-    for (let attempt = 0; attempt < OPEN_APPLICATION_RESOLVE_ATTEMPTS && !found; attempt += 1) {
-      const candidate = await axSource.applicationInfoByAumid(windowsAppUserModelId);
-      if (
-        candidate &&
-        typeof candidate.pid === "number" &&
-        Number.isSafeInteger(candidate.pid) &&
-        candidate.pid > 0
-      ) {
-        found = candidate;
-        break;
-      }
-      await openAppDelay(100);
-    }
-    if (!found) return null;
-    if (options.activateRequested && found.pid) {
-      found = { ...found, active: await settleLiveActive(axSource, found.pid, 800) };
-    }
-    return found;
-  }
-  const preLaunchPids = new Set(
-    (options.preLaunchApplications ?? [])
-      .map((app) => app.pid)
-      .filter((pid) => typeof pid === "number" && pid > 0),
-  );
-  const canonicalLaunchIdentity = canonicalWindowsExecutable(options.canonicalLaunchIdentity);
-  let found = null;
-  const attempts = options.attempts ?? (isWindows ? OPEN_APPLICATION_RESOLVE_ATTEMPTS : 8);
-  for (let attempt = 0; attempt < attempts && !found; attempt += 1) {
-    const preferredPid = launchHint?.pid ?? target.pid;
-    const resolved = await axSource.applicationInfo?.(
-      preferredPid
-        ? { pid: preferredPid }
-        : {
-            bundle_id: target.bundleId ?? null,
-            name: target.name ?? null,
-          },
-    );
-    if (
-      resolved &&
-      !options.excludedPids?.has(resolved.pid) &&
-      (!isWindows ||
-        (canonicalLaunchIdentity !== null &&
-          canonicalWindowsExecutable(resolved.bundle_id) === canonicalLaunchIdentity))
-    ) {
-      found = resolved;
-      break;
-    }
-    const apps = await axSource.listApplications();
-    if (isWindows) {
-      if (
-        preferredPid &&
-        options.preLaunchApplications &&
-        canonicalLaunchIdentity &&
-        axSource.applicationInfo
-      ) {
-        const candidates = [
-          ...new Map(
-            apps
-              .filter(
-                (candidate) =>
-                  typeof candidate.pid === "number" &&
-                  candidate.pid > 0 &&
-                  candidate.pid !== preferredPid &&
-                  !preLaunchPids.has(candidate.pid) &&
-                  !options.excludedPids?.has(candidate.pid) &&
-                  canonicalWindowsExecutable(candidate.bundle_id) === canonicalLaunchIdentity,
-              )
-              .map((candidate: any) => [candidate.pid, candidate]),
-          ).values(),
-        ];
-        const liveCandidates = (
-          await Promise.all(
-            candidates.map(async (candidate: any) => {
-              const live = await axSource.applicationInfo?.({ pid: candidate.pid ?? undefined });
-              return live &&
-                live.pid === candidate.pid &&
-                canonicalWindowsExecutable(live.bundle_id) === canonicalLaunchIdentity
-                ? live
-                : null;
-            }),
-          )
-        ).filter((candidate) => candidate !== null);
-        if (liveCandidates.length === 1) found = liveCandidates[0];
-      }
-    } else {
-      const matches = target.bundleId
-        ? apps.filter((app) => cuaBundleIdsEqual(app.bundle_id, target.bundleId, { loose: true }))
-        : apps.filter((app) => exactNameMatches(app, target.name));
-      const eligibleMatches = matches.filter(
-        (candidate) => !options.excludedPids?.has(candidate.pid),
-      );
-      const app =
-        eligibleMatches.find((candidate) => candidate.pid === preferredPid) ??
-        eligibleMatches.find((candidate) => candidate.active) ??
-        eligibleMatches[0];
-      if (app) found = app;
-    }
-    if (!found && attempt + 1 < attempts) await openAppDelay(100);
-  }
-  if (!found) return isWindows ? null : launchHint;
-  if (options.activateRequested && found.pid) {
-    found = isWindows
-      ? { ...found, active: await settleLiveActive(axSource, found.pid, 800) }
-      : ((await settleLiveActiveApp(axSource, found, target, options.excludedPids, 800)) ?? {
-          ...found,
-          active: false,
-        });
-  }
-  return found;
-}
-var WINDOWS_CALCULATOR_AUMID = "Microsoft.WindowsCalculator_8wekyb3d8bbwe!App";
-var WINDOWS_PACKAGED_APP_ALIASES = /* @__PURE__ */ new Map([
-  ["calculator", WINDOWS_CALCULATOR_AUMID],
-  ["windows calculator", WINDOWS_CALCULATOR_AUMID],
-  ["calc", WINDOWS_CALCULATOR_AUMID],
-  ["calc.exe", WINDOWS_CALCULATOR_AUMID],
-  ["\u8BA1\u7B97\u5668", WINDOWS_CALCULATOR_AUMID],
-]);
-function isWindowsAppUserModelId(value) {
-  const trimmed = value?.trim();
-  return Boolean(
-    trimmed && trimmed.length <= 512 && /^[A-Za-z0-9._-]+![A-Za-z0-9._-]+$/u.test(trimmed),
-  );
-}
-function resolveWindowsPackagedAppAlias(value) {
-  const normalized = value?.trim().toLowerCase();
-  if (!normalized) return undefined;
-  return WINDOWS_PACKAGED_APP_ALIASES.get(normalized);
-}
-var FILE_URL_WINDOW_VERIFY_ATTEMPTS = 30;
-function fileTarget(rawUrl) {
-  let parsed;
-  try {
-    parsed = new URL(rawUrl);
-  } catch {
-    return null;
-  }
-  if (parsed.protocol !== "file:") return null;
-  const encodedName = parsed.pathname.split("/").filter(Boolean).at(-1);
-  if (!encodedName) return null;
-  let filename;
-  try {
-    filename = decodeURIComponent(encodedName);
-  } catch {
-    filename = encodedName;
-  }
-  const dot = filename.lastIndexOf(".");
-  const stem = dot > 0 ? filename.slice(0, dot) : filename;
-  return { filename, stem };
-}
-function windowIdsOf(windows) {
-  return new Set(
-    windows
-      .map((window) => window.window_id)
-      .filter((id) => typeof id === "number" && Number.isInteger(id)),
-  );
-}
-function titleMatches(title, target) {
-  const normalized = title?.trim().toLocaleLowerCase();
-  if (!normalized) return false;
-  return target.titleCandidates.some(
-    (candidate) => normalized === candidate.trim().toLocaleLowerCase(),
-  );
-}
-function distinguishableTargets(targets) {
-  const normalize = (value) => value.trim().toLocaleLowerCase();
-  const filenameOwners = /* @__PURE__ */ new Map();
-  for (const [targetIndex, target] of targets.entries()) {
-    const filename = normalize(target.filename);
-    const ownerIndex = filenameOwners.get(filename);
-    if (ownerIndex !== undefined) {
-      throw new Error(
-        `file URL window verification cannot distinguish duplicate filename ${JSON.stringify(filename)} for ${JSON.stringify(targets[ownerIndex].filename)} and ${JSON.stringify(target.filename)}; the requested files cannot be verified safely.`,
-      );
-    }
-    filenameOwners.set(filename, targetIndex);
-  }
-  const stemCounts = /* @__PURE__ */ new Map();
-  for (const target of targets) {
-    const stem = normalize(target.stem);
-    stemCounts.set(stem, (stemCounts.get(stem) ?? 0) + 1);
-  }
-  return targets.map((target, targetIndex) => {
-    const filename = normalize(target.filename);
-    const stem = normalize(target.stem);
-    const stemConflictsWithFilename = [...filenameOwners.entries()].some(
-      ([candidate, ownerIndex]) => candidate === stem && ownerIndex !== targetIndex,
-    );
-    const stemIsUnambiguous =
-      stem !== filename && stemCounts.get(stem) === 1 && !stemConflictsWithFilename;
-    return {
-      ...target,
-      titleCandidates: stemIsUnambiguous ? [target.filename, target.stem] : [target.filename],
-    };
-  });
-}
-function hasOneToOneWindowMatch(windows, baseline) {
-  const targets = baseline.targets;
-  const baselineWindowIds = baseline.windowIds;
-  const candidateWindows = windows.filter(
-    (window) => typeof window.window_id === "number" && Number.isInteger(window.window_id),
-  );
-  const targetForWindow = /* @__PURE__ */ new Map();
-  const assign = (targetIndex, visited) => {
-    for (const window of candidateWindows) {
-      const target = targets[targetIndex];
-      const isFresh = !baselineWindowIds.has(window.window_id);
-      const baselineTitle = baseline.windowTitles?.get(window.window_id);
-      const existingWindowNavigated =
-        baselineWindowIds.has(window.window_id) &&
-        !titleMatches(baselineTitle, target) &&
-        titleMatches(window.title, target);
-      if (
-        (!isFresh && !existingWindowNavigated) ||
-        visited.has(window.window_id) ||
-        !titleMatches(window.title, target)
-      ) {
-        continue;
-      }
-      visited.add(window.window_id);
-      const previousTarget = targetForWindow.get(window.window_id);
-      if (previousTarget === undefined || assign(previousTarget, visited)) {
-        targetForWindow.set(window.window_id, targetIndex);
-        return true;
-      }
-    }
-    return false;
-  };
-  return targets.every((_target, targetIndex) => assign(targetIndex, /* @__PURE__ */ new Set()));
-}
-async function captureFileUrlWindowBaseline(listWindows, urls) {
-  if (!listWindows || !urls) return null;
-  const parsedTargets = urls.map(fileTarget).filter((target) => target !== null);
-  if (parsedTargets.length === 0) return null;
-  const targets = distinguishableTargets(parsedTargets);
-  try {
-    const windows = await listWindows();
-    if (!windows) return null;
-    return {
-      targets,
-      windowIds: windowIdsOf(windows),
-      windowTitles: new Map(
-        windows
-          .filter(
-            (window) => typeof window.window_id === "number" && Number.isInteger(window.window_id),
-          )
-          .map((window) => [window.window_id, window.title]),
-      ),
-    };
-  } catch {
-    return null;
-  }
-}
-async function verifyFileUrlWindowEffect(listWindows, baseline, options: any = {}) {
-  if (!baseline || !listWindows) return "unavailable";
-  const attempts = options.attempts ?? FILE_URL_WINDOW_VERIFY_ATTEMPTS;
-  const delayFn =
-    options.delay ??
-    ((milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)));
-  let lastWindows = [];
-  for (let attempt = 0; attempt < attempts; attempt += 1) {
-    const windows = await listWindows();
-    if (windows) {
-      lastWindows = windows;
-      if (hasOneToOneWindowMatch(windows, baseline)) {
-        return "verified";
-      }
-    }
-    if (attempt + 1 < attempts) await delayFn(100);
-  }
-  throw new Error(
-    `the app process resolved, but the requested file URL did not produce a matching accessibility window. Requested files: ${baseline.targets.map((target) => target.filename).join(", ")}; before window_ids=${JSON.stringify([...baseline.windowIds])}; after window_ids=${JSON.stringify([...windowIdsOf(lastWindows)])}.`,
-  );
-}
-async function resolveAppByPid(axSource, pid, options: any = {}) {
-  if (!axSource) return null;
-  if (axSource.applicationInfo) {
-    try {
-      const info = await axSource.applicationInfo({ pid });
-      if (info && info.pid !== pid) {
-        const details = {
-          action_sent: options.actionSent === true,
-          request_delivery_state: options.actionSent === true ? "possibly_sent" : "not_sent",
-          reason: "pid_identity_conflict",
-          requested_pid: pid,
-          actual_pid: info.pid,
-        };
-        const message = `open_application direct PID lookup conflict: requested pid ${pid}, but applicationInfo returned pid ${String(info.pid)}.`;
-        throw options.actionSent === true
-          ? launchFailed(message, details)
-          : invalidRequest(message, details);
-      }
-      if (info?.pid === pid && (info.bundle_id || info.name)) {
-        return info;
-      }
-    } catch (error) {
-      if (error instanceof BrokerError) throw error;
-    }
-  }
-  const apps = await axSource.listApplications();
-  return apps.find((app) => app.pid === pid) ?? null;
-}
-async function rollbackFreshApplication(adapter, axSource, app) {
-  if (!app.pid || !app.bundle_id || !adapter.terminateApplication) {
-    return "unavailable";
-  }
-  let live;
-  try {
-    live = await resolveAppByPid(axSource, app.pid);
-  } catch {
-    return "refused_identity_unavailable";
-  }
-  if (!live?.bundle_id || !cuaBundleIdsEqual(live.bundle_id, app.bundle_id)) {
-    return "refused_identity_changed";
-  }
-  try {
-    const terminated = await adapter.terminateApplication(app.pid, app.bundle_id);
-    return terminated
-      ? `terminated_verified_pid_${app.pid}`
-      : `termination_refused_for_verified_pid_${app.pid}`;
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    return `termination_failed_for_verified_pid_${app.pid}: ${message}`;
-  }
-}
-var FRESH_ROLLBACK_DISCOVERY_ATTEMPTS = 4;
-var FRESH_ROLLBACK_DISCOVERY_DELAY_MS = 25;
-async function discoverFreshApplicationForRollback(axSource, baselinePids, target, preferredPids) {
-  if (!axSource) return null;
-  for (let attempt = 0; attempt < FRESH_ROLLBACK_DISCOVERY_ATTEMPTS; attempt += 1) {
-    let apps;
-    try {
-      apps = await axSource.listApplications();
-    } catch {
-      apps = [];
-    }
-    const freshMatches = apps.filter((candidate) => {
-      if (baselinePids.has(candidate.pid) || !candidate.bundle_id) return false;
-      if (target.bundleId) {
-        return cuaBundleIdsEqual(candidate.bundle_id, target.bundleId, { loose: true });
-      }
-      return Boolean(
-        target.name &&
-        candidate.name?.trim().toLocaleLowerCase() === target.name.trim().toLocaleLowerCase(),
-      );
-    });
-    const preferred = freshMatches.find((candidate) => preferredPids.has(candidate.pid));
-    const candidate = preferred ?? (freshMatches.length === 1 ? freshMatches[0] : null);
-    if (candidate?.bundle_id) {
-      return { pid: candidate.pid, bundle_id: candidate.bundle_id };
-    }
-    if (freshMatches.length > 1) return null;
-    if (attempt + 1 < FRESH_ROLLBACK_DISCOVERY_ATTEMPTS) {
-      await new Promise((resolve) => setTimeout(resolve, FRESH_ROLLBACK_DISCOVERY_DELAY_MS));
-    }
-  }
-  return null;
-}
-async function settleActivatedAppByPid(axSource, pid, budgetMs = 800) {
-  const attempts = Math.max(1, Math.ceil(budgetMs / 100));
-  let app = null;
-  for (let attempt = 0; attempt < attempts; attempt += 1) {
-    app = await resolveAppByPid(axSource, pid, { actionSent: true });
-    if (!app || app.active === true) return app;
-    if (attempt + 1 < attempts) {
-      await new Promise((resolve) => setTimeout(resolve, 100));
-    }
-  }
-  return app;
-}
-async function activateMacFilePanelSurface(options) {
-  const { adapter, axSource, app, windowId } = options;
-  if (!axSource?.captureApp || !app.pid || !app.bundle_id) {
-    throw foregroundRequired(
-      "open_application: confirmed file-panel activation requires live AX app, bundle, and surface evidence. action_sent=false.",
-      { action_sent: false, reason: "foreground_required" },
-    );
-  }
-  const foregroundPidBefore =
-    (await axSource.listApplications()).find((candidate) => candidate.active === true)?.pid ?? null;
-  let snapshot;
-  try {
-    snapshot = await axSource.captureApp({
-      pid: app.pid,
-      bundle_id: app.bundle_id,
-      window_id: windowId,
-    });
-  } catch {
-    snapshot = null;
-  }
-  try {
-    const actualWindowId = snapshot?.window.window_id;
-    const presentationWindowId =
-      positiveWindowId(snapshot?.window.presentation_window_id) ?? actualWindowId;
-    const surfaceKind = snapshot?.window.surface_kind;
-    if (
-      !snapshot ||
-      typeof actualWindowId !== "number" ||
-      actualWindowId !== windowId ||
-      typeof presentationWindowId !== "number"
-    ) {
-      throw elementUnavailable(
-        "open_application: requested file-panel surface was closed or replaced before activation. For ordinary application activation, retry with window_id omitted. action_sent=false.",
-        {
-          action_sent: false,
-          reason: "surface_replaced",
-          expected_window_id: windowId,
-          actual_window_id: typeof actualWindowId === "number" ? actualWindowId : null,
-        },
-      );
-    }
-    if (
-      surfaceKind !== "open_panel" &&
-      surfaceKind !== "save_panel" &&
-      surfaceKind !== "attached_dialog"
-    ) {
-      throw foregroundRequired(
-        "open_application: confirmed foreground recovery is limited to open/save panels and their attached sheets. For ordinary application activation, retry with window_id omitted. action_sent=false.",
-        {
-          action_sent: false,
-          reason: "unsupported_surface_kind",
-          surface_kind: surfaceKind ?? "unknown",
-        },
-      );
-    }
-    const exactSurface = snapshot.surfaces?.find(
-      (surface) =>
-        surface.actual_window_id === actualWindowId &&
-        surface.presentation_window_id === presentationWindowId &&
-        surface.surface_kind === surfaceKind,
-    );
-    const hasPanelAncestor =
-      surfaceKind !== "attached_dialog" ||
-      snapshot.surfaces?.some(
-        (surface) =>
-          surface.presentation_window_id === presentationWindowId &&
-          (surface.surface_kind === "open_panel" || surface.surface_kind === "save_panel"),
-      ) === true;
-    if (!exactSurface || !hasPanelAncestor) {
-      throw foregroundRequired(
-        "open_application: attached surface has no fresh open/save panel lineage. action_sent=false.",
-        {
-          action_sent: false,
-          reason: "surface_lineage_unverified",
-          actual_window_id: actualWindowId,
-          presentation_window_id: presentationWindowId,
-          surface_kind: surfaceKind,
-        },
-      );
-    }
-    const actualOwnerPid = positiveWindowId(snapshot.window.actual_owner_pid) ?? app.pid;
-    const actualOwnerBundleId =
-      typeof snapshot.window.actual_owner_bundle_id === "string" &&
-      snapshot.window.actual_owner_bundle_id.trim()
-        ? snapshot.window.actual_owner_bundle_id.trim()
-        : actualOwnerPid === app.pid
-          ? app.bundle_id
-          : (
-              await resolvePidIdentity(
-                axSource,
-                actualOwnerPid,
-                "open_application:file_panel_surface_owner",
-              )
-            )?.bundle_id;
-    if (!actualOwnerBundleId) {
-      throw elementUnavailable(
-        "open_application: file-panel surface owner has no verified bundle identity. action_sent=false.",
-        {
-          action_sent: false,
-          reason: "surface_owner_unverified",
-          actual_owner_pid: actualOwnerPid,
-          actual_window_id: actualWindowId,
-        },
-      );
-    }
-    if (typeof adapter.activateAppFrameSurface !== "function") {
-      throw notAuthorized(
-        "open_application: native file-panel surface activation ABI is unavailable. action_sent=false.",
-      );
-    }
-    const activated = adapter.activateAppFrameSurface({
-      logicalPid: app.pid,
-      logicalBundleId: app.bundle_id,
-      presentationWindowId,
-      actualOwnerPid,
-      actualOwnerBundleId,
-      actualWindowId,
-      surfaceKind,
-    });
-    if (!activated.ok) {
-      if (activated.reason === "not_trusted") {
-        throw permissionDenied(
-          "open_application: Accessibility is not granted to the Computer Use Helper. action_sent=false.",
-          { action_sent: false, reason: "not_trusted" },
-        );
-      }
-      throw foregroundRequired(
-        `open_application: native file-panel surface activation failed verification (native_reason=${activated.reason}, foreground_pid_before=${activated.foreground_pid_before ?? "unknown"}, foreground_pid_after=${activated.foreground_pid_after ?? "unknown"}). action_sent=false.`,
-        {
-          action_sent: false,
-          reason: "foreground_required",
-          native_reason: activated.reason,
-          actual_window_id: actualWindowId,
-          presentation_window_id: presentationWindowId,
-        },
-      );
-    }
-    const nativeForegroundPidAfter = activated.foreground_pid_after;
-    if (nativeForegroundPidAfter !== app.pid) {
-      throw foregroundRequired(
-        "open_application: native file-panel activation returned no matching WindowServer foreground owner. action_sent=false.",
-        {
-          action_sent: false,
-          reason: "foreground_required",
-          foreground_pid_before: activated.foreground_pid_before ?? foregroundPidBefore,
-          foreground_pid_after: nativeForegroundPidAfter ?? null,
-          expected_pid: app.pid,
-        },
-      );
-    }
-    let verified = null;
-    try {
-      verified = await axSource.captureApp({
-        pid: app.pid,
-        bundle_id: app.bundle_id,
-        window_id: actualWindowId,
-      });
-      if (
-        !verified ||
-        verified.app.active !== true ||
-        verified.window.focused !== true ||
-        verified.window.window_id !== actualWindowId ||
-        verified.window.presentation_window_id !== presentationWindowId ||
-        verified.window.surface_kind !== surfaceKind
-      ) {
-        const replaced =
-          verified?.window.window_id_fallback === true ||
-          (typeof verified?.window.window_id === "number" &&
-            verified.window.window_id !== actualWindowId);
-        const factory = replaced ? elementUnavailable : foregroundRequired;
-        throw factory(
-          replaced
-            ? "open_application: file-panel surface changed during activation. action_sent=false."
-            : "open_application: logical app or exact file-panel surface did not become frontmost and focused. action_sent=false.",
-          {
-            action_sent: false,
-            reason: replaced ? "surface_replaced" : "foreground_required",
-            expected_window_id: actualWindowId,
-            actual_window_id: verified?.window.window_id ?? null,
-          },
-        );
-      }
-    } finally {
-      verified?.captureLease?.release();
-    }
-    return {
-      active: true,
-      actual_window_id: actualWindowId,
-      presentation_window_id: presentationWindowId,
-      actual_owner_pid: actualOwnerPid,
-      actual_owner_bundle_id: actualOwnerBundleId,
-      surface_kind: surfaceKind,
-      foreground_pid_before: foregroundPidBefore,
-      foreground_pid_after: nativeForegroundPidAfter,
-      focused_window_id: activated.focused_window_id ?? actualWindowId,
-      native_reason: "activated",
-    };
-  } finally {
-    snapshot?.captureLease?.release();
-  }
-}
+// 清退（2026-11-10 R10 后续）：open_application helper 家族（textParam/urlListParam/
+// launchHintPayload/appPayload/positiveWindowId/resolveOpenedApp/resolveAppByPid/
+// rollbackFreshApplication/discoverFreshApplicationForRollback/settleActivatedAppByPid/
+// activateMacFilePanelSurface/captureFileUrlWindowBaseline/verifyFileUrlWindowEffect/
+// isWindowsAppUserModelId/resolveWindowsPackagedAppAlias/canonicalWindowsExecutable/
+// settleLiveActive* 等）已随 open_application broker 方法整体删除。证据：该家族
+// 全部特征串（"open_application requires bundle_id, name, or pid"、"Fresh-process
+// rollback"、"file URL window verification cannot distinguish duplicate filename"、
+// "open_application direct PID lookup conflict" 等）在官方 0.6.5 win entry 与官方
+// mac SEA（3.17.2）双双零命中——官方 v3.1 协议瘦身（49→43，win entry :19750 墓碑）
+// 删除 open_application；启动/拉起能力由 capture_app 的内部链保留（见下方
+// reopenWindowlessApp 与 nodeAutomationAdapter.openApplication，官方
+// win entry :33636 注释「启动能力随 open_application 移除、拉起走 captureApp」）。
+// 保留边界：上方 hasOnscreenWindow/settleApplicationWindow 为 capture_app 的
+// windowless-app 重开链服务（官方在用），不在清退之列。
 
 export function createElectronNativeBackend(options) {
   const { adapter, brokerInfo, axSource } = options;
@@ -884,9 +309,12 @@ export function createElectronNativeBackend(options) {
   const hasAppScopedInput = hasAppScopedKeyboard(adapter);
   const automationPermissionStatus = hasAutomationBridge ? "unknown" : "not_required";
   const displayTopology = createElectronDisplayTopology(adapter);
-  // 原版 63 表（第十轮重放）：screen_size/cursor_position/list_displays/set_display
-  // 共享的显示器选择状态（用户显式 set_display 后快照跟随选择，否则跟随主屏）。
-  const displaySelection = createElectronDisplaySelection(adapter);
+  // 清退（2026-11-10 R10 后续）：createElectronDisplaySelection（screen_size/
+  // cursor_position/list_displays/set_display/screenshot 的显示器选择状态机）已随
+  // 这五个被裁方法整体删除——官方 0.6.5 win entry 与 mac SEA 对
+  // createElectronDisplaySelection/selectedDisplayId/"set_display index must be"
+  // 均零命中；electronDisplaySelection.ts 整文件删除。下方 captureTopology
+  // （displayTopology）是 capture_app 帧指纹与输入处理器的共享拓扑，保留。
   const captureTopology = () => {
     const { displays, primaryId } = displayTopology.topology();
     const entries = displays.map((display, index) => ({
@@ -911,6 +339,12 @@ export function createElectronNativeBackend(options) {
       { action_sent: false, reason: "dpi_awareness_unverified" },
     );
   };
+  // 还原自发行 bundle（官方 0.6.5 win32 entry :28327-28334）：同一 AxTokenRegistry
+  // 同时喂输入处理器（windowsElementReadback——element_native 后台插入/前台焦点
+  // 预检的 token→ref 解析）与 axReadOnly 方法族（元素 token 交易）。此前还原稿
+  // registry 只挂在 axReadOnly，官方两处共享同一 registry 使 element_native 的
+  // token 与元素动作 token 同源。
+  const axRegistry = new AxTokenRegistry();
   const inputHandlers = createElectronInputHandlers({
     adapter,
     axSource,
@@ -918,6 +352,7 @@ export function createElectronNativeBackend(options) {
     allowAxHitTestClick: true,
     platform: brokerInfo.platform,
     getDisplayTopology: () => captureTopology().entries,
+    windowsElementReadback: { registry: axRegistry },
   });
   const implemented = {
     // app-scoped + global synthetic-input handlers live in electronInputHandlers.ts
@@ -952,7 +387,8 @@ export function createElectronNativeBackend(options) {
         screenshot: supportsScreenCapture,
         app_scoped_capture: hasAxSource,
         clipboard: supportsClipboard,
-        open_application: Boolean(adapter.openApplication),
+        // 清退（2026-11-10 R10 后续）：capabilities.open_application 键随方法删除——
+        // 官方 0.6.5 win entry :28355-28370 的 capabilities 块无此键（逐字对照）。
         ax_observation: hasAxSource,
         token_scoped_element_actions: hasElementActions,
         coordinate_hit_test: hasCoordinateHitTest,
@@ -1132,714 +568,21 @@ export function createElectronNativeBackend(options) {
      *   2. 四步之间用户或另一个进程改写剪贴板，还原会把对方的新内容覆盖掉 —— 原子化消掉这个竞态。
      * 与 Codex 同构：它的 paste 也是 performAction 的一个 native variant，而非 host 侧组合。
      *
-     * 粘贴键按平台选择：macOS cmd+v，Linux / Windows ctrl+v。
+     * 粘贴键按平台选择：macOS command+v（官方字面量，offset 85542433；cmd+v 经
+     * 别名表归一后等价），Linux / Windows ctrl+v。
      */
-    // —— 原版 63 表方法（第十轮重放，底稿：官方 SEA payload 未混淆 bundle）——
-    // 显示器选择四件套：尺寸跟随当前选择（未显式 set_display 时为主屏）；
-    // cursor_position 归属判定按显示器 bounds 命中；list_displays 输出 1 基下标。
-    screen_size: () => {
-      const display = displaySelection.current();
-      return { width: display.size.width, height: display.size.height };
-    },
-    cursor_position: () => {
-      const point = adapter.getCursorScreenPoint();
-      const displayStatus = displaySelection.status();
-      const displays = displayStatus.displays;
-      let cursorDisplay = null;
-      for (let i = 0; i < displays.length; i += 1) {
-        const { x: ox, y: oy, width: w, height: h } = displays[i].bounds;
-        if (point.x >= ox && point.x < ox + w && point.y >= oy && point.y < oy + h) {
-          cursorDisplay = i + 1;
-          break;
-        }
-      }
-      return {
-        x: point.x,
-        y: point.y,
-        coordinateSpace: "screen",
-        selected_display: displayStatus.selectedIndex,
-        cursor_display: cursorDisplay,
-      };
-    },
-    list_displays: () => {
-      const { displays, primaryId } = displaySelection.topology();
-      return displays.map((display, index) => ({
-        index: index + 1,
-        id: display.id,
-        bounds: [display.bounds.x, display.bounds.y, display.bounds.width, display.bounds.height],
-        main: display.id === primaryId,
-        scale_factor: display.scaleFactor,
-      }));
-    },
-    set_display: (params) => {
-      displaySelection.select(params.index);
-      return null;
-    },
-    // 全屏截图：捕获前后双拓扑指纹 + WindowServer 窗口栈指纹，任一变化即拒绝，
-    // 保证返回像素与坐标系可安全配对（frame_pixel_projection_v1）。
-    screenshot: async (params) => {
-      if (!supportsScreenCapture) {
-        throw notAuthorized(screenCaptureUnavailableMessage);
-      }
-      if (screenCaptureStatus() === "denied") {
-        throw permissionDenied(
-          `Screen Recording is denied for ZCode. ${authorizationSubjectHint(brokerInfo, "Screen Recording")}`,
-        );
-      }
-      requireVerifiedWindowsFramePixels("screenshot");
-      const displaySnapshot = Object.prototype.hasOwnProperty.call(params, "display_id")
-        ? displaySelection.snapshotForId(params.display_id)
-        : displaySelection.snapshot();
-      const selectedDisplay = displaySnapshot.current;
-      const selectedDisplayBounds = [
-        selectedDisplay.bounds.x,
-        selectedDisplay.bounds.y,
-        selectedDisplay.bounds.width,
-        selectedDisplay.bounds.height,
-      ];
-      if (
-        selectedDisplay.framePixelVerified === false ||
-        displaySnapshot.displays.some((display) => display.framePixelVerified === false)
-      ) {
-        throw elementUnavailable(
-          "screenshot: native display geometry is unavailable; raster-dimension fallback displays cannot mint actionable frame pixels. Retry after the native display topology is ready.",
-          { action_sent: false, reason: "display_geometry_unverified" },
-        );
-      }
-      const beforeTopology = displaySnapshot.displays.map((display, index) => ({
-        index: index + 1,
-        id: display.id,
-        bounds: [display.bounds.x, display.bounds.y, display.bounds.width, display.bounds.height],
-        main: index === 0,
-        scale_factor: display.scaleFactor,
-      }));
-      let beforeWindows = null;
-      let png = null;
-      const maxCaptureAttempts = adapter.listScreenCaptureProbeWindows ? 3 : 1;
-      for (let attempt = 1; attempt <= maxCaptureAttempts; attempt += 1) {
-        beforeWindows = captureScreenshotWindows(adapter, selectedDisplayBounds);
-        png = await adapter.captureScreenPng(selectedDisplay.bounds);
-        if (!png || png.length === 0) {
-          throw permissionDenied(
-            `Screen capture returned no image. ${authorizationSubjectHint(brokerInfo, "Screen Recording")}`,
-          );
-        }
-        const afterTopology = captureTopology();
-        if (displayTopologyFingerprint(beforeTopology) !== afterTopology.fingerprint) {
-          throw elementUnavailable(
-            "screenshot: display topology or scale factor changed while the image was captured; capture again. action_sent=false.",
-            { action_sent: false, reason: "display_topology_changed" },
-          );
-        }
-        const afterWindows = beforeWindows
-          ? captureScreenshotWindows(adapter, selectedDisplayBounds)
-          : null;
-        if (
-          !beforeWindows ||
-          (afterWindows && beforeWindows.fingerprint === afterWindows.fingerprint)
-        ) {
-          break;
-        }
-        if (attempt === maxCaptureAttempts) {
-          throw elementUnavailable(
-            "screenshot: WindowServer window ordering or ownership changed while the image was captured; capture again. action_sent=false.",
-            { action_sent: false, reason: "window_stack_changed" },
-          );
-        }
-      }
-      if (!png) {
-        throw permissionDenied(
-          `Screen capture returned no image. ${authorizationSubjectHint(brokerInfo, "Screen Recording")}`,
-        );
-      }
-      return {
-        format: "png",
-        data: toBase64(png),
-        display: {
-          // 截图溯源命名真正提供像素的显示器，与用户是否显式 set_display 无关；
-          // selectedIndex 的可空语义只属于 cursor_position 的「显式选择」状态。
-          index: displaySnapshot.currentIndex,
-          id: selectedDisplay.id,
-          bounds: [
-            selectedDisplay.bounds.x,
-            selectedDisplay.bounds.y,
-            selectedDisplay.bounds.width,
-            selectedDisplay.bounds.height,
-          ],
-          main: selectedDisplay.id === displaySnapshot.displays[0]?.id,
-          scale_factor: selectedDisplay.scaleFactor,
-        },
-        display_topology: beforeTopology,
-        coordinate_contract: "frame_pixel_projection_v1",
-        ...(beforeWindows ? { capture_windows: beforeWindows } : {}),
-      };
-    },
-    // 剪贴板：adapter 层按平台提供（win32 原生导出；mac 无原生剪贴板导出时
-    // supportsClipboard=false，与原版 mac 同样 fail-closed notAuthorized）。
-    read_clipboard: async () => {
-      if (!supportsClipboard) {
-        throw notAuthorized("read_clipboard is unavailable in this Drora Computer Use build.");
-      }
-      return await adapter.readClipboardText();
-    },
-    write_clipboard: async (params) => {
-      if (!supportsClipboard) {
-        throw notAuthorized("write_clipboard is unavailable in this Drora Computer Use build.");
-      }
-      const text = typeof params.text === "string" ? params.text : "";
-      await adapter.writeClipboardText(text);
-      return null;
-    },
-    // 原版 63 表最后一项（第十一轮重放）：应用启动 + 启动后身份核验。关键语义：
-    // pid/bundle_id/name 三选一；darwin 上 name 为权威输入时先消歧并反查 bundle id；
-    // new_instance 仅 darwin LaunchServices 支持，失败时做 fresh-process 回滚；
-    // file:// URL 启动要验证「真的开出了对应标题的窗口」后才报成功。
-    open_application: async (params) => {
-      if (!adapter.openApplication) {
-        throw notAuthorized("open_application is unavailable in this ZCode build.");
-      }
-      const timingStartedAt = performance.now();
-      let timingPhaseStartedAt = timingStartedAt;
-      const timingMs = {};
-      const finishTimingPhase = (name) => {
-        const now = performance.now();
-        timingMs[name] = Math.max(0, Math.round(now - timingPhaseStartedAt));
-        timingPhaseStartedAt = now;
-      };
-      if (brokerInfo.platform === "win32" && !axSource) {
-        throw permissionDenied(
-          "open_application requires the native Windows UIA app resolver; refusing to launch because post-launch identity cannot be verified.",
-        );
-      }
-      const appObj =
-        params.app && typeof params.app === "object" && !Array.isArray(params.app)
-          ? params.app
-          : {};
-      const bundleId = textParam(params.bundle_id) ?? textParam(appObj.bundle_id);
-      const name = textParam(params.name) ?? textParam(appObj.name);
-      const rawPid =
-        typeof params.pid === "number" && Number.isInteger(params.pid) && params.pid > 0
-          ? params.pid
-          : typeof appObj.pid === "number" && Number.isInteger(appObj.pid) && appObj.pid > 0
-            ? appObj.pid
-            : undefined;
-      const requestedSurfaceWindowId =
-        positiveWindowId(params.window_id) ?? positiveWindowId(appObj.window_id);
-      const newInstance = params.new_instance === true || appObj.new_instance === true;
-      if (newInstance && rawPid) {
-        throw invalidRequest(
-          "open_application new_instance=true cannot be combined with app.pid: a pinned pid names an existing process. Omit pid and reuse the fresh pid returned after launch.",
-        );
-      }
-      if (newInstance && brokerInfo.platform !== "darwin") {
-        throw permissionDenied(
-          `open_application new_instance=true is unavailable on ${brokerInfo.platform}; only macOS LaunchServices supports this verified isolation mode.`,
-        );
-      }
-      if (newInstance && !axSource) {
-        throw launchFailed(
-          "open_application new_instance=true requires the native AX app resolver to verify a fresh pid before reporting success.",
-        );
-      }
-      const resolvedWindowsPackagedAppAlias2 =
-        brokerInfo.platform === "win32" && !rawPid && !bundleId
-          ? resolveWindowsPackagedAppAlias(name)
-          : undefined;
-      const windowsAppUserModelId =
-        brokerInfo.platform === "win32" && !rawPid
-          ? isWindowsAppUserModelId(bundleId)
-            ? bundleId
-            : resolvedWindowsPackagedAppAlias2
-          : undefined;
-      if (!bundleId && !name && !rawPid) {
-        throw invalidRequest("open_application requires bundle_id, name, or pid.");
-      }
-      let resolvedBundleId = windowsAppUserModelId ?? bundleId;
-      let nameIsAuthoritative =
-        brokerInfo.platform === "darwin" ? !rawPid && !bundleId : Boolean(name);
-      let resolvedName = windowsAppUserModelId || !nameIsAuthoritative ? undefined : name;
-      if (brokerInfo.platform === "darwin" && nameIsAuthoritative && name) {
-        const liveNameMatches = axSource
-          ? (await axSource.listApplications()).filter(
-              (candidate) =>
-                candidate.name?.trim().toLocaleLowerCase() === name.trim().toLocaleLowerCase(),
-            )
-          : [];
-        if (liveNameMatches.length > 1) {
-          throw invalidRequest(
-            `open_application app name is ambiguous: ${JSON.stringify(name)} matched ${liveNameMatches.length} live processes. Call list_apps and retry with app.pid.`,
-            { action_sent: false, reason: "ambiguous_app_name" },
-          );
-        }
-        const registeredBundleId =
-          liveNameMatches[0]?.bundle_id ??
-          (adapter.resolveApplicationBundleId
-            ? await adapter.resolveApplicationBundleId(name)
-            : null);
-        if (!registeredBundleId) {
-          throw invalidRequest(
-            `open_application could not resolve the installed macOS application named ${JSON.stringify(name)}. Use the original user-provided name once; do not translate it, search with Bash/Finder/Spotlight, or substitute another application.`,
-            { action_sent: false, reason: "application_name_unresolved" },
-          );
-        }
-        resolvedBundleId = registeredBundleId;
-        resolvedName = undefined;
-        nameIsAuthoritative = false;
-      }
-      if (rawPid) {
-        if (!axSource) {
-          throw invalidRequest(
-            `open_application by pid (${rawPid}) requires the native AX app resolver, which is unavailable in this ZCode build. Pass bundle_id or name instead.`,
-          );
-        }
-        const resolved = await resolveAppByPid(axSource, rawPid);
-        if (!resolved) {
-          throw invalidRequest(
-            `open_application by pid (${rawPid}) failed: no running app matches that pid. The process may have exited \u2014 call list_apps for a fresh pid, or pass bundle_id/name.`,
-          );
-        }
-        if (bundleId && (!resolved.bundle_id || !cuaBundleIdsEqual(resolved.bundle_id, bundleId))) {
-          throw invalidRequest(
-            `open_application app identity mismatch: pid ${rawPid} belongs to bundle_id ${JSON.stringify(resolved.bundle_id)}, not requested ${JSON.stringify(bundleId)}. Call list_apps and retry with fields from the same process.`,
-          );
-        }
-        if (
-          nameIsAuthoritative &&
-          name &&
-          resolved.name?.trim().toLocaleLowerCase() !== name.trim().toLocaleLowerCase()
-        ) {
-          throw invalidRequest(
-            `open_application app identity mismatch: pid ${rawPid} belongs to app name ${JSON.stringify(resolved.name)}, not requested ${JSON.stringify(name)}. Call list_apps and retry with fields from the same process.`,
-          );
-        }
-        resolvedBundleId = bundleId ?? resolved.bundle_id ?? undefined;
-        resolvedName = resolvedBundleId ? undefined : (resolved.name ?? name ?? undefined);
-        if (!resolvedBundleId && !resolvedName) {
-          throw invalidRequest(
-            `open_application by pid (${rawPid}) resolved to an app with neither bundle_id nor name; cannot launch. Pass bundle_id or name instead.`,
-          );
-        }
-      }
-      if (!newInstance && nameIsAuthoritative && name && axSource) {
-        const requestedName = name.trim().toLocaleLowerCase();
-        const nameMatches = (await axSource.listApplications()).filter(
-          (app) => app.name?.trim().toLocaleLowerCase() === requestedName,
-        );
-        if (nameMatches.length > 1) {
-          throw invalidRequest(
-            `open_application app name is ambiguous: ${JSON.stringify(name)} matched ${nameMatches.length} live processes ${JSON.stringify(nameMatches.map((app) => ({ pid: app.pid, bundle_id: app.bundle_id })))}. Call list_apps and retry with app.pid.`,
-          );
-        }
-      }
-      const urls =
-        urlListParam(params.urls) ??
-        urlListParam(params.url) ??
-        urlListParam(appObj.urls) ??
-        urlListParam(appObj.url);
-      const activate = params.activate === true;
-      if (activate && adapter.isFocusStealPrevented?.() === true) {
-        throw permissionDenied(
-          "open_application activate=true was refused because the trusted host prevent_activation policy is engaged. action_sent=false.",
-          {
-            action_sent: false,
-            request_delivery_state: "not_sent",
-            reason: "focus_steal_prevented",
-          },
-        );
-      }
-      finishTimingPhase("identity_resolution");
-      let resolvedExistingWindowsApp = null;
-      if (windowsAppUserModelId) {
-        if (urls && urls.length > 0) {
-          throw permissionDenied(
-            "open_application cannot open URL(s) with a Windows AUMID in this build. Open the packaged app first, then navigate through its own UI.",
-          );
-        }
-        if (!axSource?.applicationInfoByAumid) {
-          throw permissionDenied(
-            "open_application requires the exact Windows AUMID app resolver; refusing to launch because HWND identity cannot be verified.",
-          );
-        }
-        let runningApp;
-        try {
-          runningApp = await axSource.applicationInfoByAumid(windowsAppUserModelId);
-        } catch (error) {
-          const message = error instanceof Error ? error.message : String(error);
-          throw permissionDenied(
-            `open_application could not query the exact Windows AUMID identity before launch: ${message}`,
-          );
-        }
-        if (runningApp) {
-          if (
-            typeof runningApp.pid !== "number" ||
-            !Number.isSafeInteger(runningApp.pid) ||
-            runningApp.pid <= 0
-          ) {
-            throw permissionDenied(
-              "open_application exact Windows AUMID lookup returned an invalid PID.",
-            );
-          }
-          if (activate && runningApp.active !== true) {
-            if (!adapter.activateApplication) {
-              throw notAuthorized(
-                "open_application requires the native Windows application activation primitive in this ZCode build.",
-              );
-            }
-            if (adapter.activateApplication(runningApp.pid) !== true) {
-              throw permissionDenied(
-                `open_application by AUMID could not activate live pid ${runningApp.pid}.`,
-              );
-            }
-            const activatedApp = await settleActivatedAppByPid(axSource, runningApp.pid);
-            if (!activatedApp || activatedApp.active !== true) {
-              throw permissionDenied(
-                `open_application by AUMID was dispatched, but Windows did not make pid ${runningApp.pid} frontmost.`,
-              );
-            }
-            runningApp = activatedApp;
-          }
-          resolvedExistingWindowsApp = runningApp;
-        }
-      }
-      if (brokerInfo.platform === "win32" && rawPid) {
-        if (!axSource) {
-          throw permissionDenied(
-            "open_application by pid requires the native Windows UIA app resolver.",
-          );
-        }
-        if (urls && urls.length > 0) {
-          throw permissionDenied(
-            "open_application by pid cannot open URL(s) in this Windows CUA build without launching another process. Activate the existing pid first, then navigate through that application's own UI.",
-          );
-        }
-        let runningApp = await resolveAppByPid(axSource, rawPid);
-        if (!runningApp) {
-          throw permissionDenied(
-            `open_application by pid (${rawPid}) failed: no running app matches that pid. The process may have exited \u2014 call list_apps for a fresh pid.`,
-          );
-        }
-        if (activate && runningApp.active !== true) {
-          if (!adapter.activateApplication) {
-            throw notAuthorized(
-              "open_application by pid requires the native Windows application activation primitive in this ZCode build.",
-            );
-          }
-          if (adapter.activateApplication(rawPid) !== true) {
-            throw permissionDenied(
-              `open_application by pid (${rawPid}) could not activate the live target window.`,
-            );
-          }
-          const activatedApp = await settleActivatedAppByPid(axSource, rawPid);
-          if (!activatedApp || activatedApp.active !== true) {
-            throw permissionDenied(
-              `open_application by pid (${rawPid}) was dispatched, but Windows did not make the target frontmost.`,
-            );
-          }
-          runningApp = activatedApp;
-        }
-        resolvedExistingWindowsApp = runningApp;
-      }
-      const preOpenAppRef = {
-        ...(rawPid ? { pid: rawPid } : {}),
-        ...(resolvedBundleId ? { bundle_id: resolvedBundleId } : {}),
-        ...(resolvedName ? { name: resolvedName } : {}),
-      };
-      const fileUrlWindowBaseline = await captureFileUrlWindowBaseline(
-        newInstance
-          ? async () => []
-          : axSource?.listWindows
-            ? () => axSource.listWindows(preOpenAppRef)
-            : undefined,
-        urls,
-      );
-      finishTimingPhase("file_window_baseline");
-      const liveApps = axSource ? await axSource.listApplications() : [];
-      finishTimingPhase("live_app_enumeration");
-      const matchingLiveApp = liveApps.find((candidate) => {
-        if (rawPid && candidate.pid !== rawPid) return false;
-        if (resolvedBundleId && !cuaBundleIdsEqual(candidate.bundle_id, resolvedBundleId)) {
-          return false;
-        }
-        if (
-          resolvedName &&
-          candidate.name?.trim().toLocaleLowerCase() !== resolvedName.trim().toLocaleLowerCase()
-        ) {
-          return false;
-        }
-        return Boolean(rawPid || resolvedBundleId || resolvedName);
-      });
-      const alreadyRunning = resolvedExistingWindowsApp !== null || matchingLiveApp !== undefined;
-      const backgroundWindowTarget =
-        brokerInfo.platform === "darwin" && !newInstance && !urls && axSource?.listWindows
-          ? (resolvedExistingWindowsApp ?? matchingLiveApp ?? null)
-          : null;
-      let needsBackgroundWindowRecovery = false;
-      if (backgroundWindowTarget && axSource?.listWindows) {
-        const windows = await axSource.listWindows({
-          pid: backgroundWindowTarget.pid,
-          bundle_id: backgroundWindowTarget.bundle_id,
-          name: backgroundWindowTarget.name,
-        });
-        needsBackgroundWindowRecovery = Array.isArray(windows) && !hasOnscreenWindow(windows);
-      }
-      if (
-        brokerInfo.platform === "darwin" &&
-        params.activate === true &&
-        requestedSurfaceWindowId !== null &&
-        rawPid !== undefined &&
-        bundleId !== undefined
-      ) {
-        const activationApp = resolvedExistingWindowsApp ?? matchingLiveApp ?? null;
-        if (!activationApp) {
-          throw foregroundRequired(
-            "open_application: confirmed file-panel activation requires a live app from the same observation. action_sent=false.",
-            { action_sent: false, reason: "foreground_required" },
-          );
-        }
-        const activation = await activateMacFilePanelSurface({
-          adapter,
-          axSource,
-          app: activationApp,
-          windowId: requestedSurfaceWindowId,
-        });
-        finishTimingPhase("file_panel_activation");
-        const activeApp = { ...activationApp, active: true };
-        return {
-          ...appPayload(activeApp),
-          activation_diagnostics: activation,
-          file_window_verification: {
-            status: "unavailable",
-          },
-          timing_ms: {
-            ...timingMs,
-            total: Math.max(0, Math.round(performance.now() - timingStartedAt)),
-          },
-        };
-      }
-      let launchResult;
-      if (!resolvedExistingWindowsApp && rawPid && alreadyRunning && activate && !urls) {
-        const activateExactPid =
-          brokerInfo.platform === "darwin"
-            ? axSource?.activateApplication
-            : adapter.activateApplication;
-        if (!activateExactPid) {
-          const platformHint =
-            brokerInfo.platform === "linux"
-              ? "This Linux backend does not support foreground activation by pid; retry with an app name or bundle identity that the system launcher can activate."
-              : "Update the Helper and retry.";
-          throw permissionDenied(
-            `open_application cannot safely activate the exact requested pid ${rawPid}: this platform does not expose pid-targeted activation. No bundle/name fallback was sent because it could select a sibling process. ${platformHint}`,
-          );
-        }
-        if (!activateExactPid(rawPid)) {
-          throw permissionDenied(
-            `open_application could not activate the exact requested pid ${rawPid}; no fallback was sent because bundle/name activation could select a sibling process. Call list_apps and retry with a fresh pid.`,
-          );
-        }
-        const activatedApp = await settleActivatedAppByPid(axSource, rawPid);
-        if (!activatedApp || activatedApp.active !== true) {
-          throw launchFailed(
-            `open_application activate=true was dispatched for pid ${rawPid}, but the live target never became foreground.`,
-            {
-              active: false,
-              activation_dispatched: true,
-              request_delivery_state: "possibly_sent",
-            },
-          );
-        }
-        launchResult = {
-          pid: activatedApp.pid,
-          bundleId: activatedApp.bundle_id ?? resolvedBundleId,
-          name: activatedApp.name ?? resolvedName,
-          active: true,
-        };
-      } else if (
-        !resolvedExistingWindowsApp &&
-        (newInstance || !alreadyRunning || urls || activate || needsBackgroundWindowRecovery)
-      ) {
-        try {
-          launchResult = await adapter.openApplication({
-            bundleId: resolvedBundleId,
-            name: resolvedName,
-            urls,
-            activate,
-            newInstance,
-          });
-        } catch (error) {
-          const message = error instanceof Error ? error.message : String(error);
-          console.error(`[cua-openapp-diag] launcher dispatch FAILED: ${message}`);
-          throw launchFailed(
-            `open_application failed in the ZCode app launcher: ${message} Call list_apps to verify the exact app name/bundle_id before retrying.`,
-          );
-        }
-      }
-      console.error(
-        `[cua-openapp-diag] dispatch done alreadyRunning=${JSON.stringify(alreadyRunning)} needsBgRecovery=${JSON.stringify(needsBackgroundWindowRecovery)} launchResult=${JSON.stringify(launchResult && typeof launchResult === "object" ? launchResult : null)}`,
-      );
-      finishTimingPhase("launcher_dispatch");
-      let app = null;
-      const launcherPid =
-        launchResult &&
-        typeof launchResult.pid === "number" &&
-        Number.isInteger(launchResult.pid) &&
-        launchResult.pid > 0
-          ? launchResult.pid
-          : undefined;
-      let canonicalLaunchIdentity = null;
-      if (
-        brokerInfo.platform === "win32" &&
-        !windowsAppUserModelId &&
-        launcherPid &&
-        adapter.processExecutablePath
-      ) {
-        try {
-          canonicalLaunchIdentity = adapter.processExecutablePath(launcherPid)?.trim() || null;
-        } catch {}
-      }
-      try {
-        try {
-          app =
-            resolvedExistingWindowsApp ??
-            (await resolveOpenedApp(
-              axSource,
-              { pid: rawPid, bundleId: resolvedBundleId, name: resolvedName },
-              {
-                launchResult,
-                activateRequested: activate,
-                platform: brokerInfo.platform,
-                preLaunchApplications: liveApps,
-                canonicalLaunchIdentity,
-                windowsAppUserModelId,
-                ...(newInstance
-                  ? {
-                      excludedPids: new Set(liveApps.map((candidate) => candidate.pid)),
-                      attempts: 30,
-                    }
-                  : {}),
-              },
-            ));
-        } catch (error) {
-          const message = error instanceof Error ? error.message : String(error);
-          console.error(`[cua-openapp-diag] resolveOpenedApp FAILED: ${message}`);
-          throw launchFailed(
-            `open_application could not verify the dispatched app identity: ${message} Call list_apps and retry with pid, bundle_id, and name from the same live process.`,
-          );
-        }
-        finishTimingPhase("app_resolution");
-        console.error(
-          `[cua-openapp-diag] resolved app=${JSON.stringify(app && typeof app === "object" ? { pid: app.pid, bundle_id: app.bundle_id } : null)}`,
-        );
-        if (!app || (newInstance && !app.pid)) {
-          throw launchFailed(
-            "open_application dispatched through ZCode, but the fresh app process could not be resolved afterward.",
-          );
-        }
-        if (rawPid && app.pid !== rawPid) {
-          throw invalidRequest(
-            `open_application app identity mismatch after dispatch: requested pid ${rawPid}, but the launcher resolved pid ${JSON.stringify(app.pid)}. Call list_apps and retry with fields from the same live process.`,
-          );
-        }
-        if (
-          bundleId &&
-          !windowsAppUserModelId &&
-          (!app.bundle_id || !cuaBundleIdsEqual(app.bundle_id, bundleId, { loose: true }))
-        ) {
-          throw invalidRequest(
-            `open_application app identity mismatch after dispatch: requested bundle_id ${JSON.stringify(bundleId)}, but the launcher resolved ${JSON.stringify(app.bundle_id)}. Call list_apps and retry with fields from the same live process.`,
-          );
-        }
-        if (
-          nameIsAuthoritative &&
-          name &&
-          !resolvedWindowsPackagedAppAlias2 &&
-          !(brokerInfo.platform === "win32" && canonicalLaunchIdentity) &&
-          app.name?.trim().toLocaleLowerCase() !== name.trim().toLocaleLowerCase()
-        ) {
-          throw invalidRequest(
-            `open_application app identity mismatch after dispatch: requested app name ${JSON.stringify(name)}, but the launcher resolved ${JSON.stringify(app.name)}. Call list_apps and retry with fields from the same live process.`,
-          );
-        }
-        if (activate && app.active !== true) {
-          throw launchFailed(
-            "open_application activate=true was dispatched, but the live target never became foreground.",
-            {
-              active: false,
-              activation_dispatched: true,
-              request_delivery_state: "possibly_sent",
-            },
-          );
-        }
-        if (
-          needsBackgroundWindowRecovery &&
-          !(await settleApplicationWindow(axSource, {
-            pid: app.pid,
-            bundle_id: app.bundle_id,
-            name: app.name,
-          }))
-        ) {
-          throw launchFailed(
-            "open_application dispatched a macOS background reopen, but the running app still exposes zero AX windows.",
-          );
-        }
-        const postOpenAppRef = {
-          ...(app.pid ? { pid: app.pid } : {}),
-          ...(app.bundle_id ? { bundle_id: app.bundle_id } : {}),
-          ...(app.name ? { name: app.name } : {}),
-        };
-        let fileWindowVerificationStatus;
-        try {
-          fileWindowVerificationStatus = await verifyFileUrlWindowEffect(
-            axSource?.listWindows ? () => axSource.listWindows(postOpenAppRef) : undefined,
-            fileUrlWindowBaseline,
-          );
-        } catch (error) {
-          const message = error instanceof Error ? error.message : String(error);
-          throw elementUnavailable(
-            `open_application could not verify the requested file was opened: ${message} Call list_windows before retrying; do not assume the returned app process opened the file.`,
-          );
-        }
-        finishTimingPhase("file_window_verification");
-        return {
-          ...appPayload(app),
-          file_window_verification: {
-            status: fileWindowVerificationStatus,
-          },
-          timing_ms: {
-            ...timingMs,
-            total: Math.max(0, Math.round(performance.now() - timingStartedAt)),
-          },
-        };
-      } catch (error) {
-        if (!newInstance) throw error;
-        const launchPid =
-          launchResult &&
-          typeof launchResult === "object" &&
-          typeof launchResult.pid === "number" &&
-          Number.isInteger(launchResult.pid) &&
-          launchResult.pid > 0
-            ? launchResult.pid
-            : null;
-        const preferredPids = new Set(launchPid ? [launchPid] : []);
-        const rollbackCandidate = await discoverFreshApplicationForRollback(
-          axSource,
-          new Set(liveApps.map((candidate) => candidate.pid)),
-          { bundleId: resolvedBundleId, name: resolvedName },
-          preferredPids,
-        );
-        const rollback = rollbackCandidate
-          ? await rollbackFreshApplication(adapter, axSource, rollbackCandidate)
-          : "unavailable";
-        const message = error instanceof Error ? error.message : String(error);
-        if (error instanceof BrokerError) {
-          throw new BrokerError(
-            error.code,
-            `${message} Fresh-process rollback: ${rollback}.`,
-            error.details,
-          );
-        }
-        throw elementUnavailable(`${message} Fresh-process rollback: ${rollback}.`);
-      }
-    },
+    // 清退（2026-11-10 R10 后续）：以下八个 3.11.2 血统 broker 方法 handler 整体删除
+    // ——screen_size/cursor_position/list_displays/set_display/screenshot/
+    // read_clipboard/write_clipboard/open_application。证据：方法名在官方 0.6.5
+    // win entry 与官方 mac SEA（3.17.2）双零命中（screenshot/mouse_down 等仅以
+    // capture 字段名、内部 reason 串、*_to_window ABI 名存活，见各保留处注释）；
+    // 官方 v3.1 协议瘦身 49→43（win entry :19750 墓碑）。保留边界：
+    //   - paste（官方 43 表成员）与下方 fallback 链使用 adapter.readClipboardText/
+    //     writeClipboardText（官方在用内部链，win entry :28517 注释同款）；
+    //   - screen_capture_probe/capture_app 的抓屏走 adapter.captureScreenPng
+    //     （内部 error 标签 "screenshot" 为官方字面量，win entry :31808-31819）；
+    //   - adapter.openApplication 仅供 capture_app 的 reopenWindowlessApp（mac）
+    //     与 win.ts captureApp 原生拉起链使用。
     paste: async (params) => {
       if (!supportsClipboard) {
         throw notAuthorized("paste is unavailable in this Drora Computer Use build.");
@@ -1850,7 +593,11 @@ export function createElectronNativeBackend(options) {
       if (typeof pressKeyToApp !== "function") {
         throw notAuthorized("paste requires app-scoped keyboard dispatch in this build.");
       }
-      const chord = brokerInfo.platform === "darwin" ? "cmd+v" : "ctrl+v";
+      // 修复（R4.7，方案 specs/cua-gap-remediation-2026-11-09.md）：官方 SEA 字面量为
+      // "command+v"（offset 85542433），此前还原稿写成 "cmd+v"。二者经
+      // electronInputHandlers.ts KEY_CHORD_ALIASES（cmd→command）归一后等价，
+      // 本修复仅对齐官方字面量，不改行为。
+      const chord = brokerInfo.platform === "darwin" ? "command+v" : "ctrl+v";
       const providedPaste = adapter.providedPaste;
       if (format !== "text" && !providedPaste) {
         throw new BrokerError(
@@ -1859,81 +606,114 @@ export function createElectronNativeBackend(options) {
         );
       }
       if (providedPaste) {
-        const begun = providedPaste.begin(text, format);
-        if (!begun.ok) {
-          throw new BrokerError(
-            "internal",
-            "paste could not take over the system pasteboard, so nothing was sent. action_sent=false.",
-            { action_sent: false, reason: begun.error ?? "pasteboard_write_failed" },
-          );
-        }
-        let dispatchResult;
-        try {
-          const marked = providedPaste.markDispatched?.(begun.token) ?? null;
-          const dispatchedAt = Date.now();
-          dispatchResult = await pressKeyToApp({
-            ...params,
-            text: chord,
-          });
-          const keyPostedAt = Date.now();
-          const read = await providedPaste.awaitRead(begun.token);
-          diagnostic?.(
-            "paste_provided",
-            {
-              ok: read.ok,
-              reason: read.error ?? null,
-              reads: read.reads,
-              reads_before_dispatch: read.readsBeforeDispatch ?? null,
-              hold_ms: read.holdMs ?? null,
-              dispatch_marked: marked,
-              format,
-              text_utf16_units: text.length,
-              key_post_ms: keyPostedAt - dispatchedAt,
-              await_ms: Date.now() - keyPostedAt,
-            },
-            read.ok ? "info" : "warn",
-          );
-          if (!read.ok) {
-            if (read.error === "pasteboard_changed_during_paste") {
+        // 还原自发行 bundle（官方 SEA paste handler @ 85541866 区）：R3.4 整体经
+        // runPasteSerial 串行；R3.5 收尾协议——失败不再原地 rethrow，先记 failure、
+        // finally 里 `restored = await finish(token)`；finish 未恢复粘贴板 →
+        // paste_provided_cleanup_failed warn + 抛"勿重发 paste"错误（备份仍占位，
+        // clipboard_restore_pending=true，附 paste_error）；恢复成功且有 failure →
+        // 原错误在 finish 之后 rethrow。方案锚 SEA offset 85546274/85546427/
+        // 85546470/85546575。注：官方 begin 的第三参（reader pid 钉扎）与
+        // paste_provided 诊断的 reader_* 字段按方案记档不在本批（paste reader 钉扎
+        // 待官方语义生效证据再随线）。
+        return await runPasteSerial(async () => {
+          const begun = await providedPaste.begin(text, format);
+          if (!begun.ok) {
+            throw new BrokerError(
+              "internal",
+              "paste could not take over the system pasteboard, so nothing was sent. action_sent=false.",
+              { action_sent: false, reason: begun.error ?? "pasteboard_write_failed" },
+            );
+          }
+          let dispatchResult;
+          let failure;
+          let restored = false;
+          try {
+            const marked = providedPaste.markDispatched?.(begun.token) ?? null;
+            const dispatchedAt = Date.now();
+            dispatchResult = await pressKeyToApp({
+              ...params,
+              text: chord,
+            });
+            const keyPostedAt = Date.now();
+            const read = await providedPaste.awaitRead(begun.token);
+            diagnostic?.(
+              "paste_provided",
+              {
+                ok: read.ok,
+                reason: read.error ?? null,
+                reads: read.reads,
+                reads_before_dispatch: read.readsBeforeDispatch ?? null,
+                hold_ms: read.holdMs ?? null,
+                dispatch_marked: marked,
+                format,
+                text_utf16_units: text.length,
+                key_post_ms: keyPostedAt - dispatchedAt,
+                await_ms: Date.now() - keyPostedAt,
+              },
+              read.ok ? "info" : "warn",
+            );
+            if (!read.ok) {
+              if (read.error === "pasteboard_changed_during_paste") {
+                throw new BrokerError(
+                  "internal",
+                  "paste was interrupted: something else took over the system pasteboard while the app was reading it. Check the app's state to make sure the user's clipboard content was not pasted instead of your text before continuing. action_sent=true.",
+                  {
+                    action_sent: true,
+                    reason: read.error,
+                    reads: read.reads,
+                    reads_before_dispatch: read.readsBeforeDispatch ?? null,
+                  },
+                );
+              }
               throw new BrokerError(
                 "internal",
-                "paste was interrupted: something else took over the system pasteboard while the app was reading it. Check the app's state to make sure the user's clipboard content was not pasted instead of your text before continuing. action_sent=true.",
+                "paste timed out waiting for the app to read the pasteboard; the app never consumed the paste shortcut. Nothing was inserted. Use set_value on a settable element, or activate the app and focus the field, then retry. action_sent=true.",
                 {
                   action_sent: true,
-                  reason: read.error,
+                  reason: read.error ?? "pasteboard_read_timed_out",
                   reads: read.reads,
                   reads_before_dispatch: read.readsBeforeDispatch ?? null,
                 },
               );
             }
+          } catch (error51) {
+            failure = { error: error51 };
+            diagnostic?.(
+              "paste_provided_failed",
+              {
+                stage: "dispatch_or_await",
+                format,
+                text_utf16_units: text.length,
+                message: error51 instanceof Error ? error51.message : String(error51),
+                ...(error51 instanceof BrokerError ? { code: error51.code } : {}),
+              },
+              "warn",
+            );
+          } finally {
+            try {
+              restored = await providedPaste.finish(begun.token);
+            } catch {}
+          }
+          if (!restored) {
+            diagnostic?.(
+              "paste_provided_cleanup_failed",
+              { reason: "pasteboard_restore_failed", action_sent: true },
+              "warn",
+            );
             throw new BrokerError(
               "internal",
-              "paste timed out waiting for the app to read the pasteboard; the app never consumed the paste shortcut. Nothing was inserted. Use set_value on a settable element, or activate the app and focus the field, then retry. action_sent=true.",
+              "paste cleanup could not restore the clipboard; its backup is retained for cleanup. The paste shortcut may already have been sent. Do not repeat the paste; check the app state. action_sent=true.",
               {
                 action_sent: true,
-                reason: read.error ?? "pasteboard_read_timed_out",
-                reads: read.reads,
-                reads_before_dispatch: read.readsBeforeDispatch ?? null,
+                reason: "pasteboard_restore_failed",
+                clipboard_restore_pending: true,
+                ...(failure?.error instanceof BrokerError ? { paste_error: failure.error.details } : {}),
               },
             );
           }
-        } catch (error51) {
-          diagnostic?.(
-            "paste_provided_failed",
-            {
-              stage: "dispatch_or_await",
-              format,
-              text_utf16_units: text.length,
-              message: error51 instanceof Error ? error51.message : String(error51),
-              ...(error51 instanceof BrokerError ? { code: error51.code } : {}),
-            },
-            "warn",
-          );
-          throw error51;
-        } finally {
-          providedPaste.finish(begun.token);
-        }
-        return dispatchResult;
+          if (failure) throw failure.error;
+          return dispatchResult;
+        });
       }
       diagnostic?.(
         "paste_legacy_path",
@@ -1959,7 +739,6 @@ export function createElectronNativeBackend(options) {
       }
     },
   };
-  const axRegistry = new AxTokenRegistry();
   const pipAutoStart = createPipAutoStarter(adapter);
   const axMethods = axSource
     ? createAxReadOnlyMethods(axSource, axRegistry, {
@@ -2013,7 +792,11 @@ export function createElectronNativeBackend(options) {
                   captured.windows,
                   captureScreenshotWindows(adapter, topologyDesktopBounds(after.entries)),
                 )
-              : {};
+              : brokerInfo.platform === "win32"
+                ? // 还原自官方 :28729-28731：win32 走 buildWindowsAppFrameSurfaceSet
+                  //（windows_capture_root / screenshot_composition 两源，见函数头）。
+                  buildWindowsAppFrameSurfaceSet(snapshot)
+                : {};
           return {
             coordinate_contract: "frame_pixel_projection_v1",
             pointer: {
@@ -2099,6 +882,17 @@ export function createElectronNativeBackend(options) {
                   bounds,
                   windowId,
                 });
+              },
+            }
+          : {}),
+        // 还原自发行 bundle（官方 0.6.5 win32 entry :28811-28822）：Windows 读回
+        // 裁决的宿主探针——复用分类器的 host 归因判 Chromium 直接宿主（AX-echo
+        // 降级，applyAxEchoSurfaceTrust 消费）。仅 win32 且 classify ABI 在场时注入。
+        ...(brokerInfo.platform === "win32" && adapter.classifyPostMessageDelivery
+          ? {
+              isChromiumHostWindow: (windowId) => {
+                const probe = adapter.classifyPostMessageDelivery(windowId, "mouse_click");
+                return typeof probe === "object" && probe !== null && probe.host === "chromium";
               },
             }
           : {}),

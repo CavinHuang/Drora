@@ -7,6 +7,7 @@
   "scripts": {
     "build": "node build.mjs",
     "typecheck": "tsc --noEmit",
+    "test": "tsc -p tsconfig.json && node test/r3-behavior-restoration.mjs && node test/r8-input-guards.mjs && node test/win-entry-065-face.mjs",
     "clean": "node ../../scripts/clean-dist.mjs",
     "build:darwin-app": "node build-cua-helper-app.mjs",
     "probe:native": "node tools/probe-ax-native.mjs",

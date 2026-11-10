@@ -13,9 +13,6 @@ export { Oh as defaultCuaHelperVerifierDependencies } from "./helper-verifier.js
 export { JC as buildHelperOpenArgs } from "./helper-launcher.js";
 // 第十五轮：一次性 token 文件链（原版 mac 3.11.2 发射器 F9/Xxe/Yxe 还原）
 export {
-  writeOneShotHelperTokenFile,
-  createHelperTokenFileReceipt,
-  scheduleHelperTokenFileCleanup,
 } from "./helper-launcher.js";
 export { bn as isCuaLocalDevelopmentRuntime } from "./trust-policy.js";
 

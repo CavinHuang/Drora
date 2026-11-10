@@ -473,9 +473,10 @@ export const OFFICIAL_PLUGIN_DEFINITIONS: readonly OfficialPluginDefinition[] = 
     runtimeTopLevelPaths: ["node_modules"],
     // 这里的 version 追踪上游 drora-cua runtime 版本，使插件 UI 展示、缓存路径、
     // marketplace 条目都对齐；具体版本由原子 producer bump 工作流维护。
-    // 冻结在 0.6.3：zone-decision 保留的 zcode-cua-plugin 包与 manifest 仍是 0.6.3，
-    // 定义版本需与实际插件包对齐（缓存路径/UI 展示按此键控）；上游 0.6.5 待插件资产同步后再 bump。
-    version: "0.6.3",
+    // 0.6.5（2026-11-09 R4.1 解冻）：wrapper 与 manifest 已随 0.6.5 切段同步 bump，
+    // 冻结条件（插件资产与 0.6.5 对齐）已满足；版本一致性仍由
+    // check-version-coherence.mjs --check 门禁锁定。
+    version: "0.6.5",
   },
   {
     // Drora Sites（技术方案 4）：Skill 指导 Agent 把项目改造并打包成 runner 可直接运行的产物包，

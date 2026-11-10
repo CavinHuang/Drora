@@ -256,8 +256,13 @@ export function Mz(e, t: { now?: () => number; setTimer?: typeof setTimeout } = 
   }, o).unref?.();
 }
 
-export var xt = "ZCode Computer Use.app",
-  DEV_HELPER_APP_NAME_APP = "ZCode Computer Use Dev.app";
+// 修复原因（2026-11-10 第二轮 R7.3）：2026-09-28 Helper 身份 Drora 化裁定
+// （specs/drora-rename.md"散落字面量随常量走"）漏掉本常量族——安装链落盘名仍是官方名，
+// 新装 Helper 落 "ZCode Computer Use.app"（TCC 显示 ZCode），而发现侧（cuaStandaloneStatusLaunch/
+// drora-helper-locations）只找 Drora 名，bundled 缺席场景自相矛盾。随 Drora 常量树走
+// （本机现存 ~/.drora/computer-use/Drora Computer Use.app 同名）。
+export var xt = "Drora Computer Use.app",
+  DEV_HELPER_APP_NAME_APP = "Drora Computer Use Dev.app";
 
 export var Ss = "dev.zcode.cua-helper",
   DEV_CUA_HELPER_BUNDLE_ID_VALUE = "dev.zcode.cua-helper.dev";
@@ -274,6 +279,14 @@ export function xz(e = process.env) {
   return t === "1" || t === "true" || t === "on" || t === "yes";
 }
 
+// 第二轮 R7.4：官方 out/host zx @~743300 有 e.disableMultiCursorOverlay && n.push(Hg,"1")
+// （Hg="--disable-multi-cursor-overlay"，0.6.5 切段 :7176-7177/:45046 同款；env
+// ZCODE_CUA_DISABLE_MULTI_CURSOR_OVERLAY）。此前 JC 缺该参，Helper 端消费（R3.2）接不上。
+export function disableMultiCursorOverlayRequested(e = process.env) {
+  let t = e.ZCODE_CUA_DISABLE_MULTI_CURSOR_OVERLAY?.trim().toLowerCase();
+  return t === "1" || t === "true" || t === "on" || t === "yes";
+}
+
 export var Ph = "--allow-unsigned-launcher-local-dev",
   Ch = "--allow-external-broker-client-local-dev",
   bh = "--ghost-cursor-overlay",
@@ -281,7 +294,8 @@ export var Ph = "--allow-unsigned-launcher-local-dev",
   _h = "--pip-mode",
   Rh = "--pip-live-probe",
   HELPER_ADDON_ENV_VALUE = "ZCODE_CUA_HELPER_ADDON",
-  Ah = "--ghost-cursor-capture";
+  Ah = "--ghost-cursor-capture",
+  Hg = "--disable-multi-cursor-overlay";
 
 export var Eh = "--permission-preflight",
   Th = "--permission-preflight-result-file";
@@ -324,16 +338,16 @@ export function Gre(e = process.env) {
 export function JC(e, t) {
   let n = ["-n", "-g", e.appPath, "--args", "--socket", e.socketPath],
     r = e.version?.trim();
-  // 原版 mac 3.11.2 发射序（asar Uxe）：token 文件紧跟 --socket，先于 --version。
-  // LaunchServices 不透传 env，token 只能走一次性文件（0.5.13 win32 线走 env，属两线演进差）。
-  e.tokenFile && n.push("--token-file", e.tokenFile);
-  e.presentationTokenFile && n.push("--presentation-token-file", e.presentationTokenFile);
+  // R10 认证模型换代（2026-11-10）：官方 0.6.5 producer 零 token（切段 token 族
+  // 0 出现；官方 LS 发射向量 buildHelperOpenArgs @切段:7161 无 token 参数）——
+  // 3.11.2 血统的 token 文件推参退役，向量与官方对齐。
   r && n.push("--version", r);
   let o = e.expectedAppBundlePath?.trim();
   if (
     (o && n.push("--expected-app-bundle-path", o),
     e.controllerVariant && n.push(Sh, e.controllerVariant),
     e.disableCpsActivation && n.push(kh, "1"),
+    e.disableMultiCursorOverlay && n.push(Hg, "1"),
     e.brokerLaunchGuard)
   ) {
     if (!vh(e.socketPath, e.brokerLaunchGuard))
@@ -424,72 +438,17 @@ export async function Fz(e) {
   }
 }
 
-// —— 一次性 token 文件链（原版 mac 3.11.2 发射器 F9/Xxe/Yxe 的还原）——
-// LaunchServices(`open`) 不向目标 app 透传环境变量，mac 产品模式的 broker token
-// 只能经文件交付：socket 同目录 `.tokens/` 下的一次性文件，helper 读取后即删。
-var HELPER_TOKEN_FILE_CLEANUP_MS = 6e4;
-
-export async function writeOneShotHelperTokenFile(e) {
-  let t = KC(kz(e.socketPath), ".tokens");
-  await wz(t, { recursive: !0, mode: 448 });
-  await yz(t, 448);
-  for (let n = 0; n < 5; n += 1) {
-    let o = KC(t, `.broker-token-${process.pid}-${randomBytes(8).toString("hex")}`);
-    try {
-      return (Lre(o, e.token, { encoding: "utf8", mode: 384, flag: "wx" }), o);
-    } catch (r) {
-      if (r.code === "EEXIST") continue;
-      throw new CuaHelperError(
-        "launch_failed",
-        `Failed to write one-shot Computer Use Helper token file: ${r instanceof Error ? r.message : String(r)}`,
-        { cause: r },
-      );
-    }
-  }
-  throw new CuaHelperError(
-    "launch_failed",
-    "Failed to write one-shot Computer Use Helper token file: exhausted unique filename retries",
-  );
-}
-
-export function createHelperTokenFileReceipt(e) {
-  let t = e.filter(Boolean);
-  return {
-    tokenFiles: t,
-    revokeTokenFile: async () => {
-      for (let n of t) await Fre(n, { force: !0 });
-    },
-  };
-}
-
-export function scheduleHelperTokenFileCleanup(e) {
-  setTimeout(() => {
-    e.revokeTokenFile().catch(() => {});
-  }, HELPER_TOKEN_FILE_CLEANUP_MS).unref?.();
-}
-
+// R10：一次性 token 文件链（writeOneShotHelperTokenFile/receipt/cleanup，
+// 3.11.2 发射器 F9/Xxe/Yxe 还原）随 token 模型退役整体移除——官方 0.6.5 无此链。
 export function Bz() {
   return {
     launch: async (e) => {
-      let t, n, o;
+      // R10：token 免铸造直发（官方 0.6.5 形态）。
       try {
-        ((t = await writeOneShotHelperTokenFile(e)),
-          (n = e.presentationToken
-            ? await writeOneShotHelperTokenFile({ ...e, token: e.presentationToken })
-            : void 0),
-          (o = createHelperTokenFileReceipt([t, n])));
+        await ooe(e);
       } catch (r) {
         throw r instanceof VC ? r : new VC(r);
       }
-      try {
-        await ooe({ ...e, tokenFile: t, presentationTokenFile: n });
-      } catch (r) {
-        try {
-          await o.revokeTokenFile();
-        } catch {}
-        throw r instanceof VC ? r : new VC(r);
-      }
-      scheduleHelperTokenFileCleanup(o);
     },
   };
 }

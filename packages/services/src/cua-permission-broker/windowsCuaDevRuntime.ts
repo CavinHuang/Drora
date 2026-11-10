@@ -2,7 +2,16 @@
 import { createHash } from "node:crypto";
 import type { Stats } from "node:fs";
 import * as fs from "node:fs/promises";
-import { isAbsolute, join, relative, resolve, sep, win32 as windowsPath } from "node:path";
+import {
+  basename,
+  dirname,
+  isAbsolute,
+  join,
+  relative,
+  resolve,
+  sep,
+  win32 as windowsPath,
+} from "node:path";
 import {
   CUA_HELPER_RUNTIME_PACKAGE_NAME,
   CUA_PACKAGED_MANIFEST_PACKAGE_NAME,
@@ -277,7 +286,7 @@ async function requirePackagedRuntimeRoot(
       throw new Error("runtime root is not a regular directory");
     }
     const rootRealPath = await realpathFile(fileSystem, root);
-    if (!samePhysicalPath(root, rootRealPath)) {
+    if (!(await isRootPhysicallyBound(fileSystem, root, rootRealPath))) {
       throw new Error("runtime root resolves outside its packaged location");
     }
     return rootRealPath;
@@ -346,7 +355,7 @@ async function requireDevelopmentRuntimeRoot(
     }
     const rootRealPath = await realpathFile(fileSystem, root);
     // 根因：stat 会跟随 symlink/junction；开发目录必须绑定到用户显式配置的物理根。
-    if (!samePhysicalPath(root, rootRealPath)) {
+    if (!(await isRootPhysicallyBound(fileSystem, root, rootRealPath))) {
       throw new Error("development root resolves outside its configured location");
     }
     return rootRealPath;
@@ -486,6 +495,32 @@ function samePhysicalPath(expected: string, actual: string): boolean {
     return resolve(path);
   };
   return normalize(expected) === normalize(actual);
+}
+
+/**
+ * 修复原因：此前直接比较 root 与 realpath(root) 的字符串相等性，把「祖先目录是符号
+ * 链接」的合法安装/开发位置误判为越界——macOS 系统 tmpdir（/var → /private/var，
+ * windowsCuaPackaging.node-test.mjs 的标准 mkdtemp 布局因此必挂）与 Windows
+ * junction/subst 布局均属此类。规格只要求「根目录自身不能是 symlink/junction」与
+ * artifact realpath 物理包含在根内（docs/cua/windows-product-runtime.md「源码准入和
+ * staging 不能只检查词法路径」段、docs/cua/windows-source-development.md
+ * 「DRORA_CUA_DEV_ROOT 必须直接指向物理 source root」段），不要求祖先无链接。
+ * 改为只校验最后一段未被链接改写：父目录两侧 realpath 规范化后必须是同一物理目录、
+ * basename 必须一致。根目录自身是 symlink 已由调用方 lstat 拒绝；若根在 lstat 与
+ * realpath 之间被替换为指向别处的 symlink（TOCTOU），rootRealPath 的父目录将不再是
+ * realpath(dirname(root))，此校验仍然拒绝——加固语义不降级。
+ */
+async function isRootPhysicallyBound(
+  fileSystem: WindowsCuaRuntimeFileSystem,
+  root: string,
+  rootRealPath: string,
+): Promise<boolean> {
+  const parentRealPath = await realpathFile(fileSystem, dirname(root));
+  if (!samePhysicalPath(parentRealPath, dirname(rootRealPath))) return false;
+  const normalizeSegment = windowsPath.isAbsolute(root)
+    ? (segment: string) => segment.toLowerCase()
+    : (segment: string) => segment;
+  return normalizeSegment(basename(root)) === normalizeSegment(basename(rootRealPath));
 }
 
 async function readRequiredArtifact(

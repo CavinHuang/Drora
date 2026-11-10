@@ -1,6 +1,16 @@
 /* oxlint-disable eslint(max-lines) -- 还原自官方发行 bundle 的单模块源码，保持 producer 仓库的原始文件边界，不拆分。 */
 import { parseAppFrameSurfaceSet } from "../../lib/app-frame-surfaces.js";
 import { displayTopologyFingerprint } from "../../lib/display-topology.js";
+// 还原自发行 bundle（官方 0.6.5 win32 entry :21534-21595）：投递轨迹封套与写后
+// 读回裁决（W3 机械域）；win32 操作域上下文（validateElementProvenance 的
+// presentationWindowId 读取）。
+import {
+  appendAttempt,
+  finalizeDelivery,
+  type DeliveryAttempt,
+} from "./windowsDeliveryReceipt.js";
+import { classifyInsertionReadback } from "./windowsValueReadback.js";
+import { currentWindowsOperationContext } from "../../native/windows-operation-request.js";
 import {
   BrokerError,
   elementUnavailable,
@@ -353,7 +363,10 @@ function describeSkippedPixelOwners(skipped) {
 function appendResolvedAppRef(result, params, dispatchTarget?) {
   let supplied = null;
   try {
-    supplied = appRefParam(params.presentation_app_ref ?? params.app_ref);
+    // 还原自官方 0.6.5 win32 entry :24375：优先 dispatchTarget.presentationAppRef
+    //（rememberFrameTarget 记忆的 presentation 面），其次 params.presentation_app_ref
+    //（element_provenance 改写时保真），最后原始 app_ref。
+    supplied = appRefParam(dispatchTarget?.presentationAppRef ?? params.presentation_app_ref ?? params.app_ref);
   } catch {
     supplied = null;
   }
@@ -388,7 +401,7 @@ function appendResolvedAppRef(result, params, dispatchTarget?) {
   return {
     ...(result && typeof result === "object" ? result : {}),
     ...(resolved ? { resolved_app_ref: resolved } : {}),
-    ...(actual
+    ...(actual && result?.dispatch_surface === void 0
       ? {
           dispatch_surface: {
             owner_pid: actual.pid,
@@ -432,20 +445,22 @@ async function assertExpectedPidIsFrontmost(axSource, expectedPid, point, method
     let active = [];
     for (let attempt = 0; attempt < FRONTMOST_EMPTY_SNAPSHOT_ATTEMPTS; attempt += 1) {
       const applications2 = await axSource.listApplications();
-      active = applications2.filter((app) => app.active === true);
-      if (active.length === 1 && active[0]?.pid === expectedPid) return;
+      // R8/G2（还原自官方 SEA offset 85381190 区）：active pid 先去重——同一 pid 在
+      // 快照里出现多行（多 surface 上报）时，旧版会被误判为"多个 active app"而拒绝。
+      active = [...new Set(applications2.filter((app) => app.active === true).map((app) => app.pid))];
+      if (active.length === 1 && active[0] === expectedPid) return;
       if (active.length > 0 || attempt === FRONTMOST_EMPTY_SNAPSHOT_ATTEMPTS - 1) {
         break;
       }
       await new Promise((resolve2) => setTimeout(resolve2, FRONTMOST_EMPTY_SNAPSHOT_RETRY_MS));
     }
-    const observed = active.length === 1 ? `pid ${active[0].pid}` : `${active.length} active apps`;
+    const observed = active.length === 1 ? `pid ${active[0]}` : `${active.length} active apps`;
     throw elementUnavailable(
       `${method}: raw foreground event for app_ref pid ${expectedPid} was refused because the live frontmost application is ${observed}. action_sent=false. Target an element instead so the action goes through accessibility on a background app, or retry once the intended window is in front.`,
       {
         action_sent: false,
         expected_pid: expectedPid,
-        active_pids: active.map((app) => app.pid),
+        active_pids: active,
         method,
         reason: "frontmost_pid_mismatch",
       },
@@ -653,6 +668,24 @@ function activateConcreteWindow(adapter, pid, bundleId, windowId, method) {
     );
   }
 }
+// R8/G5（还原自官方 SEA offset 85389303/85389381）：app-scoped 前台升级的激活拒绝
+// 诊断。官方在 dispatchWindowsForegroundKeyed 的 pid 兜底分支用它替代静默失败：
+// 缺 activateApplication ABI 与激活失败分别给出可辨识的拒绝文案（后者带
+// reason=activation_failed，与 G2 活窗门禁同码族）。
+function activateWindowsApplication(adapter, pid, expectedBundleId, method) {
+  if (typeof adapter.activateApplication !== "function") {
+    throw notAuthorized(
+      `${method}: app-scoped input needs to bring pid ${pid} to the foreground, but native activation support is unavailable in this ZCode build. action_sent=false.`,
+      { action_sent: false },
+    );
+  }
+  if (!adapter.activateApplication(pid, expectedBundleId)) {
+    throw permissionDenied(
+      `${method}: target app (pid ${pid}) could not be brought to the foreground, so nothing was sent. action_sent=false. Target an element instead so the action goes through accessibility on a background app, or re-observe the app and retry.`,
+      { action_sent: false, expected_pid: pid, reason: "activation_failed" },
+    );
+  }
+}
 function provenAttachedSurfaceArgs(target) {
   return target.allowProvenAttachedSurface === true ? [true] : [];
 }
@@ -794,11 +827,10 @@ function refuseTargetlessMacGlobalInput(method) {
     { action_sent: false, reason: "background_target_required" },
   );
 }
-async function resolveWindowsPointerIdentity(axSource, appRefValue, point, method) {
-  const identity = await requirePointerAppPid(axSource, appRefValue, method);
-  await assertExpectedPidIsFrontmost(axSource, identity.pid, point, method);
-  return identity;
-}
+// 清退（2026-11-10 R10 后续）：resolveWindowsPointerIdentity（move_to/mouse_down
+// 的 win32 前置身份/前台校验包装）已随两方法删除——官方 0.6.5 win entry 零出现；
+// 其底层 requirePointerAppPid/assertExpectedPidIsFrontmost 由存续的 click/scroll/
+// drag 继续使用。
 function assertNativeInputSucceeded(result, method) {
   if (result === false) {
     throw permissionDenied(
@@ -1055,10 +1087,891 @@ export async function replaceTextValueWithVerifiedInput(options) {
   );
   return { ok: true, axError: null };
 }
-async function dispatchWindowsForegroundKeyed(axSource, adapter, method, pid, dispatch) {
-  await assertExpectedPidIsFrontmost(axSource, pid, null, method);
-  assertGlobalInputAllowed(adapter, method);
-  await dispatch();
+// =====================================================================================
+// R8 输入守卫还原批（specs/cua-gap-remediation-2026-11-09.md 第五节 R8）。
+// 以下 windows 输入派发基础设施逐字还原自官方 SEA（3.17.2，unminified JS payload
+// offset 85180513 起）的 packages/zcode-cua/dist/broker/server/windowsInputDispatch.js
+// 与 electronInputHandlers.js 区；逐件证据锚见各函数头注释。mac addon（136 导出面）
+// 不含 hasActiveInputHolds/frameWindowContext/getForegroundRootWindowId 等 ABI 时，
+// 对应守卫/恢复按官方同款可选链降级为 no-op，与官方 mac 行为一致。
+// =====================================================================================
+// 官方 SEA offset 85354464：windows 物理输入串行 lane（createWindowsPhysicalLane）。
+// 所有 win32 前台升级派发（click/scroll/drag/type_text 系）共用同一条 promise 尾链，
+// 防止两次前台升级交错互踩（前后台恢复窗口错乱）。
+function createWindowsPhysicalLane() {
+  let tail = Promise.resolve();
+  let active = false;
+  return {
+    get busy() {
+      return active;
+    },
+    run(action, body) {
+      void action;
+      const runOnce = async () => {
+        active = true;
+        try {
+          return await body();
+        } finally {
+          active = false;
+        }
+      };
+      const result = tail.then(runOnce, runOnce);
+      tail = result.then(() => void 0, () => void 0);
+      return result;
+    },
+  };
+}
+var windowsPhysicalLaneByAdapter = /* @__PURE__ */ new WeakMap();
+// 官方 SEA offset 85404990：lane 未注册的 fail-closed 文案（adapter 未走
+// createElectronInputHandlers 装配时拒绝输入，绝不静默跳过串行化）。
+var windowsPhysicalLaneFor = (adapter) => {
+  const lane = windowsPhysicalLaneByAdapter.get(adapter);
+  if (!lane) {
+    throw permissionDenied("windows input dispatch lane is not registered for this adapter; input refused.", {
+      action_sent: false,
+      reason: "input_dispatch_lane_unavailable",
+    });
+  }
+  return lane;
+};
+// 官方 SEA offset 85405097：前台恢复 scope。快照升级前的前台根窗口，激活成功后
+// 记录目标根窗口，收尾时把前台还给升级前的窗口。addon 缺
+// getForegroundRootWindowId/restoreForegroundWindow ABI 时全程 no-op（官方 mac 同款）。
+function foregroundRestoreScope(adapter) {
+  let previousRoot = null;
+  let targetRoot = 0;
+  let beforeTaken = false;
+  return {
+    snapshotBefore() {
+      if (typeof adapter.getForegroundRootWindowId !== "function") return;
+      try {
+        previousRoot = adapter.getForegroundRootWindowId();
+        beforeTaken = true;
+      } catch {}
+    },
+    snapshotAfterActivate() {
+      if (!beforeTaken) return;
+      if (typeof adapter.getForegroundRootWindowId !== "function") return;
+      try {
+        const now = adapter.getForegroundRootWindowId();
+        if (typeof now === "number" && now > 0) targetRoot = now;
+      } catch {}
+    },
+    restore() {
+      if (!beforeTaken || targetRoot <= 0) return;
+      if (typeof adapter.restoreForegroundWindow !== "function") return;
+      try {
+        adapter.restoreForegroundWindow(previousRoot, targetRoot);
+      } catch {}
+    },
+  };
+}
+// R8/G2（还原自官方 SEA offset 85355323，四段门禁文案锚 85356277/85356605/85356992/
+// 85357494）：win32 窗口级前台输入的活窗四段门禁。派发前按序校验：①窗口源可用
+// （window_source_unavailable）②活窗身份可读（window_identity_unverified）③目标窗口
+// 仍在活窗列表（window_gone）④未聚焦时显式激活并校验（activation_failed）。菜单/
+// 宿主窗口段（menu_host_not_foreground）依赖 frameWindowContext ABI，mac 136 面无此
+// 导出 → 可选链跳过，直接落四段门禁（官方 mac 同路径）。
+// export 供单测直接驱动四段门禁（先例：helperMain 导出 resolveDisableCpsActivationFromArgv）。
+export async function windowsForegroundWindowGate(options) {
+  const { axSource, activateWindow, target, method } = options;
+  const context = options.windowContext?.(target.windowId);
+  if (context?.is_menu || context?.operation_foreground_host_window_id) {
+    const identity =
+      context.window_id === target.windowId &&
+      context.pid === target.pid &&
+      context.bundle_id.replaceAll("/", "\\").toLowerCase() ===
+        target.bundleId.replaceAll("/", "\\").toLowerCase();
+    const host = context.menu_foreground_host_window_id || context.operation_foreground_host_window_id;
+    if (!identity || !context.visible || !context.enabled || !host) {
+      throw elementUnavailable(`${method}: the menu's proven host is not foreground; re-observe before sending.`, {
+        action_sent: false,
+        reason: "menu_host_not_foreground",
+      });
+    }
+    return { previousForegroundWindowId: host };
+  }
+  if (!axSource || typeof axSource.listWindows !== "function") {
+    throw elementUnavailable(
+      `${method}: window-scoped foreground input requires a live window source; action_sent=false. Re-observe the application and retry.`,
+      { action_sent: false, reason: "window_source_unavailable" },
+    );
+  }
+  const windows = await axSource.listWindows({ pid: target.pid });
+  if (!Array.isArray(windows)) {
+    throw elementUnavailable(
+      `${method}: live window identity for pid ${target.pid} could not be read; action_sent=false. Re-observe the application and retry.`,
+      { action_sent: false, reason: "window_identity_unverified" },
+    );
+  }
+  const live = windows;
+  const targetWindow = live.find((window) => window.window_id === target.windowId);
+  if (!targetWindow) {
+    throw elementUnavailable(
+      `${method}: window ${target.windowId} of pid ${target.pid} is no longer in the live window list. action_sent=false. Re-observe from a fresh get_app_state.`,
+      { action_sent: false, reason: "window_gone" },
+    );
+  }
+  const previousFocused = live.find((window) => window.focused === true);
+  const previousForegroundWindowId = previousFocused?.window_id ?? null;
+  if (targetWindow.focused) {
+    return { previousForegroundWindowId };
+  }
+  if (!activateWindow(target.pid, target.bundleId, target.windowId)) {
+    throw permissionDenied(
+      `${method}: target window ${target.windowId} could not be brought to the foreground, so nothing was sent. action_sent=false.`,
+      { action_sent: false, reason: "activation_failed" },
+    );
+  }
+  return { previousForegroundWindowId };
+}
+// R8/G6（还原自官方 SEA offset 85360793，uia_ 前缀文案族）：win32 前台升级点击的
+// hit-test 并发指引。hit-test 结果非 invoked/miss（timeout/possibly_sent 等）时，
+// 拒绝并告知"当前 job 落定后重试或重新观察"；action_sent 按 possibly 语义区分。
+// W3 机械域（还原自官方 0.6.5 win32 entry :23979-24045）：postMessage 段补投递
+// 轨迹——每步经 record2 回写 attempt（entry/capability_unavailable/threw/sent/
+// refused/possibly_*），拒绝路径附 finalizeDelivery 封套；postMessageClickAsync
+// ABI 缺失时按官方 capability_unavailable 语义记 not_sent 后回退前台派发。
+async function postMessageLevel(native, target, record2) {
+  record2({ path: "post_message", dispatch_status: "not_sent", reason: "entry" });
+  if (!native.postMessageClickAsync) {
+    record2({ path: "post_message", dispatch_status: "not_sent", reason: "capability_unavailable" });
+    return { terminal: false };
+  }
+  let outcome;
+  try {
+    outcome = await native.postMessageClickAsync(
+      target.windowId,
+      target.pid,
+      target.x,
+      target.y,
+      target.button,
+      target.clicks,
+    );
+  } catch {
+    const attempt = {
+      path: "post_message",
+      dispatch_status: "possibly_sent",
+      reason: "threw",
+    } as const;
+    record2(attempt);
+    throw elementUnavailable("delivery is unknown; re-observe before retrying.", {
+      action_sent: true,
+      delivery: finalizeDelivery(appendAttempt(null, attempt)) ?? void 0,
+    });
+  }
+  if (outcome.ok && !outcome.error) {
+    record2({ path: "post_message", dispatch_status: "sent" });
+    return { terminal: true };
+  }
+  const error = outcome.error ?? "unknown";
+  if (!["failed"].includes(error) && !error.startsWith("possibly")) {
+    const unknown = error === "worker_failed" || error === "unknown";
+    const attempt: DeliveryAttempt = {
+      path: "post_message",
+      dispatch_status: unknown ? "possibly_sent" : "not_sent",
+      reason: error,
+    };
+    record2(attempt);
+    throw elementUnavailable(
+      `background delivery was refused: ${error}. action_sent=${unknown ? "possibly" : "false"}.`,
+      {
+        action_sent: unknown,
+        reason: error,
+        delivery: finalizeDelivery(appendAttempt(null, attempt)) ?? void 0,
+      },
+    );
+  }
+  if (error.startsWith("possibly")) {
+    const attempt = {
+      path: "post_message",
+      dispatch_status: "possibly_sent",
+      reason: error,
+    } as const;
+    record2(attempt);
+    throw elementUnavailable(
+      `${target.button} click possibly landed (${error}); do not replay. Re-observe before retrying.`,
+      {
+        action_sent: true,
+        reason: error,
+        delivery: finalizeDelivery(appendAttempt(null, attempt)) ?? void 0,
+      },
+    );
+  }
+  record2({ path: "post_message", dispatch_status: "not_sent", reason: error });
+  return { terminal: false };
+}
+// 官方 SEA offset 85357729 / W3 机械域还原至官方 0.6.5 win32 entry :23828-23978
+//（dispatchWindowsClick）：win32 点击的模式梯 + 投递轨迹封套。精确目标
+//（pid+window_id+bundle）时按 前台升级 → hit-test → postMessage 的顺序尝试；
+// forceForeground/modifiers 直走前台（reason=explicit_event/
+// modifiers_require_send_input）。每步 attempt（path + dispatch_status + reason：
+// background_gesture_unreachable/hit_test_entry/droppable_*/miss/uia_*）汇入
+// delivery，返回 { result, delivery }；catch 内 BrokerError 且无已送尝试时补
+// foreground possibly_sent（native_input_interrupted）并附封套重抛。
+async function dispatchWindowsClick(native, request) {
+  const { windowId, pid, x, y, button, clicks, modifiers, forceForeground, isChromiumHost, classify, dispatchForeground, method } = request;
+  let delivery = null;
+  try {
+    const plainSingleLeftOrMiddle = (button === "left" || button === "middle") && clicks === 1 && !modifiers;
+    if (forceForeground || modifiers) {
+      delivery = appendAttempt(delivery, {
+        path: "foreground_send_input",
+        dispatch_status: "not_sent",
+        reason: forceForeground ? "explicit_event" : "modifiers_require_send_input",
+      });
+      await dispatchForeground();
+      delivery = appendAttempt(delivery, {
+        path: "foreground_send_input",
+        dispatch_status: "sent",
+      });
+      return { result: { method: "click" }, delivery: finalizeDelivery(delivery) };
+    }
+    const host = classify(windowId, "mouse_click").host;
+    if (
+      (host === "winui3_exempt" && (button !== "left" || clicks > 1)) ||
+      (host === "embedded_chromium_wpf" && button === "right")
+    ) {
+      delivery = appendAttempt(delivery, {
+        path: "post_message",
+        dispatch_status: "not_sent",
+        reason: "background_gesture_unreachable",
+      });
+      await dispatchForeground();
+      delivery = appendAttempt(delivery, {
+        path: "foreground_send_input",
+        dispatch_status: "sent",
+      });
+      return { result: { method: "click" }, delivery: finalizeDelivery(delivery) };
+    }
+    if (isChromiumHost && button === "left" && clicks === 1) {
+      const posted2 = await postMessageLevel(native, { windowId, pid, x, y, button, clicks }, (attempt) => {
+        delivery = appendAttempt(delivery, attempt);
+      });
+      if (posted2.terminal) {
+        return { result: { method: "click" }, delivery: finalizeDelivery(delivery) };
+      }
+      await dispatchForeground();
+      delivery = appendAttempt(delivery, {
+        path: "foreground_send_input",
+        dispatch_status: "sent",
+      });
+      return { result: { method: "click" }, delivery: finalizeDelivery(delivery) };
+    }
+    if (plainSingleLeftOrMiddle && native.hitTestInvokeAtPointAsync) {
+      delivery = appendAttempt(delivery, {
+        path: "ax",
+        dispatch_status: "not_sent",
+        reason: "hit_test_entry",
+      });
+      let hit;
+      try {
+        hit = await native.hitTestInvokeAtPointAsync(windowId, pid, x, y);
+      } catch {
+        hit = { ok: false, result: "possibly_sent" };
+      }
+      if (hit.result === "invoked") {
+        delivery = appendAttempt(delivery, { path: "ax", dispatch_status: "sent" });
+        return { result: { method: "click" }, delivery: finalizeDelivery(delivery) };
+      }
+      if (hit.result === "miss") {
+        delivery = appendAttempt(delivery, {
+          path: "ax",
+          dispatch_status: "not_sent",
+          reason: "miss",
+        });
+      } else {
+        delivery = appendAttempt(delivery, {
+          path: "ax",
+          dispatch_status: ["timeout", "possibly_sent"].includes(hit.result) ? "possibly_sent" : "not_sent",
+          reason: hit.result,
+        });
+        throw elementUnavailable(
+          `${method}: the accessibility hit-test could not complete (${hit.result}); action_sent=${["timeout", "possibly_sent"].includes(hit.result) ? "possibly" : "false"}. Retry after the current job settles or re-observe the target.`,
+          {
+            action_sent: ["timeout", "possibly_sent"].includes(hit.result),
+            delivery: finalizeDelivery(delivery) ?? void 0,
+            reason: `uia_${hit.result}`,
+          },
+        );
+      }
+    }
+    const matrix = classify(windowId, "mouse_click");
+    if (matrix.delivery === "dropped") {
+      delivery = appendAttempt(delivery, {
+        path: "post_message",
+        dispatch_status: "not_sent",
+        reason: `droppable_${matrix.host}`,
+      });
+      await dispatchForeground();
+      delivery = appendAttempt(delivery, {
+        path: "foreground_send_input",
+        dispatch_status: "sent",
+      });
+      return { result: { method: "click" }, delivery: finalizeDelivery(delivery) };
+    }
+    const posted = await postMessageLevel(native, { windowId, pid, x, y, button, clicks }, (attempt) => {
+      delivery = appendAttempt(delivery, attempt);
+    });
+    if (posted.terminal) {
+      return { result: { method: "click" }, delivery: finalizeDelivery(delivery) };
+    }
+    await dispatchForeground();
+    delivery = appendAttempt(delivery, {
+      path: "foreground_send_input",
+      dispatch_status: "sent",
+    });
+    return { result: { method: "click" }, delivery: finalizeDelivery(delivery) };
+  } catch (error) {
+    if (error instanceof BrokerError) {
+      if (error.details.action_sent !== false && !delivery?.attempts.some((attempt) => attempt.dispatch_status !== "not_sent")) {
+        delivery = appendAttempt(delivery, {
+          path: "foreground_send_input",
+          dispatch_status: "possibly_sent",
+          reason: "native_input_interrupted",
+        });
+      }
+      throw new BrokerError(error.code, error.message, {
+        ...error.details,
+        delivery: finalizeDelivery(delivery),
+      });
+    }
+    throw error;
+  }
+}
+// =====================================================================================
+// W3 机械域还原批（官方 0.6.5 win32 entry :25127-25576，windowsInputDispatch.ts 区）：
+// win32 后台投递族四件——元素文本插入（postMessageCharAsync）、后台键（postMessageKeyAsync
+// + XAML 加速器 invokeAcceleratorAsync）、后台滚动（postMessageScrollAsync）、后台拖拽
+//（postMessageDragAsync）。全部 additive ABI 探测：任一原语/classify 缺导出时返回 null，
+// 调用方回退前台派发（与官方旧 addon 降级一致）；classify 三态（false/非对象=不可分类
+// →null 退前台；delivery=dropped / host=winui3_exempt 等按矩阵记 not_sent 后退前台）。
+// 拒绝路径一律附 finalizeDelivery 封套（delivery_unknown 族 reason + action_sent
+// possibly 语义），防止调用方盲目重放。
+// =====================================================================================
+// 官方 :25127-25255（dispatchWindowsElementInsertion）：element_native 后台插入。
+// 读回链（registry + winAxElementFromToken/Release + elementValueReadAsync 齐备时）
+// 先读 before 值，插入成功后读 after 值，classifyInsertionReadback 裁决
+//（changed_contains/unchanged/unreadable）写入 readback 字段。
+async function dispatchWindowsElementInsertion(options) {
+  const { adapter, axSource, registry: registry2, elementNative, text, pid, windowId, method } = options;
+  const postChar = adapter.postMessageCharAsync;
+  const classify = adapter.classifyPostMessageDelivery;
+  const fromToken = axSource?.winAxElementFromToken?.bind(axSource);
+  const releaseRef = axSource?.winAxElementRelease?.bind(axSource);
+  const valueRead = axSource?.elementValueReadAsync?.bind(axSource);
+  const elementWindowId = axSource?.elementWindowId?.bind(axSource);
+  if (!postChar || !classify || !windowId) {
+    return null;
+  }
+  let beforeValue = null;
+  let heldRef = null;
+  let readHandle = null;
+  if (registry2 && fromToken && releaseRef && valueRead) {
+    const ref = registry2.refFor(elementNative);
+    if (ref) {
+      const token = fromToken(ref);
+      if (token.ok) {
+        heldRef = token.element;
+        try {
+          const hostWindowId = (await elementWindowId?.(ref)) ?? windowId;
+          const before = await valueRead(token.element, hostWindowId);
+          beforeValue = before.ok ? before.value : null;
+          readHandle = token.element;
+        } catch {
+          releaseRef(token.element);
+          heldRef = null;
+        }
+      }
+    }
+  }
+  const readElementAfter = async () => {
+    if (!readHandle || !valueRead || heldRef === null) return null;
+    try {
+      const after = await valueRead(heldRef, windowId);
+      return after.ok ? after.value : null;
+    } catch {
+      return null;
+    }
+  };
+  const releaseHeld = () => {
+    if (heldRef !== null && releaseRef) releaseRef(heldRef);
+  };
+  let delivery = null;
+  try {
+    const matrix = classify(windowId, "text_input");
+    if (matrix === false || typeof matrix !== "object") {
+      return null;
+    }
+    if (matrix.delivery === "dropped") {
+      return appendAttempt(delivery, {
+        path: "post_message",
+        dispatch_status: "not_sent",
+        reason: `droppable_${matrix.host}`,
+      });
+    }
+    if (matrix.host === "winui3_exempt") {
+      return appendAttempt(delivery, {
+        path: "post_message",
+        dispatch_status: "not_sent",
+        reason: "droppable_xaml_input",
+      });
+    }
+    const elementRefForHost =
+      registry2 && (readHandle !== null || heldRef !== null) ? (registry2.refFor(elementNative) ?? null) : null;
+    delivery = appendAttempt(delivery, {
+      path: "post_message",
+      dispatch_status: "not_sent",
+      reason: "entry",
+    });
+    let outcome;
+    try {
+      outcome = await postChar(windowId, pid, text, elementRefForHost ?? void 0);
+    } catch {
+      delivery = appendAttempt(delivery, {
+        path: "post_message",
+        dispatch_status: "possibly_sent",
+        reason: "threw",
+      });
+      throw elementUnavailable(`${method}: background insertion delivery is unknown; re-observe before retrying.`, {
+        action_sent: true,
+        reason: "delivery_unknown",
+        delivery: finalizeDelivery(delivery) ?? void 0,
+      });
+    }
+    if (!outcome.ok) {
+      const error = outcome.error ?? "unknown";
+      if (error.startsWith("possibly")) {
+        delivery = appendAttempt(delivery, {
+          path: "post_message",
+          dispatch_status: "possibly_sent",
+          reason: error,
+        });
+        throw elementUnavailable(`${method}: background insertion possibly landed; do not replay. Re-observe.`, {
+          action_sent: true,
+          reason: error,
+          delivery: finalizeDelivery(delivery) ?? void 0,
+        });
+      }
+      delivery = appendAttempt(delivery, {
+        path: "post_message",
+        dispatch_status: "not_sent",
+        reason: error,
+      });
+      return delivery;
+    }
+    delivery = appendAttempt(delivery, {
+      path: "post_message",
+      dispatch_status: "sent",
+    });
+    const afterValue = await readElementAfter();
+    const verdict = classifyInsertionReadback(beforeValue, afterValue, text);
+    delivery = appendAttempt(delivery, {
+      path: "post_message",
+      dispatch_status: "sent",
+      reason: `readback_${verdict.verify}`,
+    });
+    const finalized = finalizeDelivery(delivery);
+    finalized.effect = verdict.effect;
+    finalized.readback = { verify: verdict.verify };
+    return finalized;
+  } finally {
+    releaseHeld();
+  }
+}
+// 官方 :25267-25415（dispatchWindowsBackgroundKeyed）：后台键梯。host=winui3_exempt
+//（XAML）时先试 invokeAcceleratorAsync（accelerator_missed/accelerator_timeout 族
+// 轨迹；invoked 即终态）；组合键（key_combo）在非 XAML 宿主不可达
+//（chord_key_state_unreachable——postMessage 无法维持和弦键状态）；矩阵 dropped
+// 记 droppable_* 后退前台。
+async function dispatchWindowsBackgroundKeyed(options) {
+  const { adapter, axSource, chord, pid, windowId, method } = options;
+  const postKey = adapter.postMessageKeyAsync;
+  const invokeAccel = adapter.invokeAcceleratorAsync;
+  const classify = adapter.classifyPostMessageDelivery;
+  if (!postKey || !classify || !windowId || !axSource) {
+    return null;
+  }
+  const tokens = chord.split("+").map((t) => t.trim().toLowerCase());
+  const isCombo = tokens.length > 1;
+  let delivery = null;
+  const matrix = classify(windowId, isCombo ? "key_combo" : "keystroke");
+  if (matrix === false || typeof matrix !== "object") {
+    return null;
+  }
+  if (matrix.host === "winui3_exempt") {
+    if (invokeAccel) {
+      delivery = appendAttempt(delivery, {
+        path: "ax",
+        dispatch_status: "not_sent",
+        reason: "xaml_accelerator_entry",
+      });
+      let accel;
+      try {
+        accel = await invokeAccel(windowId, pid, chord);
+      } catch {
+        delivery = appendAttempt(delivery, {
+          path: "ax",
+          dispatch_status: "possibly_sent",
+          reason: "threw",
+        });
+        throw elementUnavailable(`${method}: XAML accelerator delivery is unknown; re-observe before retrying.`, {
+          action_sent: true,
+          reason: "delivery_unknown",
+          delivery: finalizeDelivery(delivery) ?? void 0,
+        });
+      }
+      if (accel.result === "invoked") {
+        return finalizeDelivery(
+          appendAttempt(delivery, {
+            path: "ax",
+            dispatch_status: "sent",
+            reason: "accelerator:invoked",
+          }),
+        );
+      }
+      if (accel.result === "possibly_sent" || accel.result === "timeout") {
+        delivery = appendAttempt(delivery, {
+          path: "ax",
+          dispatch_status: "possibly_sent",
+          reason: `accelerator:${accel.result}`,
+        });
+        throw elementUnavailable(
+          `${method}: the matched accelerator invocation did not complete; do not replay. Re-observe.`,
+          {
+            action_sent: true,
+            reason: `accelerator_${accel.result}`,
+            delivery: finalizeDelivery(delivery) ?? void 0,
+          },
+        );
+      }
+      if (accel.result === "miss") {
+        delivery = appendAttempt(delivery, {
+          path: "ax",
+          dispatch_status: "not_sent",
+          reason: "accelerator_missed",
+        });
+      } else {
+        delivery = appendAttempt(delivery, {
+          path: "ax",
+          dispatch_status: "not_sent",
+          reason: `accelerator_${accel.result}`,
+        });
+      }
+    }
+    return appendAttempt(delivery, {
+      path: "post_message",
+      dispatch_status: "not_sent",
+      reason: "droppable_xaml_input",
+    });
+  }
+  if (isCombo) {
+    return appendAttempt(delivery, {
+      path: "post_message",
+      dispatch_status: "not_sent",
+      reason: "chord_key_state_unreachable",
+    });
+  }
+  if (matrix.delivery === "dropped") {
+    return appendAttempt(delivery, {
+      path: "post_message",
+      dispatch_status: "not_sent",
+      reason: `droppable_${matrix.host}`,
+    });
+  }
+  delivery = appendAttempt(delivery, {
+    path: "post_message",
+    dispatch_status: "not_sent",
+    reason: "entry",
+  });
+  let outcome;
+  try {
+    outcome = await postKey(windowId, pid, chord);
+  } catch {
+    delivery = appendAttempt(delivery, {
+      path: "post_message",
+      dispatch_status: "possibly_sent",
+      reason: "threw",
+    });
+    throw elementUnavailable(`${method}: background key delivery is unknown; re-observe before retrying.`, {
+      action_sent: true,
+      reason: "delivery_unknown",
+      delivery: finalizeDelivery(delivery) ?? void 0,
+    });
+  }
+  if (!outcome.ok) {
+    const error = outcome.error ?? "unknown";
+    if (error.startsWith("possibly")) {
+      delivery = appendAttempt(delivery, {
+        path: "post_message",
+        dispatch_status: "possibly_sent",
+        reason: error,
+      });
+      throw elementUnavailable(`${method}: background key delivery possibly landed; do not replay. Re-observe.`, {
+        action_sent: true,
+        reason: error,
+        delivery: finalizeDelivery(delivery) ?? void 0,
+      });
+    }
+    delivery = appendAttempt(delivery, {
+      path: "post_message",
+      dispatch_status: "not_sent",
+      reason: error,
+    });
+    return delivery;
+  }
+  return finalizeDelivery(
+    appendAttempt(delivery, {
+      path: "post_message",
+      dispatch_status: "sent",
+    }),
+  );
+}
+// 官方 :25416-25495（dispatchWindowsBackgroundScroll）：后台滚动。仅 wpf/
+// winui3_exempt 宿主可达（其余 scroll_unreachable_<host> 记 not_sent 后退前台）。
+async function dispatchWindowsBackgroundScroll(options) {
+  const { adapter, pid, windowId, direction, amount, method } = options;
+  const postScroll = adapter.postMessageScrollAsync;
+  const classify = adapter.classifyPostMessageDelivery;
+  if (!postScroll || !classify || !windowId) {
+    return null;
+  }
+  let delivery = null;
+  const matrix = classify(windowId, "mouse_scroll");
+  if (matrix === false || typeof matrix !== "object") {
+    return null;
+  }
+  if (matrix.host === "wpf" || matrix.host === "winui3_exempt") {
+    // 可达，落入 postMessage 段。
+  } else {
+    delivery = appendAttempt(delivery, {
+      path: "post_message",
+      dispatch_status: "not_sent",
+      reason: `scroll_unreachable_${matrix.host}`,
+    });
+    return delivery;
+  }
+  delivery = appendAttempt(delivery, {
+    path: "post_message",
+    dispatch_status: "not_sent",
+    reason: "entry",
+  });
+  let outcome;
+  try {
+    outcome = await postScroll(windowId, pid, direction, amount);
+  } catch {
+    delivery = appendAttempt(delivery, {
+      path: "post_message",
+      dispatch_status: "possibly_sent",
+      reason: "threw",
+    });
+    throw elementUnavailable(`${method}: background scroll delivery is unknown; re-observe before retrying.`, {
+      action_sent: true,
+      reason: "delivery_unknown",
+      delivery: finalizeDelivery(delivery) ?? void 0,
+    });
+  }
+  if (!outcome.ok) {
+    const error = outcome.error ?? "unknown";
+    if (error.startsWith("possibly")) {
+      delivery = appendAttempt(delivery, {
+        path: "post_message",
+        dispatch_status: "possibly_sent",
+        reason: error,
+      });
+      throw elementUnavailable(`${method}: background scroll possibly landed; do not replay. Re-observe.`, {
+        action_sent: true,
+        reason: error,
+        delivery: finalizeDelivery(delivery) ?? void 0,
+      });
+    }
+    delivery = appendAttempt(delivery, {
+      path: "post_message",
+      dispatch_status: "not_sent",
+      reason: error,
+    });
+    return delivery;
+  }
+  return finalizeDelivery(
+    appendAttempt(delivery, {
+      path: "post_message",
+      dispatch_status: "sent",
+    }),
+  );
+}
+// 官方 :25496-25576（dispatchWindowsBackgroundDrag）：后台拖拽。dropped 或
+// winui3_exempt/wpf/vcl 宿主记 droppable_* 后退前台（mouse_move 矩阵）。
+async function dispatchWindowsBackgroundDrag(options) {
+  const { adapter, pid, windowId, start, end, method } = options;
+  const postDrag = adapter.postMessageDragAsync;
+  const classify = adapter.classifyPostMessageDelivery;
+  if (!postDrag || !classify || !windowId) {
+    return null;
+  }
+  let delivery = null;
+  const matrix = classify(windowId, "mouse_move");
+  if (matrix === false || typeof matrix !== "object") {
+    return null;
+  }
+  if (matrix.delivery === "dropped" || matrix.host === "winui3_exempt" || matrix.host === "wpf" || matrix.host === "vcl") {
+    delivery = appendAttempt(delivery, {
+      path: "post_message",
+      dispatch_status: "not_sent",
+      reason: `droppable_${matrix.host}`,
+    });
+    return delivery;
+  }
+  delivery = appendAttempt(delivery, {
+    path: "post_message",
+    dispatch_status: "not_sent",
+    reason: "entry",
+  });
+  let outcome;
+  try {
+    outcome = await postDrag(windowId, pid, start.x, start.y, end.x, end.y);
+  } catch {
+    delivery = appendAttempt(delivery, {
+      path: "post_message",
+      dispatch_status: "possibly_sent",
+      reason: "threw",
+    });
+    throw elementUnavailable(`${method}: background drag delivery is unknown; re-observe before retrying.`, {
+      action_sent: true,
+      reason: "delivery_unknown",
+      delivery: finalizeDelivery(delivery) ?? void 0,
+    });
+  }
+  if (!outcome.ok) {
+    const error = outcome.error ?? "unknown";
+    if (error.startsWith("possibly")) {
+      delivery = appendAttempt(delivery, {
+        path: "post_message",
+        dispatch_status: "possibly_sent",
+        reason: error,
+      });
+      throw elementUnavailable(`${method}: background drag possibly landed; do not replay. Re-observe.`, {
+        action_sent: true,
+        reason: error,
+        delivery: finalizeDelivery(delivery) ?? void 0,
+      });
+    }
+    delivery = appendAttempt(delivery, {
+      path: "post_message",
+      dispatch_status: "not_sent",
+      reason: error,
+    });
+    return delivery;
+  }
+  return finalizeDelivery(
+    appendAttempt(delivery, {
+      path: "post_message",
+      dispatch_status: "sent",
+    }),
+  );
+}
+// R8/G1+G3（还原自官方 SEA offset 85405947 dispatchWindowsForegroundKeyed）：
+// win32 前台升级键盘派发守卫链。相对旧版（仅 assert frontmost + allow + dispatch）补齐：
+// ①串行 lane（防两次前台升级交错）②application_source_unavailable 预检 ③窗口级
+// 目标走 G2 活窗四段门禁，pid 级目标走 targetIsFrontmost→激活 ④G3 key-hold 防误路由
+// （hold 未释放时拒绝切前台，窗口/pid 两变体）⑤G1 收尾排水 max(120, drainHintMs)ms
+// 上限 3000ms——注入成功后等排水再恢复前台；未注入立即恢复。
+async function dispatchWindowsForegroundKeyed(
+  axSource,
+  adapter,
+  method,
+  target,
+  dispatch,
+  // 官方 JS 形参 laneHold/drainHintMs 无默认值（调用方传 void 0）；TS 侧按可选
+  // 落默认值，语义不变（null/undefined 都走 windowsPhysicalLaneFor 与 120ms 底）。
+  laneHold = null,
+  drainHintMs = void 0,
+  restoreAfterInjection = true,
+) {
+  const run = (body) => (laneHold ? laneHold.run(body) : windowsPhysicalLaneFor(adapter).run(method, body));
+  await run(async () => {
+    const restore = foregroundRestoreScope(adapter);
+    restore.snapshotBefore();
+    let settled = false;
+    try {
+      assertGlobalInputAllowed(adapter, method);
+      if (!axSource) {
+        throw elementUnavailable(
+          `${method}: raw foreground event for app_ref pid ${target.pid} was refused because no live application source is available. action_sent=false.`,
+          {
+            action_sent: false,
+            expected_pid: target.pid,
+            method,
+            reason: "application_source_unavailable",
+          },
+        );
+      }
+      const hasWindowLevelSource = typeof axSource.listWindows === "function";
+      if (target.windowId !== void 0 && target.windowId !== null && hasWindowLevelSource) {
+        await windowsForegroundWindowGate({
+          axSource,
+          windowContext: adapter.frameWindowContext?.bind(adapter),
+          activateWindow: (pid, bundleId, windowId) => {
+            // G3 key-hold 防误路由（文案锚 85407196/85407343）：有 key hold 未释放时
+            // 切前台会把按键路由到新前台应用，拒绝并要求等 hold 收尾。
+            if (adapter.hasActiveInputHolds?.()) {
+              throw permissionDenied(
+                `${method}: refused to bring window ${windowId} of pid ${pid} to the foreground because another key hold is still active \u2014 switching foreground now would misroute the held keys. action_sent=false. Wait for the hold to finish and retry.`,
+                { action_sent: false, reason: "input_hold_active", expected_pid: pid },
+              );
+            }
+            activateConcreteWindow(adapter, pid, bundleId, windowId, method);
+            return true;
+          },
+          target: {
+            pid: target.pid,
+            bundleId: target.bundleId,
+            windowId: target.windowId,
+          },
+          method,
+        });
+      } else {
+        if (!(await targetIsFrontmost(axSource, target.pid))) {
+          // G3 pid 级变体（文案锚 85407343 区）：同 window 级语义。
+          if (adapter.hasActiveInputHolds?.()) {
+            throw permissionDenied(
+              `${method}: refused to bring pid ${target.pid} to the foreground because another key hold is still active \u2014 switching foreground now would misroute the held keys. action_sent=false. Wait for the hold to finish and retry.`,
+              { action_sent: false, reason: "input_hold_active", expected_pid: target.pid },
+            );
+          }
+          if (target.windowId !== void 0 && target.windowId !== null) {
+            activateConcreteWindow(adapter, target.pid, target.bundleId, target.windowId, method);
+          } else {
+            activateWindowsApplication(adapter, target.pid, target.bundleId, method);
+          }
+        }
+      }
+      await assertExpectedPidIsFrontmost(axSource, target.pid, null, method);
+      restore.snapshotAfterActivate();
+      let injected = false;
+      const drainScope = async () => {
+        // G1 文本链排水（官方注释锚 85454076-85454109）：max(120, drainHintMs)ms，
+        // 上限 3000ms。固定 120ms 对长 CJK 串不足（官方实测泵速 ≈17ms/字）。
+        const scaled = typeof drainHintMs === "number" && drainHintMs > 120 ? drainHintMs : 120;
+        const drainMs = Math.min(scaled, 3e3);
+        await new Promise((resolve2) => setTimeout(resolve2, drainMs));
+        if (restoreAfterInjection) restore.restore();
+      };
+      try {
+        await dispatch(() => {
+          injected = true;
+        });
+      } finally {
+        if (injected) {
+          await drainScope();
+        } else {
+          restore.restore();
+        }
+        settled = true;
+      }
+    } finally {
+      if (!settled) restore.restore();
+    }
+  });
 }
 function assertAxOutcomeSucceeded(outcome, method) {
   if (outcome === void 0 || outcome === true) return;
@@ -1080,45 +1993,29 @@ function assertAxOutcomeSucceeded(outcome, method) {
 function sessionKeyParam(value) {
   return typeof value === "string" && value ? value : "default";
 }
-// 分离按下/释放（mouse_down/mouse_up）与会话拖拽所有权的会话键：非空强制，
-// 防止跨 broker 连接的指针所有权串台（原版 63 表语义，第十轮重放）。
-function pointerSessionKeyParam(value, action) {
-  if (typeof value === "string" && value.trim()) return value.trim();
-  throw permissionDenied(
-    `${action} requires a non-empty session_key so split pointer ownership cannot cross broker connections. action_sent=false.`,
-    { action_sent: false, reason: "missing_session_key" },
-  );
-}
-// macOS 后台 mouse_down 的结构化返回（ok/delivery_state）判定：非结构化值保持
-// 布尔语义；结构化值区分 definitely_unsent（可安全拒绝）与模糊态（retain_for_cleanup）。
-function isMacBackgroundMouseDownOutcome(value) {
-  return value !== null && typeof value === "object" && "ok" in value && "delivery_state" in value;
-}
-function assertMacBackgroundMouseDownSucceeded(result, method) {
-  if (!isMacBackgroundMouseDownOutcome(result)) {
-    return result === false ? "retain_for_cleanup" : "accepted";
-  }
-  if (result.ok) return "accepted";
-  if (result.delivery_state === "definitely_unsent") {
-    throw elementUnavailable(
-      `${method}: macOS background mouse-down was rejected before dispatch. action_sent=false.`,
-      { action_sent: false, reason: result.reason ?? "background_mouse_down_unsent" },
-    );
-  }
-  return "retain_for_cleanup";
-}
+// 清退（2026-11-10 R10 后续）：pointerSessionKeyParam / isMacBackgroundMouseDownOutcome /
+// assertMacBackgroundMouseDownSucceeded 已随 mouse_down/mouse_up 方法删除——三者
+// 在官方 0.6.5 win entry 零出现（分离按下语义整条不在 43 表构建里）。
 export function createElectronInputHandlers(options) {
   const { adapter, axSource } = options;
   const platform2 = options.platform ?? process.platform;
   const macBackgroundMode = platform2 === "darwin" && adapter.macBackgroundInputRequired === true;
-  // 指针序列所有权三态（原版语义，第十轮重放）：buttonHolder=已持有按下键的
-  // 会话；splitDownInFlight=mouse_down 进行中；combinedDragInFlight=合成拖拽进行中。
-  // backgroundButtonHold 记录后台模式按下时的目标与点位，供 mouse_up/终清释放。
-  let buttonHolder = null;
-  let splitDownInFlight = null;
+  // 清退（2026-11-10 R10 后续）：指针序列所有权三态中的 buttonHolder（已持有按下
+  // 键的会话）、splitDownInFlight（mouse_down 进行中）、backgroundButtonHold（后台
+  // 按下目标/点位）随 mouse_down/mouse_up 删除——官方 0.6.5 win entry :26041-26052
+  // 的终清与指针门禁只剩 combinedDragInFlight 单态。combinedDragInFlight 保留
+  //（合成 drag 在 43 表内存续）。
   let combinedDragInFlight = false;
-  let backgroundButtonHold = null;
   const validatedFrameTargetByParams = /* @__PURE__ */ new WeakMap();
+  // 还原自发行 bundle（官方 0.6.5 win32 entry :25599-25604）：帧目标记忆——同一
+  // 事实（target + presentation_app_ref）同时挂在派发 params 与原始入参 params 上
+  //（validateFrameProvenance/validateElementProvenance 链上两次改写 params 时，
+  // 消费端按任一对象都能取回）。
+  const rememberFrameTarget = (input2, params, target) => {
+    const fact = { ...target, presentationAppRef: params.presentation_app_ref };
+    validatedFrameTargetByParams.set(params, fact);
+    validatedFrameTargetByParams.set(input2, fact);
+  };
   const readLiveWindowServerSnapshot = (displayBounds, method) => {
     if (!adapter.listScreenCaptureProbeWindows) {
       throw elementUnavailable(
@@ -1509,6 +2406,118 @@ export function createElectronInputHandlers(options) {
     }
     return params;
   };
+  // 还原自发行 bundle（官方 0.6.5 win32 entry :25955-26040，validateElementProvenance）：
+  // win32 element_provenance 二次校验。逐记录核：token 可解析（registry.refFor）→
+  // 元素仍活（readElement）→ 宿主窗一致（elementWindowId/elementDispatchWindowId +
+  // frameWindowContext 的 pid/tid/bundle/visible/non-minimized）→ 归属 pid 未变 →
+  // bounds 与记录一致且包含目标点（element_geometry_changed）。失败码：
+  // invalid_element_provenance（形状）/element_surface_replaced（身份偷换）/
+  // element_geometry_changed（几何漂移）/element_surface_unavailable（宿主事实缺）/
+  // pointer_receiver_mismatch（多端点接收窗漂移）。通过后把 params 改写为已证实的
+  // 精确目标（expected_pid/bundle/window_id + app_ref），并经 rememberFrameTarget 记
+  // 忆供 appendResolvedAppRef 的 dispatch_surface 消费。win32 之外或无
+  // element_provenance 时原样返回。
+  const validateElementProvenance = async (input2, method, points, original = input2) => {
+    if (platform2 !== "win32" || input2.element_provenance === void 0) return input2;
+    const fail = (reason, facts = {}) => {
+      throw elementUnavailable(`${method}: native element ${reason}; observe again. action_sent=false.`, {
+        action_sent: false,
+        reason,
+        ...facts,
+      });
+    };
+    const records = input2.element_provenance;
+    if (!Array.isArray(records) || records.length === 0 || records.length > points.length)
+      fail("invalid_element_provenance");
+    const params = { ...input2 };
+    let recipient = validatedFrameTargetByParams.get(input2);
+    const registry2 = options.windowsElementReadback?.registry;
+    const seen = /* @__PURE__ */ new Set();
+    for (const record2 of records) {
+      if (!record2 || typeof record2 !== "object" || Array.isArray(record2)) fail("invalid_element_provenance");
+      const index = record2.endpoint_index;
+      if (
+        typeof index !== "number" ||
+        !Number.isInteger(index) ||
+        seen.has(index) ||
+        !points[index] ||
+        typeof record2.native !== "string" ||
+        !Array.isArray(record2.bounds) ||
+        record2.bounds.length !== 4 ||
+        !record2.bounds.every(Number.isFinite)
+      )
+        fail("invalid_element_provenance");
+      const endpoint = index;
+      seen.add(endpoint);
+      const ref = registry2?.refFor(record2.native);
+      const live = ref ? await axSource?.readElement(ref) : null;
+      const host = ref ? await axSource?.elementWindowId?.(ref) : null;
+      const windowId = ref ? await (axSource?.elementDispatchWindowId ?? axSource?.elementWindowId)?.call(axSource, ref) : null;
+      const facts = host ? adapter.frameWindowContext?.(host) : null;
+      const owner = ref ? registry2?.ownerPidForRef(ref) : void 0;
+      const identityFacts = {
+        element_token_valid: !!ref,
+        element_live_found: !!live,
+        captured_owner_pid: owner,
+        live_owner_pid: live?.ownerPid,
+        element_host_window_id: host,
+        element_dispatch_window_id: windowId,
+        element_host_context: facts,
+      };
+      if (
+        !ref ||
+        !live ||
+        !facts ||
+        !owner ||
+        !windowId ||
+        ((facts.pid !== owner && windowId === host) || facts.window_id !== host || !facts.visible || facts.minimized || !facts.bundle_id)
+      )
+        fail("element_surface_replaced", identityFacts);
+      if (live.ownerPid != null && live.ownerPid !== owner) fail("element_surface_replaced", identityFacts);
+      if (!sameFrameBounds(live.bounds, record2.bounds) || !windowContainsPoint2(live.bounds, points[endpoint]))
+        fail("element_geometry_changed");
+      if (facts.bounds.length !== 4 || !facts.bounds.every(Number.isFinite)) fail("element_surface_unavailable");
+      const target = {
+        pid: facts.pid,
+        bundleId: facts.bundle_id,
+        windowId: facts.window_id,
+        bounds: facts.bounds,
+        // C4（2026-10-26）：presentation 回退链去掉「宿主自身」兜底——旁路直连
+        //（无 session context）时 presentation 退化为 actual 会丢失逻辑应用身份
+        //（§3.3）。产品主链 broker-client 对每个 win32 action 注入 context 不受
+        // 影响；此处缺 context 直接不设 presentationWindowId，由消费端按无值处理
+        //（不虚构身份），不再把 actual 伪装成 presentation。
+        presentationWindowId:
+          currentWindowsOperationContext()?.presentation_window_id ?? currentWindowsOperationContext()?.root_window_id,
+        // C1（2026-10-26）：kind 优先级对齐 native 帧枚举（链① GW_OWNER 命中即
+        // owned_popup，ax_win.cc EnumerateSurfacesForFrame）；此前 is_menu 先判，
+        // 同一「有 owner 的菜单」在 frame 记录与回执里 kind 分叉。
+        surfaceKind: facts.owner_window_id ? "owned_popup" : facts.is_menu ? "menu_popup" : "window",
+      };
+      if (
+        recipient &&
+        (recipient.pid !== target.pid ||
+          recipient.windowId !== target.windowId ||
+          !cuaBundleIdsEqual(recipient.bundleId, target.bundleId) ||
+          !sameFrameBounds(recipient.bounds, target.bounds))
+      )
+        fail("pointer_receiver_mismatch");
+      recipient = target;
+    }
+    if (!recipient) fail("element_surface_unavailable");
+    params.presentation_app_ref ??= params.app_ref;
+    params.app_ref = {
+      pid: recipient.pid,
+      bundle_id: recipient.bundleId,
+      window_id: recipient.windowId,
+    };
+    params.expected_pid = recipient.pid;
+    params.expected_bundle_id = recipient.bundleId;
+    params.expected_window_id = recipient.windowId;
+    rememberFrameTarget(original, params, recipient);
+    if (original !== input2) rememberFrameTarget(input2, params, recipient);
+    return params;
+  };
   const resolveMacBackgroundTarget = (params, method) => {
     const validated = validatedFrameTargetByParams.get(params);
     return validated
@@ -1516,100 +2525,49 @@ export function createElectronInputHandlers(options) {
       : requireMacBackgroundWindowTarget(axSource, params.app_ref, method);
   };
   pointerSequenceGateByAdapter.set(adapter, (action) => refusePointerSequenceIfBusy(action));
+  // R8（官方 SEA offset 85406231 区）：win32 物理输入串行 lane 注册。所有 win32
+  // 前台升级派发（dispatchWindowsForegroundKeyed/click/scroll/drag/type_text 系）经
+  // windowsPhysicalLaneFor 取同一条 lane；未注册时 fail-closed（见该函数注释）。
+  const windowsInputDispatchLease = createWindowsPhysicalLane();
+  windowsPhysicalLaneByAdapter.set(adapter, windowsInputDispatchLease);
+  // 还原自发行 bundle（官方 0.6.5 win32 entry :26055-26066）：独立 surface 的物理
+  // 输入门禁。操作域 context 标记 independent_root 时，物理输入的目标窗必须是已证
+  // 明 operation association 的候选窗或根窗，否则拒绝
+  //（independent_surface_requires_association，fail-closed 不猜归属）。
+  const assertWindowsPhysicalAssociation = (windowId) => {
+    const context = currentWindowsOperationContext();
+    if (!context?.independent_root) return;
+    const proofs = context.associations ?? [];
+    if (
+      windowId !== void 0 &&
+      proofs.some((proof) => proof.candidate.window_id === windowId || proof.root.window_id === windowId)
+    )
+      return;
+    throw elementUnavailable(
+      "Independent Windows surfaces require operation association before physical input. action_sent=false.",
+      { action_sent: false, reason: "independent_surface_requires_association" },
+    );
+  };
+  // 清退（2026-11-10 R10 后续，官方 0.6.5 win32 entry :26041-26052 逐字）：
+  // 分离按下语义（mouse_down/mouse_up）不在 43 表构建里，终清不再有「持有按钮
+  // 先补发 mouse_up 再清所有权」的链，只剩合成 drag 在飞判定；指针门禁同样
+  // 只剩 combinedDragInFlight 单态（拒绝文案 "Wait for drag completion or
+  // stop_computer_control." 为官方原文）。requirePointerMoveOwnership/
+  // refuseCombinedDragIfBusy/claimSplitDown/releaseSplitDownClaim 随
+  // move_to/mouse_down/mouse_up 一并退役（官方零出现）。
   terminalPointerCleanupByAdapter.set(adapter, async () => {
-    // 终清语义（原版）：有会话持有按钮时先发 mouse_up("left")（后台模式按目标
-    // 窗口/pid 释放），成功后才清所有权并隐藏虚拟指针；释放失败返回 false，
-    // 让上层知道按钮可能仍被持有。
-    try {
-      if (macBackgroundMode) {
-        const held = backgroundButtonHold;
-        if (!held) return false;
-        let released = false;
-        if (typeof adapter.mouseUpToWindow === "function") {
-          released =
-            (await adapter.mouseUpToWindow(
-              held.target.pid,
-              held.target.bundleId,
-              held.target.windowId,
-              held.target.bounds,
-              held.point.x,
-              held.point.y,
-              "left",
-            )) === true;
-        }
-        if (!released && typeof adapter.mouseUpToPid === "function") {
-          try {
-            released = adapter.mouseUpToPid(held.target.pid, "left") !== false;
-          } catch {
-            released = false;
-          }
-        }
-        if (!released) return false;
-        backgroundButtonHold = null;
-      } else {
-        if (typeof adapter.mouseUp !== "function") return false;
-        if (adapter.mouseUp("left") === false) return false;
-      }
-      buttonHolder = null;
-      adapter.hideVirtualPointer?.();
-      return true;
-    } catch {
-      return false;
-    }
+    return !combinedDragInFlight;
   });
   const refusePointerSequenceIfBusy = (action) => {
-    if (buttonHolder === null && splitDownInFlight === null && !combinedDragInFlight) {
-      return;
-    }
-    throw permissionDenied(
-      `${action} refused: another left-button sequence is still active. Wait for mouse_up, drag completion, or stop_computer_control. action_sent=false.`,
-      {
-        action_sent: false,
-        reason:
-          buttonHolder !== null
-            ? "button_already_held"
-            : splitDownInFlight !== null
-              ? "mouse_down_in_flight"
-              : "drag_in_flight",
-      },
-    );
-  };
-  const refuseCombinedDragIfBusy = (action) => {
     if (!combinedDragInFlight) return;
     throw permissionDenied(
-      `${action} refused: a combined drag is still active. action_sent=false.`,
-      {
-        action_sent: false,
-        reason: "drag_in_flight",
-      },
+      `${action} refused: another left-button sequence is still active. Wait for drag completion or stop_computer_control. action_sent=false.`,
+      { action_sent: false, reason: "drag_in_flight" },
     );
   };
-  const requirePointerMoveOwnership = (params, action) => {
-    refuseCombinedDragIfBusy(action);
-    if (splitDownInFlight !== null) {
-      throw permissionDenied(
-        `${action} refused: mouse_down has not completed yet. action_sent=false.`,
-        { action_sent: false, reason: "mouse_down_in_flight" },
-      );
-    }
-    if (
-      buttonHolder !== null &&
-      buttonHolder !== pointerSessionKeyParam(params.session_key, action)
-    ) {
-      throw permissionDenied(
-        `${action} refused: another MCP session owns the active split drag. action_sent=false.`,
-        { action_sent: false, reason: "another_session_holds_button" },
-      );
-    }
-  };
-  const claimSplitDown = (sessionKey) => {
-    refusePointerSequenceIfBusy("mouse_down");
-    splitDownInFlight = sessionKey;
-  };
-  const releaseSplitDownClaim = (sessionKey) => {
-    if (splitDownInFlight === sessionKey) splitDownInFlight = null;
-  };
-  return {
+  // 官方 0.6.5 win32 entry :26614（createElectronInputHandlers）：handlers 先落
+  // 局部变量，win32 后置包装（文件尾）改写后再 return。
+  const handlers = {
     type_text_to_app: async (params) => {
       if (platform2 !== "win32" && typeof adapter.typeTextToApp !== "function") {
         throw notAuthorized("type_text_to_app is unavailable in this ZCode build.");
@@ -1700,21 +2658,123 @@ export function createElectronInputHandlers(options) {
         return appendResolvedAppRef({ method: "window_event" }, params, windowTarget);
       }
       if (platform2 === "win32" && typeof adapter.typeTextToApp !== "function") {
+        // R8/G1（还原自官方 SEA offset 85451500-85455200 区，文案锚 85452514/
+        // 85453452/85453721/85454109）：win32 前台文本注入守卫链——焦点预检 +
+        // typeTextGlobalAsync 截断双语义 + 收尾排水。
+        // W3（还原至官方 0.6.5 win32 entry :26158-26273 完整形态）：element_native
+        // 存在时先走 dispatchWindowsElementInsertion（元素级后台插入 + 写后读回
+        // changed_contains/unchanged/unreadable 裁决）；插入尝试非全 not_sent 即
+        // window_event 终态；焦点预检仅在 insertionDelivery 非空时取 ref（官方
+        // :26188 同款），element_focus_unavailable 拒绝附 finalizeDelivery 封套；
+        // 前台注入成功后把 foreground_send_input sent attempt 并入 insertionDelivery
+        // 封套返回（foreground_event）。
+        const elementNative =
+          typeof params.element_native === "string" && params.element_native
+            ? params.element_native
+            : null;
+        let insertionDelivery = null;
+        if (elementNative) {
+          insertionDelivery = await dispatchWindowsElementInsertion({
+            adapter,
+            axSource,
+            registry: options.windowsElementReadback?.registry,
+            elementNative,
+            text,
+            pid: target.pid,
+            windowId: target.windowId,
+            method: "type_text_to_app",
+          });
+        }
+        if (insertionDelivery?.attempts.some((a) => a.dispatch_status !== "not_sent")) {
+          return {
+            method: "window_event",
+            delivery: insertionDelivery,
+          };
+        }
+        const focusRefForInsertion =
+          elementNative && insertionDelivery
+            ? (options.windowsElementReadback?.registry?.refFor(elementNative) ?? null)
+            : null;
         await dispatchWindowsForegroundKeyed(
           axSource,
           adapter,
           "type_text_to_app",
-          target.pid,
-          () => {
-            if (typeof adapter.typeTextGlobal !== "function") {
-              throw notAuthorized(
-                "type_text_to_app: the global keystroke primitive is unavailable in this ZCode build.",
+          target,
+          async (markInjected) => {
+            // 焦点预检（element_focus_unavailable/@85452514）：已知目标元素 ref 时，
+            // 前台注入前确认元素确实拿到键盘焦点，否则拒绝（text 可能落到别处）。
+            if (focusRefForInsertion && axSource?.elementFocus) {
+              const focused = await axSource.elementFocus(focusRefForInsertion);
+              const focusOk =
+                focused === true ||
+                (typeof focused === "object" && focused !== null && "ok" in focused && focused.ok === true);
+              if (!focusOk) {
+                throw elementUnavailable(
+                  "type_text_to_app: refused to send text because the target element could not take keyboard focus; re-observe before retrying.",
+                  {
+                    action_sent: false,
+                    reason: "element_focus_unavailable",
+                    delivery: finalizeDelivery(insertionDelivery) ?? void 0,
+                  },
+                );
+              }
+            }
+            // 截断双语义：typeTextGlobalAsync 可用则用异步原语——部分落地
+            //（text_truncated/@85453452，前缀可能已落地，勿重放）与零落地
+            //（text_injection_failed/@85453721，可重试）分别拒绝；ABI 缺失回退
+            // 同步 typeTextGlobal（mac 136 导出面即走此路径，与官方 mac 一致）。
+            if (typeof adapter.typeTextGlobalAsync !== "function") {
+              if (typeof adapter.typeTextGlobal !== "function") {
+                throw notAuthorized(
+                  "type_text_to_app: the global keystroke primitive is unavailable in this ZCode build.",
+                );
+              }
+              assertNativeInputSucceeded(adapter.typeTextGlobal(text), "type_text_to_app");
+              markInjected();
+              return;
+            }
+            const typed = await adapter.typeTextGlobalAsync(text);
+            if (!typed.ok) {
+              if (typed.sent > 0) {
+                markInjected();
+                throw elementUnavailable(
+                  `type_text_to_app: text injection truncated after ${typed.sent}/${typed.total} characters; the prefix possibly landed. Do not replay; re-observe before retrying.`,
+                  { action_sent: true, reason: "text_truncated" },
+                );
+              }
+              throw elementUnavailable(
+                "type_text_to_app: text injection failed before any character was sent.",
+                { action_sent: false, reason: "text_injection_failed" },
               );
             }
-            assertNativeInputSucceeded(adapter.typeTextGlobal(text), "type_text_to_app");
+            markInjected();
           },
+          void 0,
+          // 官方注释锚 85454076-85454109（保留原文）：
+          // 文本链排水缩放（verify V3）：max(120, 字符数 × 20)ms——固定
+          // 120ms 对长 CJK 串不足（实测泵速 ≈17ms/字，16 字只落地前 7 字）。
+          text.length * 20,
+          // CR-02：长文本收尾保留目标前台；50 单位以内沿用原条件恢复。
+          text.length <= 50,
         );
-        return null;
+        // 还原自官方 :26260-26273：前台注入回执并轨 insertionDelivery 封套。
+        if (insertionDelivery) {
+          return {
+            method: "foreground_event",
+            delivery: finalizeDelivery(
+              appendAttempt(insertionDelivery, {
+                path: "foreground_send_input",
+                dispatch_status: "sent",
+              }),
+            ),
+          };
+        }
+        return {
+          method: "foreground_event",
+          delivery: finalizeDelivery(
+            appendAttempt(null, { path: "foreground_send_input", dispatch_status: "sent" }),
+          ),
+        };
       }
       if (platform2 === "darwin" && PHYSICAL_EXPRESSION_RE.test(text)) {
         await runAppScopedInput("type_text_to_app", () =>
@@ -1838,21 +2898,59 @@ export function createElectronInputHandlers(options) {
         }
       }
       if (platform2 === "win32" && typeof adapter.pressKeyToApp !== "function") {
+        // R8：对齐官方 dispatchWindowsForegroundKeyed 新形态（target 对象 + markInjected
+        // 回调；官方 SEA offset 85459627 区）。markInjected 标记注入已发生，驱动收尾
+        // 排水而非立即恢复前台（键击后目标可能仍在处理输入）。
+        // W3（还原至官方 0.6.5 win32 entry :26410-26447 完整形态）：strategy!=event
+        // 时先走 dispatchWindowsBackgroundKeyed（postMessageKeyAsync 后台键 / XAML
+        // 宿主 invokeAcceleratorAsync 加速器梯），非全 not_sent 即 window_event
+        // 终态；前台注入成功后 foreground_send_input sent attempt 并轨封套返回。
+        const backgroundDelivery =
+          params.strategy === "event"
+            ? null
+            : await dispatchWindowsBackgroundKeyed({
+                adapter,
+                axSource,
+                chord: text,
+                pid: target.pid,
+                windowId: target.windowId,
+                method: "press_key_to_app",
+              });
+        if (backgroundDelivery && backgroundDelivery.attempts.some((a) => a.dispatch_status !== "not_sent")) {
+          return { method: "window_event", delivery: backgroundDelivery };
+        }
         await dispatchWindowsForegroundKeyed(
           axSource,
           adapter,
           "press_key_to_app",
-          target.pid,
-          () => {
+          target,
+          (markInjected) => {
             if (typeof adapter.pressKeyGlobal !== "function") {
               throw notAuthorized(
                 "press_key_to_app: the global keystroke primitive is unavailable in this ZCode build.",
               );
             }
             assertNativeInputSucceeded(adapter.pressKeyGlobal(text), "press_key_to_app");
+            markInjected();
           },
         );
-        return null;
+        if (backgroundDelivery) {
+          return {
+            method: "foreground_event",
+            delivery: finalizeDelivery(
+              appendAttempt(backgroundDelivery, {
+                path: "foreground_send_input",
+                dispatch_status: "sent",
+              }),
+            ),
+          };
+        }
+        return {
+          method: "foreground_event",
+          delivery: finalizeDelivery(
+            appendAttempt(null, { path: "foreground_send_input", dispatch_status: "sent" }),
+          ),
+        };
       }
       if (await targetIsFrontmost(axSource, target.pid)) {
         await dispatchForegroundKeyed(adapter, axSource, "press_key_to_app", target, () => {
@@ -1942,12 +3040,15 @@ export function createElectronInputHandlers(options) {
         return appendResolvedAppRef({ method: "window_event" }, params, windowTarget);
       }
       if (platform2 === "win32" && typeof adapter.holdKeyToApp !== "function") {
+        // R8：对齐官方新形态（官方 SEA offset 85463725 区，markInjected 语义同
+        // press_key_to_app）。注：hold 期间前台保持由 hold 语义本身承担，官方此分支
+        // 不传排水参数（drainHintMs 缺省走 120ms 底）。
         await dispatchWindowsForegroundKeyed(
           axSource,
           adapter,
           "hold_key_to_app",
-          target.pid,
-          async () => {
+          target,
+          async (markInjected) => {
             if (typeof adapter.holdKeyGlobal !== "function") {
               throw notAuthorized(
                 "hold_key_to_app: the global hold primitive is unavailable in this ZCode build.",
@@ -1957,6 +3058,7 @@ export function createElectronInputHandlers(options) {
               await adapter.holdKeyGlobal(text, duration3 * 1e3, sessionKey),
               "hold_key_to_app",
             );
+            markInjected();
           },
         );
         return null;
@@ -1966,119 +3068,14 @@ export function createElectronInputHandlers(options) {
       );
       return null;
     },
-    // 全局坐标鼠标/键盘合成（CGEvent + CGEventPost，不限定 pid）。仅签名 Helper 的 native addon 提供
-    // （adapter.clickAtPoint 等）；Electron 主进程未注入 → not_authorized（fail-closed，绝不静默回退）。
-    // 原版 63 表方法（第十轮重放）：AX hit-test 原生坐标点击（Phase 0 不抢焦点）。
-    // owner pid 校验在 assertClickElementOwnerPid：命中元素不属于 expected_pid 即拒绝，
-    // 防止坐标点击落到覆盖层/别的应用上。
-    click_element_at_point: (params) => {
-      refusePointerSequenceIfBusy("click_element_at_point");
-      if (typeof adapter.clickElementAtPoint !== "function") {
-        throw notAuthorized("click_element_at_point is unavailable in this ZCode build.");
-      }
-      const point = extractPoint(params.point);
-      if (!point) {
-        throw permissionDenied("click_element_at_point requires point {x, y} as numbers.");
-      }
-      const clicks = clickCountParam(params.clicks, "click_element_at_point");
-      const returnSkyshot = params.return_skyshot === true;
-      const format = params.format === "jpeg" ? "jpeg" : "png";
-      const expectedPid =
-        typeof params.expected_pid === "number" &&
-        Number.isInteger(params.expected_pid) &&
-        params.expected_pid > 0
-          ? params.expected_pid
-          : 0;
-      const result = adapter.clickElementAtPoint(
-        point.x,
-        point.y,
-        clicks,
-        returnSkyshot,
-        format,
-        expectedPid,
-      );
-      assertClickElementOwnerPid(result, expectedPid, "click_element_at_point", point);
-      return result;
-    },
-    // 原版 63 表方法（第十轮重放）：纯移动（不按下）。移动也要过指针所有权门——
-    // 与 mouse_down 持有者不同的会话不允许在 split 序列中间抢移动。
-    move_to: async (params) => {
-      const provenancePoint = extractPoint(params.point);
-      if (provenancePoint) {
-        params = await validateFrameProvenance(params, "move_to", [provenancePoint]);
-      }
-      requirePointerMoveOwnership(params, "move_to");
-      if (macBackgroundMode) {
-        if (typeof adapter.moveToWindow !== "function") {
-          throw notAuthorized(
-            "move_to: macOS background pointer ABI is unavailable; global fallback is disabled.",
-          );
-        }
-        const backgroundPoint = extractPoint(params.point);
-        if (!backgroundPoint) {
-          throw permissionDenied("move_to requires point {x, y} as numbers.");
-        }
-        requirePointerMoveOwnership(params, "move_to");
-        const held = backgroundButtonHold;
-        const target =
-          held !== null &&
-          buttonHolder !== null &&
-          typeof params.session_key === "string" &&
-          params.session_key.trim() === buttonHolder
-            ? held.target
-            : await resolveMacBackgroundTarget(params, "move_to");
-        assertMacBackgroundInputSucceeded(
-          await adapter.moveToWindow(
-            target.pid,
-            target.bundleId,
-            target.windowId,
-            target.bounds,
-            backgroundPoint.x,
-            backgroundPoint.y,
-            ...provenAttachedSurfaceArgs(target),
-          ),
-          "move_to",
-        );
-        return appendResolvedAppRef({ method: "window_event" }, params, target);
-      }
-      if (typeof adapter.moveTo !== "function") {
-        throw notAuthorized("move_to is unavailable in this ZCode build.");
-      }
-      const point = extractPoint(params.point);
-      if (!point) {
-        throw permissionDenied("move_to requires point {x, y} as numbers.");
-      }
-      assertGlobalInputAllowed(adapter, "move_to");
-      if (platform2 === "win32") {
-        return (async () => {
-          await resolveWindowsPointerIdentity(axSource, params.app_ref, point, "move_to");
-          requirePointerMoveOwnership(params, "move_to");
-          assertNativeInputSucceeded(adapter.moveTo(point.x, point.y), "move_to");
-          return appendResolvedAppRef(null, params);
-        })();
-      }
-      if (!params.app_ref) {
-        assertNativeInputSucceeded(adapter.moveTo(point.x, point.y), "move_to");
-        await waitForCursorToSettle(adapter, point, "move_to");
-        return appendResolvedAppRef(null, params);
-      }
-      const identity = await requirePointerAppPid(axSource, params.app_ref, "move_to");
-      activateConcreteWindow(
-        adapter,
-        identity.pid,
-        identity.bundleId,
-        identity.windowId,
-        "move_to",
-      );
-      await assertExpectedPidIsFrontmost(axSource, identity.pid, point, "move_to");
-      requirePointerMoveOwnership(params, "move_to");
-      assertNativeInputSucceeded(
-        adapter.moveTo(point.x, point.y, identity.pid, identity.windowId ?? void 0),
-        "move_to",
-      );
-      await waitForCursorToSettle(adapter, point, "move_to");
-      return appendResolvedAppRef(null, params);
-    },
+    // 清退（2026-11-10 R10 后续）：click_element_at_point handler 已随方法删除
+    // ——方法名双官方构建零命中；AX hit-test 原语 adapter.clickElementAtPoint 与
+    // owner 校验 assertClickElementOwnerPid 由存续的 click（AX hit-test 优先路径）
+    // 继续使用。
+    // 清退（2026-11-10 R10 后续）：move_to handler 已随方法删除——方法名双官方
+    // 构建零命中（该词仅以 scroll:move_to / drag:move_to_start 内部 reason 串
+    // 存活，win entry :27114/:27352）；adapter.moveTo 由存续的 scroll/drag/click
+    // 坐标派发继续使用。
     click: async (params) => {
       refusePointerSequenceIfBusy("click");
       if (
@@ -2092,6 +3089,10 @@ export function createElectronInputHandlers(options) {
         throw permissionDenied("click requires point {x, y} as numbers.");
       }
       params = await validateFrameProvenance(params, "click", [point]);
+      // 还原自发行 bundle（官方 0.6.5 win32 entry :26605-26608）：element_provenance
+      // 二次校验链（win32 element_native 目标改写，见 validateElementProvenance 注释）。
+      const frameAdmissionParams = params;
+      params = await validateElementProvenance(params, "click", [point], frameAdmissionParams);
       const button = typeof params.button === "string" ? params.button : "left";
       const clicks = clickCountParam(params.clicks, "click");
       const normalizedModifiers = modifiersChordParam(params.modifiers, "click");
@@ -2228,7 +3229,7 @@ export function createElectronInputHandlers(options) {
             `click: the AX element at (${point.x},${point.y}) belongs to pid ${r.pid}, not the target app_ref (pid ${expectedPid}). The target may be occluded, minimized, or the element stale. Re-resolve from a fresh get_app_state, or bring the target app to the foreground.`,
           );
         }
-      } else if (expectedPid > 0) {
+      } else if (expectedPid > 0 && platform2 !== "win32") {
         const expectedBundle =
           typeof params.expected_bundle_id === "string" ? params.expected_bundle_id : "";
         if (params.expected_window_id !== void 0) {
@@ -2254,6 +3255,171 @@ export function createElectronInputHandlers(options) {
             ? "click: app policy requires the raw coordinate primitive, which is unavailable in this ZCode build."
             : "click (coordinate fallback) is unavailable in this ZCode build.",
         );
+      }
+      // R8（官方 SEA offset 85471173-85474500 区）：win32 专用坐标点击派发——串行
+      // lane + 精确/非精确目标分流 + clickAtPointAsync 异步通道（G4）+ key-hold
+      // 防误路由（G3 click 变体/@85472831）+ 活窗门禁（G2）+ hit-test 模式梯（G6）。
+      if (platform2 === "win32") {
+        return windowsInputDispatchLease.run("click", async () => {
+          // 还原自官方 0.6.5 win32 entry :26738-26739：进 lane 后重验 provenance——
+          // 排队期间的帧/元素漂移在派发前再拦一次（frameAdmissionParams 为入队前
+          // 原始 params，rememberFrameTarget 键不被中途改写丢记忆）。
+          if (params.frame_provenance) await validateFrameProvenance(frameAdmissionParams, "click", [point]);
+          if (params.element_provenance) await validateElementProvenance(params, "click", [point]);
+          const expectedBundle =
+            typeof params.expected_bundle_id === "string" ? params.expected_bundle_id : "";
+          const hasPreciseTarget = expectedPid > 0 && expectedWindowId > 0 && expectedBundle;
+          if (!hasPreciseTarget) {
+            if (expectedPid > 0) {
+              if (params.expected_window_id !== void 0) {
+                if (!expectedBundle)
+                  throw permissionDenied(
+                    "click: window-scoped raw input requires expected_bundle_id. action_sent=false.",
+                    { action_sent: false },
+                  );
+                activateConcreteWindow(
+                  adapter,
+                  expectedPid,
+                  expectedBundle,
+                  params.expected_window_id,
+                  "click",
+                );
+              }
+              await assertExpectedPidIsFrontmost(axSource, expectedPid, point, "click");
+            }
+            assertGlobalInputAllowed(adapter, "click");
+            // G4（缺 ABI 拒绝文案锚 85471771）：非精确目标的坐标点击必须走异步原语
+            //（同步 clickAtPoint 会在 SendInput 语义下丢失投放确认），缺 ABI 即拒绝。
+            if (typeof adapter.clickAtPointAsync !== "function") {
+              throw notAuthorized(
+                "click: this ZCode build lacks the async foreground click primitive; input refused. action_sent=false.",
+                { action_sent: false },
+              );
+            }
+            const clickResult =
+              expectedPid > 0
+                ? await adapter.clickAtPointAsync(
+                    point.x,
+                    point.y,
+                    button,
+                    clicks,
+                    modifiers,
+                    expectedPid,
+                    expectedWindowId || void 0,
+                  )
+                : await adapter.clickAtPointAsync(point.x, point.y, button, clicks, modifiers);
+            assertNativeInputSucceeded(clickResult, "click");
+            // 还原自官方 0.6.5 win32 entry :26767-26780：非精确目标（无 pid+window+
+            // bundle 三元组）的前台点击也带投递封套——reason 区分仅 pid
+            //（imprecise_target_pid_only）与全无（imprecise_target）。
+            return appendResolvedAppRef(
+              {
+                method: "click",
+                delivery: finalizeDelivery(
+                  appendAttempt(null, {
+                    path: "foreground_send_input",
+                    dispatch_status: "sent",
+                    reason: expectedPid > 0 ? "imprecise_target_pid_only" : "imprecise_target",
+                  }),
+                ),
+              },
+              params,
+            );
+          }
+          const dispatchForeground = async () => {
+            // 还原自官方 :26793：前台升级点击同样过独立 surface 物理输入门禁。
+            assertWindowsPhysicalAssociation(expectedWindowId);
+            assertGlobalInputAllowed(adapter, "click");
+            // G3 click 变体（文案锚 85472831）：key hold 未释放时拒绝为点击切前台。
+            if (adapter.hasActiveInputHolds?.()) {
+              throw permissionDenied(
+                "refused to bring pid in front for a click because another key hold is still active. action_sent=false.",
+                { action_sent: false, reason: "input_hold_active" },
+              );
+            }
+            const restore = foregroundRestoreScope(adapter);
+            restore.snapshotBefore();
+            try {
+              const context = adapter.frameWindowContext?.(expectedWindowId);
+              if (context?.is_menu || context?.operation_foreground_host_window_id) {
+                await windowsForegroundWindowGate({
+                  axSource,
+                  windowContext: adapter.frameWindowContext?.bind(adapter),
+                  target: { pid: expectedPid, bundleId: expectedBundle, windowId: expectedWindowId },
+                  activateWindow: () => false,
+                  method: "click",
+                });
+              } else {
+                activateConcreteWindow(adapter, expectedPid, expectedBundle, expectedWindowId, "click");
+                await assertExpectedPidIsFrontmost(axSource, expectedPid, point, "click");
+              }
+              restore.snapshotAfterActivate();
+              assertGlobalInputAllowed(adapter, "click");
+              if (typeof adapter.clickAtPointAsync !== "function") {
+                throw notAuthorized(
+                  "click: this ZCode build lacks the async foreground click primitive; input refused. action_sent=false.",
+                  { action_sent: false },
+                );
+              }
+              assertNativeInputSucceeded(
+                await adapter.clickAtPointAsync(
+                  point.x,
+                  point.y,
+                  button,
+                  clicks,
+                  modifiers,
+                  expectedPid,
+                  expectedWindowId,
+                ),
+                "click",
+              );
+            } finally {
+              restore.restore();
+            }
+          };
+          // 官方 classify fallback（classifyPostMessageDelivery ABI 缺失时）：
+          // {delivery: "deliverable", host: "unknown"}——梯级继续而非拒绝。
+          const classifyFallback = () => ({ delivery: "deliverable", host: "unknown" });
+          const classifyWith = adapter.classifyPostMessageDelivery
+            ? (windowId, kind) => {
+                const r = adapter.classifyPostMessageDelivery(windowId, kind);
+                return r === false || typeof r !== "object" ? classifyFallback() : r;
+              }
+            : classifyFallback;
+          let chromiumHost = false;
+          if (adapter.classifyPostMessageDelivery) {
+            const probe = adapter.classifyPostMessageDelivery(expectedWindowId, "mouse_click");
+            chromiumHost = typeof probe === "object" && probe !== null && probe.host === "chromium";
+          }
+          const { result, delivery } = await dispatchWindowsClick(
+            {
+              hitTestInvokeAtPointAsync: adapter.hitTestInvokeAtPointAsync,
+              postMessageClickAsync: adapter.postMessageClickAsync,
+              clickAtPoint: adapter.clickAtPoint,
+            },
+            {
+              windowId: expectedWindowId,
+              pid: expectedPid,
+              bundleId: expectedBundle,
+              x: point.x,
+              y: point.y,
+              button,
+              clicks,
+              modifiers,
+              forceForeground: forceRawEvent,
+              isChromiumHost: chromiumHost,
+              classify: classifyWith,
+              dispatchForeground,
+              method: "click",
+            },
+          );
+          // 还原自官方 :26882：结果带 delivery 轨迹 + 记忆帧目标三参回执。
+          return appendResolvedAppRef(
+            { ...result, delivery },
+            params,
+            validatedFrameTargetByParams.get(params),
+          );
+        });
       }
       assertGlobalInputAllowed(adapter, "click");
       const clickResult =
@@ -2399,9 +3565,14 @@ export function createElectronInputHandlers(options) {
       return adapter.pipIsRunning();
     },
     scroll: async (params) => {
+      // 还原自官方 0.6.5 win32 entry :27014-27019：admissionParams 记入队前原始
+      // params；frame + element 双 provenance 校验（element 原始入参作 original，
+      // rememberFrameTarget 键不丢）。
+      const admissionParams = params;
       const provenancePoint = extractPoint(params.point);
       if (provenancePoint) {
         params = await validateFrameProvenance(params, "scroll", [provenancePoint]);
+        params = await validateElementProvenance(params, "scroll", [provenancePoint], admissionParams);
       }
       refusePointerSequenceIfBusy("scroll");
       if (macBackgroundMode) {
@@ -2447,16 +3618,78 @@ export function createElectronInputHandlers(options) {
       if (amount === 0) return appendResolvedAppRef(null, params);
       assertGlobalInputAllowed(adapter, "scroll");
       if (platform2 === "win32") {
+        // R8（官方 SEA offset 85483300-85484600 区）：win32 app_ref 滚动走串行 lane +
+        // key-hold 防误路由（G3 scroll 变体/@85484612）+ 前台恢复 scope + 显式激活链。
+        // W3（还原至官方 0.6.5 win32 entry :27071-27140 完整形态）：strategy!=event
+        // 时先尝试 postMessage 后台滚动（dispatchWindowsBackgroundScroll，mouse_scroll
+        // 矩阵），非全 not_sent 即 window_event 终态；进 lane 后重验 provenance +
+        // assertWindowsPhysicalAssociation；前台滚动成功后 foreground_send_input
+        // sent attempt 并轨封套返回（foreground_event）。
         return (async () => {
-          await resolveWindowsPointerIdentity(axSource, params.app_ref, point, "scroll");
+          const identity = await requirePointerAppPid(axSource, params.app_ref, "scroll");
           refusePointerSequenceIfBusy("scroll");
-          assertNativeInputSucceeded(adapter.moveTo(point.x, point.y), "scroll:move_to");
-          await waitForCursorToSettle(adapter, point, "scroll:move_to");
-          refusePointerSequenceIfBusy("scroll");
-          assertNativeInputSucceeded(
-            adapter.scrollAt(point.x, point.y, amount, direction),
-            "scroll",
-          );
+          let backgroundDelivery = null;
+          if (params.strategy !== "event") {
+            backgroundDelivery = await dispatchWindowsBackgroundScroll({
+              adapter,
+              pid: identity.pid,
+              windowId: identity.windowId ?? void 0,
+              direction,
+              amount,
+              method: "scroll",
+            });
+            if (backgroundDelivery && backgroundDelivery.attempts.some((a) => a.dispatch_status !== "not_sent")) {
+              return appendResolvedAppRef({ method: "window_event", delivery: backgroundDelivery }, params);
+            }
+          }
+          await windowsInputDispatchLease.run("scroll", async () => {
+            if (params.frame_provenance) await validateFrameProvenance(admissionParams, "scroll", [point]);
+            if (params.element_provenance) await validateElementProvenance(params, "scroll", [point]);
+            assertWindowsPhysicalAssociation(
+              typeof params.expected_window_id === "number" ? params.expected_window_id : void 0,
+            );
+            if (adapter.hasActiveInputHolds?.()) {
+              throw permissionDenied(
+                "scroll: refused to bring the target to the foreground because another key hold is still active. action_sent=false.",
+                { action_sent: false, reason: "input_hold_active" },
+              );
+            }
+            const restore = foregroundRestoreScope(adapter);
+            restore.snapshotBefore();
+            try {
+              activateConcreteWindow(
+                adapter,
+                identity.pid,
+                identity.bundleId,
+                identity.windowId,
+                "scroll",
+              );
+              await assertExpectedPidIsFrontmost(axSource, identity.pid, point, "scroll");
+              restore.snapshotAfterActivate();
+              assertNativeInputSucceeded(adapter.moveTo(point.x, point.y), "scroll:move_to");
+              await waitForCursorToSettle(adapter, point, "scroll:move_to");
+              assertNativeInputSucceeded(
+                adapter.scrollAt(point.x, point.y, amount, direction),
+                "scroll",
+              );
+            } finally {
+              restore.restore();
+            }
+          });
+          if (backgroundDelivery) {
+            return appendResolvedAppRef(
+              {
+                method: "foreground_event",
+                delivery: finalizeDelivery(
+                  appendAttempt(backgroundDelivery, {
+                    path: "foreground_send_input",
+                    dispatch_status: "sent",
+                  }),
+                ),
+              },
+              params,
+            );
+          }
           return appendResolvedAppRef(null, params);
         })();
       }
@@ -2503,10 +3736,14 @@ export function createElectronInputHandlers(options) {
       })();
     },
     drag: async (params) => {
+      // 还原自官方 0.6.5 win32 entry :27191-27197：admissionParams 记入队前原始
+      // params；frame + element 双 provenance 校验（element 原始入参作 original）。
+      const admissionParams = params;
       const provenanceStart = extractPoint(params.start);
       const provenanceEnd = extractPoint(params.end);
       if (provenanceStart && provenanceEnd) {
         params = await validateFrameProvenance(params, "drag", [provenanceStart, provenanceEnd]);
+        params = await validateElementProvenance(params, "drag", [provenanceStart, provenanceEnd], admissionParams);
       }
       refusePointerSequenceIfBusy("drag");
       combinedDragInFlight = true;
@@ -2558,14 +3795,93 @@ export function createElectronInputHandlers(options) {
         const modifiers = modifiersChordParam(params.modifiers, "drag");
         assertGlobalInputAllowed(adapter, "drag");
         if (platform2 === "win32") {
-          await resolveWindowsPointerIdentity(axSource, params.app_ref, start, "drag");
-          await withSyntheticModifiers(adapter, modifiers, "drag", async () => {
-            assertNativeInputSucceeded(
-              await adapter.drag(start.x, start.y, end.x, end.y, "left"),
-              "drag",
+          // R8（官方 SEA offset 85489300-85490600 区）：win32 拖拽走串行 lane + key-hold
+          // 防误路由（G3 drag 变体/@85490603）+ 前台恢复 scope + 显式激活链；修饰键经
+          // withSyntheticModifiers 合成（与 drag 本体分离）。
+          // W3（还原至官方 0.6.5 win32 entry :27252-27335 完整形态）：strategy!=event
+          // 时先尝试 postMessage 后台拖拽（dispatchWindowsBackgroundDrag，mouse_move
+          // 矩阵），非全 not_sent 即 window_event 终态；进 lane 后重验 provenance +
+          // assertWindowsPhysicalAssociation；前台拖拽成功后 foreground_send_input
+          // sent attempt 并轨封套返回（foreground_event，strategy=event 时 reason=
+          // explicit_event_strategy）。
+          const escalatedResult = await windowsInputDispatchLease.run("drag", async () => {
+            if (params.frame_provenance)
+              await validateFrameProvenance(admissionParams, "drag", [start, end]);
+            if (params.element_provenance) await validateElementProvenance(params, "drag", [start, end]);
+            const identity = await requirePointerAppPid(axSource, params.app_ref, "drag");
+            let backgroundDelivery = null;
+            if (params.strategy !== "event") {
+              backgroundDelivery = await dispatchWindowsBackgroundDrag({
+                adapter,
+                pid: identity.pid,
+                windowId: identity.windowId ?? void 0,
+                start,
+                end,
+                method: "drag",
+              });
+              if (backgroundDelivery && backgroundDelivery.attempts.some((a) => a.dispatch_status !== "not_sent")) {
+                return appendResolvedAppRef({ method: "window_event", delivery: backgroundDelivery }, params);
+              }
+            }
+            assertWindowsPhysicalAssociation(
+              typeof params.expected_window_id === "number" ? params.expected_window_id : void 0,
+            );
+            if (adapter.hasActiveInputHolds?.()) {
+              throw permissionDenied(
+                "drag: refused to bring pid in front because another key hold is still active. action_sent=false.",
+                { action_sent: false, reason: "input_hold_active" },
+              );
+            }
+            const restore = foregroundRestoreScope(adapter);
+            restore.snapshotBefore();
+            try {
+              activateConcreteWindow(
+                adapter,
+                identity.pid,
+                identity.bundleId,
+                identity.windowId,
+                "drag",
+              );
+              await assertExpectedPidIsFrontmost(axSource, identity.pid, start, "drag");
+              restore.snapshotAfterActivate();
+              await withSyntheticModifiers(adapter, modifiers, "drag", async () => {
+                assertNativeInputSucceeded(
+                  await adapter.drag(start.x, start.y, end.x, end.y, "left"),
+                  "drag",
+                );
+              });
+            } finally {
+              restore.restore();
+            }
+            if (backgroundDelivery) {
+              return appendResolvedAppRef(
+                {
+                  method: "foreground_event",
+                  delivery: finalizeDelivery(
+                    appendAttempt(backgroundDelivery, {
+                      path: "foreground_send_input",
+                      dispatch_status: "sent",
+                    }),
+                  ),
+                },
+                params,
+              );
+            }
+            return appendResolvedAppRef(
+              {
+                method: "foreground_event",
+                delivery: finalizeDelivery(
+                  appendAttempt(null, {
+                    path: "foreground_send_input",
+                    dispatch_status: "sent",
+                    ...(params.strategy === "event" ? { reason: "explicit_event_strategy" } : {}),
+                  }),
+                ),
+              },
+              params,
             );
           });
-          return appendResolvedAppRef(null, params);
+          return escalatedResult;
         }
         const identity = params.app_ref
           ? await requirePointerAppPid(axSource, params.app_ref, "drag")
@@ -2603,244 +3919,58 @@ export function createElectronInputHandlers(options) {
         combinedDragInFlight = false;
       }
     },
-    // 原版 63 表方法（第十轮重放）：分离按下。全局路径持有 buttonHolder 所有权，
-    // mouse_up 只允许同一 session_key 释放；后台路径走 window ABI 并记录
-    // backgroundButtonHold 供 mouse_up / 终清按原目标释放。
-    mouse_down: async (params) => {
-      const provenancePoint = extractPoint(params.point);
-      if (provenancePoint) {
-        params = await validateFrameProvenance(params, "mouse_down", [provenancePoint]);
-      }
-      refuseCombinedDragIfBusy("mouse_down");
-      if (macBackgroundMode) {
-        if (typeof adapter.mouseDownToWindow !== "function") {
-          throw notAuthorized(
-            "mouse_down: macOS background pointer ABI is unavailable; global fallback is disabled.",
-          );
-        }
-        const backgroundSessionKey = pointerSessionKeyParam(params.session_key, "mouse_down");
-        if (buttonHolder !== null) {
-          throw permissionDenied(
-            "mouse_down refused: a session already holds the button. action_sent=false.",
-            { action_sent: false, reason: "button_already_held" },
-          );
-        }
-        const backgroundPoint = extractPoint(params.point);
-        if (!backgroundPoint) {
-          throw permissionDenied("mouse_down requires point {x, y} as numbers.");
-        }
-        const backgroundButton = typeof params.button === "string" ? params.button : "left";
-        claimSplitDown(backgroundSessionKey);
-        try {
-          const target = await resolveMacBackgroundTarget(params, "mouse_down");
-          const result = await adapter.mouseDownToWindow(
-            target.pid,
-            target.bundleId,
-            target.windowId,
-            target.bounds,
-            backgroundPoint.x,
-            backgroundPoint.y,
-            backgroundButton,
-            ...provenAttachedSurfaceArgs(target),
-          );
-          const delivery = assertMacBackgroundMouseDownSucceeded(result, "mouse_down");
-          buttonHolder = backgroundSessionKey;
-          backgroundButtonHold = { target, point: backgroundPoint };
-          if (delivery === "retain_for_cleanup") {
-            throw elementUnavailable(
-              "mouse_down: native delivery became ambiguous after attempting the background down; ownership was retained for cleanup. Do not retry blindly.",
-              {
-                action_sent: true,
-                request_delivery_state: "possibly_sent",
-                reason:
-                  isMacBackgroundMouseDownOutcome(result) && result.reason
-                    ? result.reason
-                    : "background_mouse_down_ambiguous",
-              },
-            );
-          }
-          return appendResolvedAppRef({ method: "window_event" }, params, target);
-        } finally {
-          releaseSplitDownClaim(backgroundSessionKey);
-        }
-      }
-      if (typeof adapter.mouseDown !== "function") {
-        throw notAuthorized("mouse_down is unavailable in this ZCode build.");
-      }
-      if (typeof adapter.moveTo !== "function") {
-        throw notAuthorized(
-          "mouse_down: the coordinate move primitive is unavailable in this ZCode build.",
-        );
-      }
-      const sessionKey = pointerSessionKeyParam(params.session_key, "mouse_down");
-      if (buttonHolder !== null) {
-        const who =
-          buttonHolder === sessionKey
-            ? "this session already holds"
-            : "another MCP session already holds";
-        throw permissionDenied(
-          `mouse_down refused: ${who} the left mouse button. This request did not send another press; action_sent=false. Wait for mouse_up or stop_computer_control.`,
-          {
-            action_sent: false,
-            reason:
-              buttonHolder === sessionKey
-                ? "session_already_holds_button"
-                : "another_session_holds_button",
-          },
-        );
-      }
-      const point = extractPoint(params.point);
-      if (!point) {
-        throw permissionDenied(
-          "mouse_down requires point {x, y} as numbers (resolved from target).",
-        );
-      }
-      const button = typeof params.button === "string" ? params.button : "left";
-      assertGlobalInputAllowed(adapter, "mouse_down");
-      claimSplitDown(sessionKey);
-      try {
-        if (platform2 === "win32") {
-          await resolveWindowsPointerIdentity(axSource, params.app_ref, point, "mouse_down");
-          assertNativeInputSucceeded(adapter.moveTo(point.x, point.y), "mouse_down:move_to");
-          assertNativeInputSucceeded(adapter.mouseDown(button), "mouse_down");
-          buttonHolder = sessionKey;
-          return appendResolvedAppRef(null, params);
-        }
-        if (!params.app_ref) {
-          assertNativeInputSucceeded(adapter.moveTo(point.x, point.y), "mouse_down:move_to");
-          await waitForCursorToSettle(adapter, point, "mouse_down:move_to");
-          assertNativeInputSucceeded(adapter.mouseDown(button), "mouse_down");
-          buttonHolder = sessionKey;
-          return appendResolvedAppRef(null, params);
-        }
-        const identity = await requirePointerAppPid(axSource, params.app_ref, "mouse_down");
-        activateConcreteWindow(
-          adapter,
-          identity.pid,
-          identity.bundleId,
-          identity.windowId,
-          "mouse_down",
-        );
-        await assertExpectedPidIsFrontmost(axSource, identity.pid, point, "mouse_down");
-        assertNativeInputSucceeded(
-          adapter.moveTo(point.x, point.y, identity.pid, identity.windowId ?? void 0),
-          "mouse_down:move_to",
-        );
-        await waitForCursorToSettle(adapter, point, "mouse_down:move_to");
-        assertNativeInputSucceeded(adapter.mouseDown(button), "mouse_down");
-        buttonHolder = sessionKey;
-        return appendResolvedAppRef(null, params);
-      } finally {
-        releaseSplitDownClaim(sessionKey);
-      }
-    },
-    mouse_up: async (params) => {
-      if (macBackgroundMode) {
-        if (typeof adapter.mouseUpToWindow !== "function") {
-          throw notAuthorized(
-            "mouse_up: macOS background pointer ABI is unavailable; global fallback is disabled.",
-          );
-        }
-        const backgroundSessionKey = pointerSessionKeyParam(params.session_key, "mouse_up");
-        if (buttonHolder === null || backgroundButtonHold === null) {
-          throw permissionDenied(
-            "mouse_up refused: this session is not holding a background button. action_sent=false.",
-            { action_sent: false, reason: "session_does_not_hold_button" },
-          );
-        }
-        if (buttonHolder !== backgroundSessionKey) {
-          throw permissionDenied(
-            "mouse_up refused: another session holds the background button. action_sent=false.",
-            { action_sent: false, reason: "another_session_holds_button" },
-          );
-        }
-        const backgroundButton = typeof params.button === "string" ? params.button : "left";
-        const held = backgroundButtonHold;
-        let released = false;
-        try {
-          released =
-            (await adapter.mouseUpToWindow(
-              held.target.pid,
-              held.target.bundleId,
-              held.target.windowId,
-              held.target.bounds,
-              held.point.x,
-              held.point.y,
-              backgroundButton,
-              ...provenAttachedSurfaceArgs(held.target),
-            )) === true;
-        } catch {
-          released = false;
-        }
-        if (!released && typeof adapter.mouseUpToPid === "function") {
-          try {
-            released = adapter.mouseUpToPid(held.target.pid, backgroundButton) !== false;
-          } catch {
-            released = false;
-          }
-        }
-        if (!released) {
-          throw elementUnavailable(
-            "mouse_up: both the window-scoped and pid-scoped release failed. The button may still be held; retry mouse_up or stop_computer_control. Do not retry blindly.",
-            {
-              action_sent: true,
-              request_delivery_state: "possibly_sent",
-              reason: "background_mouse_up_exhausted",
-            },
-          );
-        }
-        buttonHolder = null;
-        backgroundButtonHold = null;
-        return appendResolvedAppRef({ method: "window_event" }, params, held.target);
-      }
-      if (typeof adapter.mouseUp !== "function") {
-        throw notAuthorized("mouse_up is unavailable in this ZCode build.");
-      }
-      const sessionKey = pointerSessionKeyParam(params.session_key, "mouse_up");
-      if (buttonHolder === null) {
-        throw permissionDenied(
-          "mouse_up refused: this MCP session is not holding the left mouse button. This request did not send a release; action_sent=false. It only releases a button previously pressed by mouse_down.",
-          { action_sent: false, reason: "session_does_not_hold_button" },
-        );
-      }
-      if (buttonHolder !== sessionKey) {
-        throw permissionDenied(
-          "mouse_up refused: another MCP session holds the left mouse button. This request did not send a release; action_sent=false. Wait for that session to call mouse_up or stop_computer_control.",
-          { action_sent: false, reason: "another_session_holds_button" },
-        );
-      }
-      const button = typeof params.button === "string" ? params.button : "left";
-      assertGlobalInputAllowed(adapter, "mouse_up");
-      assertNativeInputSucceeded(adapter.mouseUp(button), "mouse_up");
-      buttonHolder = null;
-      return null;
-    },
+    // 清退（2026-11-10 R10 后续）：mouse_down/mouse_up 两个 3.11.2 血统 broker
+    // 方法 handler 整体删除——方法名在官方 0.6.5 win entry 与 mac SEA（3.17.2）双
+    // 零命中（这两词仅以 accepts_left_mouse_down capture 字段与
+    // mouse_down_to_window/mouse_up_to_window 后台 ABI 名存活）；官方 v3.1 协议瘦身
+    // 49→43（win entry :19750 墓碑）。保留边界：adapter.mouseDown/mouseUp/mouseUpToPid
+    // 的 adapter 面不删（官方 win entry :32075-32085 逐字保留，mouseUpToPid 注释
+    // surfaced ONLY as the bounded cleanup release）；分离按下所有权状态机
+    // （buttonHolder/splitDownInFlight/claimSplitDown/requirePointerMoveOwnership）
+    // 随 handler 一并退役，指针门禁对齐官方仅剩 combinedDragInFlight 单态
+    //（win entry :26041-26052）。
     type_text: (params) => {
       if (macBackgroundMode) refuseTargetlessMacGlobalInput("type_text");
-      if (typeof adapter.typeTextGlobal !== "function") {
+      // R8/G1（官方 SEA offset 85493700-85494700 区）：win32 走串行 lane +
+      // typeTextGlobalAsync 截断双语义（与 type_text_to_app 同族，文案前缀 type_text）；
+      // 同步 ABI 缺失且无异步原语时才拒绝。mac（136 面）走同步路径不变。
+      const useWindowsAsync =
+        platform2 === "win32" && typeof adapter.typeTextGlobalAsync === "function";
+      if (typeof adapter.typeTextGlobal !== "function" && !useWindowsAsync) {
         throw notAuthorized("type_text is unavailable in this ZCode build.");
       }
       const text = syntheticTextParam(params.text, "type_text");
       if (!text) return null;
+      if (platform2 === "win32") {
+        return windowsPhysicalLaneFor(adapter).run("type_text", async () => {
+          assertGlobalInputAllowed(adapter, "type_text");
+          if (!useWindowsAsync) {
+            assertNativeInputSucceeded(adapter.typeTextGlobal(text), "type_text");
+            return null;
+          }
+          const typed = await adapter.typeTextGlobalAsync(text);
+          if (!typed.ok) {
+            const sentAny = typed.sent > 0;
+            throw elementUnavailable(
+              sentAny
+                ? `type_text: text injection truncated after ${typed.sent}/${typed.total} characters; the prefix possibly landed. Do not replay; re-observe before retrying.`
+                : "type_text: text injection failed before any character was sent.",
+              {
+                action_sent: sentAny,
+                reason: sentAny ? "text_truncated" : "text_injection_failed",
+              },
+            );
+          }
+          return null;
+        });
+      }
       assertGlobalInputAllowed(adapter, "type_text");
       assertNativeInputSucceeded(adapter.typeTextGlobal(text), "type_text");
       return null;
     },
-    // 原版 63 表方法（第十轮重放）：与 type_text 同一全局注入原语，语义上独立成
-    // 方法是为了让调用方显式声明「目标是当前焦点」而非坐标目标。
-    type_text_into_current_focus: (params) => {
-      if (macBackgroundMode) {
-        refuseTargetlessMacGlobalInput("type_text_into_current_focus");
-      }
-      if (typeof adapter.typeTextGlobal !== "function") {
-        throw notAuthorized("type_text_into_current_focus is unavailable in this ZCode build.");
-      }
-      const text = syntheticTextParam(params.text, "type_text_into_current_focus");
-      if (!text) return null;
-      assertGlobalInputAllowed(adapter, "type_text_into_current_focus");
-      assertNativeInputSucceeded(adapter.typeTextGlobal(text), "type_text_into_current_focus");
-      return null;
-    },
+    // 清退（2026-11-10 R10 后续）：type_text_into_current_focus handler 已随
+    // 方法删除——方法名双官方构建零命中；其全局注入原语 adapter.typeTextGlobal
+    // 由存续的 type_text/type_text_to_app 继续使用。
     press_key: async (params) => {
       if (macBackgroundMode) refuseTargetlessMacGlobalInput("press_key");
       if (typeof adapter.pressKeyGlobal !== "function") {
@@ -2884,28 +4014,42 @@ export function createElectronInputHandlers(options) {
       adapter.hideVirtualPointer?.();
       return null;
     },
-    // 原版 63 表方法（第十轮重放）：分离 key_down/key_up（游戏式按住、组合和弦）。
-    // 与 hold_key 不同：无时长、无自动释放，必须由同会话显式 key_up 或
-    // cancel_input_holds 收尾。
-    key_down: (params) => {
-      if (macBackgroundMode) refuseTargetlessMacGlobalInput("key_down");
-      if (typeof adapter.keyDownGlobal !== "function") {
-        throw notAuthorized("key_down is unavailable in this ZCode build.");
-      }
-      const key = keyChordParam(params.key, "key_down", "key");
-      assertGlobalInputAllowed(adapter, "key_down");
-      assertNativeInputSucceeded(adapter.keyDownGlobal(key), "key_down");
-      return null;
-    },
-    key_up: (params) => {
-      if (macBackgroundMode) refuseTargetlessMacGlobalInput("key_up");
-      if (typeof adapter.keyUpGlobal !== "function") {
-        throw notAuthorized("key_up is unavailable in this ZCode build.");
-      }
-      const key = keyChordParam(params.key, "key_up", "key");
-      assertGlobalInputAllowed(adapter, "key_up");
-      assertNativeInputSucceeded(adapter.keyUpGlobal(key), "key_up");
-      return null;
-    },
+    // 清退（2026-11-10 R10 后续）：key_down/key_up handler 已随方法删除——
+    // 方法名双官方构建零命中（仅以 "modifiers require the key_down/key_up native
+    // primitives" 错误文案存活，win entry :24559，供 press_key/hold_key 的修饰键
+    // 合成链 withSyntheticModifiers 使用）；adapter.keyDownGlobal/keyUpGlobal 保留。
   };
+  // 还原自发行 bundle（官方 0.6.5 win32 entry :27461-27485）：win32 六方法后置
+  // 包装——成功结果未带 dispatch_surface 时统一经 appendResolvedAppRef 补发投递
+  // 面（优先 validatedFrameTargetByParams 记忆的帧目标）；element_provenance 校验
+  // 失败且无记忆目标时原样上抛，BrokerError 且有记忆目标时把 details 也补上
+  // resolved_app_ref/dispatch_surface（消费端凭它对齐应用身份）。*_to_app 方法
+  // 的 params 做浅拷贝（记忆 WeakMap 挂原始入参，不被中途改写丢键）。
+  if (platform2 === "win32") {
+    for (const method of ["click", "scroll", "drag", "type_text_to_app", "press_key_to_app", "hold_key_to_app"]) {
+      const handler = handlers[method];
+      if (!handler) continue;
+      handlers[method] = async (inputParams) => {
+        const params = method.endsWith("_to_app") ? { ...inputParams } : inputParams;
+        try {
+          const result = await handler(params);
+          if (result && typeof result === "object" && "dispatch_surface" in result) return result;
+          return appendResolvedAppRef(result, params, validatedFrameTargetByParams.get(params));
+        } catch (error) {
+          if (params.element_provenance && !validatedFrameTargetByParams.has(params)) throw error;
+          const remembered = validatedFrameTargetByParams.get(params);
+          if (error instanceof BrokerError) {
+            if (!remembered) throw error;
+            throw new BrokerError(
+              error.code,
+              error.message,
+              appendResolvedAppRef({ ...error.details }, params, remembered) ?? {},
+            );
+          }
+          throw error;
+        }
+      };
+    }
+  }
+  return handlers;
 }

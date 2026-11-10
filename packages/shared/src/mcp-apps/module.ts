@@ -7,5 +7,5 @@ export const mcpAppsProtocolModule = {
   id: "mcp-apps-protocol",
   requires: [],
   provides: ["mcp-apps-protocol"],
-  publicEntrypoints: ["index.ts", "contract.ts"],
+  publicEntrypoints: ["index.ts", "contract.ts", "hostContract.ts"],
 } as const;

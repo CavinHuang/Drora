@@ -10,149 +10,93 @@ import {
   runWithBrokerCancelSignal,
 } from "./errors.js";
 import {
-  cursorPositionSchema,
   displayActionTools,
-  doubleClickSchema,
   getAppStateSchema,
-  holdKeySchema,
   keySchema,
   keyboardRuntimeTools,
   leftClickDragSchema,
   leftClickSchema,
-  leftMouseDownSchema,
-  leftMouseUpSchema,
   listAppsSchema,
-  listDisplaysSchema,
   listWindowsSchema,
-  middleClickSchema,
-  mouseMoveSchema,
   observationTools,
-  openApplicationSchema,
+  pasteSchema,
   performActionSchema,
   pointerTools,
-  readClipboardSchema,
   requestAccessSchema,
-  rightClickSchema,
   runWithSession,
-  screenshotSchema,
   scrollSchema,
   selectTextSchema,
   setValueSchema,
   stopComputerControlSchema,
-  switchDisplaySchema,
   toolAnnotationsFor,
   toolKillSwitch,
-  tripleClickSchema,
   typeSchema,
-  waitSchema,
-  writeClipboardSchema,
-  zoomSchema,
 } from "./session.js";
+// 还原自 0.6.5 切段 :40407-40428（R4.3，方案 specs/cua-gap-remediation-2026-11-09.md）：
+// TOOL_NAMES 按官方 0.6.5 十四工具面刷新——新增 paste，剔除 17 个非官方项
+// （open_application/screenshot/zoom/list_displays/switch_display/cursor_position/
+// double_click/triple_click/right_click/middle_click/mouse_move/left_mouse_down/
+// left_mouse_up/hold_key/wait/read_clipboard/write_clipboard）。
+// 被剔除项的 ToolDef 仍保留在 session.ts 各数组（经包入口导出），只是不再注册为
+// MCP 工具；SCHEMA_BY_NAME/APP_ASSOCIATION_MODE_BY_TOOL 同步按切段 :40429-40465 对齐。
 var TOOL_NAMES = [
-  // OBSERVATION (9)
+  // OBSERVATION (3)
   "list_apps",
-  "open_application",
   "list_windows",
   "get_app_state",
-  "screenshot",
-  "zoom",
-  "list_displays",
-  "switch_display",
-  "cursor_position",
-  // POINTER (10)
+  // POINTER (3)
   "left_click",
-  "double_click",
-  "triple_click",
-  "right_click",
-  "middle_click",
   "scroll",
   "left_click_drag",
-  "mouse_move",
-  "left_mouse_down",
-  "left_mouse_up",
-  // KEYBOARD (5)
+  // KEYBOARD (4)
   "type",
   "set_value",
   "select_text",
   "key",
-  "hold_key",
   // SEMANTIC (1)
   "perform_action",
-  // RUNTIME (5)
+  // PASTE (1)
+  "paste",
+  // RUNTIME (2)
   "request_access",
   "stop_computer_control",
-  "wait",
-  "read_clipboard",
-  "write_clipboard",
 ];
 var APP_ASSOCIATION_MODE_BY_TOOL = {
   list_apps: "items",
-  open_application: "primary",
   list_windows: "primary",
   get_app_state: "primary",
-  screenshot: "none",
-  zoom: "primary",
-  list_displays: "none",
-  switch_display: "none",
-  cursor_position: "none",
   left_click: "primary",
-  double_click: "primary",
-  triple_click: "primary",
-  right_click: "primary",
-  middle_click: "primary",
   scroll: "primary",
   left_click_drag: "primary",
-  mouse_move: "primary",
-  left_mouse_down: "primary",
-  left_mouse_up: "primary",
   type: "primary",
   set_value: "primary",
   select_text: "primary",
   key: "primary",
-  hold_key: "primary",
   perform_action: "primary",
+  paste: "primary",
   request_access: "none",
   stop_computer_control: "none",
-  wait: "none",
-  read_clipboard: "none",
-  write_clipboard: "none",
 };
 var SCHEMA_BY_NAME = {
   // observation
   list_apps: listAppsSchema,
-  open_application: openApplicationSchema,
   list_windows: listWindowsSchema,
   get_app_state: getAppStateSchema,
-  screenshot: screenshotSchema,
-  zoom: zoomSchema,
-  list_displays: listDisplaysSchema,
-  switch_display: switchDisplaySchema,
-  cursor_position: cursorPositionSchema,
   // pointer
   left_click: leftClickSchema,
-  double_click: doubleClickSchema,
-  triple_click: tripleClickSchema,
-  right_click: rightClickSchema,
-  middle_click: middleClickSchema,
   scroll: scrollSchema,
   left_click_drag: leftClickDragSchema,
-  mouse_move: mouseMoveSchema,
-  left_mouse_down: leftMouseDownSchema,
-  left_mouse_up: leftMouseUpSchema,
   // keyboard
   type: typeSchema,
   set_value: setValueSchema,
   select_text: selectTextSchema,
   key: keySchema,
-  hold_key: holdKeySchema,
   // semantic
   perform_action: performActionSchema,
+  paste: pasteSchema,
   // runtime
   request_access: requestAccessSchema,
   stop_computer_control: stopComputerControlSchema,
-  wait: waitSchema,
-  read_clipboard: readClipboardSchema,
-  write_clipboard: writeClipboardSchema,
 };
 var TOOL_REGISTRY = TOOL_NAMES.map((name) => ({
   name,

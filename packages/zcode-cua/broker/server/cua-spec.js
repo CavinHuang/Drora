@@ -40,6 +40,9 @@ export var ZU = [
     "element_set_value",
     "element_perform_action",
     "element_select_text",
+    // 还原自发行 bundle（官方 3.17.2 / 0.6.5）：BROKER_METHODS 42→43 的唯一增量
+    // （zcode-cua-0.6.5.index.js；官方 SEA offset 85184509）。
+    "element_scroll",
     "paste",
     "prevent_activation",
     "reenable_activation",

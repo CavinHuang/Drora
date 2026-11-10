@@ -81,6 +81,8 @@ packages/desktop/resources/glm-natives-3.14.3/
 # reverse 构建中间产物(node-gyp vcxproj 等)与端到端验收的运行时输出不入库
 packages/zcode-cua-helper/native/reverse/build/
 packages/zcode-cua-helper/native/reverse/.matrix-*.json
+# 官方参照资产入仓(gitignored, mac 先例=cua-helper-3.11.2-reference; spec: specs/win32-cua-0.6.5-implementation-design.md §四 L0.6)
+packages/zcode-cua-helper/native/reverse/reference/
 # macOS .app 构建产物（build-cua-helper-app.mjs 输出，spec: specs/mac-cua-helper-app-alignment.md）
 packages/zcode-cua-helper/dist-cua-helper/
 
@@ -109,3 +111,5 @@ packages/desktop/.e2e-home-*/
 # 独立 CLI 包级回归日志
 .drora-cli-test-results/
 .persona-eval-artifacts/
+# 3.14.2→3.17.2 参照物换装：旧参照转 reference（同 3.11.2 先例，P1）
+packages/desktop/resources/cua-helper-3.14.3-reference/

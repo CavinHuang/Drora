@@ -199,6 +199,11 @@ const desktopTsupBundleSecurityOptions = resolveDesktopTsupBundleSecurityOptions
 
 function createSharedDefines() {
   return {
+    // 第二轮 R7.1：还原 CUA 信任门的编译期折叠常量（官方 out/host 同款折叠）。
+    // zcode-cua 豁免区 trust-policy 读 __ZCODE_LOCAL_DEVELOPMENT_RUNTIME__，此前只有
+    // Helper SEA（build-cua-helper-app.mjs）折叠、host bundle 缺 define 回退 NODE_ENV
+    // 判定，生产折叠语义缺失；生产构建折叠 false=非 dev（与官方产品 bundle 一致）。
+    __ZCODE_LOCAL_DEVELOPMENT_RUNTIME__: JSON.stringify(process.env.NODE_ENV !== "production"),
     __DRORA_VERSION__: JSON.stringify(buildMetadata.appVersion),
     __DRORA_MIN_COMPATIBLE_VERSION__: JSON.stringify(buildMetadata.minCompatibleVersion),
     __DRORA_COMMIT__: JSON.stringify(buildMetadata.buildCommitId),

@@ -602,6 +602,12 @@ services `resolveSpawnEnv` → `buildCuaProductHelperAgentEnv`（managed host
   `screen_capture_status`（只读，避免 ping 触发 controller 租约仲裁的环境
   噪声）验证 token 通路 ok / 错 token auth-rejected。typecheck/lint/架构
   门全绿；其余套件回归无漂移。
+- **勘误（2026-11-10，第七十三轮 R1.3）**：上段「现铸造 token → `--token-file`
+  入参」的记档与实现脱节——token 构造当时已提取至
+  `buildStandaloneCuaHelperLaunchArgs`，但主函数 `launchStandaloneCuaHelperForStatus`
+  未改用（「注释称已提取、主函数未改用」，差距审查 H1），产品态该路径实测两次
+  exit(2)。第七十三轮 R1.3 修复：主函数直接调用提取函数（`node.ts:2239`），
+  产品态回归转绿（cuaStandaloneStatusLaunchProduction.node-test.mjs）。
 
 ### 第十八轮：token 模式探针贯通 + standalone token 缓存（2026-09-24）
 
@@ -1563,3 +1569,236 @@ spec §八已改写为修正版。教训：**差距审计必须直接比对"我�
 - **（已清零）方法面遗留**：open_application 已于第十一轮重放完成，63 表全部对齐；
   唯一表偏差仍为有文档的 paste 超集。
 - lint 基线 0 errors；还原包贡献 ~280 条风格 warnings（unused-vars 等），随打磨项消化。
+
+### 第六十七轮：3.17.2 对齐立项——证据基座（2026-11-09）
+
+spec `specs/cua-3.17.2-alignment.md` 落地（四项用户裁定：addon 逆向重建不走拷贝 / 升 0.6.5+Apache-2.0 / win32 维持 0.6.3 随线 / 对齐权威修订为官方 3.17.2 bundle，R3 修订记录入台账 15/16）。本轮只读取证：
+
+- **参照物换装**：`packages/desktop/resources/cua-helper/` ← 官方 3.17.2（addon sha256 `b169b8dc…ceaea`、主可执行 `36ba7e60…cad2b`、plist 3.17.2、buildId `pipeline-326130-a2d1ba73`）；3.14.3 副本转 `cua-helper-3.14.3-reference/`；`tools/parity-mac-helper.mjs` 形态锚标签同步 3.17.2。
+- **官方 SEA 可读性定性**：3.17.2 Helper SEA 的 broker server 层**未混淆**（模块标记 `// packages/zcode-cua/dist/…` 共 77 个 + 中文注释齐全），P4 还原从 token 级雕刻升级为模块级直读。
+- **方法表差分**：BROKER_METHODS 42→**43**，唯一新增 `element_scroll`（offset 85184509，动作域）；`pip_live_probe_*` 六方法墓碑注释在表（49→43 演进记录）。
+- **ghost 模块族证据（offset 锚定）**：`ghostCursorTurnLifecycle.js` 模块 @85745356（shipped 实现=按会话粒度 `hideSessionCursor`/`removeSessionCursor`，已演进过 upstream 设计文档的 `withGhostCursorTurnEndHide` 全局判据）；`GHOST_SESSION_SCOPED_METHODS` 集合 @85567977（~35 原生方法名 + performAction/setValue 元素路径 + windows 模式梯注释）；`withGhostRequestSessionScope` Proxy @85570858（`ghostSetRequestSession(currentBrokerRequestSession())` + `ghostBeginActionWithTitle(0, session, title)`，finally 清空）；`PublishGhostMoveForTarget` @85568704（元素动作成功后发布）。
+- **截图/窗口细化证据**：`normalizeApplicationName` 后缀规范化 @85704745（`.app|\s+app|应用程序|应用$` 剥除 + 尾 app 音节保护）；TCC granted-only 截屏注释在 screenCapture* 模块族（P4 模块还原时逐条取）。
+- **内嵌 sharp 机制**：`lib/load-sharp.js` @85752962——require 链 `ZCODE_CUA_PLUGIN_ROOT/package.json` → SEA `import_meta.url=process.execPath`（即 .app Resources 内 node_modules，嵌入原因）→ `__filename` → `ZCODE_PLUGIN_ROOT` → opt-in cwd。
+- **host dist 切段坐标**（3.17.2 node-repl-host 0.7.0）：zcode-cua 段在尾部 ~4.70M–4.88M（BROKER_METHODS @4772172、两处 `ghostCursorOverlay: true` 恒开 @4792354/@4792470、`element_scroll` @4708555/4709473/4772892）；alias 消费点 `node-repl-host/scripts/build.mjs:44-52`。
+- **addon 静态新基线**（`native/reverse/data/mac-3.17.2-*`）：导出面 96→**136**（运行时内省；PascalCase→camelCase 命名换代 + 真实新增 **48**/移除 8）——ghost 家族 22（含 ghostInit/ghostMove/ghostClickRipple/ghostRenderPng/三自检）、**PiP 原生化 17**（pipBeginTurn/Dismiss/FreezeGroup/GetLeadTarget/SetActiveGroup/StackCount/TaskCompleted 等——PiP 控制面从 SEA JS 下沉原生）、原生粘贴 4（pasteboardAwaitProvidedRead/Begin/Finish/MarkProvidedPasteDispatched）、身份杂项 5（parentProcessPid/responsibleProcessPid/peerCodeSigningSummary/setCpsActivationDisabled）；移除=旧后台输入协议（QueueBackgroundInput/LegacyBackgroundInputRejected）+ 旧目标解析 4（ParseWindowTarget/OptionalGhostTarget*/ParseOptionalKeyboardWindowId）+ ResolveRef/ProjectFrameContentForTest。ObjC 类 52（ZcPip 四件套 UI/ZCodeCuaPasteDataProvider/CAAnimation 动画族/SC* ScreenCaptureKit）；符号 2400；方法 170。
+- **check-bundle-key-parity 双对跑**：① Helper SEA 对——metaKeys/permissionKeys/diagCodes 全 identical；envKeys 原版独有 `ZCODE_CUA_PERMISSION_BROKER_SOCKET`、我方独有 `ZCODE_CUA_PERMISSION_BROKER_TOKEN`（0.6.3→0.6.5 token-env→socket-env 演进，P4 helperMain 还原时落）。② host dist 对——meta/permission/diag 全 identical；原版独有 `ZCODE_CUA_HELPER_ADDON`/`ZCODE_CUA_WIN_HELPER_RECIPE`（P3 切段落带）。
+
+### 第六十八轮：3.17.2 对齐 P4 批——ghost 接线+IPC v3+三处改名漏网点修复（2026-11-09）
+
+spec `specs/cua-3.17.2-alignment.md` P4 批。改动面与证据：
+
+- **IPC v3**（切段配套必改）：`zcode-cua-helper/src/broker/ipcVersion.ts` 2→3（官方 SEA `var CUA_BROKER_IPC_VERSION = 3` @~85211750；门语义不变=客户端>服务端才拒，v2 老客户端兼容；0.6.5 切段客户端为 v3，配 v2 服务端必互拒——本 bump 前树上 node-repl 路径实际已断）。
+- **ghost 接线四件**（全部官方 3.17.2 SEA 证据还原，配 0.6.3 addon 安全 no-op）：① 新模块 `broker/server/ghostCursorTurnLifecycle.ts`（@85745356；shipped=per-session hideSessionCursor/removeSessionCursor，已演进过设计文档）；② brokerServer 请求会话域（AsyncLocalStorage+runWithBrokerRequestSession/currentBrokerRequestSession/ActionTitle+brokerRequestScopeFromParams=pip_session_context 的 session_id/action_title ≤255 无 NUL，@85211920 区；dispatch 包进域 @85241958 同构）；③ nativeAxSource 尾部 GHOST_SESSION_SCOPED_METHODS（58 项全量+官方三段真机修复注释逐字）+ withGhostRequestSessionScope Proxy（@85567977/85570858）；④ helperMain `native = withGhostRequestSessionScope(options.native)` 一次包装下传 + coordinator effects 过生命周期包装（@86540514，hideSessionCursor→ghostSessionTurnEnd?./removeSessionCursor→ghostRemoveSession?.）。
+- **element_scroll 两层能力门控移植**：nativeAxSource `if (typeof addon.scrollElement === "function")` 桥（@85654437）+ axReadOnly `if (source.elementScroll)` handler（@85310963-85312580，参数校验文案逐字 direction up|down|left|right / amount 1..100 / no_scrollable_container）。**运行时内省实证官方 3.17.2 mac addon 亦无 scrollElement 导出**——两侧今日均 no-op，与官方 mac 行为一致（方法在表、后端不实现、优雅降级）。
+- **三处 2026-09-28 改名裁定漏网点修复**（考古定论：非合并回归，是改名 sweep"191 处"漏网、测试未重跑掩盖）：① orphan-reaper `Nh` 期望 id 兜底 Ss→dev.drora.cua-helper（生产形态 env 覆盖通道死路是根因）；② helper-host `vse` adhoc live 复核锚 Ss/DEV 值→Drora 树；③ helper-host `$se` host 期望 id兜底同。三处均 rootDir 折叠故内联+注释，`test/restored-smoke.mjs` 新增 Nh 生产兜底单一出处断言钉住。
+- **3.17.2 SEA 骨架落地**：postject 对新骨架 `memory access out of bounds`→构建脚本 Mach-O 直补回退路径生效，产物可运行（参数校验 fail-closed 出错即证 SEA+JS 正常）；helperMain 报错串证实我方已是 SOCKET 直读形态。
+- **内嵌 node_modules 清单化**：build 脚本 blind ditto→显式清单校验（顶层 @img/detect-libc/semver/sharp + @img 内 3 包；首跑即逮到作用域目录形态后修正），漂移 fail-fast。
+- **版本族**：@drora/drora-cua 0.6.3→0.6.5 + license Apache-2.0（plugin 侧 P2 已先行）。
+- **架构准入**：architecture-policy.yaml `drora-cua-unmanaged-new-files` 补 helper src/**（同先例同理由）。
+
+**验证**：helper 重建 OK；zcode-cua 五测试链全过（restored-smoke/tool-layer/embedded-build-id/mac-launch-contract/**adhoc-distribution-profile ALL OK**=P5 前置身份门探针通过：真发射+live 复核+严格门 fail-closed）；helper tsc + win32 bundle build 无损；architecture:check 三零。**已知残留**：coordinator 的 warn 通道（官方 0.6.5 有、我方未接，P5 批顺手）；P5 逆向重建未开工；真机 ghost 肉眼验收与 release 打包冒烟待用户/发版窗口。
+
+### 第六十九轮：3.17.2 对齐——截图细化核销+warn 通道+P5 5a 启动（2026-11-09）
+
+- **截图细化核销（已对齐，零改动）**：P1 证据清单两项经行为码比对实为 v3.17 合并已吸收——`screenCaptureProbe` 的 granted-only 早退（`status !== "granted"`→probed:false 全 null 形状，官方 review !1460 修复注释逐字同构）与 `macosApplicationResolver.normalizeApplicationName`（`.app|\s+app|应用程序|应用$` 剥除+CJK 码点守护+NFKC 小写，逐字同构）。登记为已验证对齐。
+- **coordinator warn 通道**：helperMain 装配补 `warn(message, details){ warnPipOnce(pipWarnKey(...), ...) }` + `pipWarnKey` 去重键（官方 @86540514 区同构逐字）；coordinator/presentation-scheduler 两模块经核亦已是 0.6.5 形态（墓碑+10 warn 点在树）。
+- **P5 5a 启动（mac addon 逆向重建第一批）**：`native/reverse/src/ax_native_mac.mm` 骨架落地——136 导出面注册表（data/mac-3.17.2-napi-functions.json 为底稿）+40 个参数校验器（[S] 文案逐字）+96 个 NotImplemented 占位（5b-5g 逐域填充）；binding.gyp 增 `ax_native_mac_rebuilt` target（AppKit/CoreGraphics 框架、c++17、复用根 workspace node-addon-api）。**node-gyp 编译链接通过**（Release/ax_native_mac_rebuilt.node 128KB）。
+- **5a 首轮 parity 矩阵**：导出面 **136/136 精确 MATCH**；校验面 **41/47 MATCH**——6 处已知分歧全在 async 家族（官方 async 实现走 promise 路径同步不抛：clickAtPoint 首参错/dragAsync 尾参错/pasteboard* 三元系）+ cancelInputHoldsForSession 空串（[E] 实测官方接受、文案写 non-empty——四级证据 [E]>[S] 已修）。分歧清单与 async 语义补齐路线记入 .mm 头注。
+- **方法坑（5a 探针）**：官方 addon 后台线程撑事件循环——同进程双载探针跑完不退出（须 timeout/kill）；同进程加载两份官方系 addon 会 ObjC 类重复警告（ZcPip*/ZCodeCua* 五类）。
+- 验证：helper tsc/win32 bundle/五测试链全绿；architecture:check 三零。
+
+### 第七十轮：P5 5b 批——只读+行为域达标（26/26 全 MATCH，2026-11-09）
+
+- **async 家族 6 分歧定论**（新进程单例探针，[E]>[S]）：clickAtPoint 官方**确实同步抛**（矩阵 run2 的 no-throw=进程内状态串扰伪影，我方原实现即正确）；dragAsync=worker 侧异步（同步不抛、pending Promise）；pasteboard 三元系不校验 token 类型（Finish(42)→true / Mark(42)→false / Await(42)→resolve `{ok:false,…,error:"unknown_paste_token"}` 完整形状）；cancelInputHoldsForSession 接受空串返 false。五函数按实测修正+注释留档。
+- **5b 只读域 12 方法**（[E] 形状=官方同环境返回值）：cursorPoint（**坐标系考古：官方=CG 全局左上原点，NSEvent=AppKit 左下原点，y 按主屏高翻转——实测官方(1,2)↔我方(1,1438)、主屏 1440 精确吻合**）、isTrusted/probeAccessibilityStatus（AXIsProcessTrustedWithOptions）、screenCaptureStatus（CGPreflight→denied/granted）、displays（[]，官方受录屏门控，真实枚举 5e）、parent/responsibleProcessPid（-1）、getPeerCredentials/peerCodeSigningSummary（null）、pipIsRunning/pipStackCount（false/0）、**ghostState 23 键默认形状逐键落**（5g 状态面契约到手）。
+- **5b 行为域**：listApplications **逐字节 FULL MATCH**（NSWorkspace.runningApplications+Regular 策略+pid 升序；坑=enumerateRunningApplicationsUsingBlock 不存在）；applicationInfo 三边界 MATCH（真 pid/不存在→null/类型错）；listWindows 形态+window_id/bounds/onscreen 真值落（非 number→N-API 通用文案 MATCH；main/focused/text_preview 依赖 AX=5c 批已知范围）。
+- **5b 综合矩阵 26/26 MATCH + 导出面 136/136**。
+- 工程坑入档：注入/删除脚本顺序坑两发（先注入后删=同名双匹配，须删前留后；单行占位闭合括号不在独立行）；ObjC 声明不可入 C++ namespace；AXIsProcessTrusted 无参（带选项的是 WithOptions 变体）。
+- 验证：node-gyp 编译 0 error（产物 169KB）；探针纪律=单例新进程+timeout（官方后台线程撑事件循环）。
+
+### 第七十一轮：P5 5c/5d/5e 批——AX 域+动作域+displays 门控（35/35 全 MATCH，2026-11-09）
+
+- **生成器固化为持久资产**：`native/reverse/generate-mac-rebuilt.py`——.mm 改为全量生成物（改实现改生成器勿手编；本轮两起手编残体事故后定案，含"泛匹配孤儿块清除误删 70 函数体"教训）。
+- **5c AX 域**：elementAtPoint/policyIdentityAtPoint（AXUIElement hit-test，**SDK 签名考古=分离 float x/y 非 CGPoint**；探针环境官方 null=同境同值）；readElement 宽容 null（42/假 pid/真 pid 全 null——官方对未注册句柄一律 null）；setFocused 恒 `{ok:false,axError:"invalid_element"}`（axh-N 句柄注册表留后续）；probeAccessibility→true。
+- **5d 动作域核心 9 方法**（CGEvent 注入，[E] 返回形态=true）：moveTo/clickAtPoint/mouseDown/mouseUp/scrollAt/typeTextGlobal/pressKeyGlobal/keyDownGlobal/keyUpGlobal（CGEventCreateScrollWheelEvent 2 轴；unicode 键盘注入经 CGEventKeyboardSetUnicodeString）。真机逐项动作 parity 留 P6 验收。
+- **5e displays 门控枚举**：denied→[]（与官方探针同境同值）、granted→CGGetActiveDisplayList→DisplayInfo{id,bounds,main,scale_factor}。
+- **综合矩阵 35/35 MATCH + 导出面 136/136**（5a 校验+5b 只读行为+async 修正+5c/5d/5e 全量）。产物 187KB。
+- capture 族（captureApp 门控回退 AX 树形态已探明但深水区）与 listWindows AX 字段（main/focused/text_preview）、*ToPid/*Verified/窗口系动作 = 下一批（5c-2/5d-2）。
+
+### 第七十二轮：P5 5c-2/5d-2/5f/5g 全量收官——136/136 全实现+达标换装自建产物（2026-11-09）
+
+- **证据大扫荡**：99 方法 300+ 形态新进程探针（官方 3.17.2 addon），关键解码——
+  - **axh-N 句柄注册表**：全局只增数组，首轮 capture walk 上限恰 1000 元素（axh-1000 有效/axh-10000 无效/第二轮自 1001 续/跨 capture 保活）；captureApp 后 readElement("axh-N") 返回 12 键单元素形状（含真实 AXUIElementCopyActionNames 与 selected_text_range）。
+  - **captureApp 树契约**（全键逐节点实测反推）：根=聚焦窗 `AXContents[0]`（桌面组非聚焦窗本身）；**AX 原始 frame 即输出坐标（无翻转**，menubar{0,0,2560,30}→[0,0,2560,30] 实证；cursorPoint 的翻转仅 NSEvent 路径）；title 解析链=AXTitle 非空→AXMenu 专属 AXParent 标题→AXDescription→AXIdentifier（空串=缺失继续回退）；tree 层 actions 恒空（真 actions 走 readElement）；selected 按角色省略（Radio 族 unsupported）；editable=`AXUIElementIsAttributeSettable(AXValue)`；window_id=CG 全列表首个属主窗（_AXWindowID 属性实测不存在）；window.title=kCGWindowName（未授权恒 null）；text_preview=DFS 先序收集标题（跳过空与 "_NS" 前缀）词元拼装 50 码点截断加 " …"（**与官方字节级一致**）。
+  - **ghost 状态机**：enabled/multiCursor 直存；move/ripple→default 组显形态{shown,α=1,placed,animating}+gen+2；moveTarget(screenIdx≥0)→default 组{placed,animating,idle=1,shown:false}+gen+2、负 idx→false 零副作用；focusRect→组缺席时 occl 形态建组+gen+1（组已在则 no-op）；setControllerStatus(string)→controllerActive+default 组 occl=1+gen+1；beginActionWithTitle(0,session,title)→会话组{multi,occl,badge,会话色}；turnEnd→仅隐藏（placed/animating 保留）；removeSession 不动 default；**自检三件套=确定性纯数学输出逐字复刻**（motion 8 采样贝塞尔/geometry 13 键/palette 44 键实测覆盖表——StableSessionIndex 规则=单字母字母序 mod 11/纯数与 agent-N 尾数 n-1 mod 11/其余实测表+fnv1a 兜底 [I]）。
+  - **生产路径探针盲区实锤**：`getPeerCredentials(fd)`（LOCAL_PEERCRED+LOCAL_PEERPID→{uid,pid}）与 `verifyProcessCodeSignature(pid, requirement)`（SecRequirement 真校验，launcher 身份门消费）——换装首跑 mac-launch-contract 即抓到恒 null/恒 false 导致 broker 拒连接/拒启，live 修复（unix socket 实测 {uid:502,pid:真}）。auditToken 无公开 socket 途径→省略键→JS ancestry 回退（官方同构）。
+  - 其余：ToPid 族 NP 仍 true 不投递、Verified 族 rejected/invalid_key_chord 拒绝形状、窗口系无同步校验恒 false、后台输入族恒定失败形状（14 键/10 键/3 键三种）、PiP 控制面全返回形状、pasteboardBeginProvidedPaste→{ok,error:null,token:n}、promptTrust=开系统设置+返 isTrusted、scw=OnScreenOnly+ownerName 取 CG kCGWindowOwnerName、acceptsLeftMouseDown=层值规则（false∈{≥2147483600,24,2001}）[I]。
+- **parity 终态**：扫荡 297 形态（余 3=驱动器内嵌 PPID 跨跑键错位伪差、2=scw 分钟级窗表漂移按 windowId 对齐 37/37 零差）；**captureApp 全树 1000/1000 节点全键 JSON 精确零差**；ghost 状态机 20 场景+调色板 44 键+axh 生命周期 17 步+自检三件套全 MATCH；导出面 136/136。已知残留：beginAction 会话组 occl 官方 0/1 跨轮翻转（异步遮蔽态，取多数 0 记档）；AXColumn 全属性 cannot-complete 的 enabled 官方稳定 true（特例化）。
+- **达标换装（裁定①兑现）**：`native/ax_native_mac.node` ←自建产物（4214ee9be3d1394…）；build-cua-helper-app.mjs 钉扎换新值+语义注释（自建产物无"官方字节"，钉扎=可复现构建当前产物，重跑生成器须同步换值）；**五测试链全绿含 adhoc-distribution-profile ALL OK**（真发射+live 复核+严格门 fail-closed，身份门对新 addon 复测通过）；prepare:cua-helper 全链冒烟（SEA→Mach-O 回退补→重签→staged bundled-cua-helper，staged addon=自建 hash 实证）；helper/zcode-cua tsc、win32 bundle build、architecture:check 三零。
+- **P6 残留（用户参与项）**：真机 ghost 肉眼验收（glide/涟漪/会话色/badge/多屏）与 release 真实打包（electron-builder 全量 16 类资产）——非本机自动化可覆盖。
+
+### 第七十三轮：差距修复战役收官——桥接键/懒启动占位/行为面还原/版本解锁/打包门五批（2026-11-10）
+
+**溯源**：差距审查工作流（run dwfrun-7c7706ec → dwfrun-29201688 修订版）23 条定案
+（high 3 / medium 11 / low 9）；权威方案 `specs/cua-gap-remediation-2026-11-09.md`
+（决策点 D1=选项 A pre-launch 占位、D2=随批解锁，用户 2026-11-09 裁定）。施工四批
+（R1 / R2 / R3 / R4+R5）+ 评审整改批逐项登记于下；本轮回填方案 R6 记档收口
+（manifest 登记+第十七轮勘误+台账 17+状态文档+spec 勾销）。
+
+- **R1.1 launcher-pid 键名撕裂（审查 H3）**：`desktopHostProcess.ts` 注入键
+  `DRORA_CUA_LAUNCHER_PID` 全仓零消费者，运行链消费方（0.6.5 冻结切段
+  resolveLauncherPid + node-repl-host dist 同源内联）读 `ZCODE_CUA_LAUNCHER_PID`。
+  切换为 ZCODE_ 名（常量单一出处 `ZCODE_CUA_LAUNCHER_PID_ENV`，注入
+  `desktopHostProcess.ts:306`），DRORA_ 名零消费者不保留双写。前置取证
+  （2026-11-09 本机实测）：错误/非官方 launcher pid 产品态一律 exit(2)
+  fail-loud（无需配套放行链）；孤儿 Helper 实测绑定同机官方 ZCode pid
+  1299——键名撕裂会让切段回退 host 自身 pid 或顶替为官方泄漏 pid。
+- **R1.2 懒启动发现链桥接（审查 H2）**：切段按 ZCODE_ 名 + `ZCODE_HOME||~/.zcode`
+  找 Helper，我方注入与安装全在 DRORA_ 名/`~/.drora`，同机官方 ZCode 在场时
+  `~/.zcode/computer-use/` 官方 Helper 会被错拉。修复=注入侧三桥接键
+  （`node.ts:1271-1281` 常量区单一出处：`ZCODE_CUA_BUNDLED_HELPER_APP_PATH`
+  直注实际 .app 路径 / `ZCODE_CUA_HELPER_INSTALL_VARIANT` 对齐安装根 /
+  `ZCODE_CUA_WIN_HELPER_RECIPE` 桥接 win32 recipe——实施时消费面可接线，**未降级
+  延后**，注入 `node.ts:1418-1428`）+ `ZCODE_HOME` 透传链钉住（SANITIZED
+  键表负向锁定，防止后续把 ZCODE_ 键加进清洗表致懒启动静默断线）。DRORA_ 名
+  host 侧消费面不动，双轨=有意分歧（台账 17）。
+- **R1.3 设置页状态发射链补 token（审查 H1）**：`launchStandaloneCuaHelperForStatus`
+  主函数改用姊妹提取函数 `buildStandaloneCuaHelperLaunchArgs`（`node.ts:2239`），
+  消除「注释称已提取、主函数未改用」脱节；第十七轮记档勘误见该轮内注。
+- **R2 鉴权贯通（D1=选项 A pre-launch 占位）**：新模块
+  `cua-permission-broker/cuaLazyPreLaunch.ts`——切段懒启动触发前（agent spawn
+  env 构造时点）用现有 token 链先拉起 Helper 并占住桥接 socket，切段发现存活
+  即直连，零安全弱化、零冻结资产改动。实施取证结论（已录方案 §R2）：切段对
+  已存活 socket 逐调用直连复用、绝不自拉；authenticate 载荷恒
+  `{clientApiVersion:3}` 无 token 通道；切段自身（node_repl 链）连上后在 Helper
+  token 校验 fail-closed（`not_authorized`）——官方 v2 peer 模型与我方 3.11.2
+  token 模型的结构性终态，非缺口；占位/验收链须用 IPC v3 构建份。
+- **R3 Helper 行为面机械还原六件**（官方 SEA offset 逐字锚定+头注释）：
+  cps 旋钮 / 多光标旋钮（`helperConstants.ts` 常量 @ 85321464 段）、socket 第三
+  兜底（`socketPath.ts` 四返回路径 @ 85316105 段）、paste 全局串行化
+  （`electronNativeBackend.ts:56` pasteSerialTail @ 85520859）、paste 收尾协议
+  （`paste_provided_cleanup_failed` warn+抛错 @ 85546274 段）、exit-log 管道
+  （`helperMain.ts:541-553` helperLogLines+pruneHelperLogs @ 86549645/86550881）、
+  `command+v` 字面量修正（@ 85542433，原还原稿误写 `cmd+v`）。
+  **backlog 记档（方案 R3 注）**：paste reader 钉扎（审查降级 low）不在本批——
+  官方 native 同样忽略第三参、两侧拦截语义均未生效，JS 接线待官方语义生效
+  证据再随线。
+- **R4 版本/元数据解锁批**：R4.1 bootstrap definition 冻结 0.6.3→0.6.5
+  （`official-plugin-definitions.ts:479`，dist 产物同步）；R4.2 版本门硬退改
+  显式诊断路径（`check-version-coherence.mjs` 保持非零退出但可辨识）；R4.3
+  包根 mcp 工具面对齐官方 0.6.5 十四工具（`src/mcp/tools.ts` 增 paste、剔 17 个
+  非官方项；`server.ts:70-71` 版本字面量 0.6.5；session 补 element_scroll）；
+  R4.4 `droraCuaPlaceholder:false` + description 真实化（解锁 dev:desktop 注入
+  Helper env、CUA dev 暂存、打包门三调用方）；R4.5 切段头注释 ghost 增量归属
+  勘误（ghost 会话域实际在 Helper native AX 桥 `nativeAxSource.ts:866-969`，
+  切段内仅 pip/element_scroll/ghostCursorOverlay 属实——还原错误修复，原版
+  证据随注）；R4.6 zod 装配修正走兜底记档接受（见下评审整改段，协议保持
+  `link:` 未改）；R4.7 并入 R3 `command+v`。
+- **R5 打包门与 staging 对齐**：`prepare-cua-helper.mjs` staging 布局加
+  `<targetArch>` 段（主规则 from 不再恒 ENOENT，门生效）；config 兜底分支补
+  绕过告警（兜底保留但可见）；addon 入包 chmod 755 对齐官方权限位；顶层
+  CodeResources 属官方旧签名形态残留不仿制（config 注释记档）；afterSign 记档
+  失实改口——`electron-builder.config.js:782` 与
+  `specs/mac-cua-helper-app-alignment.md` §一改「钉扎自建产物（裁定①）」，
+  删「官方字节」表述。
+- **评审整改批（施工四批之后，2026-11-10）**：
+  ① R4.6 zod 装配修正降级为兜底记档接受——协议替换在仓库结构下不可行：
+  `apps/drora-cli` 是独立的嵌套 pnpm workspace（自带 pnpm-workspace.yaml 与
+  pnpm-lock.yaml），`@drora/shared`/`@drora/drora-cua` 属根 workspace 项目，
+  `workspace:*` 协议只在声明方所在 workspace 的项目集内解析，实测
+  `pnpm install --lockfile-only` 报 `ERR_PNPM_WORKSPACE_PKG_NOT_FOUND`；
+  跨层 `link:../../../../packages/*` 引用为既有装配惯例（11 处同构），协议
+  保持 `link:` 不改。目标半项「bundle 单内联」经 esbuild metafile 实测独立
+  达成：zod 输入 203 文件全部来自同一份 `zod@4.6.5`，shared 内 import zod
+  的模块（validation/channel-mention/conversationSelection）经 tree-shake
+  未进 bundle——无需装配修正（方案 R4.6 注同口径）。
+  ② R4.5 切段头注释净插 6 行后，方案 spec 与各代码注释中的切段行号锚统一按
+  改写后工作树基准校正（≥切段 :6898 的行 +6，更早行不受影响）。
+  ③ 记档随线修正：manifest 本轮 R4.6 行初稿误写「`link:`→`workspace:*`」，
+  与现场（`node-repl-host/package.json` 协议未动）不符，已按整改结论改写。
+- **验证（本轮回填时复跑）**：`packages/zcode-cua` lazy-discovery-bridge ALL
+  PASS（对照组复现 H2：官方根命中撞 token 门 exit(2)；桥接组负测：官方根候选
+  不被 open、伪 bundled 不被 promote）；`zcode-cua-helper`
+  r3-behavior-restoration ALL PASS（六件+裸启动越 socket 门停 token 门）；
+  services 四新增回归（cuaLazyLaunchBridge / cuaLazyPreLaunch /
+  cuaLazyPreLaunchOccupation / cuaStandaloneStatusLaunchProduction，
+  `node --import tsx --test`）18/18 pass，含 R1.3 严格产品态 exit(2) 审查基准
+  + adhoc 产品态发射成功 token 真值。施工批验证矩阵（helper tsc/构建、五测试
+  链、win32 无损套件、architecture:check）属方案 §三各批要求项，本轮回填未复跑。
+- **验证口径与未跑项（如实登记）**：R5 打包门以 config 解析 + staging 布局
+  断言为准（已实测两态：staging 含/不含 `<targetArch>` 段），完整 release
+  打包与打包 dry-run 资产清单核对属 P6 用户参与项未跑；afterPack 的
+  `assertPackagedCuaHelper`（`electron-builder.config.js:215`）落位校验未在
+  真实打包中 exercised。全量门禁（根 typecheck/lint/verify:pre-push 全套、
+  win32 无损套件）按执行纪律由统一收口脚本重跑，战役期间仅定向跑过四个包
+  typecheck 与定向 oxlint/oxfmt。
+- **记档收口（方案 R6）**：本轮=manifest 登记；第十七轮内联勘误（R1.3）；
+  `specs/drora-divergence-ledger.md` 台账 17（桥接键双轨=有意分歧）；
+  `docs/cua-alignment-status.md` 状态矩阵补差距修复行；方案 spec 勾销标记。
+  `specs/mac-cua-helper-app-alignment.md` §一口径核对一致（R5 已改「钉扎自建
+  产物（裁定①，2026-11-09 改口）」，与 `electron-builder.config.js` afterSign
+  注释同口径，无「官方字节」残留表述）。paste reader 钉扎 backlog 已于 R3 行
+  记档；win32 recipe 未延后（已随 R1.2 实施），无对应 backlog。
+
+### 第七十三轮：第二轮差距排查与修复——R7 快修/R8 输入守卫还原/R9 记档（2026-11-10）
+
+- **第二轮排查**（三路并行复验：asar renderer/main 面、env+MCP 链、Helper SEA 行为面细扫）：大面积转绿（MCP 协议 token 级全同、R3 六件逐字对齐、i18n 164 键零差、权限浮窗/IPC/fork env/host 参数向量一致、阈值零缺口）；残余四簇。
+- **R7 快修批**：①`ZCODE_RUNTIME_ENV` 全链桥接（desktopRuntimeEnv 随 DRORA_ 同源直注 + tsup define 补 `__ZCODE_LOCAL_DEVELOPMENT_RUNTIME__` 生产折叠——官方 out/main offset 48548 同款；此前生产态信任门恒判 dev 的 high 缺口，两路交叉证实）；②钉扎双更新 qc="3.17.2"/WC="pipeline-326130-a2d1ba73"（官方 kp@767360/Mx@~729600）；③安装链落盘名 xt/DEV 名 Drora 化（09-28 裁定"随常量走"漏网点，发现侧只找 Drora 名的自杀性不一致）；④发射向量补 `--disable-multi-cursor-overlay`（disableMultiCursorOverlayRequested+Hg，Helper 端 R3.2 消费打通）；⑤DRORA_CUA_WIN_HELPER_RECIPE 死键移除；⑥CLI standalone 桥接补 ZCODE_HOME 缺省注入（切段 candidates 兜底臂不再落 ~/.zcode 跨产品；测试断言更新含不覆盖/DRORA_HOME 优先两分支）。
+- **R8 输入守卫还原批**（G1-G6，官方 SEA unminified 逐段提取+机读二校）：G1 文本注入语义（element_focus_unavailable 预检+typeTextGlobalAsync 截断双语义+排水 max(120,len×20)ms 上限 3000）；G2 活窗四段门禁（四 reason 码逐字+frontmost Set 去重）；G3 key-hold 防误路由（窗口/pid 级+click/scroll/drag 三变体）；G4 clickAtPointAsync 通道+缺 ABI 拒绝；G5/G6 激活与并发诊断。29 项新断言全绿。**spec 事实勘误**：136 导出面不含 typeTextGlobalAsync/clickAtPointAsync（官方 helper JS typeof 门控回退同步原语，mac 即同步路径）——不补导出即官方行为。
+- **R9 记档**：切段 bundled 分支身份校验结构性不可过（expectedBuildId 无 env 通道恒优先官方值）——接受记档，拉起由 pre-launch/托管链承担，R1.2 验证①口径勘误已落 spec。
+- 验证：五测试链 5/5（含 adhoc ALL OK）、字面量族 0 original-only、services CUA 定向 4/4、architecture 三零、win32 build、双侧 tsc。全程未 commit。
+- **R8 已知未还原面（偏离记档，施工偏离 1-5）**：①delivery 轨迹框架（appendAttempt/finalizeDelivery 与 `{method, delivery}` 返回封套）——非守卫域，win32 后台投递（postMessage）族与 assertWindowsPhysicalAssociation、element_provenance 二次校验同属依赖未还原上下文 machinery 且 mac 无对应 ABI；②G1 焦点预检挂点等价改道（官方挂 Windows 元素插入 delivery 非空时，我方挂 element_native+readback registry 可用即启用，等价"无 ref 不预检"）。后续如官方语义生效或 win32 线开工再随线。
+
+### 第七十四轮：win32 0.6.5 对齐分析线启动——官方参照锚鉴定+数据基座+施工蓝图（2026-11-10）
+
+- **参照锚**：用户提供的 cua-helper.zip 鉴定为官方 `@zcode/zcode-cua` **0.6.5 win32-x64** 运行时（runtime-manifest 自带 SHA-256 与实测逐字节一致；electron 44.7.0；构建 2026-11-02 与官方 3.17.2 mac 资产同日）。即裁定③ win32 线的 parity 锚。
+- **数据基座四件**（native/reverse/data/）：①`win32-3.17.2-napi-functions.json`——**94 导出面**定谳（PE 符号已剥离，方法=PE 字符串∩(mac136∪我仓 0.6.3 注册面 49∪helper JS 引用)；旧面 49 **零移除纯增量**，增量四类：mac 血统 22（**ghost 核心进 win**）/win 专属 postMessage 投递 5/读回与 UIA 模式梯系/async 化补齐）；②`win32-3.17.2-pe-analysis.json`——PDB（gitlab-runner d5-EUcYuG）/上游 native 源/WinRT 2.0.250303.1/SDK 26100/**UTF-16 窗口类指纹族**（Chrome_WidgetWin_/CefBrowser/TkTopLevel/gdkWindow/WinUIDesktop…）+内嵌引擎分类学+D3D11 复合截图 worker；③`win32-3.17.2-js-family-diff.json`——vendored 0.6.3 vs 官方 0.6.5 四族差分（IPC v2→v3、BROKER_METHODS +element_scroll 同 mac、argv +2、**错误码 +83**=win 侧行为面地图：守卫族 win 形态+postMessage/UIA/provenance 域）；④全量 strings dump。
+- **施工蓝图**：specs/win32-cua-0.6.5-alignment-plan.md——生成器化优先（mac 手编事故教训）、[E] 探针纪律须 win 机（probe-one-win 移植；字面量门 mac 可代跑——JS 文本离线比对）、W0-W5 施工序、换装配套（IPC v3 断代坑与 mac 同款、electron 44.7.0、sharp-win32-x64 清单门）。
+- **坑**：窗口类指纹是 UTF-16LE 字面量，ASCII strings 扫描不命中（双编码扫描必须）；PE 无符号无 mac 的 demangle 通道，ABI 定谳靠三方交集法。
+
+### 第七十五轮：win32 0.6.5 完整实施设计——三面账勘误+三层断代定性+L0-L3 设计定稿（2026-11-10）
+
+- **数据基座勘误（七十四轮改账）**：原 delta added=24 为扫描漏账（49+24≠94 自相矛盾）。本轮以 strings 逐名双扫（vendored 0.6.3 sha 92533fe5…/官方 0.6.5 sha 11f8bc9c…）定谳**三面账**：官方 0.6.5=96（94 定谳+displays/drag PE 复核）、vendored 0.6.3 官方=52、我方还原线=49（欠 vendored 0.6.3 就有的 activateWindow/launchApplicationAsync/listInstalledApplicationsAsync——0.5.13 期参照遗留欠账，vendored JS 引用 7/3/1 次实证）。**真实增量=44 纯增零移除**（ghost 16/pasteboard 4/postMessage 5/读回梯 4/surface 域 7/杂项 8）。win32-3.17.2-napi-functions.json 已改三段式（faces/added-44/missing-3），蓝图 §二同步改账。
+- **三层断代定性（win CUA 当前=死链）**：①IPC——切段 v3 客户端 vs vendored 0.6.3 helper v2 服务端，clientVersion>服务端即 version_mismatch；②Electron ABI——desktop 已 44.7.0（v3.17.2 合并带入）vs vendored addon 41 ABI；③argv——我方还原 win main `args.length!==4 → exit 2` vs 切段 fork 传 5-6 args（ghost 双旗）。三层在 W1 换装批同修。
+- **官方 0.6.5 win entry 证据坐标全套**（[S] 主源，解包 dist/windows-helper.js 行号）：argv 契约 :34054-34090（allowedFlags 过滤+positional 恰 4）；延迟原生初始化（deferNativeInitialization/onTransportReady/transport_ready 控制消息）；**鉴权门临时全开** `WINDOWS_PEER_IDENTITY_GATE_TEMPORARILY_OPEN=true`（:19866）+告警文案+assertPeerIdentityAuthCapable 文案；**token 退场**（entry 全文 authToken 零出现、schema 无 token 字段——win 0.6.5 鉴权=版本门+管道命名空间，官方行为如实还原并注记）；enableGhostCursorOnNative（ghostSetEnabled+ghostSetMultiCursorEnabled 可选链）。切片 fork 消费面 :45057-45101（recipe 五字段校验/argv/env）。
+- **TS 还原线现状盘点（利好）**：mac 战役落在共享源的 0.6.5 面 win 直接受益（GHOST_SESSION_SCOPED_METHODS/scrollElement 门控/elementPatternCallAsync 优先/postMessage 回退/element_scroll/IPC v3/错误码族/ghost argv 常量）；剩余 win 面 6 项（argv 0.6.5 化/token 退场/鉴权门同构/defer 面/ghost plumb/win 专属消费契约）全部有官方逐字锚，本仓可写可测。
+- **设计定稿**：specs/win32-cua-0.6.5-implementation-design.md——L0 本仓准备（生成器 generate-win-rebuilt.py 不泛化 mac 版/ghost 共享常量 JSON 单一出处/probe-one-win/参照 gitignored 入仓）/L1 addon 三批（追赶 3+ABI 切换→mac 血统 22→win 专属 22，错误码 +83 为行为面地图）/L2 helper JS 六项/L3 换装三件套（win 版裁定① 应用；staging/afterPack 链已健全仅过验；manifest 由 staging 用真实 electronVersion 重生成天然跟随）；施工序 W0（本仓）→W1 止血复活→W2 ghost→W3 深水→W4 收口；验收矩阵双场地分层。
+- **注记**：官方开门态（peer 门临时全开+token-less）按官方形态权威还原并登记台账，自研硬化不混入对齐批；arm64 随官方再启；本轮零代码改动（数据 JSON 勘误+两份 spec+本文档）。
+
+### 第七十六轮：win32 W0 施工批落地（工作流 dwfrun-e4547cca，9 子代理 6 阶段，门禁 10/10）（2026-11-10）
+
+- **L2 win 入口 0.6.5 化全落**（windowsDevHelperMain.ts + helperMain.ts 共享面）：argv 契约逐字（allowedFlags 双旗过滤+positional 恰 4，官方 :34054-34090）；**token 退场**（configSchema 去 token、authToken 零出现，win 鉴权=版本门+管道命名空间）；**鉴权门同构**（WINDOWS_PEER_IDENTITY_GATE_TEMPORARILY_OPEN=true + 开门 stderr 告警 + PeerIdentityAuthGateError 文案含 gateDetail 拼接，品牌词 Drora 化/env 键不动）；**defer 面**（runHelper deferBackendInitialization/onTransportReady/createDeferredBackend/transport_ready 控制消息——顺带修正 helperMain:423 旧「官方无 defer 路径」错误注释为官方 0.6.5 证据注释）；ghost plumb（enableGhostCursorOnNative 可选链降级）。连带：socketPath.ts 三常量四路径+helperConstants 双旗常量（复审逐字核过 vs 官方 :19849-19850）。
+- **L2.6 接线核对**三分类落档（已有/新增/缓办），L0 基线四件：generate-win-rebuilt.py（49 面零漂移迁移+--list-pending 实测 3/22/22）、ghost-shared-constants.json 单一出处+mac 生成器改造（--verify 字节级闭环）、参照入仓 reference/win32-0.6.5/（gitignored）、win32-0.6.5-js-contract.md 契约文档（40KB，行号+字节偏移双锚）。
+- **门禁 10/10 全绿**：win-entry 新测试/helper typecheck/helper 包测试（test 链扩为 tsc+r3+r8+win-entry 串跑）/r8 回归/zcode-cua 六链/node-repl-host 构建/services CUA 三件/双生成器 --verify/architecture:check。
+- **test:drora 路由基建改动（升级终裁保留）**：门禁揭示全仓 11 件 .node-test.mjs 全通道失执行缺口（glob 不进 test:unit:node、被 vitest 清单按契约排除）——修障员建 scripts/run-drora-tests.mjs 按归属分流+node-unit-test-files.mjs 补后缀 glob+内容双判定（防 0 用例假绿）+回归测试 48/48；旧语义对清单内文件完全保留。**AGENTS.md 对 test:drora 的口径描述是否补句，留用户裁定**。
+- **保真复审 9 findings 处置**（1 verified 修复+8 主会话甄别）：①测试链挂接（已修，verified）；②socketPath/helperConstants 连带改动漏报（代码已核逐字一致，仅补汇报）；③helperMain R3 系 SEA 字节偏移 not-verified 沿档（本会话无 3.17.2 SEA 参照可复核；win entry 可交叉验证的家族已逐字核过）；④**pipSessionEnabled 判据口径差**（我方 presentationAuthToken vs 官方 peerIdentityAuth@:33626，行为面当前零差）→ 已入设计 W1 清单 #15；⑤tokensMatch 死 import（0.6.3 既有非本批，留档）；⑥probe-one-win 未落地 → 收口改判随 W1 win 机开工（设计 §五已记）；⑦ghost JSON win 侧消费 TODO(W2)（设计 L0.3 已补注）；⑧**geometry 14 键勘误**（设计原写 13 为笔误，JSON 实测 14+mac --verify 背书，设计已改）；⑨upstream/ staged A 切段=mac 战役 P3 批未提交资产，甄别完毕非 W0 引入。
+- **W1 换装批清单 15 项**落设计 §五（含 manifest electronVersion 41.0.3→44.7.0 联动、bundled-agents gitignored 生成物禁手改、0.6.3 切段处置随批裁定等）；缓办项明细指针已由收口记录员写入。
+- 全程未 commit；win 机侧（addon 重建/换装/真机）未动（裁定③）。
+
+### 第七十七轮：R10 认证模型换代对齐——token 链整体退役→官方 peer 身份模型（2026-11-10）
+
+- **触发**：用户令「继续完成对齐官方原版的实现……避免盲猜、无意义的桥接」。对比审计揭出 pipSessionEnabled 判据口径差（#15）与方法表 65v43（#16），深挖后证据雪崩：官方 0.6.5/3.17.2 **token 链全不存在**（3.17.2 SEA 与官方 win entry 的 token-file/launcher-minted/resolveAuthToken/authToken 全 0；3.14.3 亦 0；3.11.2 有 presentationAuthToken×12）——我方 helper/producer 全线 token 机械系 3.11.2 血统幻影，52 轮定性「v2 换代 token 链移除」当年因签名死结未跟随、后由 P5 addon 重建（peer 四原语齐备）解锁。
+- **官方模型全套逐字还原**（SEA/win entry 双锚）：runHelper 判据 `peerIdentityAuth === true && enablePipSession !== false`；createPeerVerifier 返回 **verdict 对象**（uid 门→dev 逃生→audit_token team 签名门→父进程归责+签名门，describePeer 摘要可选）；handleAuthenticate 无 token（tool=身份声明置位；presentation=peerVerdict+peerPresentationEligible 门，observed 文案逐字）；peerPresentationEligible 三路（identifier 白名单＞双逃生并开＞launcher 世系 8 深回溯）；resolveCuaPeerTeamRequirement 纯 team 锚；main() peerIdentityAuthCapable darwin 四原语门（exit 2 文案逐字）+ launcher 门补官方缺失的 `&& launcherPid !== null` 第三条件（裸启动跳过 launcher 门）。
+- **token 链退役面**：helper 侧（brokerServer 双 token 字段/tokensMatch/developmentNoAuth 全删+verdict 挂 conn；helperMain --token-file 强制门/双 token 解析/一次性文件读取删）；producer 侧（helper-launcher JC 推参与 F9/Xxe/Yxe 铸造链删、helper-host 铸造/handle getter/agent env 注入删、services cuaAgentEnvironment×4 死注入删、node.ts presentationToken 透传删）；cuaPipSessionService 条件透传留档（no-op，随 presentation 链后续核）。
+- **#16 方法表**：types.ts 65→**官方 43 双平台同表**（SEA@84310036 与 win entry 提取完全一致，含 pip 六方法与 paste；screen_size/get_skyshot/探针六件等 22 个 3.11.2 超集移除——官方 v3.1 攻击面瘦身 49→43 墓碑注释实证）。
+- **连带键撕裂修复（R1 级）**：producer 注入面 DRORA_CUA_PERMISSION_BROKER_{SOCKET,UNAVAILABLE,REFRESH_MARKER}/DRORA_CUA_HELPER_ADDON → **ZCODE_**（切段消费 45:2 实证；shared/runtimeEnv 值切、node-repl-host server.ts 改 ZCODE_ 优先+DRORA_ 兜底一轮；此前靠 node-repl-host 双读桥接存活＝无意义桥接清除）。
+- **测试面换代**：r3 R3.3/R3.6 重写（裸启动=官方语义驻留非 exit2；exit-2 路径改走不可信 launcher-pid 门+exit-log 断言）；mac-launch-contract 全文重写 R10 版（A=token 链退役负契约/B=token-free 官方向量序/C=身份认证+伪 token 被忽略/C2=免 token callBrokerMethod/F=presentation 双逃生过+tool 角色拒/H=runtime 免 token/G=LS 免 token 轮询/D=agent env 零 token 键+socket ZCODE_ 面）；lazy-discovery 对照组改 R10 等价防护（错配 Helper 对未签名对端不可达——实测 peer 门拒连）；restored-smoke 两处 W0 软断言漂移修复（resolveBrokerSocketPath/injectPermissionBrokerConfig 键面）。**坑**：check() 软断言 exit 0——六链从未拦住这两处漂移；.app 重建须带 CUA_HELPER_ALLOW_UNSIGNED_LAUNCHER=1（路线 A 折叠）否则逃生旗无效、E2E 连接被 peer 门静默销毁。
+- **门禁全绿**：helper 链（tsc+r3+r8+win-entry）/zcode-cua 六链/services CUA 三件 fail0/根 typecheck 0 error/node-repl-host 构建/双生成器 --verify/architecture 三零。mac 链在官方 peer 模型下 E2E 实测贯通（同 .app 直启身份认证+认领+presentation 双逃生）。
+- **记档待办**：services dist 未重建（D 段按设计跳过，desktop 打包链自会重建）；pip 会话 client 的 presentationToken 选项随 W1/presentation 链复核；token 相关历史 spec 段（cua-gap-remediation R2 pre-launch 等）状态标注待下一批随改。全程未 commit。
+
+### 第七十八轮：全线对齐批（用户令「最好不要有差距」）——token 卫生清零+W3-JS 半成品入位+pre-launch 免铸化（2026-11-10）
+
+- **token 卫生批（代理全绿）**：src/mcp/server token 门退役（无 token 即注册工具→仅 socket fail-closed；configSchema 去 token）；src/mcp/client 官方化（authenticateParams 逐字切段 :37503-37522、恒发 authLine={clientApiVersion:3,...}、reply.id===0 门、拒绝文案勘误官方逐字）；runtime.ts 双键 token 读删；cuaPipSessionService presentationToken 选项删（切段 S$ 恒发 role:"presentation" 已官方）；specs R2 段加 R10 状态注记。
+- **R10 连带真 bug 修复（主会话）**：services pre-launch 链悬空——node.ts :2226 仍 `await import` 解构已删除的 writeOneShotHelperTokenFile（skipLibCheck 掩盖、运行时 TypeError 被吞=占位链静默失效）——整链免铸化（launchStandaloneCuaHelperOnSocket 返 boolean、standaloneTokenBySocket 表/agent env token 注入/permission_status token 透传全删）；zcode-cua broker-server.d.ts 三条 stale 声明+CuaProductHelperHost token 成员清汰；cuaAgentEnvironment Pick 键收窄。两测试文件 R10 化（缓存门退役测试/接线负契约/占位 e2e 语义翻转——**切段在 peer 模型下直连我方 Helper 实测成功**，旧 token 拒文案断言改 doesNotMatch）9/9 绿。
+- **W3-JS 机械域（代理 1 于 16:13 额度阵亡，半成品入位）**：死前已写入 ~1383 行——新模块 windowsDeliveryReceipt（DeliveryAttempt/appendAttempt/finalizeDelivery 封套）/windowsValueReadback/windows-operation-request/windows-frame-target/windows-menu-observation/windows-operation-association/app-frame-surfaces 等 + electronInputHandlers/nodeAutomationAdapter/electronNativeBackend 大改。主会话收尾：4 处字面量联合类型错误修复（as const/DeliveryAttempt 注解）→ **tsc 0 error、helper 四件链全绿、六链绿**；**officialOnly 59→14**（残余：delivery 细分码 14 个——changed_contains/text_input/droppable_xaml_input/delivery_unknown/key_combo/xaml_accelerator_entry/accelerator_missed/chord_key_state_unreachable/mouse_scroll/mouse_move/imprecise_target(_pid_only)/explicit_event_strategy/dispatch_surface）。
+- **⚠️ 半成品状态如实记档**：代理 1 的 W3-JS 写入**未经官方逐字核验、无新增测试、证据锚未复核**（仅达「编译过+既有测试不破+字面量面 59→14」）。下一轮（代理额度 19:30 重置）任务形态=「审计-续完」：对照官方 entry 逐块核验已写机械、消化残余 14、补 w3 注入式测试（fake native 双态）、终检 officialOnly 清零或逐项记档。
+- 门禁：根 typecheck 0 error/helper 链/六链/services 5 件（三件+pre-launch 两件 9/9）/双生成器 --verify/arch 三零。全程未 commit。
+
+### 第七十九轮：全线对齐收官——W3-JS 审计-续完（officialOnly=0）+ 旧 handler 清退（mineOnly=0）（2026-11-10）
+
+- **W3-JS 审计-续完（代理，17M tokens）**：①上轮阵亡代理的 1383 行逐文件对照官方核验——六新模块逐字一致（windowsDeliveryReceipt@:21534/windowsValueReadback@:21568/operation-request@:20003/frame-target@:29815/menu-observation@:29846/operation-association@:20006），大改文件抽样到块级一致；修复 3 处偏离（operation-request 去 `?.` 防御/win.ts readElement 补 `:generation:` 代际守卫@:31017/六方法后置包装+appendResolvedAppRef presentationAppRef 优先@:24373）。②残余 14 字面量全消化——上批只写函数未接调用点（tree-shake 致缺席），本批按官方接线 type_text_to_app 插入链@:26158/press_key_to_app 键梯@:26410/scroll@:27071/drag@:27252/click 非精确封套@:26767，**officialOnly=0**。③新建 test/w3-delivery-machinery.mjs（19 断言块，fake-native 双态）；r8 两断言按官方原文收紧（G1a 断完整封套+dispatch_surface 更严；G1f 补官方门所需 ABI——如实记档的红线处置）。
+- **旧 handler 清退（代理，22M tokens，约 1700 行外科删除）**：22 个 3.11.2 血统方法 handler+专属机械全删（open_application 家族 30 函数/displaySelection 状态机/三态指针族/探针六件）；**四文件整删**（axSkyshot 178 行/electronDisplaySelection 106 行/file-url-window-verification 149 行零消费副本）；保留边界全部官方锚注释（captureApp 拉起链/paste 剪贴板链/captureScreenPng/mouseUpToPid 有界清/keyDown 修饰链等）。READ_ONLY 死表项 8 个清汰。**mineOnly 53→0**（SEA 在场 23=mac 血统合法保留〔controller/lease/runtime 域〕；SEA 也不在场 30=真死码已删）。
+- **终态：官方 276 / 我方 276 snake 字面量完全同集，双向零差**——JS 源级与官方 0.6.5 win entry 字面量面全线对齐。终验（新 .app 重建后）：helper 四件链/mac-launch-contract R10 版 E2E/根 typecheck 0 error 全绿。
+- **记档待办**：displayNameFor 段 deferred（:30901 非字面量域，win.ts 现场注释+台账）；tools/parity-mac-helper.mjs（3.11.2 行为锚 harness）随裁表已漂移，建议随 3.11.2 行为锚退役处置；check-ax-native-interface 本机无 win addon 不可跑（环境限制）；oxlint 14 warning 为 R10 死导入遗留（未触碰文件，下批清）。
+- 全程未 commit。win 机侧三批（W1 换装/W2 ghost native/W3 native）不变（裁定③）。

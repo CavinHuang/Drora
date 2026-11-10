@@ -5,7 +5,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { resolveServerRemoteEndpoints } from "@drora/shared";
+import { DRORA_RPC_HOST_CAPABILITY_HEADER, resolveServerRemoteEndpoints } from "@drora/shared";
 import {
   connectServerRemoteTarget,
   fetchServerRemoteHostCapability,
@@ -207,9 +207,14 @@ test("connectServerRemoteTarget: 组合三步并携带 capability header 建立 
   assert.equal(MockWebSocket.instances.length, 1);
   const socket = MockWebSocket.instances[0];
   assert.equal(socket.url, "ws://192.168.1.5:3030/ws/host?token=tok-1");
+  // 修复依据：capability header 是 wire 契约字面量（specs/drora-rename.md「还原区/wire
+  // 契约字面量双名」段），v3.15.1 集成（780721e74）已把单源常量
+  // DRORA_RPC_HOST_CAPABILITY_HEADER 定为官方名 x-zcode-rpc-host-capability
+  // （packages/shared/src/channels.ts），本测试改名期残留的 x-drora- 字面量从未被执行
+  // （本文件此前不在任何执行通道）而漏改。期望值改为引用单源常量，避免再撕裂。
   assert.deepEqual(socket.options.headers, {
     authorization: "Bearer tok-1",
-    "x-drora-rpc-host-capability": "cap-123",
+    [DRORA_RPC_HOST_CAPABILITY_HEADER]: "cap-123",
   });
 
   socket.emit("open");

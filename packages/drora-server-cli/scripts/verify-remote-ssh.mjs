@@ -18,7 +18,13 @@ import WebSocket from "ws";
 import { dockerPlatformForTarget, resolveVerificationTarget } from "./verify-remote-ssh-target.mjs";
 import { assert, findFreePort, retry, run } from "./verify-remote-ssh-runtime.mjs";
 
-const HOST_CAPABILITY_HEADER = "x-drora-rpc-host-capability";
+// 修复依据：本脚本以纯 node 运行（docs/architecture/r2-server-cli-and-daemon-test-plan.md
+// 的调用形态），@drora/shared 的 exports 指向 TS 源、无法直接 import 单源常量，故按
+// 「还原区/wire 契约字面量双名」规则（specs/drora-rename.md）本地保留官方字面量并注明
+// 出处。单源常量 DRORA_RPC_HOST_CAPABILITY_HEADER（packages/shared/src/channels.ts）在
+// v3.15.1 集成（780721e74）定为 x-zcode-rpc-host-capability；此前改名期残留的 x-drora-
+// 值与服务端读取的常量不一致，/ws/host host-gate 验证会误判 401。
+const HOST_CAPABILITY_HEADER = "x-zcode-rpc-host-capability";
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const argv = process.argv.slice(2);
 const keep = argv.includes("--keep");

@@ -62,9 +62,17 @@ test("远控页复用窗口外壳与会话状态面板", async () => {
         mailboxTail: [],
       },
     });
-    assert.match(teamHtml, /data-testid="team-conversation-summary"/);
+    // §21 A4（2026-10-24，packages/ui/src/v4/RemoteConversationTimeline.tsx「手机远控状态面
+    // 此前漏传 team prop」注释）：手机远端 timeline 无 shell 导航端口，team 呈现为状态面板
+    // 的「不可点退化事实行」；且空 rows 时 ConversationTimeline 走 emptyState 分支
+    // （ConversationTimeline.tsx renderUnitCount===0 分支），footerSlot 的
+    // TeamConversationSummary 不渲染。旧断言（team-conversation-summary + 查看协作详情）
+    // 是桌面 SessionPane 表面的锚点，由 ui/test/teamSessionPaneCardRouting.test.ts 锁定，
+    // 本文件改为断言手机远控的现行契约锚点。
+    assert.match(teamHtml, /data-status-section="team"/);
+    assert.match(teamHtml, /data-testid="status-panel-team-row"/);
     assert.match(teamHtml, /Mobile team/);
-    assert.match(teamHtml, /查看协作详情/);
+    assert.match(teamHtml, /成员 0\/0 · 任务 0\/0/);
     const taskHtml = render({
       goal: null,
       plan: {

@@ -840,5 +840,130 @@ export function createNativeAxSource(addon, options: any = {}) {
   if (typeof activateApplication === "function") {
     source.activateApplication = (pid) => activateApplication(pid);
   }
+  // 还原自发行 bundle（官方 3.17.2 / 0.6.5，SEA offset 85654437）：element_scroll 能力门控桥。
+  // 官方 3.17.2 mac addon 尚未导出 scrollElement（运行时内省实证，136 导出无此项）——
+  // 桥为 no-op；broker 方法表已含 element_scroll，后端未实现时 dispatch 优雅返回
+  // "broker backend does not implement"，与官方 mac 3.17.2 行为一致。
+  if (typeof addon.scrollElement === "function") {
+    const adaptOutcome = (o: any) => ({ ok: o.ok, axError: o.axError });
+    source.elementScroll = (ref: unknown, direction: string, amount: number) =>
+      adaptOutcome(addon.scrollElement(ref, direction, amount));
+  }
   return source;
+}
+
+// —— 还原自发行 bundle（官方 3.17.2 / 0.6.5）：ghost 会话域守卫 ——
+// 证据：官方 Helper SEA offset 85567977（GHOST_SESSION_SCOPED_METHODS）与 85570858
+// （withGhostRequestSessionScope），nativeAxSource.js 模块区（标记 @85553307）。
+// 名单三段注释保留官方原文（真机修复史：2026-10-24 元素路径 / 10-25 后台投递 /
+// 10-26 Windows 模式梯与 postMessage 系）。配 0.6.3 addon（无 ghostSetRequestSession）
+// 时 Proxy 直接透传原 addon，安全 no-op。
+import {
+  currentBrokerRequestSession,
+  currentBrokerRequestActionTitle,
+} from "./brokerServer.js";
+
+export var GHOST_SESSION_SCOPED_METHODS = /* @__PURE__ */ new Set([
+  "clickAtPoint",
+  "clickAtPointAsync",
+  "clickElementAtPoint",
+  "moveTo",
+  "moveToPid",
+  "scrollAt",
+  "scrollToPid",
+  "drag",
+  "dragAsync",
+  "dragToPid",
+  "mouseDown",
+  "mouseUp",
+  "mouseDownToPid",
+  "mouseUpToPid",
+  "mouseDownToWindow",
+  "mouseUpToWindow",
+  "typeTextGlobal",
+  "typeTextGlobalAsync",
+  "typeTextToPid",
+  "typeTextToPidVerified",
+  "pressKeyGlobal",
+  "pressKeyToPid",
+  "pressKeyToPidVerified",
+  "holdKeyGlobal",
+  "holdKeyGlobalAsync",
+  "holdKeyToPid",
+  "holdKeyToPidVerified",
+  "keyDownGlobal",
+  "keyUpGlobal",
+  // 元素动作系：ax_macos 的元素路径 fire 点在 PerformAction / SetValue 内
+  // （AX 动作成功后 PublishGhostMoveForTarget）——元素点击/设值从这里走。
+  // 漏了它们（2026-10-24 真机首验：曲线在、颜色恒 default），元素路径的反馈
+  // 全部落 default 组。setFocused/selectText/elementAtPoint 无 fire 点，不列入。
+  "performAction",
+  "setValue",
+  // Windows 模式梯（2026-10-26 真机：AX 点击光标恒默认色 + badge 缺失）：
+  // broker element_perform_action 在有强引用原语的平台走 elementPatternCallAsync
+  // 模式梯（绕过 performAction）——入队侧 scope 窗口内拷 sid 进 job.ghost_session
+  // 依赖本名单先设 scope；badge 的 beginActionWithTitle 也经这里触发。
+  // hitTestInvokeAtPointAsync 同理（2026-10-26 真机：PPT 前台坐标点击被
+  // broker click 分流到 UIA hit-test 路径后 badge 全无）。
+  "elementPatternCallAsync",
+  "hitTestInvokeAtPointAsync",
+  // 后台投递系（2026-10-25 真机：目标被遮挡时点击出现第二个 default 色光标，
+  // 根因之一）：BackgroundInputWorker 的视觉 fire 经 dispatch_async 落地时
+  // request scope 已清空——入队侧（QueueBackgroundInput）必须在 scope 窗口内
+  // 拷贝 sid 进 request.ghostSession，名单漏了这些方法名就拷不到。begin/end
+  // 无视觉 fire 点，不列入。
+  "clickToWindow",
+  "moveToWindow",
+  "scrollToWindow",
+  "dragToWindow",
+  "mouseDownToWindow",
+  "mouseUpToWindow",
+  "clickToWindowAsync",
+  "moveToWindowAsync",
+  "scrollToWindowAsync",
+  "dragToWindowAsync",
+  "mouseDownToWindowDetailedAsync",
+  "mouseUpToWindowAsync",
+  // Windows 后台中间层（2026-10-26 真机：Windows 点击全部路由 default 蓝光标，
+  // 根因即此名单漏了 ax_win.cc 导出的 postMessage*Async 方法名）：AsyncWorker
+  // 线程 fire 时 request scope 已清空，入队侧必须在 scope 窗口内拷贝 sid 进
+  // request.ghostSession。char/key 无视觉 fire 点，但统一列入保持整系一致，
+  // 未来加 fire 不需要再补名单。
+  "postMessageClickAsync",
+  "postMessageDragAsync",
+  "postMessageScrollAsync",
+  "postMessageCharAsync",
+  "postMessageKeyAsync",
+]);
+
+export function withGhostRequestSessionScope(addon: any) {
+  const setRequestSession = addon.ghostSetRequestSession?.bind(addon);
+  const beginActionWithTitle = addon.ghostBeginActionWithTitle?.bind(addon);
+  if (typeof setRequestSession !== "function")
+    return addon;
+  return new Proxy(addon, {
+    get(target: any, prop: string | symbol, receiver: any) {
+      const value = Reflect.get(target, prop, receiver);
+      if (
+        typeof prop !== "string" ||
+        !GHOST_SESSION_SCOPED_METHODS.has(prop) ||
+        typeof value !== "function"
+      ) {
+        return value;
+      }
+      return (...args: unknown[]) => {
+        const session = currentBrokerRequestSession();
+        setRequestSession(session);
+        const title = currentBrokerRequestActionTitle();
+        if (session && title && typeof beginActionWithTitle === "function") {
+          beginActionWithTitle(0, session, title);
+        }
+        try {
+          return value.apply(target, args);
+        } finally {
+          setRequestSession(null);
+        }
+      };
+    },
+  });
 }

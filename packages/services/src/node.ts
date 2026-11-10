@@ -33,7 +33,7 @@ import { createGenUiService } from "./gen-ui/node.js";
 /* eslint-disable max-lines -- host process 服务注册和启动装配需要集中维护，拆散后会更难追踪依赖注入顺序 */
 // Node.js service implementations — NOT safe to import in browser code
 import { randomBytes } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import {
@@ -706,7 +706,9 @@ import {
   isPotentialZCodeCuaAgentMcpServer,
   isScreenCaptureProbeSuccess,
   reapOrphanedHelpers,
+  ensureStandaloneHelperPreLaunchedForLazySpawn,
   resolveStandaloneStatusLaunchAppPath,
+  resolveStandaloneStatusLaunchCandidates,
   shouldRunCuaScreenCaptureProbe,
   type CuaHelperHost,
   type CuaHelperTransportRestartOptions,
@@ -730,6 +732,7 @@ import { WindowsCuaHelperHost } from "#src/cua-permission-broker/windowsCuaDevHe
 import {
   getStableCuaPipeName,
   resolveStableCuaWinRecipe,
+  type StableCuaWinRecipe,
 } from "#src/cua-permission-broker/stableCuaTransport.js";
 import { HELPER_APP_NAME } from "@drora/drora-cua/broker/helperConstants";
 import { resolveBrokerSocketPath } from "@drora/drora-cua/broker/socketPath";
@@ -1111,12 +1114,8 @@ export function createWindowsCuaHelperHost(options: {
     get pluginAuthority() {
       return host?.pluginAuthority ?? null;
     },
-    get token() {
-      return host?.token ?? null;
-    },
-    get presentationToken() {
-      return host?.presentationToken ?? null;
-    },
+    // R10 认证模型换代：token/presentationToken getter 随 token 模型退役移除
+    //（官方 0.6.5 全线零 token；authenticate=身份声明+peer 资格门）。
     async start() {
       return withActiveHost((activeHost) => activeHost.start());
     },
@@ -1255,6 +1254,31 @@ export function createDefaultCuaProductHelper(
 }
 
 export const DRORA_CUA_BUNDLED_HELPER_APP_PATH_ENV = "DRORA_CUA_BUNDLED_HELPER_APP_PATH";
+// —— CUA 冻结切段桥接键（ZCODE_ 名 = 0.6.5 切段消费面；DRORA_ 名 = 我方内部面，双轨并存）——
+// 切段的 env 键保 ZCODE 名是 P3 有意决策（切段段头注释），桥接一律走注入侧 env 路由，
+// 先例 = 第二十八轮方案 A（desktopHostProcess 经 ZCODE_HOME 把 Drora 数据根路由进豁免区，
+// 零改动冻结资产）。键的注入方与消费方引用同一常量，禁止字符串散写
+// （specs/cua-gap-remediation-2026-11-09.md R1.1/R1.2）。
+export const ZCODE_CUA_LAUNCHER_PID_ENV = "ZCODE_CUA_LAUNCHER_PID";
+// 消费方：0.6.5 切段 resolveLauncherPid（upstream/zcode-cua-0.6.5.index.js:6912 常量定义、
+// :7152 消费；node-repl-host dist mcp/server.js:78448 同源内联）——agent 进程内的切段懒启动
+// 以它作 --launcher-pid 来源，缺省回退宿主自身 pid（错误 launcher：Helper 端
+// verifyProcessCodeSignature 过不了官方 Team 门 + launcher-liveness-watchdog 绑错进程）。
+export const ZCODE_CUA_BUNDLED_HELPER_APP_PATH_ENV = "ZCODE_CUA_BUNDLED_HELPER_APP_PATH";
+// 消费方：切段 ensureStandaloneHelperLaunched bundled 分支（:45007 读取、:45008 existsSync），
+// 命中即优先于 ZCODE_HOME||~/.zcode + "ZCode Computer Use.app" 名字匹配候选
+// （:6907/:7220）——注入我方 Helper 的实际 .app 路径，既消除对 Drora Helper 的名字漏配，
+// 也阻断同机官方 ZCode 在场时对 ~/.zcode/computer-use/ 官方 Helper 的跨产品错配。
+export const ZCODE_CUA_HELPER_INSTALL_VARIANT_ENV = "ZCODE_CUA_HELPER_INSTALL_VARIANT";
+// 消费方：切段 resolveCuaHelperInstallVariant（:6913 常量区定义，取值面
+// ["stable","preview","dev-desktop","standalone"]，决定切段 installer 的 install root
+// 子目录）。桥接值必须与我方安装根语义一致（stable/standalone=根、preview=preview、
+// dev-desktop=dev），否则切段把 Helper 装到第二根。
+export const ZCODE_CUA_WIN_HELPER_RECIPE_ENV = "ZCODE_CUA_WIN_HELPER_RECIPE";
+// 消费方：切段 ensureWindowsHelperForked（win32 懒启动 fork，要求字段
+// command/entryPath/root/addonPath/commandEnv/hostPid）——桥接 DRORA_CUA_WIN_HELPER_RECIPE
+// 的同一 JSON 值（resolveStableCuaWinRecipe 产出 + hostPid），纯接线、不改 win32 行为实现。
+
 // 第五十五轮：host 托管路径安装器的 buildId 期望此前回落 WC 常量（官方线
 // pipeline id），与随包自建 Helper（drora-<版本>）必然失配——agent 首次驱动 CUA
 // 的 ensureInstalled 校验即 verification_failed。按 spec §六「main 是 bundled 身份
@@ -1274,7 +1298,7 @@ export function isDroraCuaAdhocDistributionEnv(env: NodeJS.ProcessEnv = process.
 export function buildStandaloneCuaHelperLaunchArgs(options: {
   appPath: string;
   socketPath: string;
-  tokenFile: string;
+  // R10 认证模型换代：tokenFile 参数退役（官方 0.6.5 全线零 token；JC 发射向量已无 token 旗）。
   env?: NodeJS.ProcessEnv;
   launcherPid: number;
   /** 上游 v3.17.1 新增：standalone 状态发射须开 ghost cursor overlay（进程级开关，Helper 常驻复用）。 */
@@ -1287,7 +1311,6 @@ export function buildStandaloneCuaHelperLaunchArgs(options: {
     {
       appPath: options.appPath,
       socketPath: options.socketPath,
-      tokenFile: options.tokenFile,
       exitLogPath: `${options.socketPath}.settings.exit.log`,
       ...(options.ghostCursorOverlay === true ? { ghostCursorOverlay: true } : {}),
       ...(devEscape || adhocDistribution
@@ -1321,6 +1344,99 @@ export function resolveBundledCuaHelperAppPath(
     process as NodeJS.Process & { resourcesPath?: string }
   ).resourcesPath?.trim();
   return resourcesPath ? join(resourcesPath, "cua-helper", HELPER_APP_NAME) : undefined;
+}
+
+// R1.2 懒启动发现链桥接值的单一出处（specs/cua-gap-remediation-2026-11-09.md）：
+// 切段（agent 进程内的 0.6.5 冻结副本）按 ZCODE_ 名消费，我方注入与安装全在
+// DRORA_ 名与 ~/.drora。切段 bundled 分支拿到这里给出的实际 .app 路径即绕过
+// "ZCode Computer Use.app" 名字匹配——desktop（随包）与 CLI standalone（已安装）
+// 双场景由同一发现序给出；序本身与设置页 standalone 发射共用（先随包/显式注入，
+// 后 drora-helper-locations 的 DRORA→ZCODE 安装根候选），避免两条链发现根漂移。
+export function resolveDroraCuaHelperLazyLaunchAppPath(
+  env: NodeJS.ProcessEnv = process.env,
+  exists: (path: string) => boolean = existsSync,
+): string | undefined {
+  const bundled = resolveBundledCuaHelperAppPath(env);
+  if (bundled && exists(bundled)) {
+    return bundled;
+  }
+  return resolveStandaloneStatusLaunchCandidates(env).find(exists);
+}
+
+// 切段 install-variant 期望与我方安装根同位：显式 preview（main 在 preview 打包态注入
+// DRORA_CUA_HELPER_INSTALL_VARIANT）透传；dev runtime 判 dev-desktop（dev/ 子根）；
+// 缺省 stable（computer-use 根）——与切段缺省序（dev→dev-desktop、ZCODE_ENV=test→preview、
+// stable）对齐，防切段把 Helper 装进第二根（取值面见切段 :6913 常量区四值集合）。
+export function resolveZcodeCuaHelperInstallVariantForBridge(
+  env: NodeJS.ProcessEnv = process.env,
+): "stable" | "preview" | "dev-desktop" | "standalone" {
+  const explicit = env.DRORA_CUA_HELPER_INSTALL_VARIANT?.trim();
+  if (
+    explicit === "stable" ||
+    explicit === "preview" ||
+    explicit === "dev-desktop" ||
+    explicit === "standalone"
+  ) {
+    return explicit;
+  }
+  if (isCuaLocalDevelopmentRuntime(env)) {
+    return "dev-desktop";
+  }
+  return "stable";
+}
+
+export interface ZcodeCuaLazyLaunchBridgeEnvOptions {
+  env: NodeJS.ProcessEnv;
+  /** 测试注入文件存在判定；缺省 existsSync。 */
+  exists?: (path: string) => boolean;
+  /** win32 fork recipe 解析；缺省 resolveStableCuaWinRecipe。 */
+  resolveWinRecipe?: () => Promise<StableCuaWinRecipe | null>;
+  /** recipe.hostPid（切段 win32 懒启动以它作 --parent-pid）；缺省 process.pid。 */
+  hostPid?: number;
+  /** 平台分支（darwin/win32 桥接面不同）；缺省 process.platform。测试注入用。 */
+  platform?: NodeJS.Platform;
+}
+
+// 构造懒启动桥接 env（mac：BUNDLED 直注 + INSTALL_VARIANT；win32：WIN_RECIPE 桥接）。
+// 任一值解析失败即省略该键——切段对应分支回落到自身缺省行为（静默/候选），不在
+// 桥接层引入新失败面。ZCODE_HOME 透传不在此函数：desktopHostProcess 已注入 host env，
+// 且 ZCODE_HOME 不在 SANITIZED_RUNTIME_ENV_KEYS，agent spawn 原样继承（有测试锁定）。
+export async function buildZcodeCuaLazyLaunchBridgeEnv(
+  options: ZcodeCuaLazyLaunchBridgeEnvOptions,
+): Promise<Record<string, string>> {
+  const bridge: Record<string, string> = {};
+  const platform = options.platform ?? process.platform;
+  if (platform === "darwin") {
+    const exists = options.exists ?? existsSync;
+    const appPath = resolveDroraCuaHelperLazyLaunchAppPath(options.env, exists);
+    if (appPath) {
+      bridge[ZCODE_CUA_BUNDLED_HELPER_APP_PATH_ENV] = appPath;
+      bridge[ZCODE_CUA_HELPER_INSTALL_VARIANT_ENV] = resolveZcodeCuaHelperInstallVariantForBridge(
+        options.env,
+      );
+    }
+    // 第二轮 R7.6：CLI standalone 场景没有 desktopHostProcess 的 host env 注入层，
+    // 切段 candidates 兜底臂（bundled 值缺席时）按 ZCODE_HOME||~/.zcode 找官方名
+    // Helper——同机装有官方 ZCode 即跨产品拉起。桥接层兜底注入 Drora 数据根
+    // （desktop 态 host env 已有同名值，不覆盖：仅缺省补）。取值式与
+    // drora-helper-locations 的 helperEnvironment 同源（DRORA_HOME → 数据根/.drora）。
+    if (!options.env.ZCODE_HOME?.trim()) {
+      bridge.ZCODE_HOME =
+        options.env.DRORA_HOME?.trim() ||
+        join(options.env.DRORA_DATA_BASE_DIR?.trim() || homedir(), ".drora");
+    }
+    return bridge;
+  }
+  if (platform === "win32") {
+    const recipe = await (options.resolveWinRecipe ?? resolveStableCuaWinRecipe)();
+    if (recipe) {
+      bridge[ZCODE_CUA_WIN_HELPER_RECIPE_ENV] = JSON.stringify({
+        ...recipe,
+        hostPid: options.hostPid ?? process.pid,
+      });
+    }
+  }
+  return bridge;
 }
 
 export { isOfficialCuaPluginEnabledForWorkspace };
@@ -1997,18 +2113,19 @@ export function createLocalServices(options: {
   // Helper 懒启动：宿主启动时仅探测稳定 socket 上是否有一个
   // 自启动（SDK 首调拉起）的 Helper。只 ping，绝不拉起；300ms 预算。probe 结果仅用于
   // 状态展示 / PiP 凭据发现；权限详情与 onboarding 仍走显式 host 流。
-  const probeStableCuaHelperSocket = async (): Promise<string | null> => {
-    const socketPath =
-      process.platform === "win32" ? getStableCuaPipeName() : resolveBrokerSocketPath();
+  // R2（specs/cua-gap-remediation-2026-11-09.md D1=选项 A）：ping 核心按 socketPath 参数化
+  // 提取——pre-launch 占位编排（ensureStandaloneHelperPreLaunchedForLazySpawn）的探活
+  // dep 复用同一实现，避免两份 ping 分叉。
+  const pingCuaBrokerSocket = async (socketPath: string, timeoutMs = 300): Promise<boolean> => {
     try {
       const { createConnection } = await import("node:net");
-      return await new Promise<string | null>((resolve) => {
+      return await new Promise<boolean>((resolve) => {
         const socket = createConnection(socketPath);
-        const finish = (value: string | null): void => {
+        const finish = (value: boolean): void => {
           socket.destroy();
           resolve(value);
         };
-        const timer = setTimeout(() => finish(null), 300);
+        const timer = setTimeout(() => finish(false), timeoutMs);
         socket.on("connect", () => {
           clearTimeout(timer);
           socket.write(`{"id":0,"method":"ping","params":{}}\n`);
@@ -2019,21 +2136,26 @@ export function createLocalServices(options: {
               try {
                 const nl = buffer.indexOf("\n");
                 const reply = JSON.parse(buffer.slice(0, nl)) as { ok?: boolean };
-                finish(reply.ok === true ? socketPath : null);
+                finish(reply.ok === true);
               } catch {
-                finish(null);
+                finish(false);
               }
             }
           });
         });
         socket.on("error", () => {
           clearTimeout(timer);
-          finish(null);
+          finish(false);
         });
       });
     } catch {
-      return null;
+      return false;
     }
+  };
+  const probeStableCuaHelperSocket = async (): Promise<string | null> => {
+    const socketPath =
+      process.platform === "win32" ? getStableCuaPipeName() : resolveBrokerSocketPath();
+    return (await pingCuaBrokerSocket(socketPath)) ? socketPath : null;
   };
 
   // 按需启动：拉起 standalone Helper（稳定 socket）。dev 场景（本 Helper 构建内嵌 dev
@@ -2045,32 +2167,33 @@ export function createLocalServices(options: {
   // 即本文件已经用来 import buildHelperOpenArgs 的那个 subpath，可正常导入）。
   //
   // 行为等价性（别误读成安全加固）：上游是 `COMPILED_LOCAL_DEVELOPMENT_RUNTIME &&
-  // DRORA_RUNTIME_ENV!=="production"`，而那个编译期常量只有 scripts/build-cua-helper-app.mjs
-  // 会用 define 折叠（Helper bundle）；desktop host bundle 没有该 define，于是回退成
-  // `process.env.NODE_ENV !== "production"` —— 正是复制品写的那一项。所以在**当前**打包形态下
-  // 两者逐字等价，关门靠的是 DRORA_RUNTIME_ENV=production（打包态显式注入且不传 NODE_ENV）。
-  //
-  // 换成上游的收益是消除漂移面：折叠点、因子个数与 fail-closed 方向都由上游一处决定，
-  // 哪天 host bundle 也补上 __DRORA_LOCAL_DEVELOPMENT_RUNTIME__ define（Helper 侧已经有），
-  // 编译期门自动生效，不需要再回来改这里。
+  // ZCODE_RUNTIME_ENV!=="production"`。第二轮 R7.1 起两翼已补齐：①编译期常量——desktop
+  // host bundle 的 tsup define 已折叠 __ZCODE_LOCAL_DEVELOPMENT_RUNTIME__（Helper SEA 侧
+  // 原有），生产构建折叠 false；②env 键——desktopRuntimeEnv 已随 DRORA_RUNTIME_ENV 同源
+  // 下发 ZCODE_RUNTIME_ENV（官方 out/main offset 48548 区同款），此前只注 DRORA_ 名导致
+  // 还原消费方关门不成立的缺口已闭。
 
   // 第十五轮 token 模式：standalone 发射的 token 缓存（socketPath → token）。
   // 同一 host utilityProcess 内，resolveSpawnEnv 懒启动分支据此把 token 注入
   // agent env（设置页拉起的 standalone helper 与 agent spawn 同进程宿主）。
   // helper 300s 闲置自灭后重新发射会覆盖缓存；被外部以其它 token 重启则缓存
   // 过期 → 客户端认证 fail-closed（宁可拒绝不可绕过）。
-  const standaloneTokenBySocket = new Map<string, string>();
+  // R10：standalone token 缓存表随 token 模型退役移除（官方 0.6.5 零 token）。
   // 上游 3.16.1：状态发射日志改走 service logger（cua-status-launch scope）。
   const cuaStatusLaunchLog = createServiceLogger("cua-status-launch");
-  const launchStandaloneCuaHelperForStatus = async (): Promise<{
-    socketPath: string;
-    token?: string;
-  } | null> => {
-    if (process.platform !== "darwin") return null;
+  // R1.2 懒启动桥接的诊断日志（scope 与状态发射分开，避免两类发射链日志混流）。
+  const cuaLazyLaunchBridgeLog = createServiceLogger("cua-lazy-launch-bridge");
+  // R2 pre-launch 占位的诊断日志（D1=选项 A；与桥接/状态发射分开，占位只在懒启动分支
+  // 触发，混流会让「谁拉起了 Helper」不可辨）。
+  const cuaLazyPreLaunchLog = createServiceLogger("cua-lazy-prelaunch");
+  // R2（specs/cua-gap-remediation-2026-11-09.md D1=选项 A；R10 后免 token）：发射核心按
+  // socketPath 参数化提取——设置页 standalone 状态发射与懒启动 pre-launch 占位共用
+  // 同一实现（同一 argv 构造/探活轮询路径），不另立第二条写入路径。成功 true，失败 false。
+  const launchStandaloneCuaHelperOnSocket = async (socketPath: string): Promise<boolean> => {
+    if (process.platform !== "darwin") return false;
     const { existsSync } = await import("node:fs");
     const { execFile } = await import("node:child_process");
     const { promisify } = await import("node:util");
-    const socketPath = resolveBrokerSocketPath();
     let appPath: string | null;
     try {
       appPath = await resolveStandaloneStatusLaunchAppPath({
@@ -2088,51 +2211,56 @@ export function createLocalServices(options: {
       cuaStatusLaunchLog.warn(undefined, "CUA Helper install before status launch failed", {
         error: error instanceof Error ? error.message : String(error),
       });
-      return null;
+      return false;
     }
-    if (!appPath) return null;
-    // 第十五轮 token 模式：产品态 helperMain 强制 --token-file（LaunchServices 不透传
-    // env）。铸造 token → 一次性文件交付 → 60s 后回收（helper 读取后也会自删）。
-    const token = randomBytes(32).toString("hex");
-    standaloneTokenBySocket.delete(socketPath);
-    const { writeOneShotHelperTokenFile, scheduleHelperTokenFileCleanup } =
-      await import("@drora/drora-cua/broker/server");
-    const tokenFile = await writeOneShotHelperTokenFile({ socketPath, token });
-    // Helper 启动参数统一由 buildHelperOpenArgs 构造，避免多处手写导致漏传或漂移。
-    // 设置页只读权限探测不承载 PiP，不传 --launcher-pid 和 --pip-mode；
-    // exit-log 使用 .settings.exit.log。新增参数应定义在 HelperLaunchSpec 中供调用方共用。
+    if (!appPath) return false;
+    // R10 认证模型换代：官方 0.6.5 全线零 token（SEA/win entry/3.14.3 token 族全 0），
+    // 免铸造直发；旧 token 铸造/一次性文件/回收调度（writeOneShotHelperTokenFile 已随
+    // R10 从 producer 侧删除）整体退役——authenticate 走身份声明 + peer 资格门。
+    // R1.3（specs/cua-gap-remediation-2026-11-09.md，审查 H1）：发射参数改由姊妹函数
+    // buildStandaloneCuaHelperLaunchArgs 统一构造，消除「注释称已提取、主函数未改用」
+    // 的脱节（第五十六轮提取后主函数仍手写 buildHelperOpenArgs，产品态漏 --token-file
+    // 与 adhoc 分发放行 → 审查两次 exit 2 实测）。行为变化：
+    // ① 补 --token-file（产品态 helperMain 的 token 门从此可过，token 上面已铸造）；
+    // ② 补 --launcher-pid=本 host 进程——产品态签名门对非官方 pid 一律 fail-loud
+    //    exit(2)（2026-11-09 取证：错误/非官方 pid 同拒），adhoc 分发（DRORA_CUA_HELPER_
+    //    ADHOC_DISTRIBUTION=1）与 dev runtime 经提取函数的成对 escape argv 放行；
+    //    launcher-liveness-watchdog 随之把 Helper 生命周期绑定到本 host——设置页探测
+    //    Helper 本就 300s 闲置自灭，窗口/host 关闭时一并回收反而符合语义；
+    // ③ --pip-mode 仍不传（提取函数不含 pipMode：设置页只读探测不承载 PiP）。
+    // R2 补充：占位发射（懒启动分支）沿用同一 argv——取证确认切段懒启动自身无法
+    // 交付 token（open 不透传 env），占住 socket 后 token 只经 agent env 下发。
     // ghostCursorOverlay 必须传：overlay 是进程级开关，Helper 常驻，设置页先拉起后
     // 真实 CUA 动作会复用同一进程 —— 漏传则整轮操作没有虚拟光标（2026-10-27 本机实测，
     // 第 6 次 argv 漏传，见 docs/cua/producer/ghost-cursor-revival-and-polish.md §0）。
-    // PiP 不同：它依赖 --launcher-pid 的生命周期绑定，按原设计仍不传。
-    const args = buildHelperOpenArgs({
+    const args = buildStandaloneCuaHelperLaunchArgs({
       appPath,
       socketPath,
-      exitLogPath: `${socketPath}.settings.exit.log`,
+      env: process.env,
+      launcherPid: process.pid,
       ghostCursorOverlay: true,
-      ...(isCuaLocalDevelopmentRuntime(process.env)
-        ? { allowUnsignedLauncherLocalDev: true, allowExternalBrokerClientLocalDev: true }
-        : {}),
     });
     try {
       await promisify(execFile)("/usr/bin/open", args, { timeout: 5_000 });
     } catch {
       // LaunchServices 已接单也可能超时；继续等 ping。
     }
-    scheduleHelperTokenFileCleanup({
-      revokeTokenFile: async () => {
-        await (await import("node:fs/promises")).rm(tokenFile, { force: true });
-      },
-    });
     for (let attempt = 0; attempt < 50; attempt += 1) {
-      const ready = await probeStableCuaHelperSocket();
+      const ready = await pingCuaBrokerSocket(socketPath);
       if (ready) {
-        standaloneTokenBySocket.set(socketPath, token);
-        return { socketPath, token };
+        return true;
       }
       await new Promise((resolve) => setTimeout(resolve, 100));
     }
-    return null;
+    return false;
+  };
+  const launchStandaloneCuaHelperForStatus = async (): Promise<{
+    socketPath: string;
+  } | null> => {
+    if (process.platform !== "darwin") return null;
+    const socketPath = resolveBrokerSocketPath();
+    const launched = await launchStandaloneCuaHelperOnSocket(socketPath);
+    return launched ? { socketPath } : null;
   };
 
   const launchWindowsCuaHelperForStatus = async (): Promise<string | null> => {
@@ -2161,7 +2289,7 @@ export function createLocalServices(options: {
         return {
           socketPath: host.socketPath,
           // token 模式：PiP 客户端以 role=presentation authenticate
-          ...(host.presentationToken ? { presentationToken: host.presentationToken } : {}),
+          // R10：presentationToken 注入退役（官方 0.6.5 presentation 走 authenticate role+peer 资格门）。
         };
       }
       // 懒启动：无托管 host 时探测稳定 socket 上自启动的 Helper（probe-only，不拉起）。
@@ -2216,7 +2344,6 @@ export function createLocalServices(options: {
         // Helper 按需启动：设置页查询 = 拉起 standalone Helper（稳定 socket、
         // 无 launcher-pid → 300s 无访问自动休眠，不进托管体系）。拉起后经稳定 socket 查真值。
         let stable = await probeStableCuaHelperSocket();
-        let standaloneToken: string | undefined;
         if (!stable) {
           stable =
             process.platform === "darwin"
@@ -2244,7 +2371,6 @@ export function createLocalServices(options: {
             socketPath: stable,
             method: "permission_status",
             timeoutMs: 3000,
-            ...(standaloneToken ? { token: standaloneToken } : {}),
           });
           return {
             grantOwner: report.grant_owner,
@@ -2705,26 +2831,85 @@ export function createLocalServices(options: {
         // 它不需要 host——托管态由 host 铸造，懒启动态在此按 spawn 铸造，语义与校验完全一致。
         const lazySocketPath =
           process.platform === "win32" ? getStableCuaPipeName() : resolveBrokerSocketPath();
-        const lazyStandaloneToken = standaloneTokenBySocket.get(lazySocketPath);
+        // R2 pre-launch 占位（specs/cua-gap-remediation-2026-11-09.md 决策点 D1=选项 A）：
+        // 在 agent 进程内的 0.6.5 冻结切段触发自身懒启动之前，用现有 token 链（设置页
+        // standalone 发射同款 launchStandaloneCuaHelperOnSocket）先把 Helper 拉起并占住
+        // lazySocketPath。取证依据（切段只读引用）：socket 存活时切段逐调用直连复用、
+        // 绝不自己拉起（ensureBrokerAvailable 仅挂 broker_unavailable+not_sent 重试，
+        // upstream/zcode-cua-0.6.5.index.js:38652-38687/:44897）；切段 client 的
+        // authenticate 载荷恒无 token（:37522/:37551-37556），token 只能经下方 env 键
+        // 下发给 token 感知客户端（内置 drora-cua MCP）。占位失败/超时按原行为降级
+        // （无 token 注入，切段懒启动撞门 fail-loud，不新增失败面）；win32 由编排层
+        // platform 门跳过（fork recipe 链不受影响）。
+        if (process.platform === "darwin") {
+          const preLaunchOutcome = await ensureStandaloneHelperPreLaunchedForLazySpawn({
+            socketPath: lazySocketPath,
+            probeSocketAlive: pingCuaBrokerSocket,
+            launchStandaloneHelper: launchStandaloneCuaHelperOnSocket,
+          });
+          if (preLaunchOutcome === "pre-launched") {
+            cuaLazyPreLaunchLog.info(
+              undefined,
+              "CUA standalone Helper pre-launched for lazy spawn (bridge socket occupied before agent-side lazy start)",
+              { socket: lazySocketPath },
+            );
+          } else if (
+            preLaunchOutcome === "pre-launch-failed" ||
+            preLaunchOutcome === "pre-launch-timeout"
+          ) {
+            cuaLazyPreLaunchLog.warn(
+              undefined,
+              "CUA standalone Helper pre-launch did not complete; agent spawns without bridge env (segment lazy start remains fail-loud)",
+              { outcome: preLaunchOutcome, socket: lazySocketPath },
+            );
+          }
+        }
         cuaProductHelperEnv = {
           [BROKER_SOCKET_ENV]: lazySocketPath,
           [DRORA_CUA_PLUGIN_AUTHORITY_ENV_KEY]: randomBytes(16).toString("hex"),
-          // 设置页以 token 文件发射的 standalone helper：agent 需同一 token 才能 authenticate
-          ...(lazyStandaloneToken ? { [DRORA_CUA_BROKER_TOKEN_ENV_KEY]: lazyStandaloneToken } : {}),
+          // R10：token 注入退役（官方 0.6.5 authenticate=身份声明，零 token）。
         };
+        // R1.2 发现链桥接的注入在下方分支外统一执行（托管/懒启动两态都要）；
+        // 本分支保留懒 socket/authority/token 与 win32 recipe 失败的显式不可用语义。
         if (process.platform === "win32") {
+          // 第二轮 R7.5：DRORA_CUA_WIN_HELPER_RECIPE 为死键（0.6.3/0.6.5 切段均只读
+          // ZCODE_ 名，DRORA_ 名全仓零消费者），移除注入；切段消费面由下方桥接的
+          // ZCODE_CUA_WIN_HELPER_RECIPE 承担（resolveStableCuaWinRecipe 有缓存，不双解析）。
           const recipe = await resolveStableCuaWinRecipe();
-          if (recipe) {
-            cuaProductHelperEnv["DRORA_CUA_WIN_HELPER_RECIPE"] = JSON.stringify({
-              ...recipe,
-              hostPid: process.pid,
-            });
-          } else {
+          if (!recipe) {
             cuaProductHelperEnv = {
               [BROKER_UNAVAILABLE_ENV]:
                 "broker_unavailable: windows helper recipe could not be resolved",
             };
           }
+        }
+      }
+      // R1.2 发现链桥接（specs/cua-gap-remediation-2026-11-09.md）：agent 进程内的
+      // 0.6.5 冻结切段按 ZCODE_ 名消费（BUNDLED 直注实际 .app 路径、INSTALL_VARIANT
+      // 对齐安装根、win32 桥接同一 recipe JSON）；DRORA_ 名键保留给我方内部消费面
+      // （host 侧 drora-helper-locations 的 DRORA_CUA_→ZCODE_CUA_ 映射族），双轨并存。
+      // 托管态（helper 在）也注入：托管 broker 常驻时切段懒启动不触发，但 broker 意外
+      // 不可用时切段兜底发现链要能命中我方 Helper（否则回落名字匹配候选静默）。
+      // 切段对 DRORA_CUA_WIN_HELPER_RECIPE（DRORA_ 名）零消费——R7.5 已移除该死键，
+      // ZCODE_ 名接管切段消费面。
+      if (
+        cuaPluginEnabled &&
+        (process.platform === "darwin" || process.platform === "win32")
+      ) {
+        const lazyLaunchBridgeEnv = await buildZcodeCuaLazyLaunchBridgeEnv({ env: process.env });
+        Object.assign(cuaProductHelperEnv, lazyLaunchBridgeEnv);
+        // R1.2 验证③（注入侧可见性）：切段 bundled/候选双双落空时 :45019 一带静默
+        // return（冻结资产不可改）。桥接层此时同样给不出路径（随包与已安装 Helper 都
+        // 缺席）——这里补一条 warn，把「CUA 已启用但 Helper 资产缺失」从静默不可用
+        // 变为可诊断；win32 的 recipe 缺失由上方 BROKER_UNAVAILABLE_ENV 显式失败，不重。
+        if (
+          process.platform === "darwin" &&
+          !(ZCODE_CUA_BUNDLED_HELPER_APP_PATH_ENV in lazyLaunchBridgeEnv)
+        ) {
+          cuaLazyLaunchBridgeLog.warn(
+            undefined,
+            "CUA lazy-launch bridge found no local Helper app (bundled path absent and install root empty); agent-side lazy start will not find a Helper",
+          );
         }
       }
       const telemetryEnv = getCapturedDroraAgentTelemetryEnv();

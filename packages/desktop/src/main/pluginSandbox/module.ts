@@ -7,5 +7,5 @@ export const pluginSandboxModule = {
   id: "plugin-sandbox",
   requires: ["desktop", "shared", "mcp-apps-protocol", "gen-ui-protocol"],
   provides: ["plugin-sandbox-registry", "plugin-sandbox-platform"],
-  publicEntrypoints: ["index.ts", "contract.ts", "aliasRuntime.ts", "aliasApi.ts"],
+  publicEntrypoints: ["index.ts", "contract.ts", "aliasRuntime.ts", "aliasApi.ts", "../../host/pluginSandbox/index.ts", "../../host/pluginSandbox/contract.ts", "../../preload/pluginSandbox/hostBridge.ts"],
 } as const;

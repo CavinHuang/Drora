@@ -75,7 +75,10 @@ export var P6e = z.object({
   parentPid: z.coerce.number().int().positive(),
 });
 
-export var qc = "3.14.3";
+// 修复原因（2026-11-10 第二轮 R7.2）：钉扎停在 3.14.3 时代（官方 3.17.2 的 out/host
+// kp="3.17.2" @767360，Helper 版本随 App 走；本仓 0.6.5 切段亦同代）。生产态 --version
+// 兜底恒发旧值；desktop 链被 embedded 身份 env 盖住，CLI standalone 无注入时回落此值。
+export var qc = "3.17.2";
 
 export function uW(e) {
   return e?.trim().toLowerCase() === "production" ? "production" : "test";

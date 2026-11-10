@@ -1,3 +1,4 @@
+import { runWindowsOperationRequest } from "../native/windows-operation-request.js";
 import { isBrokerPresentedResult } from "./presentation.js";
 import { BrokerError, isBrokerMethod } from "./types.js";
 
@@ -92,7 +93,16 @@ export async function dispatchRequest(backend, request) {
     );
   }
   try {
-    const result = await handler(request.params);
+    // 还原自发行 bundle（官方 0.6.5 win32 entry :20486）：请求进 windows 操作域
+    //（params.windows_operation_context 存在时才建 scope，callId 取请求 id）；
+    // 收尾由 runWindowsOperationRequest 把 scope 内 evidence/maintained 附回结果。
+    // 非 win32 或无 context 时原样执行（mac 官方形态整链休眠）。
+    const result = await runWindowsOperationRequest(
+      String(request.id),
+      request.method,
+      request.params,
+      async () => handler(request.params),
+    );
     return isBrokerPresentedResult(result)
       ? okResponse(request.id, result.result, result.presentation)
       : okResponse(request.id, result);

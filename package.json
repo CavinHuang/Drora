@@ -81,11 +81,11 @@
     "provider:regression": "pnpm --dir apps/drora-cli exec turbo run build --filter=@drora/bootstrap... && tsx apps/drora-cli/tools/provider-regression/src/cli.ts",
     "test:engineering": "vitest run --project engineering",
     "test:engineering:affected": "node scripts/run-affected-engineering-tests.mjs",
-    "test:engineering-tools": "node --test scripts/test/affected-engineering-test-cli.test.mjs scripts/test/pre-push-worktree.test.mjs scripts/test/retired-app-unit-evidence.test.mjs scripts/test/e2e-remote-targets-check.test.mjs",
+    "test:engineering-tools": "node --test scripts/test/affected-engineering-test-cli.test.mjs scripts/test/run-drora-tests-cli.test.mjs scripts/test/pre-push-worktree.test.mjs scripts/test/retired-app-unit-evidence.test.mjs scripts/test/e2e-remote-targets-check.test.mjs",
     "check:e2e-remote-targets": "node scripts/check-e2e-remote-targets.mjs",
     "test:upstream-cli": "node scripts/test-upstream-cli.mjs",
     "test:unit:node": "node scripts/run-node-unit-tests.mjs",
-    "test:drora": "vitest run --project drora"
+    "test:drora": "node scripts/run-drora-tests.mjs"
   },
   "dependencies": {
     "border-beam": "^1.0.1",

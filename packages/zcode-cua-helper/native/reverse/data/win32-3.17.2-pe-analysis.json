@@ -1,0 +1,35 @@
+{
+ "source": "official @zcode/zcode-cua 0.6.5 win32-x64 addon（cua-helper.zip，runtime-manifest 自带 sha256 与实测一致）",
+ "size": 839576,
+ "machine": "PE32+ x64",
+ "pdb_path": "C:\\Users\\codegeex\\gitlab-runner\\builds\\d5-EUcYuG\\0\\codegeex\\z-code\\packages\\zcode-cua\\build\\Release\\ax_native.pdb",
+ "upstream_native_sources": [
+  "screen_capture_win.cc"
+ ],
+ "cppwinrt": "2.0.250303.1",
+ "windows_sdk": "10.0.26100.0",
+ "window_class_fingerprints": [
+  "ApplicationFrameWindow",
+  "CefBrowser",
+  "HwndWrapper",
+  "TkTopLevel",
+  "TkTopLevel.",
+  "WinUIDesktopWin32WindowClass",
+  "Windows.UI.Core.CoreWindow",
+  "gdkSurface",
+  "gdkWindow",
+  "yChrome_WidgetWin_"
+ ],
+ "embed_engine_taxonomy": [
+  "embedded_chromium",
+  "embedded_chromium_wpf",
+  "winui3_exempt"
+ ],
+ "system_window_processes": [],
+ "graphics_capture": [
+  "ScreenCaptureCompositeWorker",
+  "ScreenCaptureWorker"
+ ],
+ "export_face": "94 napi 方法（见 win32-3.17.2-napi-functions.json；PE 符号已剥离，名单=PE 字符串∩(mac136∪我仓 0.6.3 注册面∪helper JS 引用)）",
+ "note_utf16": "窗口类指纹为 UTF-16LE 字符串（Win32 API 字面量），ASCII strings 扫描不命中"
+}

@@ -65,8 +65,8 @@ function registerAllTools(server, deps) {
 }
 var SERVER_NAME = "zcode-cua";
 var SERVER_VERSION = (() => {
-  if ("0.5.14".trim().length > 0) {
-    return "0.5.14";
+  if ("0.6.5".trim().length > 0) {
+    return "0.6.5";
   }
   try {
     const require2 = createRequire(import.meta.url);
@@ -98,14 +98,12 @@ function buildServer(opts) {
     version: SERVER_VERSION
   });
   const socket = opts.brokerSocketPath?.trim();
-  const token = opts.brokerToken?.trim();
-  if (!socket || !token) {
+  if (!socket) {
     return { server, registeredTools: [] };
   }
   assertNoUnexpandedPlaceholder(socket);
   const broker = new BrokerClient({
     socketPath: socket,
-    token,
     refreshMarkerPath: opts.refreshMarkerPath
   });
   const sessionKey = opts.sessionKey ?? randomUUID();
@@ -1888,7 +1886,6 @@ async function startStreamableHttpServer(options) {
       const requestLifecycle = createSessionRequestLifecycle();
       const built = buildServer({
         brokerSocketPath: options.brokerSocketPath,
-        brokerToken: options.brokerToken,
         refreshMarkerPath: options.refreshMarkerPath,
         session: new AccessibilitySession(),
         sessionKey,
@@ -2207,8 +2204,7 @@ var BROKER_METHODS = [
 ];
 var BROKER_METHOD_SET = new Set(BROKER_METHODS);
 var BROKER_PRESENTED_RESULT = /* @__PURE__ */ Symbol("zcode.cua.broker-presented-result");
-var BROKER_TOKEN_ENV = "DRORA_CUA_PERMISSION_BROKER_TOKEN";
-var BROKER_SOCKET_ENV = "DRORA_CUA_PERMISSION_BROKER_SOCKET";
+var BROKER_SOCKET_ENV = "ZCODE_CUA_PERMISSION_BROKER_SOCKET";
 function isWindowsNamedPipePath(path) {
   return path.startsWith("\\\\.\\pipe\\");
 }
@@ -2537,8 +2533,9 @@ var eventRequestSchema = z.object({ event: pipSessionEventSchema }).strict();
 var configSchema = z.object({
   platform: z.literal("win32"),
   socketPath: z.string().refine((path) => isWindowsNamedPipePath(path) && path.length > "\\\\.\\pipe\\".length),
-  parentPid: z.coerce.number().int().positive(),
-  token: z.string().trim().min(1)
+  parentPid: z.coerce.number().int().positive()
+  // R10：官方 0.6.5 win 入口 token 退场（configSchema 去 token、authToken 零出现，
+  // manifest 七十七轮 L2 记档），此处跟随删除 token 字段；win 鉴权=版本门+管道命名空间。
 });
 function normalizeZCodeEnv(value) {
   return value?.trim().toLowerCase() === "production" ? "production" : "test";
@@ -2564,7 +2561,7 @@ var DEFAULT_HELPER_MAX_DOWNLOAD_BYTES = 200 * 1024 * 1024;
 var DEV_BROKER_CREDENTIALS_DIR = join("computer-use", "run");
 var CUA_PERMISSION_REFRESH_TERM_GRACE_MS = CUA_PERMISSION_BROKER_GRACEFUL_STOP_TIMEOUT_MS + 2e3;
 var PROJECT_CONFIG_FILES = ["zcode.json", join(".zcode", "config.json")];
-var BROKER_REFRESH_MARKER_ENV = "DRORA_CUA_PERMISSION_BROKER_REFRESH_MARKER";
+var BROKER_REFRESH_MARKER_ENV = "ZCODE_CUA_PERMISSION_BROKER_REFRESH_MARKER";
 var HTTP_AUTH_TOKEN_ENV = "ZCODE_CUA_HTTP_AUTH_TOKEN";
 function readTrimmed(env, key) {
   const raw = env[key];
@@ -2575,7 +2572,9 @@ function readTrimmed(env, key) {
 function readBrokerEnv(env) {
   return {
     brokerSocketPath: readTrimmed(env, BROKER_SOCKET_ENV),
-    brokerToken: readTrimmed(env, BROKER_TOKEN_ENV),
+    // R10：brokerToken（DRORA_CUA_PERMISSION_BROKER_TOKEN）env 读随 token 模型退役
+    // 删除——官方 0.6.5 切段零 token（见 buildServer 注释）；socket/refreshMarker
+    // （ZCODE_ 面，R1 级键迁移产物）与 httpAuthToken（streamable-http 独立鉴权面）保留。
     refreshMarkerPath: readTrimmed(env, BROKER_REFRESH_MARKER_ENV),
     httpAuthToken: readTrimmed(env, HTTP_AUTH_TOKEN_ENV)
   };
@@ -2584,7 +2583,6 @@ async function main(opts = {}) {
   if (opts.transport === "streamable-http") {
     const running = await startStreamableHttpServer({
       brokerSocketPath: opts.brokerSocketPath,
-      brokerToken: opts.brokerToken,
       refreshMarkerPath: opts.refreshMarkerPath,
       host: opts.host,
       port: opts.port,
@@ -2613,7 +2611,6 @@ async function main(opts = {}) {
   }
   const built = buildServer({
     brokerSocketPath: opts.brokerSocketPath,
-    brokerToken: opts.brokerToken,
     refreshMarkerPath: opts.refreshMarkerPath
   });
   await resetPipDismissedForNewSession(built.deps);
@@ -2656,7 +2653,6 @@ export {
   BROKER_PRESENTED_RESULT,
   BROKER_REFRESH_MARKER_ENV,
   BROKER_SOCKET_ENV,
-  BROKER_TOKEN_ENV,
   CLIPBOARD_MAX_BUFFER,
   COMPILED_LOCAL_DEVELOPMENT_RUNTIME,
   CONTROL_TYPE_TO_KIND,

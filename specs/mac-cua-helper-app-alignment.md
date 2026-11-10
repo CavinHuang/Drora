@@ -21,12 +21,12 @@ peer 验证原语硬门槛化）如实入档为后续还原项，方法面不受
 
 ## 一、能力一致的定义（分层）
 
-| 层                        | 一致口径                                                                                                                           | 依据                                     |
-| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------- |
-| 原生层（ax_native）       | **字节级一致**：构建直接复用仓库内原版二进制 `native/ax_native_mac.node`（SHA-256 与官方 .app 内 `Resources/ax_native.node` 相同） | 117 导出面 + `check-ax-native-interface` |
-| TS payload（helper 主体） | **行为一致**：`src/helper-sea-entry.ts` → helperMain 的还原实现，经双 broker 对比验收（见第四节）                                  | 复原清单 + 本 spec 新增 mac parity 工具  |
-| App 形态                  | **结构一致**：Node SEA 单可执行 + `Resources/ax_native.node` + Info.plist 键集与原版相同（值允许按构建身份不同）                   | 构建脚本                                 |
-| 签名身份                  | **允许不同**：dev 构建 ad-hoc；发布构建用自有 Developer ID + 公证。签名身份不同必然导致 TCC 授权主体不同，属产品决策而非能力差异   | —                                        |
+| 层                        | 一致口径                                                                                                                                                                                                                           | 依据                                     |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------- |
+| 原生层（ax_native）       | **钉扎自建产物（裁定①，2026-11-09 改口）**：`native/ax_native_mac.node` 为达标换装后的自建 addon（SHA-256 钉扎于 build 脚本），构建产物 `Resources/ax_native.node` 与之字节一致；早期“复用原版二进制/字节级官方一致”口径随换装作废 | 136 导出面（自建产物对官方 3.17.2 parity，manifest 第七十二轮；历史 117→125 为官方 3.11.2/3.14.3 对账线，随裁定①换装作废）+ `check-ax-native-interface` |
+| TS payload（helper 主体） | **行为一致**：`src/helper-sea-entry.ts` → helperMain 的还原实现，经双 broker 对比验收（见第四节）                                                                                                                                  | 复原清单 + 本 spec 新增 mac parity 工具  |
+| App 形态                  | **结构一致**：Node SEA 单可执行 + `Resources/ax_native.node` + Info.plist 键集与原版相同（值允许按构建身份不同）                                                                                                                   | 构建脚本                                 |
+| 签名身份                  | **允许不同**：dev 构建 ad-hoc；发布构建用自有 Developer ID + 公证。签名身份不同必然导致 TCC 授权主体不同，属产品决策而非能力差异                                                                                                   | —                                        |
 
 ## 二、产物契约（构建输出 `dist-cua-helper/Drora Computer Use.app`）
 
@@ -77,9 +77,11 @@ pnpm --filter @drora/drora-cua-helper-runtime build:darwin-app
 1. **溯源冒烟**：产物二进制跑 `--cua-helper-provenance-smoke`，退出码 0，输出
    arch/modules/version/bundleId 与 Info.plist 一致。
 2. **原生接口**：`tools/probe-ax-native.mjs <产物>/Contents/Resources/ax_native.node`
-   → `exports: 117 PROBE OK`；`tools/check-ax-native-interface.mjs` 双向无漂移；
-   构建期钉扎官方 3.11.2 基线 SHA-256（`build-cua-helper-app.mjs`，升级需显式
-   更新基线常量或 `CUA_NATIVE_ADDON_SHA256` 审计覆盖）。
+   → `exports: 136 PROBE OK`；`tools/check-ax-native-interface.mjs` 双向无漂移
+   （期望清单 `tools/ax-native-expected.txt` 第七十二轮随自建产物同步至 136 面，
+   历史官方 3.14.3 线为 125 面）；构建期钉扎 SHA-256
+   （`build-cua-helper-app.mjs`，裁定①后基线=自建产物而非官方字节，重跑
+   generate-mac-rebuilt.py 须同步基线常量或 `CUA_NATIVE_ADDON_SHA256` 审计覆盖）。
 3. **双 broker parity（`tools/parity-mac-helper.mjs`）**：
    场景零 .node 字节级对齐（产物 vs 官方参照物 SHA-256 逐字节一致）；
    场景一 unsigned launcher 双侧 fail-closed；场景二产品配方（ZCode 桌面 main 为

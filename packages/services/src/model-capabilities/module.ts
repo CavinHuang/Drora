@@ -6,5 +6,5 @@ export const servicesModelCapabilitiesModule = {
   id: "services-model-capabilities",
   requires: ["services", "shared"],
   provides: ["services-model-capabilities"],
-  publicEntrypoints: ["index.ts", "contract.ts"],
+  publicEntrypoints: ["index.ts", "contract.ts", "node.ts"],
 } as const;

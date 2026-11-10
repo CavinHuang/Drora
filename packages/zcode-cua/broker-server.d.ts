@@ -54,18 +54,10 @@ export declare function createCuaHelperInstaller(
   options?: CuaHelperInstallerOptions,
 ): CuaHelperInstaller;
 
-// 第十五轮：一次性 token 文件链（原版 mac 3.11.2 发射器还原）
-export declare function writeOneShotHelperTokenFile(args: {
-  socketPath: string;
-  token: string;
-}): Promise<string>;
-export declare function createHelperTokenFileReceipt(files: (string | undefined)[]): {
-  tokenFiles: string[];
-  revokeTokenFile(): Promise<void>;
-};
-export declare function scheduleHelperTokenFileCleanup(receipt: {
-  revokeTokenFile(): Promise<void>;
-}): void;
+// R10 认证模型换代（2026-11-10）：一次性 token 文件链（writeOneShotHelperTokenFile/
+// createHelperTokenFileReceipt/scheduleHelperTokenFileCleanup）随官方 0.6.5 零 token
+// 模型整体退役（实现已删，此前 stale 声明经 skipLibCheck 掩盖悬空调用——services
+// pre-launch 链同批已改免 token 直发）。
 
 export declare const defaultCuaHelperVerifierDependencies: CuaHelperVerifierDependencies;
 
@@ -136,9 +128,7 @@ export interface CuaProductHelperHost {
   readonly running: boolean;
   readonly socketPath: string | null;
   readonly pluginAuthority: string | null;
-  /** 第十五轮 token 模式：发射时铸造、handle 携带；无 token（旧 Helper/非 darwin）为 null */
-  readonly token: string | null;
-  readonly presentationToken: string | null;
+  // R10：token/presentationToken 成员随 token 模型退役移除（官方 0.6.5 全线零 token）。
   start(): Promise<CuaHelperHandle>;
   stop(): Promise<void>;
   restart(): Promise<CuaHelperHandle>;

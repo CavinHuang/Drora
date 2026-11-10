@@ -74,9 +74,10 @@ if (!fast) {
 // 2. 溯源冒烟
 runSettled("provenance smoke", builtExe, ["--cua-helper-provenance-smoke"]);
 
-// 3. ax_native 接口（117 导出 + 双向漂移）
+// 3. ax_native 接口（双向漂移）。导出面计数随第七十二轮自建产物换装为 136
+//（旧 117/125 为官方 3.11.2/3.14.3 对账线，已作废），清单见 ax-native-expected.txt。
 const addonPath = join(builtApp, "Contents", "Resources", "ax_native.node");
-run("probe ax_native (117 exports)", process.execPath, [
+run("probe ax_native (136 exports)", process.execPath, [
   join(packageRoot, "tools/probe-ax-native.mjs"),
   addonPath,
 ]);

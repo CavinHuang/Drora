@@ -3,8 +3,9 @@ export const embeddedBrowserPermissionModule = {
   id: "embedded-browser-permission",
   requires: ["desktop", "shared"],
   provides: ["embedded-browser-permission"],
+  // 模块根相对名（policy 文件 root 用 ../ 相对首个 root 表达）。
   publicEntrypoints: [
-    "packages/desktop/src/main/embeddedBrowserPermissionPolicy.ts",
-    "packages/desktop/src/main/embedded-browser-permission-contract/contract.ts",
+    "../embeddedBrowserPermissionPolicy.ts",
+    "contract.ts",
   ],
 } as const;

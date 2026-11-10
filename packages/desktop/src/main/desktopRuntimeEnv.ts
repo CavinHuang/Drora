@@ -593,6 +593,13 @@ export function buildHostProcessEnv(hostProcessLocalEnv: Record<string, string>)
     // Drora 运行时不再使用 NODE_ENV；它会被用户 shell、包管理器和测试框架复用。
     // 这里显式下发 DRORA_RUNTIME_ENV，并在继承环境里清掉 NODE_ENV，避免 host/agent/Bash 被污染。
     [DRORA_RUNTIME_ENV_KEY]: resolveHostProcessNodeEnv(),
+    // 第二轮 R7.1：还原 CUA 信任门键同步下发。官方 main 的 buildHostProcessEnv 末段注入
+    // [ZCODE_RUNTIME_ENV]:"production"（out/main/index.js offset 48548 区，官方 host Mr()
+    // @736190 消费），而还原消费方（zcode-cua trust-policy / helper trust-policy）读
+    // ZCODE_ 名——此前只注 DRORA_ 名导致生产态信任门恒判 dev（install-variant 落 dev
+    // 第二根、安装器两道 fail-closed 门被跳过、dev env 覆盖通道被打开）。桥接键双轨
+    // 有意分歧见台账；值与 DRORA_RUNTIME_ENV 同源同刻。
+    ZCODE_RUNTIME_ENV: resolveHostProcessNodeEnv(),
     // 显式注入编译期产品身份，保证主进程与 host 的身份语义一致；地址独立解析。
     // inheritedEnv 从 .env 通用变量补齐 Drora/ZAI 链接，未覆盖时统一使用线上默认值。
     DRORA_ENV,

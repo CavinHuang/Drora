@@ -25,10 +25,11 @@ import {
   parseErrorPayload,
   permissionBrokerPermissionError
 } from "./errors.js";
+var CUA_BROKER_IPC_VERSION = 3;
 var PermissionBrokerClient = class {
   socketPath;
   timeoutMs;
-  token;
+  authenticateParams;
   peerChecker;
   maxFrameBytes;
   nowMs;
@@ -46,7 +47,7 @@ var PermissionBrokerClient = class {
     }
     this.socketPath = socketPath;
     this.timeoutMs = options.timeoutMs;
-    this.token = typeof options.token === "string" && options.token.trim().length > 0 ? options.token.trim() : null;
+    this.authenticateParams = options.authenticateParams && Object.keys(options.authenticateParams).length > 0 ? { ...options.authenticateParams } : null;
     this.peerChecker = options.peerChecker ?? defaultPeerCredentialChecker();
     this.maxFrameBytes = options.maxFrameBytes ?? MAX_FRAME_BYTES;
     this.nowMs = options.nowMs ?? Date.now;
@@ -80,8 +81,12 @@ var PermissionBrokerClient = class {
     const requestId = this.requestId();
     const methodLine = `${JSON.stringify({ id: requestId, method, params })}
 `;
-    const authLine = this.token !== null ? `${JSON.stringify({ id: 0, method: "authenticate", params: { token: this.token } })}
-` : null;
+    const authParams = {
+      clientApiVersion: CUA_BROKER_IPC_VERSION,
+      ...this.authenticateParams
+    };
+    const authLine = `${JSON.stringify({ id: 0, method: "authenticate", params: authParams })}
+`;
     const businessTimeoutMs = businessResponseTimeout(this.timeoutMs, method, params);
     let requestDeliveryState = "not_sent";
     const sanitize = (text) => text.split(this.socketPath).join("<socket>");
@@ -158,13 +163,7 @@ var PermissionBrokerClient = class {
           });
           return;
         }
-        if (authLine !== null) {
-          socket.write(authLine);
-        } else {
-          requestDeliveryState = "possibly_sent";
-          authed = true;
-          socket.write(methodLine);
-        }
+        socket.write(authLine);
       });
       socket.on("data", (chunk) => {
         buffer += chunk;
@@ -206,7 +205,7 @@ var PermissionBrokerClient = class {
             });
             return;
           }
-          if (!authed && authLine !== null) {
+          if (!authed && authLine !== null && (reply.id === 0 || reply === null || typeof reply !== "object" || Array.isArray(reply))) {
             if (reply === null || typeof reply !== "object" || Array.isArray(reply)) {
               finish(() => {
                 outcome.error = permissionBrokerPermissionError(
@@ -225,7 +224,7 @@ var PermissionBrokerClient = class {
             const message2 = extractAuthErrorMessage(reply);
             finish(() => {
               outcome.error = permissionBrokerPermissionError(
-                `ZCode permission broker rejected the auth token: ${message2}`,
+                `ZCode permission broker rejected authenticate: ${message2}`,
                 { code: "not_authorized" }
               );
             });
@@ -361,7 +360,7 @@ function brokerUnavailableFromTransport(message, state, errorType) {
     }
   });
 }
-var ZCODE_CUA_BROKER_REFRESH_MARKER_ENV_KEY = "DRORA_CUA_PERMISSION_BROKER_REFRESH_MARKER";
+var ZCODE_CUA_BROKER_REFRESH_MARKER_ENV_KEY = "ZCODE_CUA_PERMISSION_BROKER_REFRESH_MARKER";
 var MARKER_KEYS = Object.freeze(/* @__PURE__ */ new Set(["schema", "kind", "deadlineEpochMs"]));
 var MARKER_SCHEMA = 1;
 var MARKER_KIND = "permission_refresh";
@@ -1006,7 +1005,8 @@ function currentPipToolRequestContext() {
 }
 var BrokerClient = class {
   socketPath;
-  token;
+  // R10：token 选项随官方 0.6.5 零 token 模型退役删除（官方 BrokerClient 构造仅
+  // socketPath/operationHooks/ensureBrokerAvailable/refreshMarkerPath，切段 :38500-38526）。
   // Warmup retry config (Python defaults: 2s retry window, 150ms→750ms backoff).
   // Resolved once at construction; the values come from the M3 constants module
   // (broker.py:93-95 byte-equal), so a parity change there flows through here
@@ -1026,7 +1026,6 @@ var BrokerClient = class {
   refreshGate;
   constructor(options) {
     this.socketPath = options.socketPath;
-    this.token = options.token;
     const markerPath = options.refreshMarkerPath?.trim();
     if (markerPath) {
       const gate = new PermissionBrokerRefreshGate(markerPath);
@@ -1113,7 +1112,7 @@ var BrokerClient = class {
    * Per-call wiring:
    *   1. Build a fresh PermissionBrokerClient (per-call connection, matching
    *      Python's `BrokerBackend._call_client_once`). The peer-check runs
-   *      on connect, BEFORE any token/method bytes leave this process.
+   *      on connect, BEFORE any method bytes leave this process.
    *   2. Compute one monotonic absolute deadline covering the whole call
    *      (computeAbsoluteDeadline = rpc-deadline-cap + bounded-hold, capped
    *      by the outer per-call timeoutMs). This is the hard upper bound the
@@ -1144,7 +1143,6 @@ var BrokerClient = class {
     }
     const wireClient = new PermissionBrokerClient(this.socketPath, {
       timeoutMs,
-      token: this.token,
       cancelSignal,
       onPresentation: recordBrokerPresentation
     });

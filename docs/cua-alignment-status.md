@@ -21,7 +21,7 @@ sha256 `b169b8dc…ceaea`）：
 | 生命周期（认领超时 90s 兜底 / 闲置 300s 自眠）            | ✅ 双路实测               | 直启观测                            |
 | 渲染层 / 权限浮窗 / main 胶水 / agent 胶水                | ✅ 逐字同构               | 全文比对（浮窗仅产品名差）          |
 | 认证模型 v2（peer 互验原生面）                            | ✅ LOCAL_PEERCRED 真实现  | launcher 门+peer 门 live（adhoc 线）|
-| win32 行为面                                             | ⚠️ 维持 0.6.3（裁定③）   | 用户在 win 机器实现；共享模块无损套件 |
+| win32 行为面                                             | ✅ 97/97 面全收+三面套件全绿（W0-W5 收官 2026-11-11） | 9 面探针全 EQUAL；57/57+123 矩阵 0 差+41/41 写路径；接口双工具 97/97；字面量 276/276；fork E2E 双形态 |
 | 跨进程桥接（launcher-pid/懒启动发现链/占位发射）          | ✅ 差距修复战役 R1+R2    | lazy-discovery-bridge + services 18 回归 |
 | Helper 行为面细件（旋钮/socket 兜底/paste 串行/exit-log） | ✅ 差距修复战役 R3       | r3-behavior-restoration 全绿        |
 | 版本/元数据解锁与打包门（placeholder/staging arch）      | ✅ 差距修复战役 R4+R5    | 见 manifest 第七十三轮逐项          |

@@ -1865,8 +1865,9 @@ exceptions:
     paths:
       - packages/zcode-cua/src/**
       - packages/zcode-cua-helper/src/**
+      - packages/zcode-cua-helper/tools/**
       - packages/zcode-cua/upstream/**
-    reason: The whole drora-cua producer package (broker, native adapters, tools) entered the repo after the gate timestamp as pre-existing code moved from a separate repository; adopting its internal layers needs a dedicated CONTRACT pass (it has known internal cycles by design), not a mechanical split in this branch. helper src 并入同准入（2026-11-09 CUA 3.17.2 对齐 P4 新增 ghostCursorTurnLifecycle.ts，specs/cua-3.17.2-alignment.md；同属发行 bundle 还原区，同理不经机械拆分）。
+    reason: The whole drora-cua producer package (broker, native adapters, tools) entered the repo after the gate timestamp as pre-existing code moved from a separate repository; adopting its internal layers needs a dedicated CONTRACT pass (it has known internal cycles by design), not a mechanical split in this branch. helper src 并入同准入（2026-11-09 CUA 3.17.2 对齐 P4 新增 ghostCursorTurnLifecycle.ts，specs/cua-3.17.2-alignment.md；同属发行 bundle 还原区，同理不经机械拆分）。 helper tools 并入同准入（2026-11-11 win32 0.6.5 W1 批新增 probe-one-win.cjs 探针与 e2e-fork-win.cjs fork 链验收器，specs/win32-cua-0.6.5-implementation-design.md §四 L0.4/§五 W1；同域还原区工具链，同理不经机械拆分）。
   # —— v3.17.1 集成（specs/upstream-v3.17.1-migration.md D07）：快照重生成后仅存的两个
   #    非上游路径候选；其余 24 条 unmanaged-new-file 由 upstream-snapshot 按 U2 转换树重生成准入。
   - id: shared-semver-relocation-unmanaged-file

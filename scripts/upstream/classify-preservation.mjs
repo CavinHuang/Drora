@@ -19,7 +19,7 @@ const OUT = getArg("out") ?? "docs/upstream-sync/2026-10-31-v3.17.1/preservation
 // 有序规则：先命中先归属。D 类冻结资产优先于路径巧合。
 const RULES = [
   [/^packages\/mobile-web\//, "D-frozen", "mobile-web 官方快照/还原区，整目录排除合并"],
-  [/^packages\/zcode-cua(-helper)?\//, "D-frozen", "CUA 冻结还原区（R3：0.6.3 不随上游 0.6.5）"],
+  [/^packages\/zcode-cua(-helper)?\//, "D-frozen", "CUA 冻结还原区（R3 起不盲并上游；win 0.6.5 对齐自 2026-11-11 W1 起以生成器/还原线承载）"],
   [/^third-party\//, "D-frozen", "第三方许可/inventory（S6 专项）"],
   [
     /^packages\/desktop\/resources\/(cua-helper|cua-helper-3\.11\.2-reference|glm-natives-3\.14\.3)\//,

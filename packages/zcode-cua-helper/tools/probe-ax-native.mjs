@@ -19,8 +19,13 @@ if (!fs.existsSync(addonPath)) {
 const addon = createRequire(import.meta.url)(addonPath);
 const keys = Object.keys(addon).sort();
 
+// W4 2026-11-11：win addon 用 win 清单（AX_NATIVE_EXPECTED_WIN=1 或 addon 路径含 win）
+const expectedFile =
+  process.env.AX_NATIVE_EXPECTED_WIN === "1" || /ax_native_win\.node/i.test(addonPath)
+    ? "ax-native-expected-win.txt"
+    : "ax-native-expected.txt";
 const EXPECTED = fs
-  .readFileSync(path.resolve(import.meta.dirname, "ax-native-expected.txt"), "utf8")
+  .readFileSync(path.resolve(import.meta.dirname, expectedFile), "utf8")
   .split("\n")
   .map((s) => s.trim())
   .filter(Boolean);

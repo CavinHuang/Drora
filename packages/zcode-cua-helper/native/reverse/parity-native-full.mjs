@@ -112,11 +112,17 @@ try {
       Boolean(ca?.elements) && Boolean(cb?.elements),
       `orig keys=${Object.keys(ca ?? {})} rest keys=${Object.keys(cb ?? {})}`,
     );
-    check(
-      "captureApp window fields",
-      JSON.stringify(ca?.window) === JSON.stringify(cb?.window),
-      `orig=${JSON.stringify(ca?.window)} rest=${JSON.stringify(cb?.window)}`,
-    );
+    {
+      // bounds 归一（宿主 DPI 虚拟化差：orig/rest 宿主进程 DPI awareness 不同 →
+      // 同一窗矩形以各自 DPI 计——键集与相对形状一致即可，绝对像素不比）
+      const wa = { ...(ca?.window ?? {}), bounds: "<bounds>" };
+      const wb = { ...(cb?.window ?? {}), bounds: "<bounds>" };
+      check(
+        "captureApp window fields",
+        JSON.stringify(wa) === JSON.stringify(wb),
+        `orig=${JSON.stringify(wa)} rest=${JSON.stringify(wb)}`,
+      );
+    }
     check(
       "captureApp app fields",
       JSON.stringify(ca?.app) === JSON.stringify(cb?.app),
@@ -353,11 +359,16 @@ try {
         sa?.elements?.length === sb?.elements?.length,
         `orig=${sa?.elements?.length} rest=${sb?.elements?.length}`,
       );
-      check(
-        "captureApp(ZCode) first element equal",
-        JSON.stringify(sa?.elements?.[0]) === JSON.stringify(sb?.elements?.[0]),
-        `orig=${JSON.stringify(sa?.elements?.[0])?.slice(0, 80)} rest=${JSON.stringify(sb?.elements?.[0])?.slice(0, 80)}`,
-      );
+      {
+        // ref 代数归一（:generation:N 为进程级递增计数器——两侧计数器独立必然值异，
+        // 形态一致即可；其余字段逐字比）
+        const normRef = (el) => ({ ...(el ?? {}), ref: typeof el?.ref === "string" ? el.ref.replace(/:generation:\d+$/, ":generation:<n>") : el?.ref });
+        check(
+          "captureApp(ZCode) first element equal",
+          JSON.stringify(normRef(sa?.elements?.[0])) === JSON.stringify(normRef(sb?.elements?.[0])),
+          `orig=${JSON.stringify(normRef(sa?.elements?.[0]))?.slice(0, 80)} rest=${JSON.stringify(normRef(sb?.elements?.[0]))?.slice(0, 80)}`,
+        );
+      }
     } else {
       console.log("SKIP  captureApp(ZCode) — window not present");
     }
@@ -399,9 +410,11 @@ try {
     }
 
     // 6c. 未知 action / 非可写 setValue
-    const elAny = await orig.elementAtPoint(cx2, cy3);
-    const u1 = await orig.performAction(elAny.ref, "AXWeird");
-    const u2 = await rest.performAction(elAny.ref, "AXWeird");
+    // 各侧以同一屏幕点各产 ref（对称路径——注册表进程内私有，官方同样不可跨实例解析）
+    const elAnyO = await orig.elementAtPoint(cx2, cy3);
+    const elAnyR = await rest.elementAtPoint(cx2, cy3);
+    const u1 = await orig.performAction(elAnyO.ref, "AXWeird");
+    const u2 = await rest.performAction(elAnyR.ref, "AXWeird");
     check(
       "performAction(unknown) → action_unsupported",
       JSON.stringify(u1) === JSON.stringify(u2) && u1?.axError === "action_unsupported",

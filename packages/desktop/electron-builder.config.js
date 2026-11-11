@@ -1018,7 +1018,7 @@ export default {
       filter: ["**/*"],
     })),
     {
-      // CUA helper 运行时(0.6.3,Electron 41.0.3 构建):windows-helper.js +
+      // CUA helper 运行时(0.6.5 自建三件套,Electron 44.7.0 构建):windows-helper.js +
       // ax_native.node + 运行依赖。resolveWindowsCuaRuntime 在产品模式只读
       // resources/tools/cua-helper,缺失时 Windows Computer Use fail-closed。
       // 注意:glm staging 里也有一份(prepare-agent-node-bundle 写 glm/tools),

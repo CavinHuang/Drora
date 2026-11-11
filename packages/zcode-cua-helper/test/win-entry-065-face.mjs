@@ -31,9 +31,12 @@
 import { strict as assert } from "node:assert";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { runWindowsDevHelper } from "../dist/broker/server/windowsDevHelperMain.js";
 
-const packageRoot = new URL("..", import.meta.url).pathname;
+// fileURLToPath 而非 URL.pathname：win 宿主 pathname 形如 /D:/... 不是 fs 路径
+// （join 后成 D:\D:\... 双盘符，readFileSync 即崩——mac 上 pathname 恰可用，win 机 W1 首跑暴露）
+const packageRoot = fileURLToPath(new URL("..", import.meta.url));
 const PIPE = "\\\\.\\pipe\\zcode-cua-helper-test-065";
 const devEntrySource = readFileSync(
   join(packageRoot, "dist/broker/server/windowsDevHelperMain.js"),

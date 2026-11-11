@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import {
   chmodSync,
   copyFileSync,
+  existsSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -55,8 +56,17 @@ export function extractPrebuiltArchive({ archivePath, archiveExt, extractDir, cw
   }
 
   const tarCwd = cwd ?? process.cwd();
+  // Bugfix（W4 2026-11-11）：Git Bash 环境下 PATH 的 GNU tar（/usr/bin/tar）把绝对
+  // 路径的盘符冒号当远程主机（"Cannot connect to D:"），跨盘符回退分支必然踩中。
+  // win32 优先用系统自带 bsdtar（C:/Windows/System32/tar.exe）——它原生接受
+  // 盘符绝对路径（实测 BSDTAR-PLAIN-OK）；仅缺席时回退 PATH 解析（macOS/Linux CI
+  // 与 bsdtar 语义不变）。
+  const tarCommand =
+    process.platform === "win32" && existsSync("C:/Windows/System32/tar.exe")
+      ? "C:/Windows/System32/tar.exe"
+      : "tar";
   runCommand(
-    "tar",
+    tarCommand,
     ["-xzf", resolveTarArchiveArg(archivePath, tarCwd), "-C", toTarPosixPath(extractDir)],
     { cwd: tarCwd },
   );

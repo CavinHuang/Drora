@@ -856,8 +856,8 @@ export function createNativeAxSource(addon, options: any = {}) {
 // 证据：官方 Helper SEA offset 85567977（GHOST_SESSION_SCOPED_METHODS）与 85570858
 // （withGhostRequestSessionScope），nativeAxSource.js 模块区（标记 @85553307）。
 // 名单三段注释保留官方原文（真机修复史：2026-10-24 元素路径 / 10-25 后台投递 /
-// 10-26 Windows 模式梯与 postMessage 系）。配 0.6.3 addon（无 ghostSetRequestSession）
-// 时 Proxy 直接透传原 addon，安全 no-op。
+// 10-26 Windows 模式梯与 postMessage 系）。配无 ghost 面的旧 addon 时 Proxy 直接透传原 addon，安全 no-op（现行自建 74 面
+// addon 自 W2 批起已含 ghostSetRequestSession，Proxy 正常生效）。
 import {
   currentBrokerRequestSession,
   currentBrokerRequestActionTitle,

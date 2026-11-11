@@ -97,12 +97,13 @@
   "typeTextGlobalAsync",
   "winAxElementFromToken",
   "winAxElementRelease",
+  "windowsOperationScene",
   "writeClipboardTextAsync"
  ],
  "faces": {
-  "official_0_6_5": 96,
+  "official_0_6_5": 97,
   "vendored_0_6_3_official": 52,
-  "repo_reverse_line_ax_native_win_cc": 49
+  "repo_reverse_line_ax_native_win_cc": 97
  },
  "delta_vs_vendored_0_6_3": {
   "added": [
@@ -149,19 +150,16 @@
    "setValueReadbackAsync",
    "typeTextGlobalAsync",
    "winAxElementFromToken",
-   "winAxElementRelease"
+   "winAxElementRelease",
+   "windowsOperationScene"
   ],
   "removed": [],
   "old_count": 52,
-  "new_count": 96
+  "new_count": 97
  },
  "delta_repo_reverse_line_vs_vendored_0_6_3": {
-  "missing": [
-   "activateWindow",
-   "launchApplicationAsync",
-   "listInstalledApplicationsAsync"
-  ],
-  "note": "还原线 49 面建于 0.5.13 期参照（README「win32 发行面是 0.5.13 的 Windows 子集」），vendored 0.6.3 官方 addon 已含此 3 导出（strings 实证 + vendored 0.6.3 JS 引用 7/3/1 次），还原线从未追赶"
+  "missing": [],
+  "note": "还原线原 49 面建于 0.5.13 期参照（README「win32 发行面是 0.5.13 的 Windows 子集」），vendored 0.6.3 官方 addon 已含 3 导出（strings 实证 + vendored 0.6.3 JS 引用 7/3/1 次），还原线从未追赶。2026-11-10 W1 追赶批收齐：activateWindow / launchApplicationAsync / listInstalledApplicationsAsync 并入 WIN_IMPLEMENTED（经 generate-win-rebuilt.py 机器管理实现块，行为锚=官方 0.6.5 addon fresh-process 探针），faces 49→52。2026-11-11 W2 mac 血统批收 22（ghost 16 + pasteboard 4 + getWindowId + hasActiveInputHolds，同上证据链；ghost palette 常量走 ghost-shared-constants.json 单一出处），faces 52→74。2026-11-11 W3 win 专属批收 22（postMessage 5/UIA 梯 4/surface 6/杂项 7；TypeError 文案 [S] strings、行为面 [E] 探针、机制级对齐），faces 74→96=官方全集"
  },
- "notes": "2026-11-10 勘误：原 delta_vs_repo_win_0_6_3.added(24) 为扫描缺陷漏账——ghost×16/pasteboard×4/activateWindow/getWindowId/hasActiveInputHolds 共 23 名在官方 0.6.5 面内却未被计入（且 49+24=73≠94 自相矛盾）。本轮以 strings 逐名双扫复核：vendored 0.6.3 官方 addon（sha 92533fe5…，52 面在场）与官方 0.6.5 addon（sha 11f8bc9c…，96 面在场=94 定谳+displays/drag PE 复核）。94 定谳数组仅列三源交集名，displays/drag/及上述 96 全量见 napi 数组（本文件已并全）。"
+ "notes": "2026-11-10 勘误：原 delta_vs_repo_win_0_6_3.added(24) 为扫描缺陷漏账——ghost×16/pasteboard×4/activateWindow/getWindowId/hasActiveInputHolds 共 23 名在官方 0.6.5 面内却未被计入（且 49+24=73≠94 自相矛盾）。本轮以 strings 逐名双扫复核：vendored 0.6.3 官方 addon（sha 92533fe5…，52 面在场）与官方 0.6.5 addon（sha 11f8bc9c…，96 面在场=94 定谳+displays/drag PE 复核）。94 定谳数组仅列三源交集名，displays/drag/及上述 96 全量见 napi 数组（本文件已并全）。 2026-11-11 W4 收口勘误：parity-native 实测官方导出 97 面（windowsOperationScene 为三源交集法漏账——JS :32055 条件消费在场但未被 0.6.3 面∪mac∪JS 引用三源捕捉）；added 44→45。"
 }

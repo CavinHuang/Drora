@@ -20,7 +20,10 @@ import process from "node:process";
 import { fileURLToPath } from "node:url";
 import { runCommand } from "../../../scripts/spawn-command.mjs";
 import { stageAgentBundle } from "./stage-agent-bundle.mjs";
-import { stageSharpIntoBundledAgents } from "./sharp-package-assets.mjs";
+import {
+  isSharpRequiredByComputerUse,
+  stageSharpIntoBundledAgents,
+} from "./sharp-package-assets.mjs";
 import { stageKoffiIntoBundledAgents } from "./koffi-package-assets.mjs";
 import {
   prepareWindowsCuaHelperAssets,
@@ -321,17 +324,10 @@ const officialPluginPackages = [
     runtimeBuildScript: "scripts/build.mjs",
     stagedPath: "packages/drora-site-plugin",
   },
-  {
-    // node_repl 宿主：Browser Use 与 Computer Use 共用的 MCP runtime，本轮抽成独立包。
-    // 它没有 listing（不进插件市场展示面），但生产包首启 seed 必须拿到它的 dist runtime，
-    // 否则 bua/cua 任一开启时都会连不上 node_repl。
-    packageName: "@drora/node-repl-host",
-    relativePath: "apps/drora-cli/packages/node-repl-host",
-    requiresRuntime: true,
-    requiredRuntimePaths: ["dist/server.mjs", "dist/ui/panel.html"],
-    runtimeBuildScript: "scripts/build.mjs",
-    stagedPath: "packages/drora-site-plugin",
-  },
+  // 陈旧重复条目已删（W4 2026-11-11）：node-repl-host 正版条目在上方
+  //（requiredRuntimePaths=["dist/mcp/server.js"]）；本残留块携带 3.17.2 CLI 拆分前的
+  // 旧路径期望 dist/server.mjs 与错误 stagedPath=drora-site-plugin，打包链
+  // assertOfficialPluginRuntime 因此恒失败（missing dist/server.mjs）。
   {
     packageName: "@drora/drora-cua-plugin",
     relativePath: "apps/drora-cli/packages/zcode-cua-plugin",
@@ -610,7 +606,7 @@ function stageSharpForNodeReplPlugin() {
 }
 
 async function stageCuaHelperRuntime() {
-  // CUA helper 运行时(0.6.3):windows-helper.js + ax_native.node + node_modules。
+  // CUA helper 运行时(0.6.5 自建三件套):windows-helper.js + ax_native.node + node_modules。
   // resolveWindowsCuaRuntime 产品模式只读 resources/tools/cua-helper,缺文件即 fail-closed,
   // 因此这里整树暴装(含运行依赖)。
   // 第四十四轮修复：此前误落 glm/tools/cua-helper（随 glm→glm 映射进 Resources/glm/tools，
@@ -660,5 +656,8 @@ stageBundle();
 stageOfficialPlugins();
 stageBundledSkillPack();
 await stageBundledNpmRuntime();
-stageKoffiForCuaPlugin();
+// stageKoffiForCuaPlugin() 陈旧调用已删（W4 2026-11-11）：该函数在 3.17.2 CLI 拆
+// 独立 workspace 合并后已不存在（定义消失、调用残留——ReferenceError 即断链）；
+// koffi staging 现由 stageOfficialPlugins 内 stagedNativeRuntimes 循环承载
+// （zcode-cua-plugin 声明 ["sharp","koffi"]，:516 stageKoffiIntoBundledAgents）。
 stageSharpForNodeReplPlugin();

@@ -59,7 +59,12 @@ const SESSION_WRAPPERS = new Set([
 let fail = 0;
 
 // ---- 1) 导出面 vs 预期清单 ----
-const expectedPath = path.resolve(pkgRoot, "tools", "ax-native-expected.txt");
+// W4 2026-11-11：win addon 用 win 清单（AX_NATIVE_EXPECTED_WIN=1 或 addon 路径含 win）
+const expectedName =
+  process.env.AX_NATIVE_EXPECTED_WIN === "1" || /ax_native_win\.node/i.test(addonPath)
+    ? "ax-native-expected-win.txt"
+    : "ax-native-expected.txt";
+const expectedPath = path.resolve(pkgRoot, "tools", expectedName);
 const expected = fs
   .readFileSync(expectedPath, "utf8")
   .split("\n")
@@ -68,6 +73,7 @@ const expected = fs
 const require2 = createRequire(import.meta.url);
 const addon = require2(addonPath);
 const actual = Object.keys(addon).sort();
+const actualSet = new Set(actual);
 const expSorted = [...expected].sort();
 
 const missing = expSorted.filter((n) => !actual.includes(n));
@@ -99,7 +105,22 @@ const scan = (dir) => {
 };
 scan(srcDir);
 
-const addonOrWrapper = new Set([...actual, ...SESSION_WRAPPERS, ...OPTIONAL_GUARDED]);
+// W4 2026-11-11：win addon 模式下，mac 家族导出（136 mac 面 − 97 win 面差集）
+// 在共享 TS 源中的调用点按平台条件守卫处理（win addon 不导出，mac addon 导出）。
+if (expectedName === "ax-native-expected-win.txt") {
+  const macExpected = fs
+    .readFileSync(path.resolve(pkgRoot, "tools", "ax-native-expected.txt"), "utf8")
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean);
+  for (const name of macExpected) {
+    if (!actualSet.has(name)) OPTIONAL_GUARDED.add(name);
+  }
+}
+// Object.prototype 成员（length 等）经 `target.native === "string" && target.native.length`
+// 形态被扫描误报——排除内置属性名。
+const OBJECT_BUILTIN = new Set(["length", "name", "constructor", "toString", "valueOf"]);
+const addonOrWrapper = new Set([...actual, ...SESSION_WRAPPERS, ...OPTIONAL_GUARDED, ...OBJECT_BUILTIN]);
 const unknownCalls = [...used].filter((n) => !addonOrWrapper.has(n));
 if (unknownCalls.length) {
   console.log("FAIL 未知的 native 调用（既非导出面也非包装层）:", unknownCalls.join(", "));

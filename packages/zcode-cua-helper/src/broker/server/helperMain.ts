@@ -192,7 +192,8 @@ function createDeferredBackend(brokerInfo) {
 export async function runHelper(options: any) {
   // 还原自发行 bundle（官方 3.17.2 / 0.6.5）：native 先过 ghost 会话域守卫再下传
   // （withGhostRequestSessionScope；官方 helperMain 组装 `const native =
-  // withGhostRequestSessionScope(native)`）。配 0.6.3 addon 时透传原对象。
+  // withGhostRequestSessionScope(native)`）。配无 ghost 面的旧 addon 时透传原对象
+  //（现行自建 74 面 addon 自 W2 批起已含 ghost 原生面，Proxy 正常生效）。
   const native = withGhostRequestSessionScope(options.native);
   const brokerInfo =
     options.brokerInfo ??
@@ -313,8 +314,9 @@ export async function runHelper(options: any) {
         });
     // 还原自发行 bundle（官方 3.17.2 / 0.6.5，SEA offset 86540514 区）：coordinator
     // effects 过 ghost 会话生命周期包装——turn-ended/session-closed 在 finally 里按
-    // session 粒度隐藏/移除光标组（per-session 化，A 结束不藏 B）。配 0.6.3 addon 时
-    // ghostSessionTurnEnd/ghostRemoveSession 经可选链安全 no-op。
+    // session 粒度隐藏/移除光标组（per-session 化，A 结束不藏 B）。配无 ghost 面的旧 addon 时
+    // ghostSessionTurnEnd/ghostRemoveSession 经可选链安全 no-op（现行自建 74 面
+    // addon 自 W2 批起已含该二导出，真实生效）。
     const nextPipSessionCoordinator = createPipSessionCoordinator({
       effects: withGhostCursorSessionLifecycle(
         options.pipSessionEffects ?? nextPipPresentationScheduler,

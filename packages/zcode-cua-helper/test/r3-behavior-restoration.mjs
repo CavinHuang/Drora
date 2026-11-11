@@ -17,9 +17,12 @@ import { strict as assert } from "node:assert";
 import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import process from "node:process";
 
-const packageRoot = new URL("..", import.meta.url).pathname;
+// fileURLToPath 而非 URL.pathname：win 宿主 pathname 形如 /D:/... 不是 fs 路径
+// （join 后成 D:\D:\... 双盘符，readFileSync 即崩——mac 上 pathname 恰可用，win 机 W1 首跑暴露）
+const packageRoot = fileURLToPath(new URL("..", import.meta.url));
 const delay = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const constants = await import("../dist/broker/helperConstants.js");
@@ -79,16 +82,32 @@ assert.equal(
   "/x/y.sock",
   "explicit env wins",
 );
-assert.equal(
-  socketPathModule.resolveBrokerSocketPath({ env: { ZCODE_CUA_PERMISSION_BROKER_SOCKET: "   " }, dir: "/tmp/zz" }),
-  join("/tmp/zz", "broker.sock"),
-  "blank env falls through to options.dir",
-);
-assert.equal(
-  socketPathModule.resolveBrokerSocketPath({ env: {} }),
-  join(socketPathModule.brokerRuntimeDir({}), "broker.sock"),
-  "default resolves runtime dir",
-);
+// 平台分支（官方 @85316277：win32 blank env → 命名管道 default，dir 分支不可达）：
+// POSIX 主机钉扎 dir/runtime-dir 两分支；win32 主机钉扎管道 default 分支
+//（win 机 W1 首跑暴露：原断言为 POSIX 宿主专用形态）。
+if (process.platform === "win32") {
+  assert.equal(
+    socketPathModule.resolveBrokerSocketPath({ env: { ZCODE_CUA_PERMISSION_BROKER_SOCKET: "   " }, dir: "/tmp/zz" }),
+    socketPathModule.WINDOWS_NAMED_PIPE_PREFIX + "default",
+    "win32 blank env falls to named-pipe default (dir unreachable)",
+  );
+  assert.equal(
+    socketPathModule.resolveBrokerSocketPath({ env: {} }),
+    socketPathModule.WINDOWS_NAMED_PIPE_PREFIX + "default",
+    "win32 default is named-pipe default",
+  );
+} else {
+  assert.equal(
+    socketPathModule.resolveBrokerSocketPath({ env: { ZCODE_CUA_PERMISSION_BROKER_SOCKET: "   " }, dir: "/tmp/zz" }),
+    join("/tmp/zz", "broker.sock"),
+    "blank env falls through to options.dir",
+  );
+  assert.equal(
+    socketPathModule.resolveBrokerSocketPath({ env: {} }),
+    join(socketPathModule.brokerRuntimeDir({}), "broker.sock"),
+    "default resolves runtime dir",
+  );
+}
 assert.match(helperMainDistSource, /\?\? resolveBrokerSocketPath\(\)/);
 if (process.platform === "win32") {
   assert.equal(

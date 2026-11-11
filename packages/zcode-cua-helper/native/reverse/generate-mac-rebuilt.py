@@ -2387,11 +2387,15 @@ def main() -> int:
         except FileNotFoundError:
             print(f"verify FAILED: {dst} 不存在")
             return 1
-        if actual != expected:
-            print(f"verify FAILED: 生成输出与 {dst} 存在字节差异"
-                  f"（expected {len(expected)}B / generated {len(actual)}B）")
+        # 跨宿主行尾规范：win 机 autocrlf 检出为 CRLF 时与 LF 生成物比对必假败
+        #（与 generate-win-rebuilt.py 同款修复，2026-11-11 win 机 W1 批）。
+        # 比对口径=LF 规范化后逐字节；生成物恒 LF（canonical）。
+        expected_norm = expected.replace(b"\r\n", b"\n")
+        if actual != expected_norm:
+            print(f"verify FAILED: 生成输出与 {dst}（LF 规范化后）存在字节差异"
+                  f"（expected {len(expected_norm)}B / generated {len(actual)}B）")
             return 1
-        print(f"verify OK: {dst} 逐字节一致（{len(actual)} bytes, {len(NAMES)} exports）")
+        print(f"verify OK: {dst} LF 规范化后逐字节一致（{len(actual)} bytes, {len(NAMES)} exports）")
         return 0
     with open(dst, "w", encoding="utf-8", newline="") as f:
         f.write(out)

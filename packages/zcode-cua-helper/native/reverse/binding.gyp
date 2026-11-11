@@ -43,6 +43,7 @@
                   "gdi32.lib",
                   "d3d11.lib",
                   "dxgi.lib",
+                  "version.lib",
                   "windowsapp.lib",
                   "runtimeobject.lib"
                 ]

@@ -4,8 +4,9 @@
 // shipped 实现已演进过上游设计文档（docs/cua/producer/ghost-cursor-turn-end-hide.md 的
 // withGhostCursorTurnEndHide 全局 running 判据）：per-session 化——turn-ended 立即隐藏
 // **该 session 的组**，不再受 anyTurnRunning 布尔守卫（A 结束不藏 B）。
-// 配 0.6.3 addon（无 ghost 原生面）时 hideSessionCursor/removeSessionCursor 经可选链
-// 安全 no-op（helperMain 装配处传 options.native.ghostSessionTurnEnd?.()）。
+// 配无 ghost 面的旧 addon 时 hideSessionCursor/removeSessionCursor 经可选链安全
+// no-op（现行自建 74 面 addon 自 W2 批起已含该二导出，真实生效；helperMain 装配处
+// 传 options.native.ghostSessionTurnEnd?.()）。
 
 export interface PipSessionLifecycleEffects {
   focusChanged: (event: any) => void;

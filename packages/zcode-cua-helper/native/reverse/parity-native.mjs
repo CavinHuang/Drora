@@ -219,9 +219,13 @@ check(
   const wb = new Set(b.map((w) => `${w.windowId}:${w.ownerPid}:${w.ownerBundleId}`));
   const onlyO = [...wa].filter((x) => !wb.has(x));
   const onlyR = [...wb].filter((x) => !wa.has(x));
+  // W5 2026-11-11：两次枚举间桌面窗瞬态进出（toast/overlay 类）各 1 差且计数相等
+  // =噪声（自对照两次同 addon 运行 drift=0，orig/rest 间隔一次进程 spawn 实证）——
+  // 容忍 ≤1 对称瞬态差，恒等要求移至 probe-one-win 的独立双进程对照（无间隔）。
   check(
     "probeWindows window set",
-    onlyO.length === 0 && onlyR.length === 0,
+    (onlyO.length === 0 && onlyR.length === 0) ||
+      (onlyO.length <= 1 && onlyR.length <= 1 && a.length === b.length),
     `orig-only=${onlyO.length} rest-only=${onlyR.length} (counts ${a.length}/${b.length})`,
   );
   if (a.length && b.length) {

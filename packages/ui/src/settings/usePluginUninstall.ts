@@ -16,6 +16,11 @@ interface UsePluginUninstallInput {
 export interface PluginUninstallController {
   pendingPlugin: DroraPluginInfo | DroraInstalledPluginSummary | null;
   uninstalling: boolean;
+  /**
+   * 待卸载插件是否强制保留数据目录（§11-D6）：obsidian 插件数据目录含知识库+模型，
+   * 卸载确认弹窗据此明示「数据将保留」，与卸载链路的强制 keepData 行为对齐。
+   */
+  pendingKeepsData: boolean;
   requestUninstall: (pluginId: string) => void;
   cancelUninstall: () => void;
   confirmUninstall: () => Promise<void>;
@@ -49,6 +54,12 @@ export function usePluginUninstall({
     pendingId !== null &&
     activeOperations.some((operation) => operation.id === `plugin:uninstall:${pendingId}`);
 
+  // §11-D6：已装摘要投影的 uninstallKeepData（显式 keepData:false 在 CLI 侧也不生效）。
+  const pendingKeepsData =
+    pendingPlugin !== null && "uninstallKeepData" in pendingPlugin
+      ? pendingPlugin.uninstallKeepData === true
+      : false;
+
   const requestUninstall = useCallback((pluginId: string) => {
     setPendingId(pluginId);
   }, []);
@@ -65,5 +76,5 @@ export function usePluginUninstall({
     setPendingId(null);
   }, [pluginService, onAfterUninstall, pendingId, store, uninstallPlugin]);
 
-  return { pendingPlugin, uninstalling, requestUninstall, cancelUninstall, confirmUninstall };
+  return { pendingPlugin, uninstalling, pendingKeepsData, requestUninstall, cancelUninstall, confirmUninstall };
 }

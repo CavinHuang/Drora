@@ -1,5 +1,14 @@
 import { EmptyResultSchema } from "@modelcontextprotocol/core";
 import { App } from "@modelcontextprotocol/ext-apps";
+import {
+  MCP_APPS_HOST_ACTIONS_EXPERIMENTAL_KEY,
+  MCP_APPS_NAVIGATE_METHOD,
+  MCP_APPS_OPEN_CONVERSATION_HANDOFF_METHOD,
+  MCP_APPS_OPEN_DIRECTORY_PICKER_METHOD,
+  MCP_APPS_OPEN_WITH_METHOD,
+  mcpAppsOpenDirectoryPickerResultSchema,
+  mcpAppsOpenWithParamsSchema,
+} from "@drora/shared/mcp-apps";
 import { useLayoutEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 const app = new App(
@@ -193,6 +202,65 @@ connectGate.promise
 (window as any).saveWidget = (widgetState: unknown) =>
   app.request({ method: "ui/set-widget-state", params: { widgetState } }, EmptyResultSchema);
 (window as any).readWidget = () => app.getHostContext()?.["drora/widgetState"] ?? null;
+
+// g9 宿主动作桥（specs/obsidian-vault-phase2-true-extraction.md §6/§8）：页面侧三动作 +
+// openWith 通知接收。方法名/schema 全部引用 shared 契约（单一出处），不写第二份字面量。
+// `drora/openWith` 非 spec 方法，通知注册必须走 schemas 三参形式（SDK 一参形式只放行 spec 方法）。
+const openWithEvents: unknown[] = [];
+const openWithWaiters = new Map<number, () => void>();
+app.setNotificationHandler(
+  MCP_APPS_OPEN_WITH_METHOD,
+  { params: mcpAppsOpenWithParamsSchema },
+  (params: { payload?: unknown }) => {
+    openWithEvents.push(params?.payload);
+    openWithWaiters.get(openWithEvents.length)?.();
+    openWithWaiters.delete(openWithEvents.length);
+  },
+);
+(window as any).openWithEvents = openWithEvents;
+(window as any).waitOpenWith = (count: number) =>
+  openWithEvents.length >= count
+    ? Promise.resolve()
+    : new Promise<void>((resolve) => openWithWaiters.set(count, resolve));
+const requestOrError = async (request: () => Promise<unknown>) => {
+  try {
+    return { result: await request() };
+  } catch (error) {
+    return { error: String(error) };
+  }
+};
+(window as any).openConversationHandoff = () =>
+  requestOrError(() =>
+    app.request(
+      {
+        method: MCP_APPS_OPEN_CONVERSATION_HANDOFF_METHOD,
+        params: { content: [{ type: "text", text: "handoff-fixture" }] },
+      },
+      EmptyResultSchema,
+    ),
+  );
+(window as any).selectDirectory = () =>
+  requestOrError(() =>
+    app.request(
+      { method: MCP_APPS_OPEN_DIRECTORY_PICKER_METHOD, params: {} },
+      mcpAppsOpenDirectoryPickerResultSchema,
+    ),
+  );
+(window as any).navigateFixture = (surfaceId: string) =>
+  requestOrError(() =>
+    app.request(
+      {
+        method: MCP_APPS_NAVIGATE_METHOD,
+        params: { kind: "surface", surfaceId, payload: { receiptId: `${surfaceId}-receipt` } },
+      },
+      EmptyResultSchema,
+    ),
+  );
+(window as any).hostActionCapability = () =>
+  (
+    (app.getHostCapabilities() as { experimental?: Record<string, unknown> } | undefined)
+      ?.experimental as Record<string, { actions?: string[] }> | undefined
+  )?.[MCP_APPS_HOST_ACTIONS_EXPERIMENTAL_KEY] ?? null;
 (window as any).startStorageWriter = () =>
   new Promise<void>((resolve, reject) => {
     const request = indexedDB.open("host-fixture");

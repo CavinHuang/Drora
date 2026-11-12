@@ -15,9 +15,6 @@ import type {
 import type {
   DynamicWorkflowMode,
   DroraAutomationBotDeliveryTarget,
-  KnowledgeEvidenceGuard,
-  KnowledgeEvidenceReason,
-  KnowledgeEvidenceRef,
 } from "@drora/shared";
 import type {
   CommandAck,
@@ -243,24 +240,10 @@ export interface V4CommandCoreHost {
    * 未注入时按未命中处理（幂等成功收口）。
    */
   interactions?: V4InteractionRegistry;
-  /**
-   * VaultView Evidence 执行时复验（W03 / specs/obsidian-knowledge.md §5.3，非过渡钩子）。
-   * sendText 在 admission 前、sendQueuedNow 在 reserve 前调用；宿主未注入（旧宿主/测试桩）
-   * → 携带 evidenceRefs 的输入被拒绝（fail-closed，普通输入不受影响）。「未注入 → 不复验
-   * （additive）」是 spec §5.3 已废弃的旧口径，现行语义由 evidence-admission 的
-   * verifyEvidenceOrThrow 落地：复验不可用同样返回拒绝，绝不放行。
-   */
-  verifyInputEvidence?(input: {
-    sessionId: string;
-    evidenceRefs: ReadonlyArray<KnowledgeEvidenceRef>;
-  }): Promise<
-    | { ok: true }
-    | {
-        ok: false;
-        guard: KnowledgeEvidenceGuard;
-        reason: KnowledgeEvidenceReason;
-      }
-  >;
+  // P7 本体清除（specs/obsidian-vault-phase2-true-extraction.md §1-C6/C8）：
+  // verifyInputEvidence（宿主注入的执行时复验 gate）已随 CLI gate 拆除；携带
+  // evidenceRefs 的旧账本条目由 evidence-admission 的 D9 legacy 探测器直接拒绝
+  // （legacy_evidence_unverifiable，fail-closed），不再有宿主复验回调面。
 
   // ── 过渡期钩子（legacy 兼容窗口）─────────────────────────
   /**

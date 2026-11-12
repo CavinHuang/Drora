@@ -7,6 +7,9 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { officialPluginHookPrefixArgs, writeOfficialPluginRuntimeManifest } from "../src/app/official-plugin-runtime.js";
+// P7 本体清除（specs/obsidian-vault-phase2-true-extraction.md §9 白名单纪律）：插件 id
+// 字面量改引官方定义常量（测试断言与生产同源，不再手写第二份）。
+import { OFFICIAL_OBSIDIAN_PLUGIN_ID } from "../src/app/official-plugin-definitions.js";
 import { createPluginEnvOverlay } from "../../core/src/hooks/configured-runner-input.js";
 import { runPluginHookCommand } from "../../cli/src/plugin-hook-command.js";
 import { createNodePluginAdapter } from "../../adapters/src/plugins/index.js";
@@ -55,7 +58,7 @@ await test("hooks 中 command:\"node\" 被重写为 __drora-plugin-hook 宿主�
     assert.deepEqual(entry.args.slice(0, -1), prefix);
     assert.equal(entry.args.at(-1), resolve(rootPath, "dist/hooks/session-start.mjs"));
     assert.equal(entry.env.ELECTRON_RUN_AS_NODE, "1");
-    assert.equal(entry.env.DRORA_PLUGIN_ID, "obsidian@drora-plugins-official");
+    assert.equal(entry.env.DRORA_PLUGIN_ID, OFFICIAL_OBSIDIAN_PLUGIN_ID);
     // 前缀末位必须是 hook 专用子命令，不与 MCP 宿主入口混用（CUA 门禁隔离）。
     assert.equal(prefix.at(-1), DRORA_PLUGIN_HOOK_COMMAND);
   });
@@ -143,7 +146,7 @@ await test("skill-only manifest（无 mcpServers/hooks）文件保持不动", ()
 await test("hook 配置 env 覆盖通用 overlay 键", () => {
   const input = { sessionId: "s1", cwd: "/w", hookEventName: "SessionStart" };
   const overlay = createPluginEnvOverlay(
-    { id: "obsidian@drora-plugins-official", name: "obsidian", rootPath: "/p", dataPath: "/d" },
+    { id: OFFICIAL_OBSIDIAN_PLUGIN_ID, name: "obsidian", rootPath: "/p", dataPath: "/d" },
     input,
     "/w",
     { ELECTRON_RUN_AS_NODE: "1", DRORA_PLUGIN_ID: "authoritative" },

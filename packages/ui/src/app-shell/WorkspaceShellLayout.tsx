@@ -1,8 +1,15 @@
-import {
-  DroraWorkspaceMainView,
-  isDroraWorkspaceMainView,
-} from "@/drora-extensions/WorkspaceMainView.js";
+// C5a citation 打开路由（P7 本体清除，spec §1-C5a/§6-g9）：chat 点击引用经宿主→面板
+// openWith 投递给插件面板，receipt 解析在面板内经插件 server 完成——宿主面板注册表与
+// 内置 VaultView 旁路已随 C4/C3 拆除，本文件只保留侧栏面板同一开 tab 通道的编排。
 import type { DraftPluginUiOpenRequest } from "@/plugin-ui/contract.js";
+import {
+  buildPluginUiSurfaceKey,
+  documentViewerInstance,
+  readPluginUiScopeRef,
+} from "@/plugin-ui/contract.js";
+import { resolvePluginUiSurfaceTitle } from "@/plugin-ui/adapters/usePluginUiSurfaces.js";
+import { deliverPluginUiPageOpenWith } from "@/plugin-ui/adapters/pluginUiPageRegistry.js";
+import { useOpenPluginUi } from "@/plugin-ui/adapters/PluginUiProviders.js";
 import { usePaneLayoutStore } from "@/v4/paneLayoutStore.js";
 import { useWorkbenchGroupStore } from "@/v4/workbenchGroupStore.js";
 /* eslint-disable max-lines -- workspace shell 当前集中编排 sidebar、chat、terminal 和 browser pane 的布局联动，先保持单文件收口，避免为满足行数限制打散关键布局状态。*/
@@ -103,7 +110,6 @@ import { shouldOpenAssistantHtmlInBrowser } from "@/lib/assistantPreviewCards.js
 import {
   getKnowledgeCitationOpenEventName,
   isKnowledgeCitationOpenEvent,
-  type KnowledgeCitationOpenEventDetail,
 } from "@/lib/conversationSelectionReference.js";
 import { setWorkspaceSidebarResizeActive } from "@/lib/workspaceSidebarResizeState.js";
 import { buildTaskWorkspaceKey } from "@/lib/taskQueryCache.js";
@@ -450,7 +456,7 @@ const WorkspaceShellLayoutContent = memo(function WorkspaceShellLayoutComponent(
   setGitSelectedSourceId,
   taskFindDialogProps,
 }: WorkspaceShellLayoutProps) {
-  const { intl } = useDroraIntl();
+  const { intl, locale } = useDroraIntl();
   const isOfficeMode = useIsOfficeMode();
   const baseServices = useBaseWorkspaceServices();
   const tabStoreApi = useTabStoreApi();
@@ -1956,68 +1962,98 @@ const WorkspaceShellLayoutContent = memo(function WorkspaceShellLayoutComponent(
     workspaceAbsPath,
     workspaceIdentity,
   ]);
-  // Drora 扩展挂载：WorkspaceMainView 自研旁路保活（drora-extensions/WorkspaceMainView，
-  // specs 遵循「还原代码物理隔离」——vault 等自研主视图不走上游主视图路由）。Keep the
-  // Vault's citation resolver and the session composer mounted after the first Vault
-  // visit. CSS-hiding a view must not revoke its event listeners.
-  const [vaultHasOpened, setVaultHasOpened] = useState(false);
-  const vaultHasOpenedRef = useRef(false);
-  const deferredCitationOpensRef = useRef(new Set<KnowledgeCitationOpenEventDetail>());
-  vaultHasOpenedRef.current = vaultHasOpened || isDroraWorkspaceMainView(workspaceMainView);
-  useEffect(() => {
-    if (isDroraWorkspaceMainView(workspaceMainView)) {
-      vaultHasOpenedRef.current = true;
-      setVaultHasOpened(true);
-    }
-  }, [workspaceMainView]);
+  // C5a citation 打开路由（P7 本体清除，specs/obsidian-vault-phase2-true-extraction.md
+  // §1-C5a/§6-g9）：chat 点击引用不再有内置 VaultView resolver，改为宿主→面板
+  // openWith——解析 obsidian 插件清单声明的 session 级 surface（pluginName "obsidian" +
+  // surface id "vault"，插件侧唯一声明位），复用侧栏面板同一条开 tab 通道，openWith
+  // 携带 {kind:"citation",receiptId} 投递（页面异步准入由 deliverPluginUiPageOpenWith
+  // 等待），receipt 解析与原文定位全部在面板内经插件 server 完成。插件不在场（未启用/
+  // 投影缺席/远程 workspace/bridge 缺席）给结构化 unavailable 终态，由会话引用面 toast
+  // 降级提示（spec §9 已知差异③，不静默落空、不报错崩溃；历史 citation 的渲染不受
+  // 影响——receipt 数据在 UI 投影层）。
+  const openPluginUiForCitation = useOpenPluginUi();
   useEffect(() => {
     if (isWebRemoteControlShell) return;
-    const deferred = deferredCitationOpensRef.current;
-    const handleColdCitationOpen = (event: Event): void => {
+    const handleCitationOpen = (event: Event): void => {
       if (!isKnowledgeCitationOpenEvent(event)) return;
       const detail = event.detail;
-      if (
-        detail.accepted ||
-        vaultHasOpenedRef.current ||
-        !detail.isActive() ||
-        detail.targetSessionId !== activeTaskId ||
-        detail.workspaceKey !== workspaceKey ||
-        !detail.deferUntilMounted()
-      )
-        return;
-      // 修复原因：完整进程重启后 VaultView 尚未挂载，可信引用事件会在任何
-      // resolveCitation RPC 前同步失败。Shell 只负责惰性挂载隐藏视图；目的地与
-      // 文件读取仍由 VaultView 在 Receipt 复验后决定。
-      deferred.add(detail);
-      vaultHasOpenedRef.current = true;
-      setVaultHasOpened(true);
-    };
-    window.addEventListener(getKnowledgeCitationOpenEventName(), handleColdCitationOpen);
-    return () => {
-      window.removeEventListener(getKnowledgeCitationOpenEventName(), handleColdCitationOpen);
-      for (const detail of deferred) {
-        if (detail.targetSessionId === activeTaskId && detail.workspaceKey === workspaceKey) {
-          detail.finish({ ok: false, reason: "forbidden" });
-          deferred.delete(detail);
+      if (detail.accepted || !detail.isActive()) return;
+      if (detail.targetSessionId !== activeTaskId || detail.workspaceKey !== workspaceKey) return;
+      // 同步认领（单消费者）：accepted 使请求保持活跃并等待本 handler 的 finish 终态。
+      detail.accepted = true;
+      void (async () => {
+        const finishUnavailable = (): void => detail.finish({ ok: false, reason: "unavailable" });
+        const bridge = services.pluginUiBridgeService;
+        if (!openPluginUiForCitation || !bridge) {
+          finishUnavailable();
+          return;
         }
-      }
+        try {
+          const surfaces = await bridge.listSurfaces({
+            workspacePath: workspaceAbsPath,
+            ...(workspaceIdentity ? { workspaceIdentity } : {}),
+          });
+          const target = surfaces.find(
+            (surface) =>
+              surface.availability === "session" &&
+              surface.pluginName === "obsidian" &&
+              surface.id === "vault",
+          );
+          if (!target) {
+            finishUnavailable();
+            return;
+          }
+          openPluginUiForCitation({
+            parentSessionId: detail.targetSessionId,
+            surfaceId: target.id,
+            serverName: target.server,
+            pluginId: target.pluginId,
+            resourceUri: target.resourceUri,
+            ...documentViewerInstance(target.resourceUri),
+            title: resolvePluginUiSurfaceTitle(target.title, locale),
+            workspacePath: workspaceAbsPath,
+            ...(workspaceIdentity ? { workspaceIdentity } : {}),
+            remoteSessionId: workspaceRemoteSessionId ?? null,
+          });
+          const scope = readPluginUiScopeRef({ surfaceId: target.id });
+          const delivered = scope
+            ? await deliverPluginUiPageOpenWith(
+                buildPluginUiSurfaceKey(
+                  {
+                    workspacePath: workspaceAbsPath,
+                    ...(workspaceIdentity ? { workspaceIdentity } : {}),
+                    remoteSessionId: workspaceRemoteSessionId,
+                    sessionId: detail.targetSessionId,
+                    pluginId: target.pluginId,
+                    serverName: target.server,
+                    resourceUri: target.resourceUri,
+                  },
+                  scope,
+                ),
+                { kind: "citation", receiptId: detail.receiptId },
+              )
+            : false;
+          detail.finish(delivered ? { ok: true } : { ok: false, reason: "failed" });
+        } catch {
+          detail.finish({ ok: false, reason: "failed" });
+        }
+      })();
     };
-  }, [activeTaskId, isWebRemoteControlShell, workspaceKey]);
-  useEffect(() => {
-    if (!vaultHasOpened) return;
-    const deferred = [...deferredCitationOpensRef.current];
-    deferredCitationOpensRef.current.clear();
-    // Child passive effects install VaultView's resolver listener before this
-    // parent effect retries the still-active event.
-    for (const detail of deferred) detail.retryAfterMount();
-  }, [vaultHasOpened]);
-  // 回植（审计 docs/upstream-sync/2026-10-21-v3.16.1-merge-audit.md F7）：旧侧栏「vault」
-  // 入口（onOpenVault/vaultActive）随上游 project-sidebar 重构丢失，现以 ProjectSidebarProps
-  // 的 Drora 扩展槽位恢复接线；vault 主视图路由仍由 onWorkspaceMainViewChange 唯一切换。
-  const handleOpenVault = useCallback(
-    () => onWorkspaceMainViewChange("vault"),
-    [onWorkspaceMainViewChange],
-  );
+    window.addEventListener(getKnowledgeCitationOpenEventName(), handleCitationOpen);
+    return () => {
+      window.removeEventListener(getKnowledgeCitationOpenEventName(), handleCitationOpen);
+    };
+  }, [
+    activeTaskId,
+    isWebRemoteControlShell,
+    locale,
+    openPluginUiForCitation,
+    services,
+    workspaceAbsPath,
+    workspaceIdentity,
+    workspaceKey,
+    workspaceRemoteSessionId,
+  ]);
   const handleOpenMarkdownFileLink = useCallback(
     async (target: WorkspacePathOpenRequest) => {
       if (workspaceReadOnlyReason && target.serviceScope !== "base-local") {
@@ -2376,9 +2412,6 @@ const WorkspaceShellLayoutContent = memo(function WorkspaceShellLayoutComponent(
       automationsActive={workspaceMainView === "automations"}
       onOpenPluginStore={handleOpenPluginStore}
       pluginStoreActive={workspaceMainView === "plugin-store"}
-      // Drora 扩展槽位接线：vault 侧栏入口回植（审计 F7），选中态跟随自研主视图旁路。
-      onOpenVault={handleOpenVault}
-      vaultActive={isDroraWorkspaceMainView(workspaceMainView)}
       // 桌面没有 mobile 导航动作；内联包装曾让右侧开关穿透侧栏 memo，重复渲染全部项目。
       onWebRemoteTaskOpen={
         mobile
@@ -3012,16 +3045,10 @@ const WorkspaceShellLayoutContent = memo(function WorkspaceShellLayoutComponent(
                             </AutomationsMainBreadcrumbFrame>
                           </main>
                         ) : (
-                          // Drora 扩展挂载：WorkspaceMainView 自研旁路（drora-extensions）。
-                          // chat 主视图与 vault 旁路同层保活：切到 vault 时仅 CSS 隐藏 chat，
-                          // 卸载会话 composer 与引用 resolver；vault 首开后常驻（vaultHasOpened）。
+                          // P7 本体清除（spec §1-C3/C4）：vault 宿主面板旁路与保活层拆除，
+                          // chat 主视图回归唯一挂载（插件面板走侧栏沙箱链路，不经本层）。
                           <div className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden">
-                            <main
-                              className={cn(
-                                "relative flex h-full min-h-0 flex-1 flex-col overflow-hidden",
-                                isDroraWorkspaceMainView(workspaceMainView) && "hidden",
-                              )}
-                            >
+                            <main className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden">
                               {renderChatFindDialog()}
                               <ScopedErrorBoundary
                                 scope="workspace-chat"
@@ -3103,21 +3130,6 @@ const WorkspaceShellLayoutContent = memo(function WorkspaceShellLayoutComponent(
                                 />
                               </ScopedErrorBoundary>
                             </main>
-                            {(vaultHasOpened || isDroraWorkspaceMainView(workspaceMainView)) && (
-                              <div
-                                className={cn(
-                                  "flex h-full min-h-0 flex-1 flex-col",
-                                  !isDroraWorkspaceMainView(workspaceMainView) && "hidden",
-                                )}
-                              >
-                                <DroraWorkspaceMainView
-                                  sessionId={activeTaskId ?? undefined}
-                                  workspaceKey={workspaceKey}
-                                  onCitationOpen={() => onWorkspaceMainViewChange("vault")}
-                                  onAgentHandoffPrepared={() => onWorkspaceMainViewChange("chat")}
-                                />
-                              </div>
-                            )}
                           </div>
                         )}
                       </div>
@@ -3125,8 +3137,7 @@ const WorkspaceShellLayoutContent = memo(function WorkspaceShellLayoutComponent(
                   </ResizablePanel>
                   {isWebRemoteControlShell ||
                   (workspaceMainView !== "automations" &&
-                    workspaceMainView !== "plugin-store" &&
-                    !isDroraWorkspaceMainView(workspaceMainView)) ? (
+                    workspaceMainView !== "plugin-store") ? (
                     <AnimatedTerminalPanel
                       frameClassName={cn(
                         isSidePaneVisible

@@ -2,22 +2,20 @@
  * 「模型能力」条目详情渲染入口（specs/model-capabilities.md §5.1）。
  *
  * ModelProviderSection 左导航选中 capability:* 节点时由 Detail 分支渲染本组件；
- * 按 purpose 分派到五个条目表单（顺序 = MODEL_CAPABILITY_PURPOSES 契约顺序）。
- * 数据一律经 useModelCapabilities（档案服务唯一读路径）；embedding 状态面与
- * Jev 连接测试复用 knowledgeIndexService（Host 侧既有 RPC 面，语义不变）。
+ * 按 purpose 分派到条目表单（顺序 = MODEL_CAPABILITY_PURPOSES 契约顺序）。
+ * 数据一律经 useModelCapabilities（档案服务唯一读路径）。
+ * P7 本体清除（specs/obsidian-vault-phase2-true-extraction.md §1-C9/C11）：
+ * Jev 决策与本地语义嵌入两表单（及 knowledgeIndexService 复用面）随 knowledge
+ * 栈拆除，本域只剩语音/图像三条目。
  */
 import type { ModelCapabilityPurpose } from "@drora/shared";
 import { useDroraIntl } from "@/i18n/IntlProvider.js";
 import { useModelCapabilities } from "@/hooks/useModelCapabilities.js";
-import { DecisionJevCapabilityForm } from "./DecisionJevCapabilityForm.js";
-import { EmbeddingCapabilityForm } from "./EmbeddingCapabilityForm.js";
 import { AsrCapabilityForm } from "./AsrCapabilityForm.js";
 import { TtsCapabilityForm } from "./TtsCapabilityForm.js";
 import { ImageGenerationCapabilityForm } from "./ImageGenerationCapabilityForm.js";
 
 const DETAIL_TITLE_IDS: Record<ModelCapabilityPurpose, string> = {
-  "decision-jev": "settings.modelCapability.detail.decisionJev.title",
-  embedding: "settings.modelCapability.detail.embedding.title",
   asr: "settings.modelCapability.detail.asr.title",
   tts: "settings.modelCapability.detail.tts.title",
   "image-generation": "settings.modelCapability.detail.imageGeneration.title",
@@ -56,10 +54,6 @@ export function ModelCapabilityDetail({ purpose }: { purpose: ModelCapabilityPur
 
 function ModelCapabilityDetailBody({ purpose }: { purpose: ModelCapabilityPurpose }) {
   switch (purpose) {
-    case "decision-jev":
-      return <DecisionJevCapabilityForm />;
-    case "embedding":
-      return <EmbeddingCapabilityForm />;
     case "asr":
       return <AsrCapabilityForm />;
     case "tts":

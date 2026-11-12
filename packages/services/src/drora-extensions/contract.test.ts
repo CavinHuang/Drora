@@ -23,20 +23,6 @@ it.each([
   },
 );
 
-import { vi } from "vitest";
-import type { IModelCapabilitiesService } from "../model-capabilities/index.js";
-import { assembleDroraKnowledgeHost } from "./knowledgeHost.js";
-it("unreadable model capabilities fail closed without blocking the Host or creating a semantic model", async () => {
-  const warn = vi.fn();
-  const modelCapabilitiesService = {
-    get: vi.fn(async () => {
-      throw new Error("capabilities_unavailable");
-    }),
-  } as unknown as IModelCapabilitiesService;
-  const host = await assembleDroraKnowledgeHost(modelCapabilitiesService, { warn });
-  expect(host.knowledgeEmbeddingPort).toBeNull();
-  expect(await host.knowledgeSemanticSource()).toBeNull();
-  expect(await host.knowledgeJevConfigSource()).toBeNull();
-  // 3 次降级各告警一次：初始化预构建、显式 semanticSource 解析、jev configSource 解析。
-  expect(warn).toHaveBeenCalledTimes(3);
-});
+// P7 本体清除（specs/obsidian-vault-phase2-true-extraction.md §1-C7）：
+// assembleDroraKnowledgeHost（knowledgeHost.ts）随本体 knowledge 栈拆除，
+// 其降级语义测试随实现移除——插件 server 侧装配由 obsidian-plugin 自带测试覆盖。

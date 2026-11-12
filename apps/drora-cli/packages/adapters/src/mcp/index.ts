@@ -1607,14 +1607,17 @@ class NodeMcpAdapter implements McpPort {
           config.timeoutMs,
           // 只有 http 形态置位。这个标记的用途是**信任结果里的结构化标识**
           // （额度耗尽 / 无套餐），因此判据必须是"结果由谁产出"：
-          //   - http：结果来自 Drora 后端。fetch wrapper 对每次请求校验 origin；登录态只在
+          //   - http：响应来自 Drora 后端。fetch wrapper 对每次请求校验 origin；登录态只在
           //     tools/call 解析，缺失时由同一可信后端返回结构化 coding_plan_required；
           //   - stdio：结果由插件进程自己产出，可以任意伪造 `{"error_code":"quota_exceeded"}`，
           //     从而在用户输入框上方弹出"额度用完 / 请开通 Coding Plan"的误导提示。
-          // 原判据是 `type !== "sse"`，把 stdio 一起放了进来，等于这道门槛在 stdio 上为零。
-          // 注意这不是在挡凭证外泄（那由 origin 校验负责），而是在挡**结果伪造**。
+          //   原判据是 `type !== "sse"`，把 stdio 一起放了进来，等于这道门槛在 stdio 上为零。
+          //   注意这不是在挡凭证外泄（那由 origin 校验负责），而是在挡**结果伪造**。
           config.type === "http" && config.auth?.type === DRORA_OFFICIAL_MCP_AUTH_TYPE,
           config.alwaysLoad,
+          // g3：manifest 工具级 deferred 声明按原始 tool 名查表（键在插件 manifest
+          // `mcpServers.<server>.tools` 声明，resolveMcpServerConfig 归一化进 config.tools）。
+          config.tools?.[typeof tool.name === "string" ? tool.name : ""]?.deferred,
         ),
       );
       const negotiatedProtocolEra = client.getProtocolEra();

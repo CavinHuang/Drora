@@ -75,6 +75,7 @@ import type {
   DroraPluginsDescribeResult,
   DroraPluginsValidateResult,
   DroraPluginsSetEnabledResult,
+  DroraPluginsSetHostComponentsEnabledResult,
   DroraPluginsCancelOperationResult,
   DroraPluginOperationProgressNotification,
   DroraProviderRuntimeHeadersRequestParams,
@@ -178,6 +179,7 @@ import type {
   DroraAgentRemovePluginMarketplaceParams,
   DroraAgentRestoreBuiltinPluginParams,
   DroraAgentSetPluginEnabledParams,
+  DroraAgentSetHostComponentsEnabledParams,
   DroraAgentSetAutomationEnabledParams,
   DroraAgentUninstallPluginParams,
   DroraAgentUpdatePluginMarketplaceParams,
@@ -903,6 +905,9 @@ export interface IDroraAgentService {
   validatePlugin(params: DroraAgentValidatePluginParams): Promise<DroraPluginsValidateResult>;
   describePlugin(params: DroraAgentDescribePluginParams): Promise<DroraPluginsDescribeResult>;
   setPluginEnabled(params: DroraAgentSetPluginEnabledParams): Promise<DroraPluginsSetEnabledResult>;
+  setHostComponentsEnabled(
+    params: DroraAgentSetHostComponentsEnabledParams,
+  ): Promise<DroraPluginsSetHostComponentsEnabledResult>;
   // ---- 定时任务(automation)管理 ----
   listAutomations(params: DroraAgentWorkspaceTarget): Promise<DroraAutomation[]>;
   listAllAutomations(): Promise<DroraAutomation[]>;

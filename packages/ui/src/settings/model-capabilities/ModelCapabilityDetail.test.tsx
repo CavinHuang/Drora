@@ -36,8 +36,6 @@ const {
   });
   const capabilityState = {
     current: {
-      "decision-jev": { enabled: false, providerKind: "typesafe", baseUrl: "", modelId: "" },
-      embedding: { enabled: false, mode: "local", localModelId: "local-bge-small-zh-v1.5-int8" },
       asr: { engine: "webSpeech", providerRef: "", modelId: "", baseUrlOverride: "" },
       tts: { engine: "system", providerRef: "", modelId: "", voice: "", baseUrlOverride: "" },
       "image-generation": { enabled: false, baseUrl: "", modelId: "" },
@@ -110,12 +108,6 @@ const {
       save: async () => undefined,
       delete: async () => undefined,
     },
-    knowledgeIndexService: {
-      refreshDecisionConfig: vi.fn(async () => ({ refreshed: true })),
-      getSemanticStatus: vi.fn(async () => ({ state: "model_missing" })),
-      downloadSemanticModel: vi.fn(async () => ({ error: null })),
-      testJevConnection: vi.fn(async () => ({ ok: true, latencyMs: 12, error: null })),
-    },
   };
   return {
     capabilityState,
@@ -183,8 +175,6 @@ describe("模型能力 i18n 双语配齐（MC-5）", () => {
 
 function resetCapabilities(): void {
   capabilityState.current = {
-    "decision-jev": { enabled: false, providerKind: "typesafe", baseUrl: "", modelId: "" },
-    embedding: { enabled: false, mode: "local", localModelId: "local-bge-small-zh-v1.5-int8" },
     asr: { engine: "webSpeech", providerRef: "", modelId: "", baseUrlOverride: "" },
     tts: { engine: "system", providerRef: "", modelId: "", voice: "", baseUrlOverride: "" },
     "image-generation": { enabled: false, baseUrl: "", modelId: "" },
@@ -206,10 +196,8 @@ afterEach(() => {
 });
 
 describe("ModelCapabilityDetail 分派与不可用态（MC-5）", () => {
-  it("五条目按 purpose 分派渲染（detail 标题 + 各自表单面）", () => {
+  it("条目按 purpose 分派渲染（detail 标题 + 各自表单面；P7 后三条目）", () => {
     const cases: Array<[string, string]> = [
-      ["decision-jev", "settings.modelCapability.detail.decisionJev.title"],
-      ["embedding", "settings.modelCapability.detail.embedding.title"],
       ["asr", "settings.modelCapability.detail.asr.title"],
       ["tts", "settings.modelCapability.detail.tts.title"],
       ["image-generation", "settings.modelCapability.detail.imageGeneration.title"],
@@ -229,94 +217,9 @@ describe("ModelCapabilityDetail 分派与不可用态（MC-5）", () => {
   });
 });
 
-describe("知识评分条目（decision-jev）", () => {
-  it("开关 → update capabilities 面 + refreshDecisionConfig 热路径", async () => {
-    render(<ModelCapabilityDetail purpose="decision-jev" />);
-    fireEvent.click(screen.getByTestId(testId(TID_MODEL_CAPABILITY_TOGGLE, "decision-jev")));
-    await waitFor(() => {
-      expect(updateMock).toHaveBeenCalledWith({
-        capabilities: { "decision-jev": { enabled: true } },
-      });
-    });
-    expect(stableServices.knowledgeIndexService.refreshDecisionConfig).toHaveBeenCalled();
-  });
-
-  it("typesafe 档：baseUrl 行有、模型行无；API Key 存在性按分键读取", async () => {
-    render(<ModelCapabilityDetail purpose="decision-jev" />);
-    expect(screen.getByTestId("model-capability-base-url-input-decision-jev")).toBeTruthy();
-    expect(screen.queryByTestId("model-capability-model-input-decision-jev")).toBeNull();
-    // credentialService.load(typesafe 分键) 有值 → 已配置态（存在性读取异步，waitFor）。
-    await waitFor(() => {
-      expect(screen.getByText("settings.modelCapability.apiKey.configured")).toBeTruthy();
-    });
-  });
-
-  it("API Key 留空保存即删除（credentials 面 value=null，ApiKeyRow 语义）", async () => {
-    render(<ModelCapabilityDetail purpose="decision-jev" />);
-    const input = screen.getByTestId("model-capability-api-key-input");
-    fireEvent.change(input, { target: { value: "  " } });
-    fireEvent.click(screen.getByText("settings.modelCapability.apiKey.save"));
-    await waitFor(() => {
-      expect(updateMock).toHaveBeenCalledWith({
-        credentials: { decisionJev: { providerKind: "typesafe", value: null } },
-      });
-    });
-  });
-
-  it("API Key 非空保存 → credentials 面按 providerKind 分键写值", async () => {
-    render(<ModelCapabilityDetail purpose="decision-jev" />);
-    const input = screen.getByTestId("model-capability-api-key-input");
-    fireEvent.change(input, { target: { value: "sk-jev" } });
-    fireEvent.click(screen.getByText("settings.modelCapability.apiKey.save"));
-    await waitFor(() => {
-      expect(updateMock).toHaveBeenCalledWith({
-        credentials: { decisionJev: { providerKind: "typesafe", value: "sk-jev" } },
-      });
-    });
-  });
-
-  it("连接测试沿用 testJevConnection RPC（结果文案渲染）", async () => {
-    capabilityState.current["decision-jev"] = {
-      ...capabilityState.current["decision-jev"],
-      enabled: true,
-    };
-    render(<ModelCapabilityDetail purpose="decision-jev" />);
-    fireEvent.click(screen.getByTestId("model-capability-test-connection-button"));
-    await waitFor(() => {
-      expect(stableServices.knowledgeIndexService.testJevConnection).toHaveBeenCalled();
-    });
-    await waitFor(() => {
-      expect(
-        screen.getByText(/settings\.modelCapability\.decisionJev\.testConnection\.ok/u),
-      ).toBeTruthy();
-    });
-  });
-});
-
-describe("语义嵌入条目（embedding；状态面自 knowledge 分区迁入）", () => {
-  it("开关关闭：状态面不渲染（零状态轮询）；开关 → update embedding.enabled + 端口热切换", async () => {
-    render(<ModelCapabilityDetail purpose="embedding" />);
-    // 状态面只在开启后渲染（照 knowledge 分区原语义：开启时取一次 + 下载中轮询）。
-    expect(screen.queryByText("settings.modelCapability.embedding.status.modelMissing")).toBeNull();
-    expect(stableServices.knowledgeIndexService.getSemanticStatus).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByTestId(testId(TID_MODEL_CAPABILITY_TOGGLE, "embedding")));
-    await waitFor(() => {
-      expect(updateMock).toHaveBeenCalledWith({ capabilities: { embedding: { enabled: true } } });
-    });
-    expect(stableServices.knowledgeIndexService.refreshDecisionConfig).toHaveBeenCalled();
-  });
-
-  it("四态状态面：开启后读 getSemanticStatus 渲染 ready（既有 RPC，轮询节奏不变）", async () => {
-    capabilityState.current.embedding = { ...capabilityState.current.embedding, enabled: true };
-    stableServices.knowledgeIndexService.getSemanticStatus.mockResolvedValueOnce({
-      state: "ready",
-    });
-    render(<ModelCapabilityDetail purpose="embedding" />);
-    await waitFor(() => {
-      expect(screen.getByText("settings.modelCapability.embedding.status.ready")).toBeTruthy();
-    });
-  });
-});
+// P7 本体清除（specs/obsidian-vault-phase2-true-extraction.md §1-C9/C11）：
+// 知识评分（Jev 决策）与语义嵌入两条目表单已随本体 knowledge 栈拆除，
+// 对应表单测试随实现移除；插件侧配置面由 obsidian-plugin 包测试覆盖。
 
 describe("语音识别/语音合成条目（asr/tts；引擎选择迁入档案，MC-10 写侧）", () => {
   it("asr 引擎 Select → update asr.engine；webSpeech 档不显 baseUrl/model/apiKey", async () => {

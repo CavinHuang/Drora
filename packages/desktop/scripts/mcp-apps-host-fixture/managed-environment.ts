@@ -189,6 +189,21 @@ export async function managedEnvironment(root: string, node: string, cli: string
     }
     if (method === "resyncConversationV4")
       return agent.call("v4/conversation/resync", { connectionId, ...params });
+    // 修复原因：S5 上游合并（40f36cc09）后 renderer 启动期会读 session 生命周期
+    // （agentConversationTransport 必选面）。真实服务映射 session/lifecycle/getState；
+    // 旧 agent 不认该方法时真实服务的 -32601 分支本来就回 null（客户端有回落路径），
+    // fixture 透传并对 method-not-found 回 null，保持同语义。
+    if (method === "getSessionLifecycle") {
+      try {
+        // wire 参数是 strict schema（仅 sessionId）；workspace 绑定由连接层承载。
+        return await agent.call("session/lifecycle/getState", {
+          sessionId: params.sessionId,
+        });
+      } catch (error) {
+        if ((error as { code?: number }).code === -32601) return null;
+        throw error;
+      }
+    }
     throw new Error(`Unexpected managed service call ${method}`);
   });
   async function createWindow(scope: any, mode = "local") {

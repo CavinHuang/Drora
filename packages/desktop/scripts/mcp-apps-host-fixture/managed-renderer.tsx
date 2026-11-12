@@ -1,5 +1,6 @@
 import { createPage } from "../../../ui/src/plugin-ui/adapters/pluginUiManagedPage.js";
 import { acquirePluginUiPage } from "../../../ui/src/plugin-ui/adapters/pluginUiPageRegistry.js";
+import { notifyPluginUiPageOpenWith } from "../../../ui/src/plugin-ui/adapters/pluginUiPageRegistry.js";
 import { attachPluginUiToolResults } from "../../../ui/src/plugin-ui/adapters/pluginUiBackground.js";
 import { buildPluginUiSurfaceKey } from "../../../ui/src/plugin-ui/contract.js";
 import { subscribePage } from "../../../ui/src/plugin-ui/adapters/pluginUiPageRegistry.js";
@@ -56,8 +57,21 @@ const agent = {
       "subscribeConversationV4",
       "unsubscribeConversationV4",
       "resyncConversationV4",
+      // 修复原因：S5 上游合并（40f36cc09，v3.16.1→v3.17.1）后 agentConversationTransport 的
+      // 必选 Pick 面新增 getSessionLifecycle；stub 缺成员会让 managed 页在首次生命周期读取时
+      // 抛 TypeError（phase idle→error），managed/interaction 模式自 S5 起即无法启动。
+      "getSessionLifecycle",
     ].map((method) => [method, (p: unknown) => harness.v4(method, p)]),
   ),
+  // 同上：onDynamicSessionLifecycle 是必选订阅成员（订阅建立时即取用），stub 提供空订阅
+  // （fixture 不模拟 session 停止事件，disposer 语义与真实服务一致）。
+  onDynamicSessionLifecycle:
+    () =>
+    (listener: (snapshot: unknown) => void) => ({
+      dispose() {
+        void listener;
+      },
+    }),
   onDynamicPluginUiToolResult: () => (handler: any) => subscribe("ui-result", handler),
   onDynamicConversationFrame: () => (handler: any) => subscribe("frame", handler),
   onDynamicLocalTtftFacts: () => (handler: any) => subscribe("ttft", handler),
@@ -72,6 +86,9 @@ const services = {
   pluginUiAppToolsService: proxy(harness.appTools),
 };
 const platform = {
+  // g9 openDirectoryPicker 的平台缺省实现入口（IPlatformService.selectDirectory）：
+  // 页面管理器按此回落原生目录选择；fixture 返回固定路径，验证 wire 全链 + 能力宣告。
+  selectDirectory: async () => "/fixture/vault",
   pluginSandbox: {
     setExecutionActive: window.droraPluginSandbox?.setExecutionActive,
     getOwnerWebContentsId: () => harness.owner(),
@@ -139,13 +156,31 @@ function Anchor({
       sequence === undefined ? undefined : { content: [], structuredContent: { sequence } },
     toolCallId: `feed-${sequence}`,
     enabled,
+    // g9（specs/obsidian-vault-phase2-true-extraction.md §6/§8）：fixture 注入 handoff/navigate
+    // 回调记录器（经 harness.event 回主进程断言）；directoryPicker 走平台缺省实现（上方
+    // platform.selectDirectory），三条动作据此都会进 hostActions 能力宣告。
+    interactions: {
+      onOpenConversationHandoff: async (payload: unknown) => {
+        await harness.event({ type: "host-action", action: "openConversationHandoff", payload });
+      },
+      onNavigate: async (target: unknown) => {
+        await harness.event({ type: "host-action", action: "navigate", target });
+      },
+    },
   };
   const host = usePluginUiHost(input);
   if (enabled) current = host;
   useEffect(() => {
     if (!enabled) return;
     phases.push(host.phase);
-    void harness.event({ type: "phase", phase: host.phase, key: host.pageKey });
+    // 带 error 字段：phase error 的根因（握手失败 / 准入失败）只存在 snapshot 里，事件不带
+    // 会让超时诊断只剩 "idle→error" 而无从定位。
+    void harness.event({
+      type: "phase",
+      phase: host.phase,
+      key: host.pageKey,
+      error: host.error,
+    });
     if (host.phase === "running" || !host.supported) ready.resolve();
     if (host.phase === "error") ready.reject(new Error(host.error ?? "managed page failed"));
   }, [host.phase, host.pageKey, enabled]);
@@ -354,6 +389,10 @@ const layout = () =>
     state: "unavailable",
   });
 (window as any).retryManaged = () => current.reload();
+// g9 宿主→面板 openWith（C5a citation 打开路由）：经窗口页面管理器定向投递当前页，
+// 主进程侧断言页面 onOpenWith 收到载荷（controller 未握手时暂存、initialized 后补发）。
+(window as any).notifyOpenWith = (payload: unknown) =>
+  notifyPluginUiPageOpenWith(current.pageKey, payload);
 (window as any).waitManagedPhase = (phase: string) => {
   const page = pluginUiPages.get(current.pageKey);
   if (!page || page.snapshot().phase === phase) return Promise.resolve();

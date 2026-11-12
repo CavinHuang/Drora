@@ -3064,7 +3064,11 @@ export const droraPluginComponentGroupSchema = z
   .strict();
 export type DroraPluginComponentGroup = z.infer<typeof droraPluginComponentGroupSchema>;
 
-export const droraPluginUiSurfaceSchema = z
+// 插件 UI 面板入口唯一形态（P7 本体清除，specs/obsidian-vault-phase2-true-extraction.md
+// §1-C4）：session = 会话级沙箱面板（server+resourceUri）。阶段一 app 宿主面板形态
+// （hostPanelId）已废除——解析侧（adapters ui-surfaces.ts）拒绝该形态，wire 投影不再
+// 携带 hostPanelId 分支（旧投影方升级后按 schema 解析失败走既有投影降级路径）。
+const droraPluginUiSurfaceSessionSchema = z
   .object({
     pluginId: nonEmptyString,
     pluginName: nonEmptyString,
@@ -3077,6 +3081,7 @@ export const droraPluginUiSurfaceSchema = z
     availability: z.literal("session"),
   })
   .strict();
+export const droraPluginUiSurfaceSchema = droraPluginUiSurfaceSessionSchema;
 export type DroraPluginUiSurface = z.infer<typeof droraPluginUiSurfaceSchema>;
 
 export const droraPluginInfoSchema = z
@@ -3653,6 +3658,23 @@ export const droraPluginsSetEnabledResultSchema = z
   })
   .strict();
 export type DroraPluginsSetEnabledResult = z.infer<typeof droraPluginsSetEnabledResultSchema>;
+// 宿主能力开关（§3 D1a）：重启生效、无热切换（§4.2 事件顺序），不涉及插件粒度寻址，
+// 故无 pluginId/scope——全局单开关，user 级配置原子写。
+export const droraPluginsSetHostComponentsEnabledParamsSchema = z
+  .object({
+    workspace: droraWorkspaceRefSchema,
+    enabled: z.boolean(),
+  })
+  .strict();
+export type DroraPluginsSetHostComponentsEnabledParams = z.infer<
+  typeof droraPluginsSetHostComponentsEnabledParamsSchema
+>;
+export const droraPluginsSetHostComponentsEnabledResultSchema = z
+  .object({ enabled: z.boolean() })
+  .strict();
+export type DroraPluginsSetHostComponentsEnabledResult = z.infer<
+  typeof droraPluginsSetHostComponentsEnabledResultSchema
+>;
 
 // 商店信息（Store Listing）：目录条目携带的展示性元数据（显示名/icon/分类/作者/链接/hero/
 // 示例提示词），全部可选，UI 缺失时按降级矩阵处理（字母头像/隐藏区块/省略信息行）。
@@ -3764,6 +3786,10 @@ export const droraInstalledPluginSummarySchema = z
     updateStatus: z.enum(["none", "update-available", "version-changed"]).optional(),
     latestVersion: z.string().optional(),
     listing: droraPluginStoreListingSchema.optional(),
+    // 卸载数据保留声明（阶段二 specs/obsidian-vault-phase2-true-extraction.md §11-D6）：
+    // true = 该插件数据目录卸载时强制保留（obsidian：目录含知识库+模型）——卸载确认
+    // UI 据此明示「数据将保留」，避免用户误以为删除或误以为保留提示失实。optional 兼容旧 payload。
+    uninstallKeepData: z.boolean().optional(),
   })
   .strict();
 export type DroraInstalledPluginSummary = z.infer<typeof droraInstalledPluginSummarySchema>;
@@ -4239,77 +4265,11 @@ export const droraOffPeakListResultSchema = z
   .strict();
 export type DroraOffPeakListProtocolResult = z.infer<typeof droraOffPeakListResultSchema>;
 
-// ---- Knowledge（VaultView）agent 检索协议----
-// agent 的只读 vault 检索入口（obsidian-knowledge.md §5f）：CLI VaultSearch 工具 →
-// bootstrap 协议端口 → host droraAgentService 分发 → 进程内 IKnowledgeQueryService。
-// 与 UI 检索同一条服务链（scope/sourceEpoch/coverage 语义全继承 §5b），agent 是第二个
-// 消费方而非第二条链。入参只有 query + limit——§5b.1「无日期/路径范围过滤」对 agent
-// 面同样成立；协议面不携带 decisionConsentId（决策出站与该工具无涉，§5d.6 零出站）。
-export const droraKnowledgeSearchParamsSchema = z
-  .object({
-    // 原样查询文本；≤512 字符（与 KnowledgeCreateRunParams 同口径），由 host 服务校验兜底。
-    query: nonEmptyString.max(512),
-    limit: z.number().int().min(1).max(10).optional(),
-  })
-  .strict();
-export type DroraKnowledgeSearchProtocolParams = z.infer<typeof droraKnowledgeSearchParamsSchema>;
-
-export const droraKnowledgeSearchCandidateSchema = z
-  .object({
-    // 稳定文章 id = sha256(vaultId + relativePath)；不含根路径，可安全出站（§5d.6 同口径）。
-    articleId: nonEmptyString,
-    relativePath: z.string(),
-    title: z.string(),
-    matchedHeading: z.string().nullable(),
-    // 命中 chunk 的原文逐字节选（≤240 字符，§5b.5 命中感知窗口）。
-    excerpt: z.string(),
-    quote: z
-      .object({
-        startLine: z.number().int().positive(),
-        endLine: z.number().int().positive(),
-        startOffset: z.number().int().nonnegative(),
-        endOffset: z.number().int().nonnegative(),
-      })
-      .strict(),
-    rank: z.number().int().positive(),
-    matchedChunkCount: z.number().int().positive(),
-  })
-  .strict();
-export type DroraKnowledgeSearchProtocolCandidate = z.infer<
-  typeof droraKnowledgeSearchCandidateSchema
->;
-
-export const droraKnowledgeSearchResultSchema = z
-  .object({
-    // KnowledgeQueryStatus 直通（retrieving 不会出现在 search 落定后）。
-    status: z.enum([
-      "ready",
-      "partial",
-      "empty",
-      "no_source",
-      "source_stale",
-      "cancelled",
-      "failed",
-    ]),
-    // failed 的机器可读原因；不含绝对路径与笔记内容（§5b.6）。
-    reason: z.string().nullable(),
-    candidates: z.array(droraKnowledgeSearchCandidateSchema),
-    diagnostics: z
-      .object({
-        // 索引 coverage 截断如实呈现（§5b.4）；无源为 null。
-        coveragePartial: z.boolean().nullable(),
-        // 检索是否自动扩大了一次（§5b.5 降级）；无源为 null。
-        matchRelaxedToOr: z.boolean().nullable(),
-        // 语义阶段词表（§5b.5）：unavailable/applied/skipped。
-        semantic: z.enum(["unavailable", "applied", "skipped"]),
-        // 向量独有进入候选池的数量（§5b.9 混合召回，additive 可选；旧 host 不带此键）。
-        semanticRecalled: z.number().int().nonnegative().optional(),
-      })
-      .strict()
-      .nullable(),
-  })
-  .strict();
-export type DroraKnowledgeSearchProtocolResult = z.infer<typeof droraKnowledgeSearchResultSchema>;
+// P7 本体清除（specs/obsidian-vault-phase2-true-extraction.md §1-C6 双轨下线）：
+// knowledge/search 与 knowledge/neighbors 两段 agent 检索协议（CLI VaultSearch/
+// vault_neighbors 工具 → bootstrap 协议端口 → host droraAgentService 反向分发）随
+// 本体链路拆除——检索改由插件 knowledge MCP server 提供（stdio 直连），本体协议
+// 不再携带这两个方法键与 schema（schema 契约副本由插件包自携带）。
 
 // ---- Model Capability（图像生成）agent 工具协议----
 // agent 内置文生图入口（specs/model-capabilities.md §6）：CLI generate_image 工具 →
@@ -4927,6 +4887,10 @@ export const droraProtocolMethods = {
   workflowsForRun: "workflows/forRun",
   pluginsResolveSuggestedReference: "plugins/resolveSuggestedReference",
   pluginsSetEnabled: "plugins/setEnabled",
+  // 宿主能力独立开关（specs/obsidian-vault-plugin-extraction.md §3 D1a，B1）：唯一写方
+  // renderer 插件设置页经 IPluginManagementService.setHostComponentsEnabled 走本方法，
+  // CLI 侧 file-config 原子写 plugins.hostComponents（键名单一出处见 contracts/pluginEnablement.ts）。
+  pluginsSetHostComponentsEnabled: "plugins/setHostComponentsEnabled",
   pluginsOverview: "plugins/overview",
   pluginsMarketplaceAdd: "plugins/marketplace/add",
   pluginsMarketplaceRemove: "plugins/marketplace/remove",
@@ -4968,12 +4932,9 @@ export const droraProtocolMethods = {
   // browser-use 反向请求由 agent 发起，host 转给 main 中的 CDP executor。
   interactionBrowserList: "interaction/browserList",
   interactionBrowserExecute: "interaction/browserExecute",
-  // agent 只读 vault 检索（VaultSearch 工具，obsidian-knowledge.md §5f）：CLI→host，
-  // host 分发到进程内 knowledge query 服务；无 knowledge 服务的 host 结构化报不可用。
-  knowledgeSearch: "knowledge/search",
   // agent 内置文生图（generate_image 工具，specs/model-capabilities.md §6）：CLI→host，
   // host 分发到进程内模型能力档案画图服务（凭据零出 host）；无画图服务的 host -32601，
-  // CLI 翻译为固定不可用文案（照 vault-search-port 先例）。
+  // CLI 翻译为固定不可用文案。
   modelCapabilityGenerateImage: "modelCapability/generateImage",
   // Persona P0 无会话管理（spec §4/§10、合同 §3/§4.1）：Host 经 CLI 控制连接代理，
   // 不 session/create、不生成占位会话；wire 名单一出处 contracts/persona.ts。

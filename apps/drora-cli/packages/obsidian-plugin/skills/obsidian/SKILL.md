@@ -7,7 +7,7 @@ description: Find, read, create, and organize notes in the user's Obsidian Vault
 
 Use this skill when the user asks to find, read, organize, edit, or create Obsidian notes, or mentions vaults, wikilinks (`[[...]]`), or note properties (frontmatter).
 
-The configured Vault root is provided in the session context (`## Obsidian Vault`). All work happens with the native file tools (Read / Glob / Grep / Edit / Write) using absolute paths under that root — there are no Obsidian-specific tools.
+The configured Vault root is provided in the session context (`## Obsidian Vault`). File work happens with the native file tools (Read / Glob / Grep / Edit / Write) using absolute paths under that root. For content questions about the vault ("what did I write about X") prefer the plugin's read-only `VaultSearch` tool — see the `obsidian-knowledge` skill.
 
 ## Workflow
 

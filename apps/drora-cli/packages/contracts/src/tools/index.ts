@@ -61,7 +61,9 @@ export * from "./performance.js";
 
 // Shared types (only once to avoid duplicates)
 export type { DiffHunk, GitDiff } from "./write.js";
-export * from "./vault-search.js";
+// P7 本体清除（specs/obsidian-vault-phase2-true-extraction.md §1-C8 双轨下线）：
+// vault-search / vault-neighbors 两契约导出随 CLI 旧工具面拆除——工具迁插件
+// knowledge MCP server（schema 副本由插件包自携带），本体不再注册内建工具。
 // agent 内置文生图（specs/model-capabilities.md §6.2）：GENERATE_IMAGE_TOOL_NAME 与
 // Input/PortResult schema 被 core 的工具注册与 bootstrap 端口实现读走。
 export * from "./generate-image.js";

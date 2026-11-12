@@ -11,12 +11,63 @@ import { highspeedMessageMetaSchema } from "../highspeed.js";
 import { modelSelectionSchema } from "../model-selection.js";
 import { submissionModeSchema } from "./submission.js";
 import { sharedContextRefSchema } from "./shared-context-ref.js";
-import {
-  MAX_EVIDENCE_REFS_PER_INPUT,
-  KNOWLEDGE_EVIDENCE_RECEIPT_ID_PREFIX,
-} from "../knowledge-evidence.js";
+// ---------------------------------------------------------------------------
+// P7 本体清除（specs/obsidian-vault-phase2-true-extraction.md §1-C6）：
+// knowledge-evidence.ts 已删除（实现契约随 C1 迁插件包）。以下 wire 侧证据词表是
+// **deprecated 兼容面**：schema 字段定义保留使 .strict() 仍能解析旧持久化账本（删定义
+// 会让旧账本硬解析失败、破坏会话恢复）；生产端写入路径已全部删除，旧账本携带 refs
+// 的条目由 CLI intent 层 D9 legacy 探测器拒绝（结构化 legacy_evidence_unverifiable，
+// fail-closed，A17 延续）。禁止在新代码中生产这些字段。
+// ---------------------------------------------------------------------------
 
-/** VaultView Evidence 引用（opaque receiptId；复验事实在服务端账本，不随线传输）。 */
+/** @deprecated 兼容旧持久化账本的 opaque 证据引用形状；生产端已停止写入。 */
+export interface KnowledgeEvidenceRef {
+  receiptId: string;
+}
+
+/** @deprecated 单条输入的旧证据引用上限（旧账本解析边界）。 */
+export const MAX_EVIDENCE_REFS_PER_INPUT = 8;
+
+/** @deprecated opaque receipt id 前缀（形状校验；receipt 账本本体已迁插件数据目录）。 */
+export const KNOWLEDGE_EVIDENCE_RECEIPT_ID_PREFIX = "evr_";
+
+/**
+ * @deprecated CLI ACK failed.reasonCode 的 guard 词表。P7 后唯一活跃拒绝是 D9 legacy
+ * 探测器（guard.evidenceForbidden + legacy_evidence_unverifiable）；其余成员保留给
+ * 历史会话错误码的 UI 消费端（knowledgeEvidenceSendFailure）识别。
+ */
+export const KNOWLEDGE_EVIDENCE_GUARD_PREFIX = "guard.evidence" as const;
+export const KNOWLEDGE_EVIDENCE_GUARDS = {
+  stale: "guard.evidenceStale",
+  missing: "guard.evidenceMissing",
+  forbidden: "guard.evidenceForbidden",
+  unknown: "guard.evidenceUnknown",
+  unavailable: "guard.evidenceUnavailable",
+  guideForbidden: "guard.evidenceGuideForbidden",
+} as const;
+export type KnowledgeEvidenceGuard =
+  (typeof KNOWLEDGE_EVIDENCE_GUARDS)[keyof typeof KNOWLEDGE_EVIDENCE_GUARDS];
+
+/**
+ * @deprecated 结构化拒绝原因词表；legacyEvidenceUnverifiable（"legacy_evidence_
+ * unverifiable"）为 P7 D9 新增——旧账本带 refs 条目一律拒绝且不再静默容忍。
+ */
+export const KNOWLEDGE_EVIDENCE_REASONS = {
+  unknownReceipt: "unknown_receipt",
+  crossSession: "cross_session",
+  sourceUnconfigured: "source_unconfigured",
+  vaultSwitched: "vault_switched",
+  sourceReauthorized: "source_reauthorized",
+  fileDeleted: "file_deleted",
+  fileModified: "file_modified",
+  quoteMoved: "quote_moved",
+  gateUnavailable: "gate_unavailable",
+  legacyEvidenceUnverifiable: "legacy_evidence_unverifiable",
+} as const;
+export type KnowledgeEvidenceReason =
+  (typeof KNOWLEDGE_EVIDENCE_REASONS)[keyof typeof KNOWLEDGE_EVIDENCE_REASONS];
+
+/** 旧 VaultView Evidence 引用（opaque receiptId；deprecated，生产端已停止写入）。 */
 export const evidenceRefSchema = z
   .object({ receiptId: z.string().min(1) })
   .strict()
@@ -113,10 +164,10 @@ export const conversationInputIntentSchema = z
     planEnabled: z.boolean().optional(),
     genUiContext: genUiModelContextSchema.optional(),
     sharedContextRefs: z.array(sharedContextRefSchema).max(1).optional(),
-    // VaultView Evidence 引用（W03）：admission 时从 sendText payload 固定进 intent，
-    // 随 queue item 持久事实存活，sendQueuedNow 提升时由 CLI gate 执行时复验。
-    // optional：旧账本/旧快照无此键；edit/retry 重建的新输入**继承**原 evidenceRefs 并在
-    // canonical-intent-replay 二次复验（cli-2 勘误 2026-10-17：原注释称「不继承」与实现相反）。
+    // @deprecated P7 本体清除（spec §1-C6）：旧 VaultView Evidence 引用（W03）。
+    // 字段定义保留仅为解析旧持久化账本/快照（.strict() 兼容）；生产端写入路径已全删，
+    // 携带 refs 的旧账本条目由 CLI intent 层 legacy 探测器拒绝
+    // （legacy_evidence_unverifiable，fail-closed）。
     evidenceRefs: z.array(evidenceRefSchema).max(MAX_EVIDENCE_REFS_PER_INPUT).optional(),
     delivery: conversationInputDeliverySchema,
     order: conversationInputOrderSchema,

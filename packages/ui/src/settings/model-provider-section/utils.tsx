@@ -4,14 +4,7 @@ import {
   type OAuthProviderId,
   type ModelCapabilityPurpose,
 } from "@drora/shared";
-import {
-  BookOpenIcon,
-  BrainIcon,
-  ImageIcon,
-  MicIcon,
-  PackageIcon,
-  Volume2Icon,
-} from "lucide-react";
+import { ImageIcon, MicIcon, PackageIcon, Volume2Icon } from "lucide-react";
 import { ProviderLogo } from "./ProviderLogo.js";
 import {
   CODING_PLAN_PROVIDER_SPECS,
@@ -47,10 +40,9 @@ export function resolveModelProviderNavLogo(item: ModelProviderNavItem) {
   return "provider" in item ? item.provider?.config.logo : undefined;
 }
 
-/** 「模型能力」五条目的固定图标（specs/model-capabilities.md §5.1；lucide，语义对应 purpose）。 */
+/** 「模型能力」条目的固定图标（specs/model-capabilities.md §5.1；lucide，语义对应 purpose；
+ * P7 本体清除后剩三条目，specs/obsidian-vault-phase2-true-extraction.md §1-C11）。 */
 const CAPABILITY_NAV_ICONS: Record<ModelCapabilityPurpose, typeof PackageIcon> = {
-  "decision-jev": BrainIcon,
-  embedding: BookOpenIcon,
   asr: MicIcon,
   tts: Volume2Icon,
   "image-generation": ImageIcon,

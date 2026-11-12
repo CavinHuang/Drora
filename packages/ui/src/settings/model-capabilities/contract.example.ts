@@ -12,10 +12,8 @@ export function exampleRenderCapabilityDetail(props: ModelCapabilityDetailProps)
 /** 导航分组接入示例：第三分组 id（固定顺序、不参与 dnd，spec §5.1）。 */
 export const exampleNavGroupId: string = MODEL_CAPABILITY_NAV_GROUP_ID;
 
-/** 五条目 purpose 词汇（顺序即呈现顺序；引用 shared 契约单一出处）。 */
+/** 条目 purpose 词汇（顺序即呈现顺序；引用 shared 契约单一出处；P7 后三条目）。 */
 export const examplePurposes: readonly ModelCapabilityPurpose[] = [
-  "decision-jev",
-  "embedding",
   "asr",
   "tts",
   "image-generation",

@@ -10,7 +10,12 @@ import type {
   McpUiHostCapabilities,
   McpUiHostContext,
 } from "@modelcontextprotocol/ext-apps";
-import type { McpAppsDownloadFileItem } from "@drora/shared/mcp-apps";
+import type {
+  McpAppsDownloadFileItem,
+  McpAppsNavigateParams,
+  McpAppsOpenDirectoryPickerParams,
+  McpAppsOpenDirectoryPickerResult,
+} from "@drora/shared/mcp-apps";
 
 /** `window.drora` / `window.openai` 的公开形状；实现在 aliasRuntime / openaiAlias，两边只依赖这里。 */
 export interface DroraAliasApi {
@@ -64,6 +69,24 @@ export interface DroraAliasApi {
     content?: Array<Record<string, unknown>>;
     structuredContent?: Record<string, unknown>;
   }): Promise<void>;
+  /**
+   * g9 宿主动作桥（specs/obsidian-vault-phase2-true-extraction.md §6/§8；宿主宣告
+   * `experimental["drora/hostActions"].actions`，未宣告的动作 reject -32601）：
+   * 把交接负载投递到当前会话 composer（与 updateModelContext 同一通道，来源标记独立）。
+   */
+  openConversationHandoff(input: {
+    content: Array<Record<string, unknown>>;
+    structuredContent?: Record<string, unknown>;
+  }): Promise<void>;
+  /** 宿主 renderer 原生目录选择对话框（configureVault 根目录选择）；用户取消 resolve `{ path: null }`。 */
+  selectDirectory(input?: McpAppsOpenDirectoryPickerParams): Promise<McpAppsOpenDirectoryPickerResult>;
+  /** 请求宿主导航到只读目标（P2 最小面：同插件清单声明的 surface 面板，payload 经 openWith 转交）。 */
+  navigate(input: McpAppsNavigateParams): Promise<void>;
+  /**
+   * g9 宿主→面板：宿主经 `drora/openWith` 通知投递打开载荷（C5a citation 打开路由）。
+   * 页面应在启动期注册，未注册时通知被 SDK 丢弃；握手前到达的载荷由宿主暂存到 initialized 后补发。
+   */
+  onOpenWith(listener: (payload: unknown) => void): () => void;
   /** 每次 tool-input / tool-result / tool-cancelled / host-context-changed / setWidgetState 后回调。 */
   subscribe(listener: () => void): () => void;
   /** 显式触发握手；不调用时任一成员首次被访问即触发。 */

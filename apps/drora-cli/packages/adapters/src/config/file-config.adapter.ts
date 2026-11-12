@@ -11,6 +11,11 @@ import { mkdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import type { RuntimeConfigPatch, UiLocale } from "@drora/contracts";
+import {
+  DRORA_PLUGIN_CONFIG_BASE_DIR,
+  DRORA_PLUGIN_CONFIG_FILE_NAME,
+  DRORA_PLUGINS_CONFIG_KEYS,
+} from "@drora/shared";
 import { z } from "zod";
 import {
   CANONICAL_CUA_PLUGIN_ID,
@@ -59,8 +64,11 @@ export interface PluginRemovePatchResult {
   removedOptions: boolean;
 }
 
-const DEFAULT_CONFIG_FILE = "config.json";
-const DEFAULT_BASE_DIR = "~/.drora/cli";
+// 存储路径基迁移说明（specs/obsidian-vault-plugin-extraction.md §3 B1）：常量定义已上移
+// shared contracts（单一出处），此处仅作本地别名维持本文件内引用；host 只读读取器与
+// renderer 设置页同样引用 shared 常量拼出同一路径。
+const DEFAULT_CONFIG_FILE = DRORA_PLUGIN_CONFIG_FILE_NAME;
+const DEFAULT_BASE_DIR = DRORA_PLUGIN_CONFIG_BASE_DIR;
 
 /**
  * Resolve path with ~ expansion
@@ -380,6 +388,37 @@ export interface SuppressedBuiltinPatchResult {
   path: string;
   pluginId: string;
   suppressed: boolean;
+}
+
+export interface HostComponentsPatchResult {
+  enabled: boolean;
+  path: string;
+}
+
+/**
+ * Patch the plugin host-components switch (`plugins.hostComponents`, D1a 独立开关).
+ *
+ * 宿主能力开关的唯一落盘写方（specs/obsidian-vault-plugin-extraction.md §3）：
+ * renderer 插件设置页经 IPluginManagementService.setHostComponentsEnabled → RPC
+ * plugins/setHostComponentsEnabled → 本函数。与 updatePluginEnabledInFileConfig 同链路
+ * （读改写 + atomicWriteJson temp+rename），键名引用 shared DRORA_PLUGINS_CONFIG_KEYS
+ * 单一出处，不与 hooks 启用位（enabledPlugins）混写。
+ */
+export async function updateHostComponentsInFileConfig(
+  filePath: string,
+  enabled: boolean,
+): Promise<HostComponentsPatchResult> {
+  const resolvedPath = resolvePath(filePath);
+  const parsed = await readJsonConfigFileOrEmpty(resolvedPath);
+  const plugins = isRecord(parsed.plugins) ? parsed.plugins : {};
+  await atomicWriteJson(resolvedPath, {
+    ...parsed,
+    plugins: {
+      ...plugins,
+      [DRORA_PLUGINS_CONFIG_KEYS.hostComponents]: enabled,
+    },
+  });
+  return { enabled, path: resolvedPath };
 }
 
 /**

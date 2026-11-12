@@ -99,6 +99,7 @@ import {
   removePluginMarketplace,
   resetPluginConfig,
   restoreBuiltinPlugin,
+  setHostComponentsEnabled,
   setPluginEnabled,
   uninstallPlugin,
   updatePlugin,
@@ -345,12 +346,6 @@ export class DroraProtocolAgentServer {
       v4Interactions: new V4InteractionRegistry(
         resolveV4InteractionRegistryOptionsFromEnv(deps.env ?? process.env),
       ),
-      // W03 Evidence 执行时复验：入口注入生产 gate；未注入 = 携带证据的输入被拒
-      // （fail-closed）。「未注入 = additive 不复验」是 spec §5.3 已废弃旧口径，
-      // 现行语义见 drora-protocol-v4 evidence-admission verifyEvidenceOrThrow。
-      ...(deps.knowledgeEvidenceVerifier
-        ? { knowledgeEvidenceVerifier: deps.knowledgeEvidenceVerifier }
-        : {}),
     };
     // v4 通道：gateway 闭包持有 context 做帧出口与命令副作用，构造完立即挂回。
     this.context.v4Gateway = createConversationV4Gateway(this.context);
@@ -906,6 +901,10 @@ export class DroraProtocolAgentServer {
       case droraProtocolMethods.pluginsSetEnabled:
         return await this.withPluginOperationSignal(request, (signal) =>
           setPluginEnabled(this.context, request.params, signal),
+        );
+      case droraProtocolMethods.pluginsSetHostComponentsEnabled:
+        return await this.withPluginOperationSignal(request, (signal) =>
+          setHostComponentsEnabled(this.context, request.params, signal),
         );
       case droraProtocolMethods.pluginsOverview:
         return await getPluginsOverview(this.context, request.params);

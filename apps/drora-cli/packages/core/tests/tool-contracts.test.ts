@@ -46,6 +46,12 @@ const DIRECT_BRANCH_EXPECTED_PROVIDER_TOOL_ORDER = [
   "WebSearch",
   "Write",
   "DeferredToolCall",
+  // generate_image（specs/model-capabilities.md §6，b0094ed4b）恒注册、无 include 门
+  // （能力发现靠真实 schema 注册）；不进
+  // SORTED_PROVIDER_TOOL_NAMES，按注册序排在 DeferredToolCall 与 ReadSessionContext 之间。
+  // B4 修复依据：该工具落地时未同步本期望清单，tool-contracts 在 HEAD 上先红（与
+  // 注册门改动无关的既有失败），按实际注册面机械补齐。
+  "generate_image",
   "ReadSessionContext",
   // "ReplyToChannel",
   "CreateWorkflow",
@@ -1085,6 +1091,10 @@ describe("tool contract declarations", () => {
     expect(defaultRegistry.has("SendMessage")).toBe(false);
     expect(subagentRegistry.has("SendMessage")).toBe(true);
   });
+
+  // P7 本体清除（specs/obsidian-vault-phase2-true-extraction.md §1-C8）：B4/B5 的
+  // 两个 vault 内建检索工具注册门用例随工具面拆除——两工具迁插件 knowledge
+  // MCP server（P4 双轨下线），不再进 registerBuiltInTools 注册面。
 
   it("only exposes RespondToCoordinator with its child control capability", () => {
     const defaultRegistry = createToolRegistry();

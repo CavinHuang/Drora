@@ -756,5 +756,10 @@ export const appSettingsPatchSchema = z.object({
   webRemoteControlLastEnabledContext: webRemoteControlLastEnabledContextSchema.optional(),
   droraEndpointOrigin: droraEndpointOriginSchema.optional(),
   webRemoteControlRelayOrigin: webRemoteControlRelayOriginSchema.optional(),
-  /** Jev 出站决策（obsidian-knowledge.md §5d.10）；更新补丁全可选。 */
+  // P7 本体清除（specs/obsidian-vault-phase2-true-extraction.md §1-C11，D8 建议先行）：
+  // 「Jev 出站决策」系列 AppSettings 字段已在更早批次随模型能力档案域翻转删除，
+  // 此处仅存悬挂注释——现随 knowledge 栈本体清除一并移除。旧配置值处置：
+  // 已由 model-capabilities 一次性迁移（migratedFromLegacySettings）迁入档案的用户
+  // 不受影响；P7 后 Jev 配置面归插件 userConfig（终裁后的补批接线），未迁移残留
+  // 值按 D8 注记丢弃（schema strip 物理清除）。
 });

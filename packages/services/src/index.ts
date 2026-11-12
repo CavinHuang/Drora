@@ -67,92 +67,12 @@ export type { MediaPreviewPreparation } from "./media-preview/mediaPreview.js";
 export { IOutputStyleService } from "./output-style/outputStyle.js";
 export type { OutputStyle, OutputStyleConfig } from "@drora/shared";
 
-// Obsidian Vault 面板服务 — IObsidianVaultService is both a type (interface) and value (descriptor).
-export { IObsidianVaultService } from "./obsidian-vault/obsidianVault.js";
-export type {
-  ObsidianVaultCandidate,
-  ObsidianVaultConfigureOptions,
-  ObsidianVaultDeleteInput,
-  ObsidianVaultFocus,
-  ObsidianVaultReadResult,
-  ObsidianVaultRenameInput,
-  ObsidianVaultSavePastedImageInput,
-  ObsidianVaultSummary,
-  ObsidianVaultTreeEntry,
-  ObsidianVaultUserContextSnapshot,
-  ObsidianVaultWriteInput,
-  ObsidianVaultWriteResult,
-} from "./obsidian-vault/obsidianVault.js";
-
-// Knowledge 索引/检索服务（VaultView 2.0 W02/W03/W05）— descriptors + 纯类型，禁止携带实现值。
-export { IKnowledgeIndexService } from "./knowledge/knowledgeIndex.js";
+// P7 本体清除（specs/obsidian-vault-phase2-true-extraction.md §1-C7）：Obsidian Vault
+// 面板与 Knowledge 三服务的全部导出（descriptors + 纯类型）随本体原件拆除——插件
+// 包（obsidian-plugin/src/server）持有唯一实现与类型面。
 // 模型能力档案服务（specs/model-capabilities.md §4 唯一所有者）— descriptor + 纯类型，
 // 实现工厂只在 node 侧（modelCapabilitiesService.ts）。
 export { IModelCapabilitiesService } from "./model-capabilities/index.js";
-export type {
-  KnowledgeSemanticPortStatus,
-  KnowledgeSemanticPortState,
-} from "./knowledge/search/embeddingPort.js";
-export {
-  IKnowledgeQueryService,
-  type KnowledgeCreateRunParams,
-  type KnowledgeSearchParams,
-} from "./knowledge/knowledgeQuery.js";
-// 审核写入服务（W06）：接口+descriptor browser-safe；实现工厂只在 node 侧（reviewEngine.ts）。
-export { IKnowledgeReviewService } from "./knowledge/review/reviewService.js";
-export type {
-  KnowledgeReviewCreateProposalParams,
-  KnowledgeReviewReviseProposalParams,
-} from "./knowledge/review/reviewService.js";
-export type {
-  KnowledgeReviewApprovalView,
-  KnowledgeReviewApplyResult,
-  KnowledgeReviewChangeContentResult,
-  KnowledgeReviewChangeInput,
-  KnowledgeReviewChangeKind,
-  KnowledgeReviewChangeView,
-  KnowledgeReviewEvidenceInput,
-  KnowledgeReviewEvidenceView,
-  KnowledgeReviewFileStatus,
-  KnowledgeReviewOperationFileView,
-  KnowledgeReviewOperationStatus,
-  KnowledgeReviewOperationView,
-  KnowledgeReviewProposalView,
-  KnowledgeReviewReconcileResult,
-  KnowledgeReviewRejectionCode,
-  KnowledgeReviewUndoResult,
-} from "./knowledge/review/reviewTypes.js";
-export type {
-  KnowledgeArticleCandidate,
-  KnowledgeCoverage,
-  KnowledgeDecisionAction,
-  KnowledgeDecisionConsentGrantResult,
-  KnowledgeDecisionDiagnostics,
-  KnowledgeDecisionFallbackReason,
-  KnowledgeDecisionStageStatus,
-  KnowledgeDecisionTelemetryInsights,
-  KnowledgeEvidenceReceipt,
-  KnowledgeIndexJobKind,
-  KnowledgeIndexJobStartResult,
-  KnowledgeIndexJobStatus,
-  KnowledgeIndexJobView,
-  KnowledgeIndexStatus,
-  KnowledgeInsightsJobEntry,
-  KnowledgeInsightsSnapshot,
-  KnowledgeInventoryInsights,
-  KnowledgeLeaseView,
-  KnowledgePrepareEvidenceParams,
-  KnowledgePrepareEvidenceResult,
-  KnowledgeQueryStatus,
-  KnowledgeResolveCitationParams,
-  KnowledgeResolveCitationResult,
-  KnowledgeRunUpdatedEvent,
-  KnowledgeRunView,
-  KnowledgeSearchDiagnostics,
-  KnowledgeSemanticAvailability,
-  KnowledgeSemanticStage,
-  KnowledgeSourceRef,
-} from "./knowledge/knowledgeTypes.js";
 
 // Git service — IGitService is both a type (interface) and value (descriptor)
 export { IGitService } from "./git/git.js";

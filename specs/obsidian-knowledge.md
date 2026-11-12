@@ -34,6 +34,59 @@
 sourceEpoch 变化使旧 Query、Index Job、Receipt 失效；不得复制独立 Vault 配置
 （交接纪律「禁止第二份 Vault 配置事实源」）。【已实现，W02】（§5b.2；Receipt 失效侧见 §5，W03 已实现）
 
+## 1b. 装配归属变更（2026-11-11 插件化剥离，已落地；**阶段二已取代装配层，P8 完成态**）
+
+> **2026-11-12 阶段二完成态（P8 收尾回填）**：本节描述的本体装配（B3 构造级条件化、
+> node.ts 四 `.register`、desktop host knowledgeOptions 注入）已随阶段二 P7 **整体
+> 拆除**——知识栈与 obsidian-vault 门面物理迁入
+> `apps/drora-cli/packages/obsidian-plugin/src/server/`（P3，逐文件 HEAD
+> `bf872a6c0` 对照注释），以 manifest `mcpServers.knowledge` 常驻服务进程承载
+> （阶段二 spec §1-C1/C2/C7）；知识库随 P6 首启自动迁入插件数据目录（零手工、计数
+> 一致）。本文件 §2-§5h 行为语义零变化，能力等价逐项复跑与九项已知差异的裁定呈现
+> 见 `apps/drora-cli/packages/obsidian-plugin/docs/phase2-p8-capability-parity.md`。
+
+> **2026-11-11 终裁标注**：用户裁定阶段二真抽离（本体零 vault 实现），本节描述的
+> 本体装配条件化（B3 实码）与服务宿主化归属将被
+> `specs/obsidian-vault-phase2-true-extraction.md` §1 清除清单取代——服务实现物理
+> 迁入 obsidian 插件包（宿主服务进程），本体装配段整体删除。行为语义（本文件
+> §2-§5g）不变，等价基准 git HEAD。
+
+用户裁定把内置 Vault/知识能力剥离为官方插件 obsidian 所有，设计单一事实源为
+`specs/obsidian-vault-plugin-extraction.md`（能力归属表、批次与 gate 以该文件为准；
+阶段一=中间态，见其头部标注）。
+对**本文件契约**的影响只有装配层，行为语义（本文件 §2-§5g 全部条款、L0-L3、
+Evidence、SQLite 纪律、验收映射）零变化。落地状态（本分支工作区实码，B1-B6 逐批
+gate 见剥离 spec §10）：
+
+1. **四服务构造与注册整体条件化（评审 2 轮修订：不止摘 `.register`；已落地，B3）**：
+   `packages/services/src/node.ts:3202` 的 `createKnowledgeServices` 构造（开库、
+   dispose 入 `sqliteReposToClose:3218`、autoIndex 定时器）与 `:3520-3526` 的四
+   `.register` 一并由独立宿主能力开关（缺省开，不随 hooks 启用位，剥离 spec §3 两层
+   启用位）条件化（实码 node.ts:3209 条件块，读取器 = drora-extensions/
+   hostComponentsPresence 同一三态合成）；关闭时不构造（不开库/不占 §5b.3 lease/
+   定时器不启动），`knowledgeQuerySource` thunk（node.ts:2709）返回 undefined 使 §5f
+   反向请求回既有 -32603，desktop host 的 knowledgeOptions 注入整体短路（实码
+   host/index.ts:3944 同一读取器）；accessor/client getter 不动。生命周期为重启生效
+   （剥离 spec §4.2 事件顺序）。
+2. **数据零迁移（路径未动，无迁移需要）**：knowledge-index.sqlite、语义模型仍在
+   `<数据根>/.drora/knowledge/` 原路径，vaultId/指纹/sourceEpoch 链不变；§5b.3
+   SQLite 纪律与 §1 表全部沿用。卸载语义 = D6-a 定义级 `uninstallKeepData: true`
+   （官方定义 definitions:378，卸载保留插件数据目录，vault-config 零损失；见剥离
+   spec §6）。
+3. **决策点已按建议值裁定（剥离 spec §11 回写）**：D2 = Jev 决策域留主程序
+   （模型能力域）——decision/ 与 knowledgeHost 装配留 host，宿主能力关闭时设置表单
+   可见但操作禁用 + 「知识服务不可用」提示（已落地：useKnowledgeServiceAvailability
+   - DecisionJevCapabilityForm/EmbeddingCapabilityForm 禁用态）；D5 = 策略留 CLI/
+     主程序、L2 账本随 vault 宿主实现（GO 门禁与 write-tier-policy 现位置不动）；D3 =
+     证据 gate 留 CLI admission 主管道（B4 对账收口，含上游合并丢失的 sendText 复验
+     调用回归修复）。
+4. **§5c VaultView 与 §5g 洞察（已落地，B3/B5/B6）**：UI 实现留 renderer（宿主面板
+   形态，宿主能力开关驱动入口在场），视图行为契约不变；新增能力已交付并回填本文件
+   ——Smart Lookup（§5c.3 lookup，B5）、vault_neighbors 工具（§5f.1/§5f.2，B5）、
+   N2/N3/N4（§5h，B6）；批量写入分支受 §5e.12 writePathEnabled 门约束（S03 NO-GO，
+   apply 一律 fail-closed `write_path_disabled`——新能力的批量执行以 S03 GO 为前置，
+   剥离 spec §8 注记）。
+
 ## 2. 方案 C：分级写入（已批准风险方案）
 
 ADR #8。风险分级与运行时落盘通道的映射以 `docs/vaultview/delivery/W00_TOOL_WRITE_MATRIX.md`
@@ -192,6 +245,13 @@ A12/A13/A14/A15（服务端 Receipt 语义）、A16/A17（真实会话发送链�
 `docs/vaultview/delivery/W03_DELIVERY.md` 与 `packages/services/test/knowledgeEvidence.test.ts`、
 `apps/drora-cli/packages/bootstrap/test/knowledge-evidence-gate.test.mjs`、
 `apps/drora-cli/packages/bootstrap/test/evidence-session-wiring.test.mjs`。
+
+> **阶段二 P8 注记（2026-11-12）**：上述本体路径的 gate 测试已随 C6/C8 拆除
+> （evidence-gate/evidence-session-wiring 不存在），knowledgeEvidence 随 C1 迁
+> `obsidian-plugin/test/`。A16/A17 的发送链路复验按 D9 收窄为**插件工具内单层复验**
+> （`vault_search` 候选 evidence 三态 + citation openWith 面板解析），旧账本 refs 条目
+> fail-closed 由改写后的 `bootstrap/test/knowledge-user-input-provenance.test.mjs` 锁定；
+> P8 复跑全绿，逐项映射见 `obsidian-plugin/docs/phase2-p8-capability-parity.md` §1。
 
 ## 5b. 索引与本地检索（W02，2026-10-10 落地）
 
@@ -376,7 +436,10 @@ A02（新增→coverage 准确）、A03（改/删/重命名→旧 chunk 不可�
 - 运行时：`onnxruntime-node`（N-API，Electron main 可用），**动态 import**——模块缺失 =
   端口不可用（`semantic_unavailable`，词法照常），不构成硬依赖。
 - 分发：**首次使用时下载**（不内置安装包）：镜像清单 hf-mirror.com → huggingface.co 逐个
-  尝试，落盘 `<pluginDataDir>/knowledge/models/bge-small-zh-v1.5/`
+  尝试，落盘 **`<数据根>/.drora/knowledge/models/bge-small-zh-v1.5/`**
+  （`localEmbeddingPort.ts:26-28` `resolveKnowledgeModelRoot` 实现口径——终读评审修正：
+  原文 `<pluginDataDir>/knowledge/models/` 与代码不符，模型在 host 数据根而非插件数据
+  目录，插件卸载不删模型；与索引库同根，见剥离 spec §6 数据清单）
   （model_quantized.onnx + vocab.txt）。校验策略（如实降级）：v1 以**尺寸界**校验
   （onnx 5–60MB / vocab 100KB–2MB，越界即删重下）+ 运行时 sha256 写日志——预固定
   哈希因开发环境网络受限无法预下载，**发布前必须补 pin**（发布门禁）。下载失败 →
@@ -481,10 +544,23 @@ K-VEC-5 各层降级独立且诊断如实。
 
 ### 5c.3 智能问库交互契约
 
-- **意图**：`自动识别（默认）/ 找文章 / 问内容 / 比较` 四选一；auto 为 UI 启发式分类
-  （比较/对比/区别 → compare；找/哪篇/那篇/文章/标题/记得 → find；问/为什么/如何/是什么/总结 →
-  answer；默认 find——FIND 是默认形态，候选优先，ADR #3）。意图只决定呈现形态与空态提示，
-  **不改变 RPC 请求参数**（`createRun` 无 intent 字段，§5b.1；UI 不得伪造第二套契约）。
+> **B7 时序注记（2026-11-11）**：引用回跳的 reveal 派发带 pending-reveal 语义——
+> 原子延迟到「编辑器容器可见 + CodeMirror 初次度量完成」后派发（选中/滚动/聚焦同一
+> dispatch），settle 窗口内校验重放；起因与机制详见剥离 spec §4.1 B7 收口注记
+> （v3.17.2 合并丢失 vault-live-markdown.css import 导致滚动容器缺失的修复同记）。
+
+- **意图**：`自动识别（默认）/ 找文章 / 仅检索 / 问内容 / 比较` 五选一；auto 为 UI
+  启发式分类（比较/对比/区别 → compare；找/哪篇/那篇/文章/标题/记得 → find；
+  问/为什么/如何/是什么/总结 → answer；默认 find——FIND 是默认形态，候选优先，
+  ADR #3）。意图只决定呈现形态与空态提示，**不改变 RPC 请求参数**（`createRun`
+  无 intent 字段，§5b.1；UI 不得伪造第二套契约）。
+- **仅检索（lookup，N1 Smart Lookup，剥离 spec §8/B5）**：检索即终点——直接走同一条
+  createRun→search 混合召回（不新建检索路径），全程不出现任何发起 QA 的入口：
+  轮级「向 Agent 提问/比较」handoff 区与候选卡「加入 Agent/就此追问」动作一并隐藏，
+  仅保留候选、核验与「跳到原文」定位跳转；断网/语义不可用时检索照常（本地索引），
+  状态条按既有 banner 显式降级（semanticUnavailable 等）。lookup 只能显式手选，
+  auto 启发式不产出（检索即终点是用户对本次查询的声明，不是猜测）；单选语义与
+  find 一致。
 - **输入**：多行自然语言；Enter 提交、Shift+Enter 换行、IME composition 期间 Enter 不提交。
 - **run 生命周期**：提交 = `createRun`（携带 sessionId 与 clientRequestId）→ `search`；
   检索中可取消（`cancelRun`，结果按 runGeneration 丢弃）；取消不清空上一轮可用结果（PRD §8
@@ -1171,6 +1247,13 @@ droraAgentService 协议分发（host 侧 if 链，同 automation/offPeak 先例
 IKnowledgeQueryService.createRun + search（不携带 decisionConsentId）
 ```
 
+**vault_neighbors（B5，剥离 spec §4.3）同图异枝**：core handler 经**同一**
+`VaultSearchPort`（B5 定案：端口扩展 `neighbors` 方法，不设平行端口——同一注入点/
+同一反向通道族/同一注册门开关来源）→ wire
+`droraProtocolMethods.knowledgeNeighbors = "knowledge/neighbors"`（shared 单一出处）
+→ 同一 thunk 分发 → `IKnowledgeQueryService.neighbors`（chunk_vectors v5 余弦近邻，
+无 run 生命周期；收口映射在 services `query/knowledgeNeighbors.ts`）。
+
 ### 5f.2 工具契约与边界
 
 - 名称 `VaultSearch`；**只读、无权限 gate**——「读操作不受限」是本 spec 既有语义
@@ -1190,15 +1273,52 @@ matchRelaxedToOr,semantic}`。**不含 score**（bm25 值不是正确率，§5d 
   自动 reconcile 时，一次查询可能触发后台刷新，稍后重搜可见新笔记；工具描述如实
   写明，不声称实时。
 
+**vault_neighbors（B5，剥离 spec §4.3，只读近邻检索）**：
+
+- 名称 `vault_neighbors`（snake，先例 `submit_result`）；同 VaultSearch 门式与
+  审查级别：只读、无权限 gate、`vault.read` 权限声明；注册门 = 端口在场 &&
+  obsidian 宿主能力在场（剥离 spec §4.4 双条件，与 includeVaultSearch 同一开关
+  同一合成、独立选项）。
+- 入参只有 `notePath`（必填，vault 相对路径，≤512 字符，**精确等值匹配**当前索引
+  的 documents.relative_path——不触文件系统、无 glob/前缀/日期扩权）+ `limit`
+  （1–10，缺省 5）。
+- **零出站、零新嵌入**：种子笔记的已存 chunk 向量（chunk_vectors v5）聚合为笔记级
+  质心（N2「note 级向量聚合」同语义）对其余文档 chunk 做余弦近邻；不调嵌入端口、
+  不携带 decisionConsentId。
+- 结果白名单与 search 候选同界：`articleId/relativePath/title/matchedHeading/
+excerpt/quote/rank/matchedChunkCount` + `status/reason`（无 diagnostics）；
+  **不含相似度 score**（同「score 不是正确率」口径）、不含 sha、不含绝对路径。
+- `status` 枚举：`ready/partial/empty/no_source/source_stale/note_not_found/
+semantic_unavailable/failed`——`note_not_found`（路径不在当前 epoch 索引）与
+  `semantic_unavailable`（语义端口关闭 `semantic_port_disabled` / 当前模型无向量
+  `note_vectors_missing`）是近邻固有语义的显式降级（断网不影响本地向量；验收场景
+  14 同款「显式降级」边界）；本地向量检索离线可用，不静默回退词法。
+- 相似下限 `NEIGHBOR_SIMILARITY_FLOOR = 0.3`（与 SEMANTIC_RECALL_FLOOR 同 bge 余弦
+  尺度的独立常量；初值待 N2/N3 真跑校准后只许上调）。
+
 ### 5f.3 验收映射
 
-| ID   | 场景                                                              | 状态                                                  |
-| ---- | ----------------------------------------------------------------- | ----------------------------------------------------- |
-| VS-1 | 正常检索：候选字段白名单、quote 可回原文、diagnostics 如实        | 已实现（services 映射纯函数测试 + core handler 测试） |
-| VS-2 | 无源/空结果/失败 → 结构化 status，不编造                          | 已实现（同上）                                        |
-| VS-3 | 零出站：Jev 装配在场，工具路径 `outboundCount=0`、decision 按 off | 已实现（不携带 consentId 语义，§5d.6 既有测试面）     |
-| VS-4 | host 无 knowledge 服务（降级/远程）→ 结构化不可用错误             | 已实现（分发 case 单测）                              |
-| VS-5 | 端口缺席 → 工具不注册（不产生指向不存在能力的工具面）             | 已实现（includeVaultSearch 门，同 includeAutomation） |
+| ID   | 场景                                                                    | 状态                                                               |
+| ---- | ----------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| VS-1 | 正常检索：候选字段白名单、quote 可回原文、diagnostics 如实              | 已实现（services 映射纯函数测试 + core handler 测试）              |
+| VS-2 | 无源/空结果/失败 → 结构化 status，不编造                                | 已实现（同上）                                                     |
+| VS-3 | 零出站：Jev 装配在场，工具路径 `outboundCount=0`、decision 按 off       | 已实现（不携带 consentId 语义，§5d.6 既有测试面）                  |
+| VS-4 | host 无 knowledge 服务（降级/远程）→ 结构化不可用错误                   | 已实现（分发 case 单测）                                           |
+| VS-5 | 端口缺席 → 工具不注册（不产生指向不存在能力的工具面）                   | 已实现（includeVaultSearch 门，同 includeAutomation）              |
+| VN-1 | 正常近邻：候选白名单、排序/去自身、limit 生效                           | 已实现（B5：services knowledgeNeighbors.test + core handler 测试） |
+| VN-2 | note_not_found / semantic_unavailable / no_source 结构化返回            | 已实现（同上，含换模型向量未回填形态）                             |
+| VN-3 | 零出站零新嵌入：不携带 consentId、不调嵌入端口                          | 已实现（收口在 query/knowledgeNeighbors.ts，纯本地计算）           |
+| VN-4 | host 无 knowledge 服务 → 同款结构化不可用（-32603/旧 host -32601 翻译） | 已实现（droraAgentService 分支 + bootstrap 端口同款降级）          |
+| VN-5 | 端口缺席/宿主能力关闭 → 工具不注册（includeVaultNeighbors 门）          | 已实现（tool-contracts 注册门用例，B5）                            |
+
+> **阶段二 P8 注记（2026-11-12）**：本表所述注册门/反向分发/端口形态已随阶段二 C7/C8
+> 拆除——`VaultSearch`/`vault_neighbors` 现为插件 knowledge server 的 MCP 工具
+> （`mcp__plugin_obsidian_knowledge__vault_search|vault_neighbors`，P4；检索语义/
+> 候选白名单/evidence 注解零变化，`obsidian-plugin/test/knowledgeAgentTools.test.ts`
+> 8 用例锁定）。可感知差异两处按裁定呈现：工具面**常驻首发**（D15，manifest
+> alwaysLoad，每会话 context）与审批**逐次 ask**（D7 保守缺省，不做 authority 降档）；
+> server/stdio host 不装配插件 server（P1 裁定②，差异⑨）。P8 复跑记录见
+> `obsidian-plugin/docs/phase2-p8-capability-parity.md` §1/§2。
 
 ## 5g. 洞察视图（2026-10-12 落地：VaultView 四视图之三的真实数据面）
 
@@ -1275,3 +1395,81 @@ fallbackCountTotal/scoredCountTotal/inputTokensTotal/outputTokensTotal（latency
 | K-INS-2 | 聚合纯函数：frontmatter 边界判定、正文 `tags:` 行不误判、chunk 内去重跨 chunk 累计、job 时长（进行中=null）、telemetry 投影不携带 latency 样本 | 纯函数输入输出精确断言                                                                                                                                       | 已实现（同上）                                               |
 | K-INS-3 | UI 模型：覆盖非零排除项固定顺序过滤、轮询派生（running→true/离场→false）、时长格式化                                                           | 纯模型断言                                                                                                                                                   | 已实现（`packages/ui/test/knowledgeInsightsModel.test.ts`）  |
 | K-INS-4 | i18n：insights 全部键 zh/en 成对（含动态键族 exclude×7/jobKind×2/jobStatus×5，独立复核发现4 后纳入门禁）                                       | A21 纪律测试断言（键集合对等 + 静态引用齐全 + 动态键族成员清单两语言齐全）                                                                                   | 已实现（`packages/ui/test/knowledgeUiDiscipline.test.ts`）   |
+
+## 5h. 剥离批新能力 N2/N3/N4（2026-11-11 落地，B6）
+
+来源：specs/obsidian-vault-plugin-extraction.md §8（圈选与 S03 NO-GO 交付边界）。三条能力
+共用同一批只读数据面（`IKnowledgeQueryService.neighbors` 近邻 + `getInsights` 体检扩展）
+与既有分级写入路径（面板门面 CAS / L1 hook / L2 Proposal），**不新增任何写通道与存储表**。
+
+### 5h.1 N2 Connections 相关笔记（notes 视图侧栏）
+
+- 数据面：复用 `IKnowledgeQueryService.neighbors`（§5f.2 同一服务链，质心近邻）；面板是
+  第二个消费方，不是第二条链。进入 notes 视图且有打开笔记时拉取一次（limit=8），换笔记
+  即重取；不做后台轮询（近邻是一次性只读计算，无 running 态）；服务/请求竞态按代际令牌
+  丢弃迟到响应（§5b.6 run 事件同纪律）。
+- 呈现：侧栏「相关笔记」区列出候选（title/relativePath），`KnowledgeNeighborsStatus`
+  词表直通（§5f.2）：`no_source`/`note_not_found`/`semantic_unavailable`/`empty` 各自
+  如实呈现，不静默空白；`partial` 附 coverage 提示。
+- **一键插入 wikilink = 用户动作经面板门面 CAS 直写**（剥离 spec §8 术语裁定：不经 L1
+  ——L1 特指 agent PermissionRequest hook 自动放行）：readFile 二读取当前笔记最新内容
+  （与 deleteNote 同款防陈旧）→ 追加一行 `- [[目标路径（去 .md 后缀）]]` → writeFile
+  携带 expectedSha256。**conflict = 结构化冲突反馈，绝不覆盖**（验收 15）；写后的编辑器
+  收敛走既有 1s 当前文件轮询回读（既有机制，不新增通道）。写入形态固定为文末追加
+  `- [[path]]`：语言中立（不在用户笔记里写 UI 文案/标题）、逐条可手工删除、与 Obsidian
+  常规链接语法一致。
+
+### 5h.2 N3 缺失双链建议
+
+- 面板建议清单 = neighbors 候选 − 当前笔记已链接目标（纯函数过滤，UI 模型
+  `knowledgeConnectionsModel.ts`）：「已链接」判定 = 笔记正文存在指向该目标的 wikilink
+  （完整相对路径形态或 basename 形态，`[[target]]`/`[[target|`/`[[target#` 前缀匹配）。
+  建议项逐条带插入动作（同 §5h.1 CAS）；已链接项如实在册计数、不提供重复插入。
+- agent 面 = `vault_neighbors` 工具（§5f.2 已锁，B5 落地）：agent 以近邻候选定位句子后
+  产出建议清单；**单文件确认插入走 L1**（agent 原生 Edit 经 hook 授权）或面板 CAS。
+- **批量分支（多文件）= L2 Proposal 只读 + apply fail-closed**（S03 NO-GO 交付边界）：
+  本轮不冒充 Jev 自动提案 Agent（§5e.13 同款边界）；提案经既有
+  `IKnowledgeReviewService.createProposal`（精确内容 + baseSha256 创建时校验）人工创建，
+  apply 在 writePathEnabled=false 时结构化 `write_path_disabled`（验收 16，fail-closed
+  本身即验收点，不是缺陷）。
+
+### 5h.3 N4 Vault 健康体检（洞察视图体检段）
+
+- **事实边界（§5g.1 同款）**：体检是当前 `(vaultId, sourceEpoch)` 索引快照上的纯图计算，
+  不读 vault 文件、不做后台任务；文件实况由 §5b.8 reconcile 与 coverage 呈现承担。
+  纯函数收口 `index/healthReport.ts`（输入 = documents 行 + 逐文档 chunk body 流，
+  输出 = 报告 DTO；与 insightsAggregator 同款可脱离 DB 单测）。
+- 口径：
+  - **孤儿笔记** = 无任何入链的文档（入链 = 其他文档的 wikilink 解析到它；自指边
+    source==target 不计；出链不豁免孤儿判定）。
+  - **断链** = wikilink 目标（抽取函数已剥别名；解析前再剥 `#标题`/`^块` 后缀）无法解析
+    到任何已索引文档。解析顺序（确定性、大小写敏感）：① relative_path 精确等值（含补
+    `.md` 两种形态）② 路径后缀匹配（`=== target` 或以 `/<target>` 结尾，多候选取最短
+    relative_path）③ basename 等值（多候选取字典序最小——同名笔记时链接仍解析，不误报
+    断链）。
+  - **空笔记** = 除 frontmatter chunk（ordinal=0）外无任何非空白正文的文档（含仅
+    frontmatter 与零 chunk 形态）。
+  - **上限**：每类条目数组至多 `KNOWLEDGE_HEALTH_MAX_ENTRIES = 200` 条；count 恒为全量
+    计数（UI 以「数组长度 < count」如实呈现截断）；条目排序 relativePath /
+    (sourcePath, target) 字典序。
+- RPC 面：`KnowledgeInsightsSnapshot` 增 additive 可选 `health`（DTO 单一出处
+  knowledgeTypes.ts；未配置 vault = 零值结构；新 renderer 读旧 host 按 undefined →
+  空态降级）。§5g.6 四区卡片顺序不变，体检段插在「收录覆盖」之后。
+- **L2 审核入口（批量分支，S03 注记同 §5h.2）**：空笔记清单提供「生成清理提案」
+  （delete changes；逐文件 readFile 二读取当前 sha 为 baseSha256，单提案至多 20 条，
+  体检快照与实况漂移导致文件已消失的条目跳过）→ 既有 createProposal 账本面；
+  apply fail-closed 语义同 §5h.2。孤儿/断链/空笔记条目点击跳转 notes 视图对应笔记；
+  归档/移动类治理在 L2 类型面上不可表达（§5e.4 L3 结构性排除），不在本轮冒充交付。
+
+### 5h.4 验收映射（K-N2/K-N3/K-N4）
+
+| ID     | 场景                                   | 期望                                                             | 状态                                                        |
+| ------ | -------------------------------------- | ---------------------------------------------------------------- | ----------------------------------------------------------- |
+| K-N2-1 | 打开已索引笔记 → 相关笔记区出近邻      | 候选来自 neighbors 同链；状态词表如实呈现                        | 已实现（services knowledgeNeighbors + 面板组件测试）        |
+| K-N2-2 | 一键插入 wikilink（面板 CAS）          | 门面 CAS 写入成功；conflict 结构化反馈不覆盖（验收 15）          | 已实现（VaultView save + appendRelatedNoteLink 纯函数测试） |
+| K-N3-1 | 建议清单 = 近邻 − 已链接               | 过滤纯函数精确断言；已链接项不提供重复插入                       | 已实现（knowledgeConnectionsModel.test）                    |
+| K-N3-2 | agent 面建议                           | vault_neighbors 工具（§5f.3 VN-1..5）+ 技能指南使用段            | 已实现（B5 + 本批 obsidian-knowledge SKILL 增补）           |
+| K-N3-3 | 批量 Proposal 只读 + apply fail-closed | createProposal 账本面；apply `write_path_disabled`（验收 16）    | 已实现（既有 review 面为执行路径，无新写通道）              |
+| K-N4-1 | 体检口径（孤儿/断链/空笔记）           | 纯函数精确断言 + getInsights 集成断言（真实索引）                | 已实现（knowledgeInsights.test.ts）                         |
+| K-N4-2 | 洞察体检段                             | 卡片渲染 counts/条目/截断提示；`health` 缺席降级空态             | 已实现（knowledgeInsightsHealth.test.tsx）                  |
+| K-N4-3 | 清理提案（delete changes）             | 逐文件二读 baseSha；≤20 条/提案；漂移条目跳过；apply fail-closed | 已实现（knowledgeHealthProposal 单测 + review 既有面）      |

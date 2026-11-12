@@ -7,6 +7,11 @@ export function discoverNodeUnitTestFiles(root = process.cwd()) {
     [
       // .test.ts 扩展名被 Vitest 与 node:test 双框架共用，靠内容（node:test 导入）区分归属。
       ...globSync("packages/*/test/**/*.test.ts", { cwd: root }),
+      // P3（specs/obsidian-vault-phase2-true-extraction.md §1-C10/§10-P3）：knowledge/
+      // obsidian 测试随实现迁入 obsidian-plugin/test（node:test 直连插件 server 模块），
+      // 插件包在 apps/drora-cli 下，需第二条 glob 才能被保留集发现；vitest 套件仍靠
+      // 下方内容过滤器排除。
+      ...globSync("apps/drora-cli/packages/*/test/**/*.test.ts", { cwd: root }),
       // 修复原因：CUA 等真实进程/打包链用例采用 .node-test.mjs 命名约定（全仓 11 件，
       // 含 windowsCuaRuntime/windowsCuaPackaging/cuaLazyLaunchBridge），此前只被
       // *.test.ts glob 发现——vitest 工程按设计不收录 node:test 套件（见

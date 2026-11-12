@@ -39,7 +39,7 @@ export * from "./workflow-command-rejections.js";
 // 收口（PR #23 终审 shared-1）：sendText payload 的 evidenceRef 形状与 input-intent
 // 的 evidenceRefSchema 完全同构，改引同一份 schema——两处内联漂移会造成 admission
 // 固定进 intent 的引用与 wire 校验各认一套形状。
-import { MAX_EVIDENCE_REFS_PER_INPUT } from "../knowledge-evidence.js";
+import { MAX_EVIDENCE_REFS_PER_INPUT } from "./input-intent.js";
 
 // sendText / editUserQuery / sendQueuedNow 共用的执行材料不变量：modelExecution 只能依附
 // 本次 modelSelection，禁止在缺 Selection 时单独补供凭据（历史消息 rewind 后不复用旧凭据）。
@@ -117,10 +117,11 @@ export const commandPayloadSchemas = {
       // 加速本轮的模型与凭据走上面的 modelSelection + modelExecution，见
       // docs/highspeed/highspeed-access-mode-migration.md。
       highspeedMeta: highspeedMessageMetaSchema.optional(),
-      // VaultView Evidence 引用（W03 / specs/obsidian-knowledge.md §5.3）：只传 opaque
-      // receiptId；绑定事实在服务端账本，由 CLI Runtime gate 在 admission 与队列提升时
-      // 复验。additive：旧 CLI 的 z.object 静默丢弃该键（fail-closed）。形状复用
-      // input-intent 的 evidenceRefSchema（单一出处；PR #23 终审 shared-1 收口）。
+      // @deprecated P7 本体清除（specs/obsidian-vault-phase2-true-extraction.md §1-C6）：
+      // 旧 VaultView Evidence 引用（W03）。字段定义保留使 .strict() 仍能解析旧持久化
+      // 账本（删定义会破坏会话恢复）；生产端写入路径已全删，携带 refs 的输入在 CLI
+      // admission 层被 D9 legacy 探测器拒绝（legacy_evidence_unverifiable）。
+      // 形状复用 input-intent 的 evidenceRefSchema（单一出处；PR #23 终审 shared-1 收口）。
       evidenceRefs: z.array(evidenceRefSchema).max(MAX_EVIDENCE_REFS_PER_INPUT).optional(),
       automationId: z.string().min(1).optional(),
       offPeakTaskId: z.string().min(1).optional(),

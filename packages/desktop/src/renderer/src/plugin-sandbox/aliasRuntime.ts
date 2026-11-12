@@ -16,10 +16,20 @@ import type {
   McpUiToolInputNotification,
   McpUiToolResultNotification,
 } from "@modelcontextprotocol/ext-apps";
-import type { McpAppsDownloadFileItem } from "@drora/shared/mcp-apps";
+import type {
+  McpAppsDownloadFileItem,
+  McpAppsNavigateParams,
+  McpAppsOpenDirectoryPickerResult,
+} from "@drora/shared/mcp-apps";
 import {
+  MCP_APPS_NAVIGATE_METHOD,
+  MCP_APPS_OPEN_CONVERSATION_HANDOFF_METHOD,
+  MCP_APPS_OPEN_DIRECTORY_PICKER_METHOD,
+  MCP_APPS_OPEN_WITH_METHOD,
   MCP_APPS_SET_WIDGET_STATE_METHOD,
   MCP_APPS_WIDGET_STATE_CONTEXT_KEY,
+  mcpAppsOpenDirectoryPickerResultSchema,
+  mcpAppsOpenWithParamsSchema,
 } from "@drora/shared/mcp-apps";
 import type { OpenAiCompatApi, DroraAliasApi } from "./aliasApi.js";
 import { createOpenAiCompatApi, readOpenAiGlobals } from "./openaiAlias.js";
@@ -54,6 +64,15 @@ export interface AliasAppLike {
   setNotificationHandler(
     method: "notifications/resources/updated" | "notifications/resources/list_changed",
     handler: (notification: { params?: { uri?: string } }) => void,
+  ): void;
+  /**
+   * Drora 扩展通知（g9 `drora/openWith`）：官方 SDK 对非 spec 方法只接受
+   * 「schemas 二参 + handler 三参」形式（一参形式会抛 "not a spec notification method"）。
+   */
+  setNotificationHandler(
+    method: "drora/openWith",
+    schemas: { params: unknown },
+    handler: (params: { payload?: unknown }, notification: unknown) => void,
   ): void;
   openLink(params: { url: string }): Promise<unknown>;
   requestDisplayMode(params: { mode: McpUiDisplayMode }): Promise<{ mode: McpUiDisplayMode }>;
@@ -103,6 +122,8 @@ export function createPluginSandboxAliasRuntime(options: {
   const listeners = new Set<() => void>();
   const resourceUpdatedListeners = new Set<(uri: string) => void>();
   const resourceListChangedListeners = new Set<() => void>();
+  // g9：宿主→面板 openWith 载荷监听（命令语义，页面启动期注册）。
+  const openWithListeners = new Set<(payload: unknown) => void>();
 
   const notify = () => {
     for (const listener of listeners) listener();
@@ -131,6 +152,15 @@ export function createPluginSandboxAliasRuntime(options: {
   app.setNotificationHandler("notifications/resources/list_changed", () => {
     for (const listener of resourceListChangedListeners) listener();
   });
+  // g9：宿主经 `drora/openWith` 通知投递打开载荷（C5a citation 打开路由）；未注册监听时静默丢弃。
+  // `drora/openWith` 非 spec 方法，必须走 schemas 三参形式（SDK 对一参形式只放行 spec 方法）。
+  app.setNotificationHandler(
+    MCP_APPS_OPEN_WITH_METHOD,
+    { params: mcpAppsOpenWithParamsSchema },
+    (params) => {
+      for (const listener of openWithListeners) listener(params?.payload);
+    },
+  );
 
   /** 失败只记录一次，后续访问不重试（与页面自建 App 的失败语义一致）。 */
   const ready = (): Promise<void> => {
@@ -280,6 +310,58 @@ export function createPluginSandboxAliasRuntime(options: {
           ...(input.structuredContent ? { structuredContent: input.structuredContent } : {}),
         }),
       ).then(() => undefined),
+    // g9 宿主动作桥（specs/obsidian-vault-phase2-true-extraction.md §6/§8）：三个白名单动作
+    // 均走官方 App 的扩展 request（与 ui/set-widget-state 同一通道，无新传输）；宿主未接
+    // handler 时 SDK 回 -32601，页面据此走降级路径（D10）。
+    openConversationHandoff: (input) =>
+      whenReady(() =>
+        app.request(
+          {
+            method: MCP_APPS_OPEN_CONVERSATION_HANDOFF_METHOD,
+            params: {
+              content: input.content,
+              ...(input.structuredContent !== undefined
+                ? { structuredContent: input.structuredContent }
+                : {}),
+            },
+          },
+          EmptyResultSchema,
+        ),
+      ).then(() => undefined),
+    selectDirectory: (input) =>
+      whenReady(() =>
+        app.request(
+          {
+            method: MCP_APPS_OPEN_DIRECTORY_PICKER_METHOD,
+            ...(input?.title !== undefined ? { params: { title: input.title } } : {}),
+          },
+          mcpAppsOpenDirectoryPickerResultSchema,
+        ),
+      ).then((result) => {
+        // 宿主回 `{ path: string | null }`；schema 之外的读取保持防御（未知宿主回空对象）。
+        const path = (result as { path?: unknown } | undefined)?.path;
+        return typeof path === "string" ? { path } : { path: null };
+      }) as Promise<McpAppsOpenDirectoryPickerResult>,
+    navigate: (input: McpAppsNavigateParams) =>
+      whenReady(() =>
+        app.request(
+          {
+            method: MCP_APPS_NAVIGATE_METHOD,
+            params: {
+              kind: "surface",
+              surfaceId: input.surfaceId,
+              ...(input.payload !== undefined ? { payload: input.payload } : {}),
+            },
+          },
+          EmptyResultSchema,
+        ),
+      ).then(() => undefined),
+    onOpenWith(listener: (payload: unknown) => void) {
+      openWithListeners.add(listener);
+      return () => {
+        openWithListeners.delete(listener);
+      };
+    },
     subscribe(listener) {
       listeners.add(listener);
       return () => listeners.delete(listener);

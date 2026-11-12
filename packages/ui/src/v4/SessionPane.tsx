@@ -4007,7 +4007,8 @@ export function SessionPane({
           ...submission,
           ...(options?.requestedDelivery ? { requestedDelivery: options.requestedDelivery } : {}),
           conversationQuotes: options?.conversationQuotes,
-          ...(options?.evidenceRefs?.length ? { evidenceRefs: options.evidenceRefs } : {}),
+          // P7 本体清除（spec §1-C6）：evidenceRefs 写入路径删除——wire schema 字段
+          // 保留 deprecated 兼容旧持久化账本解析，但本体不再生产新引用。
           ...(readyAttachments.length > 0 ? { attachments: readyAttachments } : {}),
           ...(sessionId && options?.requestedDelivery
             ? {

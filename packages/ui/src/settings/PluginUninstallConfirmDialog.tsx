@@ -12,16 +12,20 @@ import { useDroraIntl } from "@/i18n/IntlProvider.js";
 
 // 卸载是破坏性的彻底清除（缓存 + data 目录 + config 残留），UI 各入口共用同一个确认弹窗，
 // 文案与行为保持一致，避免「已安装」与「市场」两个面板各写一份。
+// keepData=true（§11-D6：obsidian 等声明卸载数据保留的插件）时文案明示数据目录将保留
+// （含知识库+模型，重装「恢复」零损失）——提示与 CLI 侧强制 keepData 行为不允许各说各话。
 export function PluginUninstallConfirmDialog({
   open,
   pluginName,
   pending,
+  keepData = false,
   onCancel,
   onConfirm,
 }: {
   open: boolean;
   pluginName: string;
   pending: boolean;
+  keepData?: boolean;
   onCancel: () => void;
   onConfirm: () => void;
 }) {
@@ -41,8 +45,12 @@ export function PluginUninstallConfirmDialog({
               { name: pluginName },
             )}
           </AlertDialogTitle>
-          <AlertDialogDescription>
-            {intl.formatMessage({ id: "settings.plugins.uninstall.confirmDescription" })}
+          <AlertDialogDescription data-testid="plugin-store-uninstall-description">
+            {intl.formatMessage({
+              id: keepData
+                ? "settings.plugins.uninstall.confirmDescriptionKeepData"
+                : "settings.plugins.uninstall.confirmDescription",
+            })}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>

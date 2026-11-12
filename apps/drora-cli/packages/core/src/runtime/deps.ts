@@ -118,7 +118,6 @@ export type {
   AutomationPort,
   OffPeakPort,
   TopicResourcePort,
-  VaultSearchPort,
   ImageGenerationPort,
   BackgroundExecutionSnapshot,
   BackgroundTaskCancelResult,

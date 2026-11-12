@@ -22,6 +22,38 @@ export const mcpAppsSurfaceIdSchema = z
   .max(MCP_APPS_SURFACE_ID_MAX_CHARS)
   .regex(MCP_APPS_SURFACE_ID_PATTERN);
 
+// ============================================================
+// g9 宿主动作桥（specs/obsidian-vault-phase2-true-extraction.md §6/§8/§10-P2）。
+// 宿主 handler（plugin-ui interactionPorts）与沙箱页面（aliasRuntime）两侧复用同一 schema，
+// 方法名常量在 contract.ts——契约键单一出处，两侧不各写一份字面量。
+// ============================================================
+/** `drora/openConversationHandoff` 参数：与 ui/update-model-context 同形（内容块 + 可选结构化负载）。 */
+export const mcpAppsOpenConversationHandoffParamsSchema = z
+  .object({
+    content: z.array(z.record(z.string(), z.unknown())).min(1),
+    structuredContent: z.unknown().optional(),
+  })
+  .loose();
+/** `drora/openDirectoryPicker` 参数 / 结果（用户取消 path 为 null）。 */
+export const mcpAppsOpenDirectoryPickerParamsSchema = z
+  .object({ title: z.string().max(200).optional() })
+  .loose();
+export const mcpAppsOpenDirectoryPickerResultSchema = z
+  .object({ path: z.string().nullable() })
+  .loose();
+/** `drora/navigate` 参数（P2 最小面：仅 surface 目标，surfaceId 复用清单 id 校验）。 */
+export const mcpAppsNavigateParamsSchema = z
+  .object({
+    kind: z.literal("surface"),
+    surfaceId: mcpAppsSurfaceIdSchema,
+    payload: z.unknown().optional(),
+  })
+  .loose();
+/** `drora/openWith` 通知参数（payload 透传，宿主不解释；纯打开命令可省略 payload）。 */
+export const mcpAppsOpenWithParamsSchema = z
+  .object({ payload: z.unknown().optional() })
+  .loose();
+
 export const mcpToolUiCspSchema = z
   .object({
     connectDomains: z.array(z.string().min(1).max(512)).optional(),

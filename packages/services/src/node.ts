@@ -1,5 +1,7 @@
-// Drora 自研扩展（knowledge / webhook / CUA agent env）的节点侧装配导出。
-export { assembleDroraKnowledgeHost } from "./drora-extensions/knowledgeHost.js";
+// Drora 自研扩展（webhook / CUA agent env）的节点侧装配导出。
+// P7 本体清除（specs/obsidian-vault-phase2-true-extraction.md §1-C7）：knowledgeHost /
+// hostComponentsPresence（obsidian 宿主能力短路读取器）已随 knowledge/obsidian-vault
+// 四服务的本体装配拆除——插件自带 server 后本体无宿主能力可短路。
 export { resolveDroraWebhookSecret } from "./drora-extensions/webhookSecret.js";
 import { buildCuaProductHelperAgentEnv } from "./drora-extensions/cuaAgentEnvironment.js";
 export { buildCuaProductHelperAgentEnv } from "./drora-extensions/cuaAgentEnvironment.js";
@@ -44,18 +46,7 @@ import {
 import { getAppConfigDir as resolveAppConfigDir } from "./paths.js";
 import type { StartPlanCaptchaResolver } from "#src/model-provider/startPlanCaptchaHeaders.js";
 import { IOutputStyleService } from "./output-style/outputStyle.js";
-import { IObsidianVaultService } from "./obsidian-vault/obsidianVault.js";
 import { createOutputStyleService } from "./output-style/outputStyleService.js";
-import { createObsidianVaultService } from "./obsidian-vault/obsidianVaultService.js";
-import { IKnowledgeIndexService } from "./knowledge/knowledgeIndex.js";
-import { IKnowledgeQueryService } from "./knowledge/knowledgeQuery.js";
-import { IKnowledgeReviewService } from "./knowledge/review/reviewService.js";
-import { createKnowledgeServices, type KnowledgeServices } from "./knowledge/knowledgeServices.js";
-import { isReleasedReviewWriteAuthority } from "./knowledge/review/reviewReleasePolicy.js";
-import {
-  resolveKnowledgeJevAssembly,
-  type KnowledgeJevAssembly,
-} from "./knowledge/decision/jevAssembly.js";
 import {
   createHasExistingLocalTask,
   hasAnyAgentSessionRow,
@@ -214,25 +205,9 @@ export type {
 export { importLegacyPersonalProviderConfig } from "./model-provider/legacyPersonalProviderConfigImporter.js";
 export type { StartPlanCaptchaResolver } from "./model-provider/startPlanCaptchaHeaders.js";
 export { createOutputStyleService } from "./output-style/outputStyleService.js";
-export {
-  createObsidianVaultService,
-  resolveObsidianPluginDataDir,
-} from "./obsidian-vault/obsidianVaultService.js";
-export { createKnowledgeServices } from "./knowledge/knowledgeServices.js";
-export type { KnowledgeServicesOptions } from "./knowledge/knowledgeServices.js";
-// Knowledge 决策层（W05 / spec §5d）：Host 侧装配入口（凭证只在 Host 安全配置注入）。
-export {
-  createJevAdapter,
-  JEV_PROVIDER_ID,
-  mergedNoulQuestion,
-} from "./knowledge/decision/jevAdapter.js";
-// Jev 装配（§5d.10）：Host 异步初始化段预解析快照 → createLocalServices option。
-export {
-  createKnowledgeJevProviderFactory,
-  resolveKnowledgeJevAssembly,
-} from "./knowledge/decision/jevAssembly.js";
-export type { KnowledgeJevAssembly } from "./knowledge/decision/jevAssembly.js";
-import type { KnowledgeEmbeddingPort } from "./knowledge/search/embeddingPort.js";
+// P7 本体清除（specs/obsidian-vault-phase2-true-extraction.md §1-C7）：knowledge/
+// obsidian-vault 全部 re-export（四服务、决策层、Jev 装配、本地语义端口、离线评测）
+// 随本体原件删除移除——插件包（obsidian-plugin/src/server）持有唯一实现。
 // 模型能力档案（specs/model-capabilities.md §4 唯一所有者；desktop 本地 Host 注入）。
 import { IModelCapabilitiesService } from "./model-capabilities/index.js";
 import { createImageGenerationService } from "./model-capabilities/node.js";
@@ -244,67 +219,6 @@ export type {
   ImageGenerationResult,
   ImageGenerationServiceDependencies,
 } from "./model-capabilities/node.js";
-export {
-  TYPESAFE_OFFICIAL_BASE_URL,
-  createSystemOneHttpTransport,
-} from "./knowledge/decision/jevTransport.js";
-export type { SystemOneTransportOptions, JevTransport } from "./knowledge/decision/jevTransport.js";
-export {
-  LOCAL_EMBEDDING_MODEL_ID,
-  createLocalEmbeddingPort,
-  resolveKnowledgeModelRoot,
-} from "./knowledge/search/localEmbeddingPort.js";
-export type { LocalEmbeddingPortOptions } from "./knowledge/search/localEmbeddingPort.js";
-export type { KnowledgeEmbeddingPort } from "./knowledge/search/embeddingPort.js";
-export {
-  createLocalFallbackProvider,
-  localFallbackOutcomes,
-} from "./knowledge/decision/localFallback.js";
-export { DecisionConsentRegistry } from "./knowledge/decision/decisionConsent.js";
-export { DecisionCache, decisionCacheKeyOf } from "./knowledge/decision/decisionCache.js";
-export { DecisionTelemetry } from "./knowledge/decision/decisionTelemetry.js";
-export type { DecisionTelemetrySnapshot } from "./knowledge/decision/decisionTelemetry.js";
-export { DecisionPipeline } from "./knowledge/decision/decisionPipeline.js";
-export type {
-  DecisionPipelineOptions,
-  DecisionStageInput,
-  DecisionStageOutput,
-} from "./knowledge/decision/decisionPipeline.js";
-export {
-  DECISION_POLICY_VERSION,
-  DEFAULT_DECISION_POLICY,
-  resolvePolicyConfig,
-  decideByPolicy,
-  queryHashOf,
-  normalizeQueryForHash,
-} from "./knowledge/decision/decisionPolicy.js";
-export type {
-  KnowledgeDecisionProvider,
-  KnowledgeDecisionRequest,
-  KnowledgeDecisionResult,
-  KnowledgeDecisionCandidate,
-  KnowledgeDecisionOutcome,
-  KnowledgeDecisionPolicyConfig,
-  KnowledgeDecisionConsent,
-} from "./knowledge/decision/decisionTypes.js";
-export type { KnowledgeDecisionContext } from "./knowledge/query/queryOrchestrator.js";
-// Knowledge 离线评测（W05 / spec §5d.8）：真实检索代码路径上的 A/B harness。
-export { runKnowledgeEvaluation } from "./knowledge/eval/evaluationHarness.js";
-export type {
-  EvaluationQueryCase,
-  EvaluationVariant,
-  EvaluationVariantReport,
-  EvaluationPerQueryResult,
-  EvaluationRunOptions,
-} from "./knowledge/eval/evaluationHarness.js";
-export {
-  recallAtK,
-  hitAtK,
-  reciprocalRank,
-  percentileNearestRank,
-  evidencePrecisionTop1,
-  averageNonNull,
-} from "./knowledge/eval/evaluationMetrics.js";
 export {
   createAccountProviderConfigSource,
   createAccountProviderConnectionResolver,
@@ -1606,31 +1520,10 @@ export function createLocalServices(options: {
   };
   /** Windows desktop-local Host 的 CUA turn 状态投影；其它 authority 会在装配层拒绝。 */
   cuaOperationStateReporter?: CuaOperationStateReporter;
-  /**
-   * Jev 配置动态源（specs/obsidian-knowledge.md §5d.10 配置热生效）：调用方注入
-   * （desktop 本地 host：异步初始化段闭包 settingService 的解析器）。每个决策
-   * stage 解析当前装配，null = 功能关闭；配置变更即时生效（免重启）。
-   */
-  knowledgeJevConfigSource?: () => Promise<KnowledgeJevAssembly | null>;
-  /**
-   * 索引自动 reconcile（specs/obsidian-knowledge.md §5b.8）：缺省 false，仅 desktop
-   * 本地 host 装配传 true（V1 范围纪律，同 knowledgeJevAssembly）；server/stdio/
-   * 远程 host 不传即维持手动触发现状。
-   */
-  knowledgeAutoIndex?: boolean;
-  /**
-   * 本地语义检索端口（specs/obsidian-knowledge.md §5b.9）：由调用方在异步初始化段
-   * 依据 knowledgeSemanticEnabled 预构建（lazy，构造不 IO）后传入；缺省 null =
-   * 纯词法（零出站语义降级，既有语义）。
-   */
-  knowledgeEmbeddingPort?: KnowledgeEmbeddingPort | null;
-  /**
-   * 本地语义端口动态源（specs/model-capabilities.md §4；obsidian-knowledge.md §5b.9
-   * 配置热生效）：desktop 本地 host 由 assembleDroraKnowledgeHost 按模型能力档案
-   * embedding.enabled 解析注入；refreshDecisionConfig 时按当前开关热切换端口。
-   * 缺省不传 = 语义保持装配期状态（重启语义，兼容旧装配）。
-   */
-  knowledgeSemanticSource?: () => Promise<KnowledgeEmbeddingPort | null>;
+  // P7 本体清除（specs/obsidian-vault-phase2-true-extraction.md §1-C7）：
+  // knowledgeJevConfigSource / knowledgeAutoIndex / knowledgeEmbeddingPort /
+  // knowledgeSemanticSource 四个装配 option 随 knowledge 栈本体拆除（插件 server
+  // 持有唯一实现，本体 host 不再构造知识服务）。
   /**
    * 模型能力档案服务（specs/model-capabilities.md §4 唯一所有者）：desktop 本地
    * Host 在异步初始化段构造注入（一次性旧键迁移在首次 get 执行）；未注入的
@@ -2621,6 +2514,9 @@ export function createLocalServices(options: {
     hostId: options?.projectStorageHostId ?? "local",
     workspaceIdentity: undefined,
   });
+  // P7 本体清除（specs/obsidian-vault-phase2-true-extraction.md §1-C7）：宿主能力
+  // 在场合成（vaultHostComponentsPresent）与 knowledge/obsidian 四服务的构造级条件
+  // 化分支随本体装配拆除——插件自带 server 后本体 host 无该装配面。
   // agent 内置文生图（specs/model-capabilities.md §6/§13）：档案服务在场才提供画图源
   // （未注入 = 本 host 无档案面，协议分发回 -32601 结构化不可用）。服务无状态，
   // thunk 惰性构造与 knowledgeQuerySource 同款。§13 连接解析经 providerRuntime 的
@@ -2704,9 +2600,9 @@ export function createLocalServices(options: {
       codingPlanSubscriptionService.getDynamicWorkflowClientConfig(),
     ...(resolveDynamicWorkflowUserMode ? { resolveDynamicWorkflowUserMode } : {}),
     forwardDynamicWorkflowUserMode: options?.forwardDynamicWorkflowUserMode,
-    // agent 只读 vault 检索（obsidian-knowledge.md §5f）：thunk 解引用 knowledgeServices
-    // ——它在下方才构造（声明顺序晚于本调用），只在协议请求期被调用，不提前触达。
-    knowledgeQuerySource: () => knowledgeServices.queryService,
+    // P7 本体清除（spec §1-C7）：knowledgeQuerySource thunk 随 knowledge 栈拆除——
+    // agent 侧 vault 检索改由插件 knowledge MCP server 提供（工具面
+    // mcp__plugin_obsidian_knowledge__*），本体 host 不再有反向分发通道。
     // agent 内置文生图（specs/model-capabilities.md §6）：档案服务在场即接线；
     // 出站、凭据解密全部留在本 host 进程，CLI 只收图片字节。
     ...(agentImageGenerationSource ? { imageGenerationSource: agentImageGenerationSource } : {}),
@@ -2892,10 +2788,7 @@ export function createLocalServices(options: {
       // 不可用时切段兜底发现链要能命中我方 Helper（否则回落名字匹配候选静默）。
       // 切段对 DRORA_CUA_WIN_HELPER_RECIPE（DRORA_ 名）零消费——R7.5 已移除该死键，
       // ZCODE_ 名接管切段消费面。
-      if (
-        cuaPluginEnabled &&
-        (process.platform === "darwin" || process.platform === "win32")
-      ) {
+      if (cuaPluginEnabled && (process.platform === "darwin" || process.platform === "win32")) {
         const lazyLaunchBridgeEnv = await buildZcodeCuaLazyLaunchBridgeEnv({ env: process.env });
         Object.assign(cuaProductHelperEnv, lazyLaunchBridgeEnv);
         // R1.2 验证③（注入侧可见性）：切段 bundled/候选双双落空时 :45019 一带静默
@@ -3193,29 +3086,9 @@ export function createLocalServices(options: {
   const marketingAssets = createMarketingAssetRegistry({
     allowLoopback: DRORA_ENV === "test" || process.env.NODE_ENV === "development",
   });
-  // Knowledge 索引/检索服务（VaultView 2.0 W02）：与面板 Vault 门面共享 vault-config.json
-  // 唯一事实源；自带可重建 SQLite 索引缓存（WAL + lease/fencing），dispose 记入统一关闭链。
-  // Jev 装配（§5d.10）：仅当调用方预解析出非空快照时才注入 provider 工厂；
-  // 必须走工厂（而非静态 provider）——逐调用授权重查要求与管线共享同一账本实例。
-  const knowledgeServices: KnowledgeServices = createKnowledgeServices({
-    // 维护者委托本轮 S03 自审后的版本装配决定；不是 authority 自证安全。
-    // 仅桌面本地可 opt-in，默认不开启，仍需 Vault 授权与逐提案批准。
-    reviewWriteSafetyGatePassed: isReleasedReviewWriteAuthority(options?.serviceAuthorityMode),
-    // Jev 配置动态源（§5d.10 热生效）：装配解析延迟到决策 stage，配置变更免重启。
-    ...(options.knowledgeJevConfigSource
-      ? { knowledgeJevConfigSource: options.knowledgeJevConfigSource }
-      : {}),
-    // 索引自动 reconcile（§5b.8）：仅 desktop 本地 host 开启，其余 host 维持手动触发。
-    ...(options.knowledgeAutoIndex === true ? { autoIndexEnabled: true } : {}),
-    // 本地语义检索（§5b.9）：端口由调用方依据开关预构建；缺省 null = 纯词法。
-    ...(options.knowledgeEmbeddingPort ? { embeddingPort: options.knowledgeEmbeddingPort } : {}),
-    // 语义端口动态源（spec §4 热生效）：refreshDecisionConfig 按档案 embedding.enabled
-    // 热切换端口（enabled → lazy 本地端口；disabled → null 纯词法）。
-    ...(options.knowledgeSemanticSource
-      ? { knowledgeSemanticSource: options.knowledgeSemanticSource }
-      : {}),
-  });
-  sqliteReposToClose.push({ close: () => knowledgeServices.dispose() });
+  // P7 本体清除（spec §1-C7）：knowledge 栈构造（createKnowledgeServices）随本体原件
+  // 拆除——SQLite 索引库、index_lease、autoIndex 定时器与 dispose 关闭链接线全部由
+  // 插件 knowledge server（obsidian-plugin/src/server/knowledge）持有。
   const services = new ServiceCollection()
     .register(
       IMarketingTouchService,
@@ -3515,15 +3388,6 @@ export function createLocalServices(options: {
     // 第 48 轮：Claude Code 兼容的输出风格服务。官方 createLocalServices 注册链里
     // .register 使用本地实例——output style 是本机 ~/.claude 的状态。
     .register(IOutputStyleService, createOutputStyleService())
-    // Obsidian Vault 面板服务：无条件注册，未配置 vault 时面板展示引导；是
-    // 面板写路径的唯一安全门面（路径逐段 lstat 拒软链 + sha256 CAS 乐观锁）。
-    .register(IObsidianVaultService, createObsidianVaultService())
-    // Knowledge 索引/检索服务：无条件注册（未配置 vault 时 getStatus configured=false，
-    // 检索返回 no_source run）；源身份只由 vault-config.json + Profile 推导。
-    .register(IKnowledgeIndexService, knowledgeServices.indexService)
-    .register(IKnowledgeQueryService, knowledgeServices.queryService)
-    // 审核写入服务（W06）：L2 治理写唯一入口；与索引共享 DB 连接与 dispose 链。
-    .register(IKnowledgeReviewService, knowledgeServices.reviewService)
     .register(ISettingsSyncService, createSettingsSyncService({ settingService }))
     .register(
       IFeedbackService,
@@ -3537,7 +3401,8 @@ export function createLocalServices(options: {
     .register(IPromptAttachmentTransferService, createLocalPromptAttachmentTransferService());
 
   // 模型能力档案服务（specs/model-capabilities.md §4）：desktop 本地 Host 构造注入
-  // （同一实例供 knowledge 装配与 RPC 面共用，避免双所有者）；未注入不注册。
+  // （同一实例供 RPC 面使用，避免双所有者）；未注入不注册。P7 后 knowledge 装配已
+  // 随本体清除拆除，档案服务只服务 asr/tts/image-generation 能力面。
   if (options?.modelCapabilitiesService) {
     services.register(IModelCapabilitiesService, options.modelCapabilitiesService);
   }

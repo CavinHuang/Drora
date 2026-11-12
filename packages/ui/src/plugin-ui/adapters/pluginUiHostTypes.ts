@@ -34,8 +34,19 @@ export interface UsePluginUiHostInput {
   titleBar?: McpAppsHostTitleBar;
   /** false 时不创建沙箱（如侧栏已接管同一作用域）；默认 true。 */
   enabled?: boolean;
-  /** 会话交互回调：缺省时对应请求回 -32601，能力声明也不带该项。 */
-  interactions?: Pick<PluginUiHostControllerDeps, "onSendFollowUpMessage" | "onUpdateModelContext">;
+  /**
+   * 会话交互回调：缺省时对应请求回 -32601，能力声明也不带该项。
+   * g9 白名单动作（openConversationHandoff / directoryPicker / navigate）同规则：
+   * 注入哪个宣告哪个；directoryPicker 有平台缺省实现（桌面 selectDirectory），无需调用方提供。
+   */
+  interactions?: Pick<
+    PluginUiHostControllerDeps,
+    | "onSendFollowUpMessage"
+    | "onUpdateModelContext"
+    | "onOpenConversationHandoff"
+    | "onSelectDirectory"
+    | "onNavigate"
+  >;
 }
 
 export interface UsePluginUiHostResult {
@@ -68,5 +79,10 @@ export interface Page {
   busy(): boolean;
   running(): boolean;
   suspend(force?: boolean): Promise<boolean>;
+  /**
+   * g9 宿主→面板 openWith（specs/obsidian-vault-phase2-true-extraction.md §6/§8）：
+   * 转发到 controller.notifyOpenWith；页面未握手时由 controller 暂存补发。
+   */
+  notifyOpenWith(payload: unknown): void;
   destroy(): void;
 }

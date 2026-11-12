@@ -28,7 +28,6 @@ export * from "./interfaces/dynamic-workflow-run.port.js";
 export * from "./interfaces/dynamic-workflow-snippet.port.js";
 export * from "./interfaces/model-catalog.port.js";
 export * from "./interfaces/automation.port.js";
-export * from "./interfaces/vault-search.port.js";
 // agent 内置文生图（specs/model-capabilities.md §6）：CLI 工具壳经端口反向 RPC 到
 // host 画图服务；漏掉这行 core 的 handler 与 bootstrap 的端口实现都拿不到接口类型。
 export * from "./interfaces/image-generation.port.js";

@@ -13,6 +13,7 @@ export function normalizeMcpToolDescriptor(
   timeoutMs?: number,
   official?: boolean,
   alwaysLoad?: boolean,
+  deferred?: boolean,
 ): McpToolDescriptor {
   const record = isRecord(tool) ? tool : {};
   const meta = isRecord(record._meta) ? record._meta : {};
@@ -26,6 +27,9 @@ export function normalizeMcpToolDescriptor(
       typeof meta["anthropic/searchHint"] === "string"
         ? meta["anthropic/searchHint"].replace(/\s+/g, " ").trim()
         : undefined,
+    // g3（specs/obsidian-vault-phase2-true-extraction.md §4）：manifest 工具级 deferred
+    // 声明（键 = 原始 tool 名）经 server config 传入；缺省不置位。
+    ...(deferred === true ? { deferred: true } : {}),
     toolName,
     name: `mcp__${sanitizeMcpName(serverName)}__${sanitizeMcpName(toolName)}`,
     description: typeof record.description === "string" ? record.description : undefined,

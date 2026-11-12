@@ -33,8 +33,37 @@ export const OFFICIAL_NODE_REPL_HOST_PLUGIN_NAME = "node-repl-host";
 export const OFFICIAL_NODE_REPL_HOST_PLUGIN_ID = `${OFFICIAL_NODE_REPL_HOST_PLUGIN_NAME}@${DRORA_OFFICIAL_PLUGIN_MARKETPLACE}`;
 export const OFFICIAL_CUA_PLUGIN_NAME = "computer-use";
 export const OFFICIAL_CUA_PLUGIN_ID = `${OFFICIAL_CUA_PLUGIN_NAME}@${DRORA_OFFICIAL_PLUGIN_MARKETPLACE}`;
+/**
+ * 官方 obsidian 插件 id（B4 注册门消费）：obsidian 宿主能力（VaultSearch 工具面等）的
+ * 三态合成按插件 id 判抑制（specs/obsidian-vault-plugin-extraction.md §3/§4.4）。
+ * 与 bootstrap knowledge-evidence/vault-config-reader.ts 的 OBSIDIAN_PLUGIN_ID、
+ * services obsidianVaultService/hostComponentsPresence 的本地常量同值（各侧依赖方向
+ * 约束不允许互相 import，值的一致性由各自注释锁定；本处是 bootstrap app 域的引用点）。
+ */
+export const OFFICIAL_OBSIDIAN_PLUGIN_NAME = "obsidian";
+export const OFFICIAL_OBSIDIAN_PLUGIN_ID = `${OFFICIAL_OBSIDIAN_PLUGIN_NAME}@${DRORA_OFFICIAL_PLUGIN_MARKETPLACE}`;
+
+/**
+ * app 级常驻服务声明（g1，specs/obsidian-vault-phase2-true-extraction.md §3/§6/§10-P1）。
+ * 生命周期语义：宿主启动即拉起、独立于 session lease、崩溃重启（带退避）、宿主退出收割。
+ * singleton 是**优化声明而非正确性前提**——强制作用域为宿主进程级（同一 host 进程内每
+ * pluginId 至多一实例）；跨进程多实例（多窗口/多 Host）是仓库受支持场景，写竞争防护由
+ * DB 级 index_lease/fencing 承担（§3/g8），不得进程内化。
+ */
+export interface OfficialPluginAppServiceDeclaration {
+  /** manifest mcpServers 的原始 server 键（seed 重写前的 declared key，如 knowledge）。 */
+  server: string;
+}
 
 export interface OfficialPluginDefinition {
+  /**
+   * app 级常驻服务声明（specs/obsidian-vault-phase2-true-extraction.md §6 g1，P1 新增键）：
+   * 宿主启动即拉起、独立于 session lease、崩溃重启、宿主退出收割；语义与 singleton 作用域
+   * 见 {@link OfficialPluginAppServiceDeclaration}。仅官方插件可声明；manifest 尚无
+   * 所指 server 条目时启动链惰性跳过（P3 落地 knowledge server 清单前 obsidian 即按此
+   * 惰性生效，声明先行不报错）。
+   */
+  appService?: OfficialPluginAppServiceDeclaration;
   /**
    * 卸载（抑制）后的可恢复条目没有运行时信息，商店只能靠这里判断是否归入「UI 插件」。
    * 插件包 manifest 声明 ui.surfaces 时必须同时声明 "ui"，由 bootstrap 测试校验一致。
@@ -50,12 +79,28 @@ export interface OfficialPluginDefinition {
    * 仅用于产品归属和设置页状态展示；运行时仍保留宿主 identity。
    */
   hostMcpServerNames?: readonly string[];
+  /**
+   * 宿主实现归属声明（specs/obsidian-vault-plugin-extraction.md §4.2，B1 新增键）：
+   * 由 host/CLI 进程内实现、归属该官方插件名的宿主服务（如 obsidian 的
+   * obsidian-vault/knowledge-* 四服务）。语义同 hostMcpServerNames——仅官方插件可
+   * 声明，用于商店/设置页归属展示与装配条件化（B3 消费），不改变运行时 identity。
+   */
+  hostServices?: readonly string[];
   name: string;
   /** filesystem/SEA seed 缺少任一项时拒绝生成残缺的官方插件缓存。 */
   requiredSeedPaths?: readonly string[];
   rootCandidates: readonly string[];
   /** Extra top-level paths intentionally staged as plugin runtime assets. */
   runtimeTopLevelPaths?: readonly string[];
+  /**
+   * 定义级卸载数据保留声明（specs/obsidian-vault-plugin-extraction.md §6 D6-a 起源；
+   * 阶段二 specs/obsidian-vault-phase2-true-extraction.md §11-D6 升级为**强制**）：
+   * true = 卸载链路**无条件**保留插件数据目录（显式 keepData:false 也不生效）——
+   * obsidian 插件数据目录现含知识库（P6 搬迁后的索引库/向量/审核账本）+ 嵌入模型，
+   * rm 即全库丢失；「恢复」必须零损失。未声明的其他插件维持全局「!==true 即删」
+   * 语义，显式参数仍优先（细粒度声明，不动全局 keepData 语义）。
+   */
+  uninstallKeepData?: boolean;
   version: string;
 }
 
@@ -308,6 +353,52 @@ export const OFFICIAL_PLUGIN_DEFINITIONS: readonly OfficialPluginDefinition[] = 
     // Obsidian Vault 能力（Proma 式原生访问）：SessionStart 注入 Vault 上下文 +
     // PermissionRequest 授权 Vault 内原生写入；无 MCP server。hooks 属可执行副作用，
     // 按「defaultEnabled 仅限内容型插件」的约定不默认启用，由用户在商店显式开启。
+    //
+    // 0.3.0（specs/obsidian-vault-plugin-extraction.md §1/§4，剥离战役 B2）：
+    // - componentTypes 加 "ui" + manifest ui.surfaces 声明 app 级宿主面板 VaultView
+    //   （四视图，实现留 renderer 注册表，hostPanelId="vault" 命中 shared 白名单）；
+    // - hostServices 归属四服务（obsidian-vault / knowledge-index/query/review），
+    //   实现物理位置不变（host 进程内），仅商店/设置页归属展示与 B3 装配条件化消费；
+    // - uninstallKeepData=true（§6 D6-a 裁定，阶段二 §11-D6 升级为强制）：卸载保留
+    //   插件数据目录——P6 搬迁后该目录除 vault-config/vault-focus 外还含知识库
+    //   （索引库/向量/审核账本）+ 嵌入模型，rm 即全库丢失；重装「恢复」零损失；
+    // - 不声明 defaultEnabled——hooks 缺省启用维持 false（D1b，现状与约定均不变；
+    //   DEFAULT_ENABLED_OFFICIAL_PLUGIN_IDS 机械对照单测不动）。
+    // P1（specs/obsidian-vault-phase2-true-extraction.md §3/§10-P1）：追加 app 级常驻
+    // 知识服务生命周期声明（宿主启动拉起/宿主进程级 singleton/崩溃重启/退出收割，g1）。
+    // server 键 "knowledge" 对应 P3 落地的 manifest mcpServers.knowledge（§3 形态）；
+    // P3 之前清单无 mcpServers，启动链按声明缺 server 条目惰性跳过（不报错不拉起），
+    // P3 清单落地后本声明即刻生效。
+    //
+    // P3（§10-P3，manifest 0.3.0→0.4.0）：
+    // - knowledge 栈 + obsidian-vault 门面物理迁入插件包（C1/C2，逐文件 HEAD 对照），
+    //   本条 appService 声明自此实际生效（knowledge server 随宿主常驻拉起）；
+    // - runtimeTopLevelPaths 登记 onnxruntime-node 确定性子树（g7，browser-use sharp
+    //   同款纪律）：dist/binding.js 运行时 require onnxruntime-common（同版本钉死），
+    //   两棵子树缺任一棵都会在首次本地嵌入时 MODULE_NOT_FOUND；adm-zip/global-agent
+    //   仅其 postinstall 装期脚本使用，不进运行时闭包，不登记。模型文件（~24MB）不进
+    //   seed（首用下载落插件数据目录，§5b.9 语义原样）。desktop 打包态按目标平台重产
+    //   子树（bin/napi-v6 只保留目标平台），见 prepare-agent-node-bundle 的 stagedNativeRuntimes。
+    // P4（§4/§10-P4，manifest 0.4.0 就地补键——分支内未发版，不另起版本号）：
+    // - mcpServers.knowledge 追加 `alwaysLoad: true`（D15 建议值先行）：agent 工具
+    //   vault_search/vault_neighbors（C8 契约随迁 + evidence 工具内复验）随 server
+    //   常驻每会话 context 首发；deferred 收敛时在 manifest 加工具级
+    //   `tools.<name>.deferred: true`（P2 g3 机制）即可，无需改定义。
+    //   常驻占用差异已在 §9 已知差异⑧如实记录，不静默。
+    // P5（§2/§10-P5，manifest 0.4.0 分支内继续演进）：
+    // - ui.surfaces 从 `availability:"app"+hostPanelId` 切到 `availability:"session"+
+    //   server:"knowledge"+resourceUri:"ui://obsidian/panel.html"`（Vault webview 面板，
+    //   React 单文件内联 + ui://obsidian/data/* 只读资源面；上面 0.3.0 的 app 级宿主
+    //   面板形态自此失去声明来源，本体 hostPanel 机制死面由 P7 随 C4 拆除）；
+    // - requiredSeedPaths 增 dist/ui/panel.html（面板产物锚点）。
+    appService: { server: "knowledge" },
+    componentTypes: ["ui"],
+    hostServices: [
+      "obsidian-vault",
+      "knowledge-index",
+      "knowledge-query",
+      "knowledge-review",
+    ],
     listing: {
       author: ZAI_AUTHOR,
       category: "productivity",
@@ -324,7 +415,16 @@ export const OFFICIAL_PLUGIN_DEFINITIONS: readonly OfficialPluginDefinition[] = 
       "dist/hooks/permission-request.mjs",
       "dist/hooks/user-prompt-submit.mjs",
       "skills/obsidian/SKILL.md",
+      // 0.3.0 新增知识检索能力使用指南（VaultSearch 工具面 + 面板引导）；
+      // 漏校验正文会 seed 出 agent 拿不到新能力指导的残缺插件。
+      "skills/obsidian-knowledge/SKILL.md",
       "package.json",
+      // P3：knowledge server 入口是常驻 appService 与会话级 MCP 的共同产物锚点，
+      // 缺失会 seed 出商店可见但工具面/面板都无法启动的残缺插件。
+      "dist/mcp/server.js",
+      // P5（§2/§10-P5）：session 级沙箱面板页面（manifest ui.surfaces[].resourceUri
+      // 指向 ui://obsidian/panel.html）；缺失会 seed 出面板入口存在但页面打不开的残缺插件。
+      "dist/ui/panel.html",
     ],
     rootCandidates: [
       "packages/obsidian-plugin",
@@ -332,7 +432,13 @@ export const OFFICIAL_PLUGIN_DEFINITIONS: readonly OfficialPluginDefinition[] = 
       "../../obsidian-plugin",
       "../../../obsidian-plugin",
     ],
-    version: "0.2.0",
+    // P3（g7）：onnxruntime 确定性子树随插件发行（本地语义嵌入的 N-API 运行时）。
+    runtimeTopLevelPaths: [
+      "node_modules/onnxruntime-node",
+      "node_modules/onnxruntime-common",
+    ],
+    uninstallKeepData: true,
+    version: "0.4.0",
   },
   {
     listing: {
@@ -519,47 +625,6 @@ export const OFFICIAL_PLUGIN_DEFINITIONS: readonly OfficialPluginDefinition[] = 
     ],
     version: "0.4.2",
   },
-  {
-    // Drora Sites（技术方案 4）：Skill 指导 Agent 把项目改造并打包成 runner 可直接运行的产物包，
-    // 再用 scripts/drora-site.mjs（CLI）上传发布；commands/ 是 /site-* 斜杠命令。
-    // 0.4.0 起自带 Sites 面板（UI plugin）：MCP server 与面板页面构建进 dist/，只给面板用，模型看不到
-    // （docs/site/sites-panel.md）。默认开启，用户不必先去设置里打开就能让 Agent 部署站点。
-    componentTypes: ["ui"],
-    name: "drora-site",
-    defaultEnabled: true,
-    listing: {
-      author: ZAI_AUTHOR,
-      category: "productivity",
-      displayName: "Drora Sites",
-      displayName_i18n: { "zh-CN": "Drora Sites" },
-      description_i18n: {
-        "zh-CN": "把 Web 项目改造为可在云端 Linux 运行的部署包，一个 start.sh 即可启动。",
-      },
-      examplePrompts: ["Deploy this project as a website"],
-      examplePrompts_i18n: { "zh-CN": ["把这个项目部署成网站"] },
-      icon: `${OFFICIAL_PLUGIN_ASSETS_BASE_URL}/drora-site/icon.png`,
-    },
-    rootCandidates: [
-      "packages/drora-site-plugin",
-      "../drora-site-plugin",
-      "../../drora-site-plugin",
-      "../../../drora-site-plugin",
-    ],
-    requiredSeedPaths: [
-      "commands/site-deploy.md",
-      "scripts/drora-site.mjs",
-      "scripts/stage.mjs",
-      "skills/site-deploy/SKILL.md",
-      "skills/site-deploy/templates/static.sh",
-      "skills/site-deploy/templates/static-server.mjs",
-      "skills/site-deploy/templates/node.sh",
-      "skills/site-deploy/templates/python.sh",
-      // 缺了会 seed 出能看到面板入口却启动不了 MCP server 的残缺插件。
-      "dist/server.mjs",
-      "dist/ui/panel.html",
-    ],
-    version: "0.4.2",
-  },
 ];
 
 // 在 official plugin 定义里标了 defaultEnabled: true 的, 拼成 `<name>@<marketplace>` 形式,
@@ -577,6 +642,43 @@ export function resolveOfficialPluginHostMcpServerNames(pluginId: string): strin
     (candidate) => `${candidate.name}@${DRORA_OFFICIAL_PLUGIN_MARKETPLACE}` === pluginId,
   );
   return definition?.hostMcpServerNames ? [...definition.hostMcpServerNames] : [];
+}
+
+/** 宿主服务归属反查（§4.2 hostServices 键，与 hostMcpServerNames 同一查找口径）。 */
+export function resolveOfficialPluginHostServices(pluginId: string): string[] {
+  const definition = OFFICIAL_PLUGIN_DEFINITIONS.find(
+    (candidate) => `${candidate.name}@${DRORA_OFFICIAL_PLUGIN_MARKETPLACE}` === pluginId,
+  );
+  return definition?.hostServices ? [...definition.hostServices] : [];
+}
+
+/**
+ * app 级常驻服务声明反查（§6 g1，P1；与 hostServices 同一查找口径），未声明即 undefined。
+ * 消费方是 bootstrap official-plugin-app-service 启动链。
+ */
+export function resolveOfficialPluginAppService(
+  pluginId: string,
+): OfficialPluginAppServiceDeclaration | undefined {
+  const definition = OFFICIAL_PLUGIN_DEFINITIONS.find(
+    (candidate) => `${candidate.name}@${DRORA_OFFICIAL_PLUGIN_MARKETPLACE}` === pluginId,
+  );
+  return definition?.appService;
+}
+
+/**
+ * 定义级卸载数据保留解析（§6 D6-a 起源；阶段二 §11-D6 升级为强制）：声明 true 的
+ * 插件（obsidian——数据目录含知识库+模型，rm 即全库丢失）**无条件保留**，显式
+ * keepData:false 不生效；未声明插件回落「显式参数优先，缺省 false（删）」的全局语义。
+ */
+export function resolveOfficialPluginUninstallKeepData(
+  pluginId: string,
+  explicit?: boolean,
+): boolean {
+  const forced =
+    OFFICIAL_PLUGIN_DEFINITIONS.find(
+      (candidate) => `${candidate.name}@${DRORA_OFFICIAL_PLUGIN_MARKETPLACE}` === pluginId,
+    )?.uninstallKeepData ?? false;
+  return forced || explicit === true;
 }
 
 /**

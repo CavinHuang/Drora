@@ -20,6 +20,7 @@ import type {
   DroraPluginsReferenceCatalogResult,
   DroraPluginsRestoreBuiltinResult,
   DroraPluginsSetEnabledResult,
+  DroraPluginsSetHostComponentsEnabledResult,
   DroraPluginsUninstallResult,
   DroraPluginsValidateResult,
 } from "@drora/shared";
@@ -37,6 +38,7 @@ import type {
   DroraAgentPluginViewParams,
   DroraAgentRemovePluginMarketplaceParams,
   DroraAgentRestoreBuiltinPluginParams,
+  DroraAgentSetHostComponentsEnabledParams,
   DroraAgentSetPluginEnabledParams,
   DroraAgentUninstallPluginParams,
   DroraAgentUpdatePluginMarketplaceParams,
@@ -86,6 +88,18 @@ export interface IPluginManagementService {
   validatePlugin(params: DroraAgentValidatePluginParams): Promise<DroraPluginsValidateResult>;
   describePlugin(params: DroraAgentDescribePluginParams): Promise<DroraPluginsDescribeResult>;
   setPluginEnabled(params: DroraAgentSetPluginEnabledParams): Promise<DroraPluginsSetEnabledResult>;
+  /**
+   * 宿主能力独立开关（specs/obsidian-vault-plugin-extraction.md §3 D1a，B1）：
+   * `plugins.hostComponents` 的唯一写方（renderer 插件设置页专用），与 setPluginEnabled
+   * 同链路（RPC plugins/setHostComponentsEnabled → CLI file-config 原子写 user 级配置）。
+   * 修订注记（2026-11-11 施工 B1 核实）：spec §3/§10-B1 原文写 IPluginsService，经核实
+   * IPluginsService 是 retired 桩通道（pluginsService.ts throwRetiredPluginManagement），
+   * 唯一写方不可落在必然抛错的死通道，按「与 setPluginEnabled 同链路」实质落本接口。
+   * 重启生效（§4.2 事件顺序），无热切换。
+   */
+  setHostComponentsEnabled(
+    params: DroraAgentSetHostComponentsEnabledParams,
+  ): Promise<DroraPluginsSetHostComponentsEnabledResult>;
 }
 
 export const IPluginManagementService = createServiceDescriptor<IPluginManagementService>(
@@ -108,6 +122,7 @@ export function withPluginTelemetry(
     "configurePlugin",
     "resetPluginConfig",
     "setPluginEnabled",
+    "setHostComponentsEnabled",
   ]);
   return new Proxy(service, {
     get(target, property) {

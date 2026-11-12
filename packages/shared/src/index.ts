@@ -11,6 +11,8 @@ export * from "./contracts/voice.js";
 export * from "./contracts/persona.js";
 // 模型能力档案契约（specs/model-capabilities.md §3；批次一新增，仅追加）。
 export * from "./contracts/modelCapabilities.js";
+// 插件启用状态存储契约（specs/obsidian-vault-plugin-extraction.md §3，B1 收口单一出处）。
+export * from "./contracts/pluginEnablement.js";
 
 export type {
   FileBinaryPreview,
@@ -127,8 +129,6 @@ export * from "./dynamic-workflow-feature.js";
 export * from "./markdown-artifact-images.js";
 export * from "./serviceAuthority.js";
 export * from "./server-remote.js";
-export * from "./knowledge-evidence.js";
-export * from "./knowledge/queryTerms.js";
 export * from "./source-server/index.js";
 // semver 比较工具：自 v3.17.1 起供 data-sync 与 source-server 兼容性判断使用
 // （compareSemverVersions 原随上游 forceUpdate.ts 分发，Drora 删除强更门控后迁至独立模块）。
@@ -142,6 +142,20 @@ export interface ICredentialStore {
 
 export * from "./test-ids-workflow.js";
 export * from "./channels.js";
+// P7 本体清除（specs/obsidian-vault-phase2-true-extraction.md §1-C6）：knowledge-evidence.ts
+// 已删除；wire 侧 deprecated 证据词表（guard/reason/前缀/上限/引用形状）唯一出处在
+// drora-protocol-v4/input-intent.ts 的兼容区，root index 转发导出供 CLI 探测器与
+// C5a 渲染消费端引用同一常量（AGENTS.md「契约键单一出处」）。
+export {
+  KNOWLEDGE_EVIDENCE_GUARD_PREFIX,
+  KNOWLEDGE_EVIDENCE_GUARDS,
+  KNOWLEDGE_EVIDENCE_RECEIPT_ID_PREFIX,
+  KNOWLEDGE_EVIDENCE_REASONS,
+  MAX_EVIDENCE_REFS_PER_INPUT,
+  type KnowledgeEvidenceGuard,
+  type KnowledgeEvidenceReason,
+  type KnowledgeEvidenceRef,
+} from "./drora-protocol-v4/input-intent.js";
 export * from "./storage.js";
 export * from "./oauth.js";
 export * from "./desktopMenu.js";

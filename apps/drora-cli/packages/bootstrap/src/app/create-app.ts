@@ -128,6 +128,10 @@ import { createRuntimeAiSdkModelExecutionConfig } from "../model-config.js";
 import { withOfficialCommandEnv } from "../official-command-endpoint/index.js";
 import { ApiProviderModelRuntime } from "./provider-registry-model-runtime.js";
 import {
+  createOfficialPluginAppServiceManager,
+  type OfficialPluginAppServiceManager,
+} from "./official-plugin-app-service.js";
+import {
   completeAppStartup,
   debugRuntimeConfigResolved,
   markConfigurationLoaded,
@@ -232,6 +236,9 @@ export async function createDroraApp(options: DroraAppOptions): Promise<DroraApp
   let nodeReplBrowserBroker: NodeReplBrowserBroker | undefined;
   let ownedNodeReplBrowserBroker: NodeReplBrowserBroker | undefined;
   let providerModelRuntime: ApiProviderModelRuntime | undefined;
+  // g1 常驻服务管理器提升到 try 外声明：启动失败的 catch 路径也要能收割已拉起的
+  // 子进程（与 nodeReplBrowserBroker 同一先例）。
+  let officialPluginAppServices: OfficialPluginAppServiceManager | undefined;
   try {
     const storageRoot = resolvePath(configResult.config.storage.dir);
     const cliStorageRoot = getCliStorageRoot(storageRoot);
@@ -262,6 +269,20 @@ export async function createDroraApp(options: DroraAppOptions): Promise<DroraApp
       startupTimer,
       workingDirectory,
     });
+    // g1 app 级常驻服务（specs/obsidian-vault-phase2-true-extraction.md §3/§6/§10-P1）：
+    // 官方定义声明 appService 的插件 server 在宿主启动期拉起（当前仅 obsidian 的
+    // knowledge；P3 落地 manifest mcpServers 清单前按声明缺条目惰性跳过）。生命周期 =
+    // 宿主进程：独立于 session lease、崩溃重启带退避、close 时全量收割（见下方 close）。
+    // singleton 作用域 = 宿主进程级（每 pluginId 至多一实例），跨进程多实例由 DB 级
+    // fence 兜底（§3/g8）；packages/server stdioServices（createLocalServices 独立装配
+    // 链）不装配本机制——server/stdio host 插件 server 工具面回退（§9 差异⑨，P1 裁定
+    // 见 spec §6，待终裁）。
+    officialPluginAppServices = createOfficialPluginAppServiceManager({
+      cwd: workingDirectory,
+      logger,
+      plugins: pluginOutcome.plugins,
+    });
+    officialPluginAppServices.start();
     // 随 CLI 内置的技能包（dynamic-workflows 等）：不属于任何插件，用户无法停用或卸载。
     const bundledSkillRoots = resolveBundledSkillRoots({ cliStorageRoot, logger });
     const pluginTemplates = loadPluginAgentTemplates({ logger, plugins: pluginOutcome.plugins });
@@ -983,7 +1004,6 @@ export async function createDroraApp(options: DroraAppOptions): Promise<DroraApp
       dynamicWorkflowSnippetPort,
       modelCatalogPort,
       automationPort: options.automationPort,
-      vaultSearchPort: options.vaultSearchPort,
       // agent 内置文生图端口（specs/model-capabilities.md §6）：恒注入传递（不做注册门）。
       imageGenerationPort: options.imageGenerationPort,
       offPeakPort: options.offPeakPort,
@@ -1404,6 +1424,9 @@ export async function createDroraApp(options: DroraAppOptions): Promise<DroraApp
         try {
           await closeSession?.();
         } finally {
+          // g1 退出收割（§6）：常驻插件子进程先行有序终止（SIGTERM→宽限→SIGKILL）。
+          // harvest 自身不抛错（内部吞错 + 宽限超时兜底），不会阻断既有资源清理序。
+          await officialPluginAppServices?.harvest();
           try {
             providerModelRuntime?.dispose();
           } finally {
@@ -1586,6 +1609,9 @@ export async function createDroraApp(options: DroraAppOptions): Promise<DroraApp
       ...inputFacade,
     };
   } catch (error) {
+    // 启动失败的兜底收割：常驻子进程若已在装配期拉起，随宿主启动失败一并回收
+    //（宿主进程随即退出，stdio EOF 是二级兜底；这里是显式先行收割）。
+    void officialPluginAppServices?.harvest();
     providerModelRuntime?.dispose();
     void modelTelemetry.shutdown().catch(() => undefined);
     void ownedNodeReplBrowserBroker?.close();

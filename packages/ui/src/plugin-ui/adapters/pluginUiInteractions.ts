@@ -49,11 +49,17 @@ function scopeMarker(scope: PluginUiScopeRef): string {
  * - sendFollowUpMessage：有用户手势直接以用户身份发送；无手势弹可编辑确认框，取消回 -32000。
  *   ：structuredContent 以 ```json 块拼在文本后面；来源只进 metadata `source`。
  * - updateModelContext：投递到当前会话 composer 的插件上下文块；没有 composer 接住回 -32601。
+ * - openConversationHandoff（g9，specs/obsidian-vault-phase2-true-extraction.md §6）：
+ *   与 updateModelContext 同一 composer 投递通道（CONTRACT.md:20 先例），负载语义是「面板→会话
+ *   交接」（检索上下文 / 引用），不是数据库状态；没有 composer 接住同样回 -32601。
  * widgetState 由窗口页面管理器唯一写入。
  */
 export function createPluginUiInteractions(
   input: PluginUiInteractionScope,
-): Pick<PluginUiHostControllerDeps, "onSendFollowUpMessage" | "onUpdateModelContext"> {
+): Pick<
+  PluginUiHostControllerDeps,
+  "onSendFollowUpMessage" | "onUpdateModelContext" | "onOpenConversationHandoff"
+> {
   const marker = scopeMarker(input.scope);
   const source = { kind: "pluginUi" as const, pluginId: input.pluginId, toolCallId: marker };
   return {
@@ -106,6 +112,25 @@ export function createPluginUiInteractions(
       });
       if (!delivered)
         throw rpcError(JSON_RPC_UNAVAILABLE, "No composer is listening for model context");
+    },
+    // g9 openConversationHandoff：复用 updateModelContext 的 composer 投递链（同一 receiver
+    // store / 同一作用域校验），id 前缀独立便于 composer 侧区分来源语义（交接 vs 附加上下文）。
+    async onOpenConversationHandoff(payload) {
+      const text = concatMcpAppsTextContent(payload.content);
+      const images = readImagesOrThrow(payload.content);
+      const delivered = dispatchPluginUiModelContextAdd(input, {
+        id: `plugin-ui-handoff:${input.pluginId}:${marker}`,
+        sessionId: input.sessionId,
+        pluginId: input.pluginId,
+        toolCallId: marker,
+        text,
+        ...(payload.structuredContent !== undefined
+          ? { structuredContent: payload.structuredContent }
+          : {}),
+        ...(images.length > 0 ? { images } : {}),
+      });
+      if (!delivered)
+        throw rpcError(JSON_RPC_UNAVAILABLE, "No composer is listening for conversation handoff");
     },
   };
 }

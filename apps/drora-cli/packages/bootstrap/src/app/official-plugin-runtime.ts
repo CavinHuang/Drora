@@ -2,6 +2,8 @@ import { readFileSync } from "node:fs";
 import { join, normalize, resolve, sep } from "node:path";
 import {
   DRORA_OFFICIAL_PLUGIN_MARKETPLACE,
+  DRORA_PLUGIN_APP_SERVICE_ENV_KEY,
+  DRORA_PLUGIN_APP_SERVICE_ENV_VALUE,
   DRORA_PLUGIN_HOST_COMMAND,
   DRORA_PLUGIN_HOOK_COMMAND,
   type McpServerConfig,
@@ -55,6 +57,93 @@ interface OfficialRuntimeManifestInput {
   pluginName: string;
   retryBudget?: OfficialPluginCacheRetryBudget;
   rootPath: string;
+}
+
+/** g1 app 级常驻服务（P1）经 `__drora-plugin-host` 拉起插件 server 的完整 spawn 计划。 */
+export interface OfficialPluginAppServiceSpawnConfig {
+  args: string[];
+  command: string;
+  cwd: string;
+  env: Record<string, string>;
+}
+
+/**
+ * 解析官方定义 appService 声明所指 server 的 spawn 计划（specs/
+ * obsidian-vault-phase2-true-extraction.md §3/§6，P1 启动链扩展）。与
+ * {@link writeOfficialPluginRuntimeManifest} 的 mcpServers 重写同一套语义
+ * （`${DRORA_PLUGIN_ROOT}` 占位符解析、ELECTRON_RUN_AS_NODE、宿主权威写入 plugin id），
+ * 复用既有 `__drora-plugin-host` 前缀机制，差异仅三点：
+ * 1. 追加常驻标记 DRORA_PLUGIN_APP_SERVICE=1（契约键单一出处见 contracts 常量区）；
+ * 2. 权威注入 DRORA_PLUGIN_DATA/DRORA_PLUGIN_ROOT——与 adapters
+ *    resolvePluginMcpServers 的 env 面一致，常驻级与会话级两条启动路径给 server 的
+ *    环境面不漂移；
+ * 3. 只读不写：不回写缓存 manifest（重写仍归 seed 链路）。
+ *
+ * manifest 缺失/不可解析、server 条目缺失、条目结构非法或非 stdio 传输时返回
+ * undefined（惰性跳过）：P3 落地 knowledge 清单前的 obsidian 声明即按此跳过，
+ * 常驻启动链绝不因此阻断宿主启动。
+ */
+export function resolveOfficialPluginAppServiceSpawnConfig(input: {
+  cwd: string;
+  dataPath: string;
+  pluginId: string;
+  rootPath: string;
+  serverKey: string;
+}): OfficialPluginAppServiceSpawnConfig | undefined {
+  let manifest: Record<string, unknown>;
+  try {
+    manifest = JSON.parse(
+      readFileSync(join(input.rootPath, ".zcode-plugin", "plugin.json"), "utf8"),
+    ) as Record<string, unknown>;
+  } catch {
+    return undefined;
+  }
+  if (manifest.mcpServers === undefined || !isRecord(manifest.mcpServers)) return undefined;
+  const serverEntry = manifest.mcpServers[input.serverKey];
+  if (!isRecord(serverEntry)) return undefined;
+  // HTTP/SSE server 无本地入口，宿主无法常驻拉起；与 manifest 重写路径同口径按 stdio 校验。
+  if (serverEntry.type !== undefined && serverEntry.type !== "stdio") return undefined;
+  const hostPrefixArgs = officialPluginHostPrefixArgs();
+  if (!hostPrefixArgs) return undefined;
+
+  const manifestArgs = Array.isArray(serverEntry.args)
+    ? serverEntry.args.filter((arg): arg is string => typeof arg === "string")
+    : [];
+  // 与 {@link createBundledMcpRuntimeConfig} 同默认：清单未带 args 时回落插件自带
+  // dist/mcp/server.js（§3 knowledge server 的约定产物路径）。
+  const serverArgs =
+    manifestArgs.length > 0
+      ? manifestArgs
+      : [join(input.rootPath, ...MCP_SERVER_RELATIVE_PATH).replaceAll("\\", "/")];
+  const manifestEnv = isRecord(serverEntry.env) ? serverEntry.env : {};
+  const env: Record<string, string> = {};
+  for (const [key, value] of Object.entries(manifestEnv)) {
+    if (typeof value === "string") env[key] = value;
+  }
+  env.ELECTRON_RUN_AS_NODE = "1";
+  // 常驻标记与 plugin id 由宿主权威写入：manifest/user env 即使自带同名键也在其后覆写，
+  // 第三方插件不能借 manifest env 伪造常驻身份。
+  env[DRORA_PLUGIN_ID_ENV_KEY] = input.pluginId;
+  env[DRORA_PLUGIN_APP_SERVICE_ENV_KEY] = DRORA_PLUGIN_APP_SERVICE_ENV_VALUE;
+  env.DRORA_PLUGIN_DATA = input.dataPath;
+  env.DRORA_PLUGIN_ROOT = input.rootPath;
+
+  return {
+    args: [
+      ...hostPrefixArgs,
+      ...serverArgs.map((arg) =>
+        // 与 manifest 重写路径同一 Windows 修复：seed 模板里的 `${DRORA_PLUGIN_ROOT}/...`
+        // 是 `/` 形态，直接替换会得到混合分隔符路径；normalize 成宿主原生形态。
+        arg.includes("${DRORA_PLUGIN_ROOT}")
+          ? normalize(arg.replaceAll("${DRORA_PLUGIN_ROOT}", input.rootPath))
+          : arg,
+      ),
+    ],
+    // 桌面打包态 process.execPath 是 Drora Helper，配合 ELECTRON_RUN_AS_NODE 进 Node 模式。
+    command: process.execPath,
+    cwd: input.cwd,
+    env,
+  };
 }
 
 export function writeOfficialPluginRuntimeManifest(input: OfficialRuntimeManifestInput): void {

@@ -187,6 +187,52 @@ export async function checkManaged(
   );
   await checkModel(env, win, scope, check);
   await check(
+    "g9 host action bridge round-trips three actions, capability gate and openWith delivery",
+    async () => {
+      // 能力宣告（声明与 handler 一一对应）：fixture 注入 handoff/navigate + 平台 selectDirectory，
+      // 三动作都应宣告；g4 hostContext 只读键与标准位同源。
+      const capabilities = (await page("window.hostActionCapability()")) as {
+        actions?: string[];
+      };
+      assert.deepEqual(
+        (capabilities?.actions ?? []).slice().sort(),
+        ["navigate", "openConversationHandoff", "openDirectoryPicker"],
+        JSON.stringify(capabilities),
+      );
+      const context = (await page("window.displayContext()")) as Record<string, unknown>;
+      assert.equal(context["drora/theme"], context.theme);
+      assert.equal(context["drora/locale"], context.locale);
+      // 页面→宿主：handoff（composer 投递回调记录）+ directoryPicker（平台缺省实现）+ navigate。
+      const handoffResult = await page("window.openConversationHandoff()");
+      assert.ok(!(handoffResult as { error?: string }).error, JSON.stringify(handoffResult));
+      const handoff = env.events.history.filter(
+        (e) => (e as { type?: string; action?: string }).action === "openConversationHandoff",
+      );
+      assert.equal(handoff.length, 1, JSON.stringify(handoff));
+      assert.deepEqual((handoff[0] as { payload?: unknown }).payload, {
+        content: [{ type: "text", text: "handoff-fixture" }],
+      });
+      assert.deepEqual(await page("window.selectDirectory()"), {
+        result: { path: "/fixture/vault" },
+      });
+      const navigateResult = await page("window.navigateFixture('vault')");
+      assert.ok(!(navigateResult as { error?: string }).error, JSON.stringify(navigateResult));
+      const navigated = env.events.history.filter(
+        (e) => (e as { type?: string; action?: string }).action === "navigate",
+      );
+      assert.equal(navigated.length, 1, JSON.stringify(navigated));
+      assert.deepEqual((navigated[0] as { target?: unknown }).target, {
+        kind: "surface",
+        surfaceId: "vault",
+        payload: { receiptId: "vault-receipt" },
+      });
+      // 宿主→面板：openWith 通知经页面管理器定向投递，页面 onOpenWith 收到同一载荷。
+      await ui("window.notifyOpenWith({receiptId:'citation-42'})");
+      await page("window.waitOpenWith(1)");
+      assert.deepEqual(await page("window.openWithEvents"), [{ receiptId: "citation-42" }]);
+    },
+  );
+  await check(
     "runtime unavailable during approval releases page and rejects late permission",
     async () => {
       const guest = env.guests.get(win.webContents.id)!;

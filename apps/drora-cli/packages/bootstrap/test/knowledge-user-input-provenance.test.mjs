@@ -45,9 +45,10 @@ test("ordinary and legacy inputs never gain synthetic evidence provenance", () =
 test("G12 cold transcript hydration restores ONLY persisted, schema-validated CLI Receipt refs", () => {
   const receiptId = "evr_coldvalidated000000000000000000001";
   const prompt = "Answer from the selected local note [1]";
-  // Generate the persisted record through the real Core serializer rather
-  // than hand-writing a complete metadata object (which previously masked
-  // an evidenceRefs omission on the persistence boundary).
+  // P7 本体清除（specs/obsidian-vault-phase2-true-extraction.md §1-C6）：Core 序列化器
+  // 不再持久化 evidenceRefs（写入路径全删）——新账本条目恒无 refs；本用例改以
+  // 手工构造的「旧持久化账本」记录（schema 合法）验证冷恢复投影仍能读出历史
+  // 引用（渲染消费端 C5a 依赖），伪造形状仍 fail-closed 丢弃。
   const canonical = buildPersistedConversationInputIntent(prompt, {
     sourceCommandId: "cmd-cold-1",
     queueItemId: "queue_cmd-cold-1",
@@ -62,8 +63,14 @@ test("G12 cold transcript hydration restores ONLY persisted, schema-validated CL
     evidenceRefs: [{ receiptId }],
   }, "drained");
   assert.ok(canonical);
-  assert.deepEqual(canonical.evidenceRefs, [{ receiptId }],
-    "The Core serializer must persist only already-admitted Receipt IDs");
+  assert.equal(canonical.evidenceRefs, undefined,
+    "P7: the Core serializer must not persist evidence refs into new ledger entries");
+
+  // 旧持久化账本形态（升级前的 durable 记录）：refs 随 metadata 原样存在。
+  const legacyCanonical = {
+    ...canonical,
+    evidenceRefs: [{ receiptId }],
+  };
 
   const message = {
     info: {
@@ -71,7 +78,7 @@ test("G12 cold transcript hydration restores ONLY persisted, schema-validated CL
       sessionID: "session-cold",
       role: "user",
       time: { created: 100 },
-      metadata: { conversationInputIntent: canonical },
+      metadata: { conversationInputIntent: legacyCanonical },
     },
     parts: [{
       id: "part-cold-1",
@@ -88,9 +95,9 @@ test("G12 cold transcript hydration restores ONLY persisted, schema-validated CL
   const restored = turnOf(message);
   assert.ok(restored, "Cold transcript must synthesize a real TurnStarted event");
   assert.deepEqual(restored.payload.intent?.evidenceRefs, [{ receiptId }],
-    "Admitted Receipt IDs must survive the same transcript replay as conversationQuotes");
-  assert.deepEqual(restored.payload.intent?.conversationQuotes, canonical.conversationQuotes);
-  assert.equal(restored.payload.intent?.sourceCommandId, canonical.sourceCommandId);
+    "Legacy persisted Receipt IDs must survive transcript replay for renderer citation rows");
+  assert.deepEqual(restored.payload.intent?.conversationQuotes, legacyCanonical.conversationQuotes);
+  assert.equal(restored.payload.intent?.sourceCommandId, legacyCanonical.sourceCommandId);
 
   // A model claim or malformed persisted field can NEVER mint a trusted
   // Receipt. Schema failure should fail closed instead of falling back to [1].
@@ -98,7 +105,7 @@ test("G12 cold transcript hydration restores ONLY persisted, schema-validated CL
     ...message,
     info: {
       ...message.info,
-      metadata: { conversationInputIntent: { ...canonical, evidenceRefs: undefined } },
+      metadata: { conversationInputIntent: { ...legacyCanonical, evidenceRefs: undefined } },
     },
   });
   assert.equal(noReceipt?.payload?.intent?.evidenceRefs, undefined);
@@ -106,7 +113,7 @@ test("G12 cold transcript hydration restores ONLY persisted, schema-validated CL
     ...message,
     info: {
       ...message.info,
-      metadata: { conversationInputIntent: { ...canonical, evidenceRefs: [{ receiptId: "fake_path" }] } },
+      metadata: { conversationInputIntent: { ...legacyCanonical, evidenceRefs: [{ receiptId: "fake_path" }] } },
     },
   });
   assert.equal(forged?.payload?.intent?.evidenceRefs, undefined,

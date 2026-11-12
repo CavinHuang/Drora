@@ -27,7 +27,7 @@ import {
 import { requireRecord } from "../record-access.js";
 import type { V4CommandCoreHost, V4SessionRecordView, V4TurnExecution } from "../types.js";
 import { V4CommandNoopError } from "../../v4-gateway.js";
-import { resolveEvidenceSafeDelivery, verifyEvidenceOrThrow } from "./evidence-admission.js";
+import { verifyEvidenceOrThrow } from "./evidence-admission.js";
 
 /** 等 idle 轮询参数：25ms 间隔、5s 超时。 */
 const IDLE_POLL_INTERVAL_MS = 25;
@@ -83,6 +83,10 @@ async function sendText(
     : rawPayload;
   // canonical intent 必须和 admission 看同一份净荷，否则 transcript 会留下没有凭据的加速标记。
   const intentEnvelope = { ...envelope, payload } as CommandEnvelope;
+  // P7 本体清除（spec §1-C6 D9）：idle 直发在提交给模型前跑 legacy 探测器——
+  // evidenceRefs 非空（旧发送端/旧账本条目）一律拒绝（guard.evidenceForbidden +
+  // legacy_evidence_unverifiable，绝不静默降级），普通输入零影响。
+  await verifyEvidenceOrThrow(host, envelope.sessionId!, payload.evidenceRefs);
   const attachments = await mapAttachmentRefsToTurnAttachments(record.app, payload.attachments);
   const submittedExecutionState = resolveSubmittedExecutionState(record, payload);
   const submissionIntent = (options: Parameters<typeof inputIntentMetadata>[1]) =>
@@ -92,14 +96,11 @@ async function sendText(
       genUiContext: payload.genUiContext,
     });
   const routingMode = host.getInputRoutingMode?.(envelope.sessionId ?? "") ?? null;
-  // W03 §5.3 第 3 层：证据输入禁用 guide/steer 投递（无复验点），回退 queue。
-  const evidenceDelivery = resolveEvidenceSafeDelivery({
-    requestedDelivery:
-      payload.requestedDelivery ??
-      (routingMode === "guide" ? "guide" : routingMode === "enqueue" ? "queue" : "startNow"),
-    routingMode,
-    hasEvidence: Boolean(payload.evidenceRefs?.length),
-  });
+  // P7 本体清除（spec §1-C6）：证据输入的 guide→queue 回退分支随写入路径删除——
+  // 探测器已在上方拒绝一切非空 refs，此处只需解析普通投递缺省。
+  const requestedDeliveryBase =
+    payload.requestedDelivery ??
+    (routingMode === "guide" ? "guide" : routingMode === "enqueue" ? "queue" : "startNow");
   const forceStartNow = payload.requestedDelivery === "startNow";
   // 加速本轮由「标准 Selection 指向加速 Provider + 单次执行材料」表达；判定必须用 Family
   // 谓词，不能和单个 provider id 常量比较，否则 BigModel 账号的卡会被当成普通轮静默丢弃。
@@ -142,22 +143,17 @@ async function sendText(
       });
     }
     try {
-      // Highspeed 的强制入队必须保留可信证据和执行前复验身份。
-      // 否则这一独立分支会丢失 evidenceRefs，让提升阶段误判为普通输入。
-      const hasEvidence = Boolean(payload.evidenceRefs?.length);
-      const requestedDelivery = hasEvidence ? "queue" : routingMode === "guide" ? "guide" : "queue";
-      const fallbackReasonCode = hasEvidence
-        ? evidenceDelivery.fallbackReasonCode
-        : routingMode === "guide"
-          ? HIGHSPEED_QUEUE_FALLBACK_REASON
-          : undefined;
+      // P7 本体清除（spec §1-C6）：证据 spread（evidenceRefs → queue item 写入）删除——
+      // 探测器已在上方拒绝非空 refs，本分支只会承接普通输入。
+      const requestedDelivery = routingMode === "guide" ? "guide" : "queue";
+      const fallbackReasonCode =
+        routingMode === "guide" ? HIGHSPEED_QUEUE_FALLBACK_REASON : undefined;
       // 加速轮的 Selection 必须进 canonical intent：提升时只从队列项读模型，不再回看会话。
       const intent = submissionIntent({
         text: payload.text,
         requestedDelivery,
         admittedDelivery: "queue",
         ...(fallbackReasonCode ? { fallbackReasonCode } : {}),
-        ...(payload.evidenceRefs?.length ? { evidenceRefs: payload.evidenceRefs } : {}),
         ...(payload.conversationQuotes ? { conversationQuotes: payload.conversationQuotes } : {}),
         attachmentRefs: payload.attachments,
       });
@@ -256,14 +252,10 @@ async function sendText(
       inputOrigin: payload.inputOrigin,
       botGroupSource: payload.botGroupSource,
       conversationQuotes: payload.conversationQuotes,
-      // W03：证据输入已回退 guide→queue（evidenceDelivery）；无证据输入保持原裁决。
-      requestedDelivery: evidenceDelivery.requestedDelivery,
-      ...(evidenceDelivery.fallbackReasonCode
-        ? { fallbackReasonCode: evidenceDelivery.fallbackReasonCode }
-        : routingMode === "guide" && attachments?.length
-          ? { fallbackReasonCode: "guide.attachmentsUnsupported" }
-          : {}),
-      ...(payload.evidenceRefs?.length ? { evidenceRefs: payload.evidenceRefs } : {}),
+      requestedDelivery: requestedDeliveryBase,
+      ...(routingMode === "guide" && attachments?.length
+        ? { fallbackReasonCode: "guide.attachmentsUnsupported" }
+        : {}),
       attachmentRefs: payload.attachments,
       sharedContextRefs: payload.context_refs,
       ...(payload.source ? { source: payload.source } : {}),

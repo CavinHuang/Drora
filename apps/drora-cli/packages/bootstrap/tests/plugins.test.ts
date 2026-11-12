@@ -614,7 +614,9 @@ describe("Drora plugins", () => {
             id: "drora-plugins-official",
             isOfficial: true,
             name: "drora-plugins-official",
-            pluginCount: 15,
+            // 修复（b3e44cb2a 合并误回退；恢复 bff94f4bd 随 drora-site 并入的 16）：
+            // 官方市场条目 15→16（drora-site-plugin）；重复定义块已在 B1 删除。
+            pluginCount: 16,
             source: {
               source: "url",
               url: "https://cdn-zcode.z.ai/zcode/official-plugin/marketplace.json",
@@ -2400,7 +2402,7 @@ describe("Drora plugins", () => {
       expect(
         overview.marketplaces.find((marketplace) => marketplace.id === "drora-plugins-official"),
       ).toMatchObject({
-        pluginCount: 15,
+        pluginCount: 16,
         source: {
           source: "url",
           url: "https://cdn-zcode.z.ai/zcode/official-plugin/marketplace.json",

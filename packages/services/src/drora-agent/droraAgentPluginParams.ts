@@ -111,6 +111,15 @@ export interface DroraAgentSetPluginEnabledParams extends DroraAgentPluginMutati
   scope?: "user" | "workspace";
 }
 
+/**
+ * 宿主能力独立开关（specs/obsidian-vault-plugin-extraction.md §3 D1a，B1）：
+ * 全局单开关、user 级配置原子写、重启生效（无插件粒度寻址，故无 pluginId/scope）。
+ */
+export interface DroraAgentSetHostComponentsEnabledParams
+  extends DroraAgentPluginMutationTarget {
+  enabled: boolean;
+}
+
 // Plugin 对话引用 catalog：
 // 带 sessionId → session-owned 冻结 catalog（必须路由到持有该 session 的 workspace client）；
 // 不带 → workspace 当前 catalog（新建草稿 Picker）。

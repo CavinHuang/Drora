@@ -13,6 +13,14 @@ const root = resolve(desktop, "../..");
 const output = await mkdtemp(join(tmpdir(), "drora-mcp-host-e2e-"));
 const fixture = join(desktop, "scripts/mcp-apps-host-fixture");
 const showcaseServer = process.env.DRORA_SHOWCASE_SERVER;
+// P5（specs/obsidian-vault-phase2-true-extraction.md §10-P5 沙箱页面 e2e）：
+// 真实 knowledge server（obsidian-plugin dist/mcp/server.js）+ 真实构建面板。
+const obsidianServer = process.env.DRORA_OBSIDIAN_SERVER;
+if (process.argv.includes("--obsidian-only")) {
+  if (!obsidianServer)
+    throw new Error("Set DRORA_OBSIDIAN_SERVER to the built obsidian-plugin dist/mcp/server.js");
+  await access(obsidianServer);
+}
 if (process.argv.includes("--showcase-only")) {
   if (!showcaseServer)
     throw new Error(
@@ -126,6 +134,7 @@ await Promise.all([
   bundle(join(fixture, "main.ts"), "main.cjs", "node"),
   bundle(join(fixture, "chain-main.ts"), "chain-main.cjs", "node"),
   bundle(join(fixture, "showcase-main.ts"), "showcase-main.cjs", "node"),
+  bundle(join(fixture, "obsidian-main.ts"), "obsidian-main.cjs", "node"),
   bundle(join(desktop, "src/renderer/src/plugin-sandbox/alias.ts"), "plugin-sandbox-alias.js"),
   bundle(join(fixture, "sampling-main.ts"), "sampling-main.cjs", "node"),
   bundle(join(fixture, "managed-empty-main.ts"), "managed-empty-main.cjs", "node"),
@@ -177,7 +186,9 @@ const modes =
     ? ["background"]
     : process.argv.includes("--showcase-only")
       ? ["showcase"]
-      : process.argv.includes("--sampling-only")
+      : process.argv.includes("--obsidian-only")
+        ? ["obsidian"]
+        : process.argv.includes("--sampling-only")
         ? ["sampling"]
         : process.argv.includes("--rows-only")
           ? ["rows"]
@@ -220,14 +231,16 @@ for (const mode of modes) {
         mode === "managed" ||
         mode === "rows" ||
         mode === "sampling" ||
-        mode === "showcase"
+        mode === "showcase" ||
+        mode === "obsidian"
           ? [
               join(output, `${mode}-main.cjs`),
               output,
               join(output, `${mode}-profile`),
               process.execPath,
               join(root, "apps/drora-cli/packages/cli/dist/drora.cjs"),
-              showcaseServer ?? "",
+              // P5：obsidian 模式的第 5 参是 knowledge server 脚本（DRORA_OBSIDIAN_SERVER）。
+              mode === "obsidian" ? (obsidianServer ?? "") : (showcaseServer ?? ""),
             ]
           : mode === "managed-empty"
             ? [join(output, "managed-empty-main.cjs"), output, join(output, "managed-profile")]
@@ -243,7 +256,16 @@ for (const mode of modes) {
         child.kill("SIGKILL");
         reject(new Error(`Electron fixture timed out (${mode})`));
       },
-      mode === "background" ? (process.env.DRORA_PHOTOCRAFT_SERVER ? 300_000 : 180_000) : 90_000,
+      // P5 obsidian：真实 knowledge server 冷索引（FTS 建库 + lookup 轮询）放宽到 8 分钟；
+      // P8（spec §10-P8 E2E 重写）追加 R1/R2/R3/R7/G28 等价场景（含 receipt 三态链）后
+      // 上调到 12 分钟。
+      mode === "obsidian"
+        ? 720_000
+        : mode === "background"
+          ? process.env.DRORA_PHOTOCRAFT_SERVER
+            ? 300_000
+            : 180_000
+          : 90_000,
     );
     child.on("error", reject);
     child.on("exit", (code) => {

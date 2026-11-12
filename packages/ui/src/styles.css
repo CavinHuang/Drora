@@ -7,6 +7,13 @@
 @import "./highspeed/highspeed-activation.css";
 @import "./highspeed/highspeed-share.css";
 @import "./nativeMediaControls.css";
+/* P7 本体清除（specs/obsidian-vault-phase2-true-extraction.md §1-C3）：vault-live-
+   markdown.css 随 v4/vault/ 目录删除自本目录迁入 components/markdown/（内容与 HEAD
+   bf872a6c0 逐字节一致，见迁移注记）。该文件是通用 chat Markdown 渲染组件的布局
+   约束样式（.vault-ink-mde .ink-mde height:100% / .cm-scroller height:100%
+   overflow:auto），丢失后编辑器退化为无高度约束的页面式布局——import 路径随物理
+   迁移同步改指，语义零变化。 */
+@import "./components/markdown/vault-live-markdown.css";
 @source "../../../node_modules/streamdown/dist/*.js"; /* 感觉这行也是不好使呢*/
 
 @plugin "@tailwindcss/typography";

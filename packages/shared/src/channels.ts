@@ -211,14 +211,9 @@ export const ServiceChannels = {
   HighspeedCard: "highspeed-card",
   /** Onboarding 完成记录服务（本地持久化，后续上传服务器） */
   OnboardingRecord: "onboarding-record",
-  /** Obsidian Vault 面板服务（host 常驻；配置与 obsidian MCP server 共享 vault-config.json） */
-  ObsidianVault: "obsidian-vault",
-  /** Knowledge 索引服务（host 常驻；可重建缓存，lease/fencing 跨 Host 写互斥） */
-  KnowledgeIndex: "knowledge-index",
-  /** Knowledge 检索服务（host 常驻；本地词法/语义召回与 run 生命周期） */
-  KnowledgeQuery: "knowledge-query",
-  /** Knowledge 审核写入服务（W06；L2 治理写唯一入口：Proposal→批准→账本→门面 CAS） */
-  KnowledgeReview: "knowledge-review",
+  // P7 本体清除（specs/obsidian-vault-phase2-true-extraction.md §1-C6/C7）：ObsidianVault/
+  // KnowledgeIndex/KnowledgeQuery/KnowledgeReview 四通道随本体服务拆除——插件
+  // knowledge server 持有唯一实现（MCP 面经插件 stdio），本体 RPC 不再有该通道。
   /** 模型能力档案服务（specs/model-capabilities.md §4；~/.drora/v2/model_capabilities.json 唯一所有者） */
   ModelCapabilities: "model-capabilities",
 } as const;

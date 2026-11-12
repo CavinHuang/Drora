@@ -13,7 +13,7 @@
 // 远端（SSH/WSL/Docker）没有 Electron，由 Source Server archive 自带目标 Node，互不影响。
 
 // 修复原因：bootstrap 清理旧插件 dist 时使用 rmSync，漏导入会在构建前抛出 ReferenceError。
-import { cpSync, existsSync, mkdirSync, rmSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, readdirSync, realpathSync, rmSync } from "node:fs";
 import { access, cp, mkdir, readFile, rm } from "node:fs/promises";
 import { basename, dirname, resolve } from "node:path";
 import process from "node:process";
@@ -253,18 +253,31 @@ const officialPluginPackages = [
     relativePath: "apps/drora-cli/packages/obsidian-plugin",
     requiresRuntime: true,
     // hook 运行时与 skill 正文是同一发布单元，缺任一项打包期即报错。
-    runtimeBuildScript: "scripts/build-hooks.mjs",
+    // P3（specs/obsidian-vault-phase2-true-extraction.md §10-P3）：0.4.0 起另有 knowledge
+    // MCP server bundle（dist/mcp/server.js，appService 常驻 + 会话级 MCP 共同入口），
+    // runtime 聚合进 scripts/build-runtime.mjs（hooks + mcp 一次产出）。
+    runtimeBuildScript: "scripts/build-runtime.mjs",
     requiredRuntimePaths: [
       "dist/hooks/session-start.mjs",
       "dist/hooks/permission-request.mjs",
       "dist/hooks/user-prompt-submit.mjs",
+      "dist/mcp/server.js",
     ],
     requiredSeedPaths: [
       "dist/hooks/session-start.mjs",
       "dist/hooks/permission-request.mjs",
       "dist/hooks/user-prompt-submit.mjs",
       "skills/obsidian/SKILL.md",
+      // 0.3.0 新增知识检索能力使用指南（剥离战役 B2）；与 bootstrap
+      // official-plugin-definitions.ts 的 obsidian requiredSeedPaths 同步声明，
+      // 缺正文会 seed 出 agent 拿不到新能力指导的残缺插件。
+      "skills/obsidian-knowledge/SKILL.md",
+      // P3：knowledge server 入口缺失会 seed 出商店可见但工具面无法启动的残缺插件。
+      "dist/mcp/server.js",
     ],
+    // P3（g7）：onnxruntime 确定性子树按目标平台重产（bin/napi-v6 只保留目标平台），
+    // 见下方 stageOnnxruntimeIntoBundledAgents；与 browser-use sharp 同纪律。
+    stagedNativeRuntimes: ["onnxruntime"],
     stagedPath: "packages/obsidian-plugin",
   },
   {
@@ -324,10 +337,13 @@ const officialPluginPackages = [
     runtimeBuildScript: "scripts/build.mjs",
     stagedPath: "packages/drora-site-plugin",
   },
-  // 陈旧重复条目已删（W4 2026-11-11）：node-repl-host 正版条目在上方
-  //（requiredRuntimePaths=["dist/mcp/server.js"]）；本残留块携带 3.17.2 CLI 拆分前的
-  // 旧路径期望 dist/server.mjs 与错误 stagedPath=drora-site-plugin，打包链
-  // assertOfficialPluginRuntime 因此恒失败（missing dist/server.mjs）。
+  // 陈旧重复条目已删（win32 W4 2026-11-11 与 vault P3 2026-11-12 两战役独立发现并
+  // 修复同一缺陷，rebase 时合并留证）：node-repl-host 正版条目在上方
+  //（requiredRuntimePaths=["dist/mcp/server.js"]）；此处曾残留一个「drora-site 条目
+  // 复制后只改 packageName/relativePath」的半改名重复条目（requiredRuntimePaths 仍是
+  // drora-site 的 dist/server.mjs + dist/ui/panel.html，stagedPath 也指向
+  // drora-site-plugin），使 buildOfficialPluginRuntimes 对 node-repl-host 断言一个
+  // 永不产出的 dist/server.mjs，prepare:agent-bundle 必然失败。整条删除。)
   {
     packageName: "@drora/drora-cua-plugin",
     relativePath: "apps/drora-cli/packages/zcode-cua-plugin",
@@ -467,6 +483,56 @@ function stageBundle() {
   stageAgentBundle({ repoRoot, platformKey });
 }
 
+// P3（g7，specs/obsidian-vault-phase2-true-extraction.md §3/§6-g7）：obsidian 插件随包
+// 携带 onnxruntime-node 确定性子树（本地语义嵌入的 N-API 运行时）。npm 包解包后
+// bin/napi-v6/ 含全部三平台二进制（darwin 85M + linux 68M + win32 133M），整目录复制
+// 会把跨平台基线带进目标包——与 sharp 的「按目标平台重产」同纪律（入库 win32 基线
+// 混入 darwin 包的事故先例见 stageOfficialPlugins 注释），binding.js 按
+// bin/napi-v6/<platform>/<arch>/onnxruntime_binding.node 解析（dist/binding.js:11），
+// 修剪维度是平台 + 架构双层。onnxruntime-common 是 binding 的运行时 require
+// （dist/index.js:20），两棵子树必须同版随行。
+function stageOnnxruntimeIntoBundledAgents({ pluginPackageRoot, glmDir, targetPlatform }) {
+  if (!pluginPackageRoot || !glmDir || !targetPlatform?.os || !targetPlatform?.arch) {
+    throw new Error(
+      "[prepare:agent-bundle] stageOnnxruntimeIntoBundledAgents: pluginPackageRoot, glmDir and targetPlatform are required",
+    );
+  }
+  const targetRoot = resolve(glmDir, "node_modules");
+  for (const name of ["onnxruntime-node", "onnxruntime-common"]) {
+    const sourceDir = resolve(pluginPackageRoot, "node_modules", name);
+    if (!existsSync(sourceDir)) {
+      throw new Error(
+        `[prepare:agent-bundle] missing ${name} under ${pluginPackageRoot}/node_modules; run pnpm install in apps/drora-cli first`,
+      );
+    }
+    const destination = resolve(targetRoot, name);
+    rmSync(destination, { recursive: true, force: true });
+    // 源是 pnpm symlink（→ .pnpm store）；cpSync 默认不解引用会把链接本身复制成
+    // symlinkSync（staged 目录即成死链，EEXIST 即此形态）。先 realpath 解析到真实包
+    // 目录再拷内容，与 sharp stager 的 resolvePackage 同语义。
+    cpSync(realpathSync(sourceDir), destination, { recursive: true });
+  }
+  const binRoot = resolve(targetRoot, "onnxruntime-node", "bin", "napi-v6");
+  if (!existsSync(binRoot)) {
+    throw new Error(`[prepare:agent-bundle] missing onnxruntime bin dir: ${binRoot}`);
+  }
+  for (const platformEntry of readdirSync(binRoot)) {
+    if (platformEntry !== targetPlatform.os) {
+      rmSync(resolve(binRoot, platformEntry), { recursive: true, force: true });
+      continue;
+    }
+    // 目标平台目录内再按架构修剪（如 win32 同时带 arm64/x64）。
+    for (const archEntry of readdirSync(resolve(binRoot, platformEntry), { withFileTypes: true })) {
+      if (archEntry.isDirectory() && archEntry.name !== targetPlatform.arch) {
+        rmSync(resolve(binRoot, platformEntry, archEntry.name), { recursive: true, force: true });
+      }
+    }
+  }
+  console.log(
+    `[prepare:agent-bundle] staged onnxruntime into ${targetRoot} (${targetPlatform.os}-${targetPlatform.arch})`,
+  );
+}
+
 function stageOfficialPlugins() {
   for (const plugin of officialPluginPackages) {
     const sourceRoot = resolve(repoRoot, plugin.relativePath);
@@ -512,6 +578,15 @@ function stageOfficialPlugins() {
       if (plugin.stagedNativeRuntimes.includes("koffi")) {
         stageKoffiIntoBundledAgents({
           koffiPackageRoot: resolve(repoRoot, "apps/drora-cli/packages/adapters"),
+          glmDir: targetRoot,
+          targetPlatform,
+        });
+      }
+      if (plugin.stagedNativeRuntimes.includes("onnxruntime")) {
+        // P3（g7）：onnxruntime 确定性子树按目标平台重产，源=插件包自身 node_modules
+        // （1.30.0 与 onnxruntime-common 钉死同版，见 obsidian-plugin package.json）。
+        stageOnnxruntimeIntoBundledAgents({
+          pluginPackageRoot: sourceRoot,
           glmDir: targetRoot,
           targetPlatform,
         });

@@ -211,12 +211,7 @@ const {
       get: async () => ({
         schemaVersion: 2,
         capabilities: {
-          "decision-jev": { enabled: false, providerKind: "typesafe", baseUrl: "", modelId: "" },
-          embedding: {
-            enabled: false,
-            mode: "local",
-            localModelId: "local-bge-small-zh-v1.5-int8",
-          },
+          // P7 本体清除（spec §1-C11）：三条目 fixture（Jev/embedding 节点已拆除）。
           asr: asrCapability,
           tts: ttsCapability,
           "image-generation": { enabled: false, providerRef: "", modelId: "", baseUrlOverride: "" },

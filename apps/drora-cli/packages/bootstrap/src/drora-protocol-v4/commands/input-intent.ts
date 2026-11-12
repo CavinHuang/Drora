@@ -12,7 +12,6 @@ import { commandAdmissionOf } from "./executor.js";
 export interface CanonicalCommandIntent {
   inputOrigin?: "desktop" | "mobile";
   conversationQuotes?: import("@drora/contracts").TurnInputIntentMetadata["conversationQuotes"];
-  evidenceRefs?: TurnInputIntentMetadata["evidenceRefs"];
   botGroupSource?: TurnInputIntentMetadata["botGroupSource"];
   kind: "sendText" | "sendGoalCommand";
   text: string;
@@ -49,8 +48,7 @@ export function inputIntentMetadata(
     genUiContext?: TurnInputIntentMetadata["genUiContext"];
     sharedContextRefs?: TurnInputIntentMetadata["sharedContextRefs"];
     source?: TurnInputIntentMetadata["source"];
-    evidenceRefs?: TurnInputIntentMetadata["evidenceRefs"];
-  },
+    },
 ): TurnInputIntentMetadata {
   const admission = commandAdmissionOf(envelope);
   const highspeed =
@@ -94,9 +92,9 @@ export function inputIntentMetadata(
     ...(options.sharedContextRefs ? { sharedContextRefs: [...options.sharedContextRefs] } : {}),
     ...(highspeed ? { highspeed } : {}),
     ...(options.source ? { source: options.source } : {}),
-    // W03：evidence 引用固定进 canonical intent，随 queue item 与 durable 账本存活，
-    // sendQueuedNow 提升时按同一组 refs 执行时复验。
-    ...(options.evidenceRefs ? { evidenceRefs: [...options.evidenceRefs] } : {}),
+    // P7 本体清除（spec §1-C6）：evidenceRefs 写入路径删除——新 canonical intent 不再
+    // 携带证据引用（wire 字段 deprecated；旧账本 refs 条目由 evidence-admission
+    // legacy 探测器在 admission/提升边界拒绝）。
   };
 }
 
@@ -114,7 +112,8 @@ export function inputIntentMetadataFromCanonical(
       ? { inputOrigin: envelope.inputOrigin ?? canonical.inputOrigin }
       : {}),
     ...(canonical.conversationQuotes ? { conversationQuotes: canonical.conversationQuotes } : {}),
-    ...(canonical.evidenceRefs ? { evidenceRefs: [...canonical.evidenceRefs] } : {}),
+    // P7（spec §1-C6）：edit/retry 重建不再继承 evidenceRefs——重建仅在 legacy 探测器
+    // 通过（原 intent refs 为空）后发生，旧带 refs 条目在 fork-edit-retry 边界即被拒。
     ...(canonical.botGroupSource ? { botGroupSource: canonical.botGroupSource } : {}),
     sourceCommandId: envelope.commandId,
     queueItemId: admission.queueItemId,
@@ -175,9 +174,8 @@ export function inputIntentMetadataFromQueueItem(
     ...(item.sharedContextRefs ? { sharedContextRefs: [...item.sharedContextRefs] } : {}),
     ...(item.highspeed ? { highspeed: item.highspeed } : {}),
     ...(item.source ? { source: item.source } : {}),
-    // W03：提升只改变调度状态；evidence 引用与来源关联一样必须原样随行，
-    // transcript/projection 上的提升输入仍携带同一组 receipt 绑定。
-    ...(item.evidenceRefs ? { evidenceRefs: [...item.evidenceRefs] } : {}),
+    // P7（spec §1-C6）：提升不再复制 evidenceRefs——带 refs 的旧队列项在
+    // sendQueuedNow reserve 前已被 legacy 探测器拒绝，本重建只会承接空 refs 条目。
     // 提升只改变调度状态；重试／编辑原始输入的来源关联不能在此丢失。
     ...(item.provenance ? { provenance: { ...item.provenance } } : {}),
   };

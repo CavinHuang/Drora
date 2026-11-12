@@ -58,7 +58,6 @@ import { startProtocolResourceSampler } from "./drora-protocol/resource-sampler.
 import { acquireProtocolStartupResource } from "./drora-protocol/startup-resource.js";
 import { prepareDroraTelemetryEnv, shutdownDroraTelemetry } from "./telemetry-bootstrap.js";
 import type { DroraProcessResourceSampler } from "./process-resource-sampler.js";
-import { createKnowledgeEvidenceGate } from "./knowledge-evidence/evidence-gate.js";
 // Persona 无会话管理的独立组合端口（spec §4）：与 create-app 共享进程级 holder，
 // 首个管理调用才绑定，不经 AgentRuntime 取仓储。
 import { createPersonaControlPort } from "./app/drora-persona/index.js";
@@ -359,10 +358,6 @@ export async function runDroraProtocolAgent(
       refreshProviderRegistry: async (reason) => {
         await activeProviderRegistryRuntime.runtime.registryService.refresh(reason);
       },
-      // W03 VaultView Evidence 执行时复验（specs/obsidian-knowledge.md §5.3）：
-      // 生产 gate 读本进程可推导的同一份 vault-config.json + knowledge-index.sqlite
-      // （只读）+ 当前 Vault 文件；sendText/sendQueuedNow 在 admission/提升前调用。
-      knowledgeEvidenceVerifier: createKnowledgeEvidenceGate(),
       version: options.version,
       // Persona 无会话管理（spec §4）：进程组合层惰性端口；库根与 create-app 用同一份
       // CLI 配置的 storage.dir 派生（resolveEffectiveConfigResult 只覆盖 ui.locale，不触

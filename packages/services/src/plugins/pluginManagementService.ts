@@ -33,6 +33,7 @@ export interface PluginManagementServiceDependencies {
     | "validatePlugin"
     | "describePlugin"
     | "setPluginEnabled"
+    | "setHostComponentsEnabled"
   >;
 }
 
@@ -64,6 +65,9 @@ export function createPluginManagementService(
     marketplaces?: unknown[];
     marketplace?: { id: string };
     plugin?: { id: string; marketplace: string; source: string; version?: string };
+    // 宿主能力开关（§3 D1a，B1）结果形状：observe 的弱类型约束要求结果与观测类型
+    // 有公共属性，setHostComponentsEnabled 只回 { enabled }，在此登记该字段。
+    enabled?: boolean;
   };
   const report = (
     action: string,
@@ -206,6 +210,12 @@ export function createPluginManagementService(
     setPluginEnabled: (params) =>
       observe(params.enabled ? "enable" : "disable", params, (clean) =>
         agent.setPluginEnabled(clean as typeof params),
+      ),
+    // 宿主能力开关（§3 D1a，B1）：镜像 setPluginEnabled 的 observe 包装（telemetry 只观察，
+    // 不改变业务语义）；开关写盘经 CLI file-config 原子写，重启生效。
+    setHostComponentsEnabled: (params) =>
+      observe(params.enabled ? "enable" : "disable", params, (clean) =>
+        agent.setHostComponentsEnabled(clean as typeof params),
       ),
   };
 }

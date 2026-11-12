@@ -1,6 +1,9 @@
 /* eslint-disable max-lines -- drora-cli 配置 schema 需要集中维护文件解析和 provider 继承，拆散会让配置语义更难对齐。 */
 import { z } from "zod";
 import type { RuntimeConfigPatch } from "@drora/contracts";
+// canonical id 归一迁往 shared 后本模块内 normalizePluginConfig 仍需引用（re-export
+// 不进模块作用域，故 import 与 re-export 并存；定义单一出处仍是 shared contracts）。
+import { CANONICAL_CUA_PLUGIN_ID, LEGACY_CUA_PLUGIN_ID } from "@drora/shared";
 
 const stringRecordSchema = z.record(z.string(), z.string());
 const unknownRecordSchema = z.record(z.string(), z.unknown());
@@ -172,20 +175,21 @@ const pluginsSchema = z.object({
     .optional(),
   options: z.record(z.string(), z.record(z.string(), pluginOptionValueSchema)).optional(),
   suppressedBuiltins: z.array(z.string().min(1)).optional(),
+  // 宿主能力独立开关（specs/obsidian-vault-plugin-extraction.md §3，D1a）：键名单一出处
+  // 在 shared contracts（DRORA_PLUGINS_CONFIG_KEYS.hostComponents），这里只做 schema 放行，
+  // 让 config.json 里已写入的开关随 plugins 节流进 RuntimeConfigPatch。
+  hostComponents: z.boolean().optional(),
 });
 
-export const LEGACY_CUA_PLUGIN_ID = "drora-cua@drora-plugins-official";
-export const CANONICAL_CUA_PLUGIN_ID = "computer-use@drora-plugins-official";
-
-export function canonicalizePluginId(pluginId: string): string {
-  return pluginId === LEGACY_CUA_PLUGIN_ID ? CANONICAL_CUA_PLUGIN_ID : pluginId;
-}
-
-export function pluginIdAliases(pluginId: string): readonly string[] {
-  return canonicalizePluginId(pluginId) === CANONICAL_CUA_PLUGIN_ID
-    ? [CANONICAL_CUA_PLUGIN_ID, LEGACY_CUA_PLUGIN_ID]
-    : [pluginId];
-}
+// canonical id 归一迁移说明（specs/obsidian-vault-plugin-extraction.md §3 B1）：
+// 定义已上移 packages/shared/src/contracts/pluginEnablement.ts（契约键单一出处），
+// 这里 re-export 维持既有导入路径（迁移定义，不是建第二份）。
+export {
+  CANONICAL_CUA_PLUGIN_ID,
+  LEGACY_CUA_PLUGIN_ID,
+  canonicalizePluginId,
+  pluginIdAliases,
+} from "@drora/shared";
 
 const skillToggleSchema = z.object({
   enable: z.boolean().optional(),

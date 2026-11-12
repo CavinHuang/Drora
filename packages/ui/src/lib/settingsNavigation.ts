@@ -77,8 +77,9 @@ export interface SettingsSectionIntentEventDetail {
 
 /**
  * 模型设置页深链目标：供应商（providerId）或模型能力条目（capabilityPurpose）
- * 二选一。capabilityPurpose 取值 = shared 的 ModelCapabilityPurpose（"decision-jev"
- * 等），由 ModelProviderSection 校验后拼 `capability:` 导航节点 key。
+ * 二选一。capabilityPurpose 取值 = shared 的 ModelCapabilityPurpose（"asr" 等，
+ * P7 后语音/图像三条目，specs/obsidian-vault-phase2-true-extraction.md §1-C11），
+ * 由 ModelProviderSection 校验后拼 `capability:` 导航节点 key。
  */
 export interface SettingsModelProviderTarget {
   providerId?: string;

@@ -26,6 +26,26 @@ export interface McpServerConfigBase {
   /** 仅限宿主生成，公共配置 schema 会拒绝该字段。 */
   source?: McpServerRuntimeSource;
   timeoutMs?: number;
+  /**
+   * 工具级声明（g3，specs/obsidian-vault-phase2-true-extraction.md §4/§6/§10-P2）：
+   * 插件 manifest `mcpServers.<server>.tools.<原始 tool 名>` 的解析结果（adapters
+   * `resolveMcpServerConfig` 归一化写入，键为 tools/list 的原始 tool 名）。契约键在此
+   * 单一出处；消费侧（adapters descriptor / core createMcpToolEntry）只经类型引用。
+   */
+  tools?: Record<string, McpServerToolDeclaration>;
+}
+
+/**
+ * manifest 工具级声明条目。`deferred: true` = 该工具按既有 shouldDefer 语义
+ *（specs/obsidian-vault-phase2-true-extraction.md §4：对齐基准随 CLI 旧工具面拆除，
+ * 由插件 knowledge server 的 vault 工具声明承接）进入 tool-search「先公告、按需加载
+ * schema」集合，并**覆盖** server 级 alwaysLoad 与工具 `_meta["anthropic/alwaysLoad"]` 的常驻
+ * 声明（优先级：manifest 工具级 deferred > 自报 alwaysLoad > server 级 alwaysLoad > 缺省
+ * deferred-eligible）。缺省 / false 行为完全不变。D15 收敛路径：知识 server 可 alwaysLoad
+ * 常驻面板数据工具，同时让插件侧 vault 检索工具按需加载，不常驻每会话 context。
+ */
+export interface McpServerToolDeclaration {
+  deferred?: boolean;
 }
 
 export interface McpClientCredentialsOAuthConfig {
@@ -192,6 +212,12 @@ export const DRORA_MCP_SERVER_REQUEST_ID_META_KEY = "drora/officialMcpServerRequ
 export interface McpToolDescriptor {
   alwaysLoad?: boolean;
   searchHint?: string;
+  /**
+   * g3：manifest 工具级 `deferred: true` 声明的归一化结果（键 = 本 descriptor 的
+   * `toolName`）。`true` 时运行时 metadata 以 shouldDefer 语义进入 deferred 集合并压过
+   * alwaysLoad（见 `McpServerToolDeclaration` 注释）；缺省不置位、行为不变。
+   */
+  deferred?: boolean;
   serverName: string;
   toolName: string;
   name?: string;

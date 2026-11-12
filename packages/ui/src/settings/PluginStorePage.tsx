@@ -853,6 +853,7 @@ export function PluginStorePage({
             : ""
         }
         pending={uninstall.uninstalling}
+          keepData={uninstall.pendingKeepsData}
         onCancel={uninstall.cancelUninstall}
         onConfirm={() => void uninstall.confirmUninstall()}
       />

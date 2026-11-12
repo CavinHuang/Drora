@@ -10,6 +10,7 @@ import type { PluginSandboxHandle, PluginSandboxTransportPort } from "@drora/sha
 import {
   MCP_APPS_HANDSHAKE_TIMEOUT_MS,
   MCP_APPS_HOST_NAME,
+  MCP_APPS_OPEN_WITH_METHOD,
   MCP_APPS_WIDGET_STATE_CONTEXT_KEY,
   buildPluginSandboxScopeId,
 } from "@drora/shared/mcp-apps";
@@ -56,6 +57,13 @@ export function createPluginUiHostController(
   // initialized 已到：可以直接 send*；之前的 notify* 不排队——initialized 时按 getToolFeed 读最新值。
   let attached = false;
   let cancelHandshakeTimer: (() => void) | null = null;
+  // g9：握手前到达的 openWith 载荷只暂存最后一份（命令语义：新载荷覆盖旧载荷），initialized 后补发。
+  let pendingOpenWith: { payload: unknown } | undefined;
+  const sendOpenWith = (active: PluginUiHostBridge, payload: unknown) => {
+    void active
+      .notification({ method: MCP_APPS_OPEN_WITH_METHOD, params: { payload } })
+      .catch(() => undefined);
+  };
   // 进行中的页面工具调用 id，dispose 时逐个取消到 agent。
   const activeCalls = new Set<string>();
   let unregisterNotifications: (() => void) | null = null;
@@ -195,6 +203,13 @@ export function createPluginUiHostController(
         () => !disposed && bridge === active,
       );
       sendFeed(active, deps.getToolFeed());
+      // g9：握手前暂存的 openWith 载荷在 initialized 后补发一次；命令语义，发完即清，
+      // 页面重载（新端口）时 pendingOpenWith 不会被本分支提前清除，重新握手后仍可补发。
+      if (pendingOpenWith !== undefined) {
+        const pending = pendingOpenWith;
+        pendingOpenWith = undefined;
+        sendOpenWith(active, pending.payload);
+      }
     };
     installPluginUiHostAppHandlers(active, {
       currentContext: () => hostContext,
@@ -357,6 +372,11 @@ export function createPluginUiHostController(
     notifyToolCancelled() {
       if (disposed || !bridge || !attached) return;
       void bridge.sendToolCancelled({}).catch(() => undefined);
+    },
+    notifyOpenWith(payload: unknown) {
+      if (disposed) return;
+      if (bridge && attached) sendOpenWith(bridge, payload);
+      else pendingOpenWith = { payload };
     },
     dispose() {
       if (disposal) return disposal;

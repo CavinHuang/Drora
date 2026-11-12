@@ -47,10 +47,6 @@ import type { ICommandsService } from "./commands/commands.js";
 import type { IHooksService } from "./hooks/hooks.js";
 import type { IMemoryService } from "./memory/memory.js";
 import type { IOutputStyleService } from "./output-style/outputStyle.js";
-import type { IObsidianVaultService } from "./obsidian-vault/obsidianVault.js";
-import type { IKnowledgeIndexService } from "./knowledge/knowledgeIndex.js";
-import type { IKnowledgeQueryService } from "./knowledge/knowledgeQuery.js";
-import type { IKnowledgeReviewService } from "./knowledge/review/reviewService.js";
 import type { IModelCapabilitiesService } from "./model-capabilities/index.js";
 import type { ISettingsSyncService } from "./settings-sync/settingsSync.js";
 import type { IFeedbackService } from "./feedback/feedback.js";
@@ -132,13 +128,9 @@ export interface IServiceAccessor {
   readonly memoryService: IMemoryService;
   /** Claude Code 兼容的输出风格（本机 ~/.claude 状态；第 48 轮新增，远端代理与本地实例同接口）。 */
   readonly outputStyleService: IOutputStyleService;
-  /** Obsidian Vault 面板（host-local 能力；远端/bots host 不提供，故可选）。 */
-  readonly obsidianVaultService?: IObsidianVaultService;
-  /** Knowledge 索引/检索（VaultView 智能问库；与 Vault 面板同源授权，host-local，故可选）。 */
-  readonly knowledgeIndexService?: IKnowledgeIndexService;
-  readonly knowledgeQueryService?: IKnowledgeQueryService;
-  /** Knowledge 审核写入（W06；L2 治理写唯一入口，host-local，故可选）。 */
-  readonly knowledgeReviewService?: IKnowledgeReviewService;
+  // P7 本体清除（specs/obsidian-vault-phase2-true-extraction.md §1-C7）：obsidianVault/
+  // knowledgeIndex/knowledgeQuery/knowledgeReview 四 getter 随本体服务拆除——插件
+  // knowledge server 持有唯一实现，本体 accessor 不再有该服务面。
   /** 模型能力档案（specs/model-capabilities.md §4 唯一所有者；desktop 本地 Host 注册，故可选）。 */
   readonly modelCapabilitiesService?: IModelCapabilitiesService;
   readonly settingsSyncService: ISettingsSyncService;

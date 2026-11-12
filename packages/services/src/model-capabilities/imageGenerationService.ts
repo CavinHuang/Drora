@@ -11,7 +11,6 @@
  * - 失败以结构化 ok:false 返回（不抛业务错，照 testJevConnection 风格）：401/403
  *   认证失败、429 限流、其余 4xx/5xx 透传状态码、坏 JSON/坏载荷结构化报错。
  */
-import { modelCapabilityCredentialKey } from "@drora/shared";
 import { createServiceLogger } from "../logger/serviceLogger.js";
 import type { IModelCapabilitiesService } from "./contract.js";
 

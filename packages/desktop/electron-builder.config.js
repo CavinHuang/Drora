@@ -663,6 +663,10 @@ export default {
     // node-pty 的 target prebuild 还包含 spawn-helper / winpty-agent.exe 等辅助可执行文件，
     // 整个目标目录必须 unpack；其他平台目录已由 files 规则裁剪。
     `node_modules/node-pty/prebuilds/${targetPlatform.key}/**`,
+    // P7 本体清除（specs/obsidian-vault-phase2-true-extraction.md §3/§1-C7）：
+    // desktop 自带 node_modules 侧的 onnxruntime-node asarUnpack 条目随本体
+    // knowledge 服务退役——插件 staged 副本在 app.asar 外的官方插件缓存目录，
+    // 由插件自带依赖（obsidian-plugin package.json）与 staging 链提供，不依赖本条目。
   ],
   beforePack: async (context) => {
     runTimedSync("beforePack:restoreTargetNodePtyPrebuild", () =>

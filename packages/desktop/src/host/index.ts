@@ -1,4 +1,4 @@
-import { createModelCapabilitiesService, assembleDroraKnowledgeHost } from "@drora/services/node";
+import { createModelCapabilitiesService } from "@drora/services/node";
 import { normalizeRemoteConnectionError, sanitizeRemoteConnectionLog } from "@drora/shared";
 import { join } from "node:path";
 /* eslint-disable max-lines -- Host 入口集中编排 local/remote service wiring，本次退出保护需要在同一处桥接 host 上报。 */
@@ -3928,17 +3928,12 @@ parentPort.on("message", async (e: Electron.MessageEvent) => {
           prepareLegacyAccountConnections,
           setWorkspaceProjection,
         } = createSettingServiceWithMigrations();
-        // B 类保护：Drora knowledge host 装配（obsidian-knowledge spec）与上游
-        // setWorkspaceProjection 并存，knowledgeOptions 在 createLocalServices 展开。
         // 模型能力档案（specs/model-capabilities.md §4 唯一所有者）：Host 唯一构造点，
-        // 迁移直调本 settingService（RPC patch 吞 undefined 删不掉旧键）；同一实例供
-        // knowledge 装配与 RPC 面共用，避免双所有者。
+        // 迁移直调本 settingService（RPC patch 吞 undefined 删不掉旧键）；P7 本体清除
+        // （specs/obsidian-vault-phase2-true-extraction.md §1-C7）后 knowledge 装配
+        // （assembleDroraKnowledgeHost / knowledgeOptions）已拆除——档案服务只服务
+        // asr/tts/image-generation 能力面，Jev/语义检索配置归插件 server。
         const modelCapabilitiesService = createModelCapabilitiesService({ settingService });
-        const knowledgeOptions = await assembleDroraKnowledgeHost(
-          modelCapabilitiesService,
-          logger,
-          async () => (await settingService.get()).httpProxy,
-        );
         const hostApiNetworkTransport = createHostApiNetworkTransport(async () => {
           const settings = await settingService.get();
           return {
@@ -4137,7 +4132,6 @@ parentPort.on("message", async (e: Electron.MessageEvent) => {
               settingService,
               prepareLegacyAccountConnections,
               modelCapabilitiesService,
-              ...knowledgeOptions,
               hostApiNetworkTransport,
               resolveClientLanguage: () => applicationLocale,
               authorizeLocalMediaPreviewPath,

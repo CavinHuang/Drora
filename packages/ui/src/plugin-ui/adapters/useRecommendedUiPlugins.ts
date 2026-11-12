@@ -1,4 +1,5 @@
 import { withPluginTelemetry } from "@drora/services";
+import type { DroraPluginUiSurface } from "@drora/shared";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useServices } from "@/hooks/useServices.js";
 import { useScopedPluginManagementStore } from "@/store/pluginManagementStore.js";
@@ -126,9 +127,16 @@ export function useRecommendedUiPlugins(target: {
         workspaceIdentity: target.workspaceIdentity,
       });
       if (!isCurrent()) return undefined;
+      // 只解析 session 级沙箱面板（spec §4.1 二选一形态）：app 级宿主面板挂主视图
+      // 注册表锚点（B3 接线），不经 side-pane 沙箱启动器；类型谓词同时把返回值收窄到
+      // session 形态，调用方继续直读 server/resourceUri。
       return (
-        surfaces.find((surface) => surface.pluginId === pluginId && surface.id === surfaceId) ??
-        null
+        surfaces.find(
+          (surface): surface is Extract<DroraPluginUiSurface, { availability: "session" }> =>
+            surface.pluginId === pluginId &&
+            surface.id === surfaceId &&
+            surface.availability === "session",
+        ) ?? null
       );
     } catch (error) {
       if (!isCurrent()) return undefined;

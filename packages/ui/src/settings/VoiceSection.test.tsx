@@ -42,13 +42,13 @@ const { settingsState, updateSettingsMock, updateCapabilitiesMock, stableService
         voicePrivacyDisclosureAcknowledged: true,
       },
     };
+    // P7 本体清除（specs/obsidian-vault-phase2-true-extraction.md §1-C11）：Jev 决策
+    // 与语义嵌入两节点随 knowledge 栈拆除，fixture 收敛为三条目。
     const capabilitiesState = {
       current: {
-        "decision-jev": { enabled: false, providerKind: "typesafe", baseUrl: "", modelId: "" },
-        embedding: { enabled: false, mode: "local", localModelId: "local-bge-small-zh-v1.5-int8" },
-        asr: { engine: "webSpeech", baseUrl: "", modelId: "" },
-        tts: { engine: "system", baseUrl: "", modelId: "", voice: "" },
-        "image-generation": { enabled: false, baseUrl: "", modelId: "" },
+        asr: { engine: "webSpeech", providerRef: "", modelId: "", baseUrlOverride: "" },
+        tts: { engine: "system", providerRef: "", modelId: "", voice: "", baseUrlOverride: "" },
+        "image-generation": { enabled: false, providerRef: "", modelId: "", baseUrlOverride: "" },
       },
     };
     const stableServices = {

@@ -8,5 +8,7 @@ export const pluginUiModule = {
   id: "plugin-ui",
   requires: ["services", "ui", "shared", "mcp-apps-protocol", "plugin-ui-bridge", "plugin-sandbox"],
   provides: ["plugin-ui-components"],
+  // P7 本体清除（spec §1-C4）：host-panel-registry.tsx 宿主面板注册表已随 app 形态
+  // 废除删除，publicEntrypoints 同步收窄。
   publicEntrypoints: ["index.ts", "contract.ts", "hostPrimitives.ts"],
 } as const;

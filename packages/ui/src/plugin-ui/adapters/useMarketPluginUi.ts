@@ -42,6 +42,9 @@ export function useMarketPluginUi(target: MarketPluginUiTarget) {
   const closeSelection = useCallback(() => setSelection(null), []);
   const selectSurface = useCallback(
     (surface: DroraPluginUiSurface) => {
+      // P7 本体清除后 availability 仅剩 session（spec §1-C4）；保留类型收窄判定，
+      // 防御旧投影方升级窗口期投来未知形态条目。
+      if (surface.availability !== "session") return;
       if (currentKey.current !== key || !target.workspacePath) return;
       const request: DraftPluginUiOpenRequest = {
         workspacePath: target.workspacePath,
@@ -88,7 +91,7 @@ export function useMarketPluginUi(target: MarketPluginUiTarget) {
             workspacePath: target.workspacePath,
             workspaceIdentity: target.workspaceIdentity,
           })
-        ).filter((surface) => surface.pluginId === pluginId);
+        ).filter((surface) => surface.pluginId === pluginId && surface.availability === "session");
         if (currentKey.current !== key) return;
         if (available.length === 1) selectSurface(available[0]!);
         else if (available.length > 1) setSelection({ key, surfaces: available });

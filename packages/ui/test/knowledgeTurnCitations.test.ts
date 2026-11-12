@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { UserInputRow } from "@drora/shared/drora-protocol-v4";
+// P7 本体清除（specs/obsidian-vault-phase2-true-extraction.md §1-C5b）：生产端
+// conversationKnowledgeSources 已拆除——表头/行格式唯一出处随消费端迁入
+// knowledgeTurnCitations（deprecated 兼容区）。
 import {
   formatKnowledgeDraftSource,
   KNOWLEDGE_SOURCE_MANIFEST_HEADER,
-} from "../src/lib/conversationKnowledgeSources.js";
-import {
   auditKnowledgeAnswerCitationCoverage,
   readKnowledgeTurnCitations,
   readAnswerCitationNumbers,

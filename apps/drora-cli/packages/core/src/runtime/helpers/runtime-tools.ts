@@ -65,8 +65,6 @@ function registerRuntimeBuiltInTools(runtime: AgentRuntimeInternal, deps: AgentR
     includeEscalate: Boolean(deps.workflowEscalatePort),
     includeWorkflow: Boolean(deps.workflowPort),
     includeAutomation: Boolean(deps.automationPort) && runtime.config.taskType !== "subagent_child",
-    // VaultSearch 只读、无门禁语义；跟随端口在场即注册（§5f VS-5）。
-    includeVaultSearch: Boolean(deps.vaultSearchPort),
     // offPeakPort 只在 host 下发 offPeakToolEnabled 时注入（灰度/远程门在 host 端），
     // 端口存在即代表曝光允许；subagent 子会话与 automation 同规则不暴露。
     includeOffPeak: Boolean(deps.offPeakPort) && runtime.config.taskType !== "subagent_child",
@@ -190,9 +188,8 @@ function createRuntimeToolExecutor(
     workflowEscalatePort: deps.workflowEscalatePort,
     artifactStore: deps.artifactStore,
     automationPort: deps.automationPort,
-    vaultSearchPort: deps.vaultSearchPort,
-    // agent 内置文生图端口（specs/model-capabilities.md §6）：恒注入传递，与
-    // VaultSearch 的 include 门有意分歧（能力发现靠真实 schema 注册，见 handlers/index.ts 注释）。
+    // agent 内置文生图端口（specs/model-capabilities.md §6）：恒注入传递，
+    // 可用性由端口错误语义统一表达（能力发现靠真实 schema 注册）。
     imageGenerationPort: deps.imageGenerationPort,
     offPeakPort: deps.offPeakPort,
     topicResourcePort: deps.topicResourcePort,

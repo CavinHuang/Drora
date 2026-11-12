@@ -8,6 +8,12 @@ import {
 
 export type RuntimeFeaturesConfig = NonNullable<AgentRuntimeConfig["runtimeFeatures"]>;
 
+/**
+ * P7 本体清除（specs/obsidian-vault-phase2-true-extraction.md §1-C8 双轨下线）：
+ * B4 的 obsidianHostComponents 宿主能力合成随 VaultSearch 注册门拆除——CLI 内建
+ * vault 工具面已下线（检索走插件 knowledge MCP server），本函数只剩 browser-use /
+ * CUA 两个官方插件 runtime feature。
+ */
 export function resolvePluginRuntimeFeatures(
   pluginOutcome: Pick<PluginLoadOutcome, "plugins">,
 ): RuntimeFeaturesConfig {

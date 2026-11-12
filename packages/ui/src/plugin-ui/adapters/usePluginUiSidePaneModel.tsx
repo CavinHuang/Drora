@@ -1,7 +1,12 @@
 import { useDroraIntl } from "@/i18n/IntlProvider.js";
+import { useOptionalServices } from "@/hooks/useServices.js";
+import { logger } from "@/logger.js";
 import { createPluginUiInteractions } from "@/plugin-ui/adapters/pluginUiInteractions.js";
+import { deliverPluginUiPageOpenWith } from "@/plugin-ui/adapters/pluginUiPageRegistry.js";
 import { usePluginUiResourceDeltaFeed } from "@/plugin-ui/adapters/pluginUiResourceDeltaFeed.js";
 import { usePluginUiHost } from "@/plugin-ui/adapters/usePluginUiHost.js";
+import { resolvePluginUiSurfaceTitle } from "@/plugin-ui/adapters/usePluginUiSurfaces.js";
+import { useOpenPluginUi } from "@/plugin-ui/adapters/PluginUiProviders.js";
 import {
   getPluginUiSurfaceFeed,
   offerPluginUiSurfaceFeed,
@@ -31,9 +36,14 @@ import type { SessionLease } from "@/v4/sessionDataLayer.js";
 import { toolCallRowToLegacyNode } from "@/v4/toolCallRowAdapter.js";
 import { useConversationProjection } from "@/v4/useConversationProjection.js";
 import { V4PaneConversationProvider, useV4Conversation } from "@/v4/V4ConversationContext.js";
-import type { McpAppsDisplayMode, PluginUiScopeRef } from "@drora/shared/mcp-apps";
+import type {
+  McpAppsDisplayMode,
+  McpAppsNavigateParams,
+  PluginUiScopeRef,
+} from "@drora/shared/mcp-apps";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { resolvePluginUiLogicalScope } from "../domain/pluginUiLogicalScope.js";
+import { documentViewerInstance, readPluginUiScopeRef } from "../contract.js";
 
 const FULLSCREEN_ONLY: readonly McpAppsDisplayMode[] = ["fullscreen"];
 const INLINE_AND_FULLSCREEN: readonly McpAppsDisplayMode[] = ["inline", "fullscreen"];
@@ -152,9 +162,88 @@ export function usePluginUiSidePaneModel({
     [canReturnInline, onCloseTab, tab.id],
   );
   const [width, setWidth] = useState(0);
+  // g9（specs/obsidian-vault-phase2-true-extraction.md §6/§8）：`drora/navigate` 的宿主侧编排——
+  // 解析同插件清单声明的 session 级 surface → 复用 launcher 同一条开 tab 通道 → payload 经
+  // openWith 投递给目标面板页（页面异步准入，deliverPluginUiPageOpenWith 等待创建）。
+  // openPluginUi / bridge 不可用（远程 workspace、无 provider）时不注入回调：动作回 -32601，
+  // 页面按 D10 走降级路径，不对页面谎报能力。
+  const openPluginUi = useOpenPluginUi();
+  const bridge = useOptionalServices()?.pluginUiBridgeService;
+  const handleNavigate = useCallback(
+    async (target: McpAppsNavigateParams) => {
+      if (!openPluginUi || !bridge) {
+        throw Object.assign(new Error("Host navigation is not available here"), { code: -32601 });
+      }
+      const surfaces = await bridge.listSurfaces({
+        workspacePath: tab.workspacePath,
+        ...(tab.workspaceIdentity ? { workspaceIdentity: tab.workspaceIdentity } : {}),
+      });
+      // 类型谓词收窄到 session 形态（阶段一 manifest 尚有 app 形态联合成员）：navigate 只认
+      // 清单声明的沙箱面板，app 形态成员不带 server/resourceUri，本就不是导航目标。
+      const resolved = surfaces.find(
+        (
+          surface,
+        ): surface is Extract<
+          (typeof surfaces)[number],
+          { availability: "session"; server: string; resourceUri: string }
+        > =>
+          surface.pluginId === tab.pluginId &&
+          surface.id === target.surfaceId &&
+          surface.availability === "session",
+      );
+      if (!resolved) {
+        throw Object.assign(
+          new Error(`Surface ${target.surfaceId} is not declared by plugin ${tab.pluginId}`),
+          { code: -32602 },
+        );
+      }
+      const instance = documentViewerInstance(resolved.resourceUri);
+      openPluginUi({
+        parentSessionId: tab.parentSessionId,
+        surfaceId: resolved.id,
+        serverName: resolved.server,
+        pluginId: resolved.pluginId,
+        resourceUri: resolved.resourceUri,
+        ...instance,
+        title: resolvePluginUiSurfaceTitle(resolved.title, locale),
+        workspacePath: tab.workspacePath,
+        ...(tab.workspaceIdentity ? { workspaceIdentity: tab.workspaceIdentity } : {}),
+        remoteSessionId: tab.remoteSessionId ?? null,
+      });
+      if (target.payload !== undefined) {
+        const scope = readPluginUiScopeRef({
+          surfaceId: resolved.id,
+          ...(instance.instanceId ? { instanceId: instance.instanceId } : {}),
+        });
+        if (!scope) return;
+        const delivered = await deliverPluginUiPageOpenWith(
+          buildPluginUiSurfaceKey(
+            {
+              workspacePath: tab.workspacePath,
+              ...(tab.workspaceIdentity ? { workspaceIdentity: tab.workspaceIdentity } : {}),
+              remoteSessionId: tab.remoteSessionId ?? undefined,
+              sessionId: tab.parentSessionId,
+              pluginId: resolved.pluginId,
+              serverName: resolved.server,
+              resourceUri: resolved.resourceUri,
+            },
+            scope,
+          ),
+          target.payload,
+        );
+        if (!delivered) {
+          logger.warn("[plugin-ui] navigate openWith delivery timed out", {
+            pluginId: tab.pluginId,
+            surfaceId: target.surfaceId,
+          });
+        }
+      }
+    },
+    [bridge, locale, openPluginUi, tab.parentSessionId, tab.pluginId, tab.remoteSessionId, tab.workspaceIdentity, tab.workspacePath],
+  );
   const interactions = useMemo(
-    () =>
-      createPluginUiInteractions({
+    () => ({
+      ...createPluginUiInteractions({
         workspacePath: tab.workspacePath,
         remoteSessionId: tab.remoteSessionId,
         workspaceIdentity: tab.workspaceIdentity,
@@ -162,6 +251,8 @@ export function usePluginUiSidePaneModel({
         pluginId: tab.pluginId,
         scope: scopeRef,
       }),
+      ...(openPluginUi && bridge ? { onNavigate: handleNavigate } : {}),
+    }),
     [
       scopeRef,
       tab.parentSessionId,
@@ -169,6 +260,9 @@ export function usePluginUiSidePaneModel({
       tab.workspacePath,
       tab.workspaceIdentity,
       tab.remoteSessionId,
+      openPluginUi,
+      bridge,
+      handleNavigate,
     ],
   );
   // widgetState 初值由 usePluginUiHost 按同一 surfaceKey 从宿主内存 store 读取（4a-0），面板不另取。

@@ -208,7 +208,12 @@ export interface GitChangeSummary {
   removed: number;
 }
 
-export type WorkspaceMainView = "chat" | "automations" | "plugin-store" | "vault";
+/**
+ * 工作区主视图路由值。阶段一的 `vault` 宿主面板成员已随 P7 本体清除拆除
+ * （specs/obsidian-vault-phase2-true-extraction.md §1-C4）：插件面板回归侧栏沙箱
+ * 链路（ui.surfaces session 级），主视图路由不再有自研旁路成员。
+ */
+export type WorkspaceMainView = "chat" | "automations" | "plugin-store";
 
 export interface WorkspaceShellLayoutProps extends Omit<AppProps, "baseFeedbackService"> {
   workspaceReadOnlyReason?: string;

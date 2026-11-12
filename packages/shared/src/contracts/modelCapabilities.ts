@@ -6,9 +6,12 @@
  * Host 装配）与消费方（UI 设置表单、语音适配器）引用同一常量，禁止两处独立写字面量；
  * 改名任何一侧前先全链 grep 生产与消费。
  *
- * 自 knowledge-jev.ts 迁入的所有权（批次一所有权翻转，批次二收尾完成）：本文件是
- * Jev 提供商枚举/类型与档案契约的唯一出处；knowledge-jev.ts shim 与三个旧凭据常量
- * 导出名已随批次二（UI 旧表单删除）原子收尾，旧键值仅存迁移表冻结字面量。
+ * P7 本体清除（specs/obsidian-vault-phase2-true-extraction.md §1-C11，D8 建议值先行）：
+ * decision-jev（知识评分）与 embedding（本地语义嵌入）两个 purpose 随 knowledge 栈
+ * 迁插件拆除——插件侧配置走 userConfig 静态注入（android 先例；接线待 D8 终裁后的
+ * 补批）。旧档案文件中的这两键由 schema 解析侧 strip（未知键），不做迁移映射；
+ * 旧 AppSettings 的 Jev 系列 7 键与语义开关 1 键的键值**丢弃**（迁移注记：
+ * 终裁若选「映射 userConfig」，由插件首启迁移补批按本注记落点补齐）。
  */
 
 import { z } from "zod";
@@ -21,44 +24,24 @@ import { z } from "zod";
 export const MODEL_CAPABILITIES_FILE_NAME = "model_capabilities.json";
 
 // ---------------------------------------------------------------------------
-// purpose 枚举（条目固定五类，顺序即 UI 呈现顺序）
+// purpose 枚举（P7 后固定三类，顺序即 UI 呈现顺序）
 // ---------------------------------------------------------------------------
 
 export const MODEL_CAPABILITY_PURPOSES = [
-  "decision-jev", // 知识评分（System One 线协议）
-  "embedding", // 语义嵌入（V1 仅本地形态）
   "asr", // 语音识别
   "tts", // 语音合成
-  "image-generation", // 图像生成（本次新增）
+  "image-generation", // 图像生成
 ] as const;
 
 export type ModelCapabilityPurpose = (typeof MODEL_CAPABILITY_PURPOSES)[number];
 
 // ---------------------------------------------------------------------------
-// Jev 决策提供商（自 knowledge-jev.ts 迁入；值不变）
-// ---------------------------------------------------------------------------
-
-/**
- * Jev 决策模型提供商（缺省 typesafe）。systemOne 是 Jev 全生态唯一线协议——
- * 提供商之间只有端点部署、凭据与模型别名的差异；openrouter / ai-gateway 的
- * baseURL 由发行方文档/部署方提供、必填。决策模型与 agent 聊天模型相互独立。
- */
-export const KNOWLEDGE_JEV_PROVIDERS = ["typesafe", "openrouter", "ai-gateway"] as const;
-export type KnowledgeJevProvider = (typeof KNOWLEDGE_JEV_PROVIDERS)[number];
-
-// ---------------------------------------------------------------------------
 // 凭据键（F-1：apiKey 一律走 ICredentialService 加密，绝不进档案文件）
 // ---------------------------------------------------------------------------
-
-/**
- * 凭据键（spec §13 重构后仅剩 decision-jev：线协议不适用供应商卡，维持自含）。
- * asr/tts/image-generation 的 apiKey 自 §13 起复用官方供应商卡（provider_config.json
- * 经 providerSettingsFacade 读取），不再有独立凭据键；旧键仅存迁移表冻结字面量。
- */
-export const modelCapabilityCredentialKey = {
-  decisionJev: (providerKind: KnowledgeJevProvider) =>
-    `model-capabilities:decision-jev:${providerKind}:api-key`,
-} as const;
+// P7（spec §1-C11）：decision-jev 凭据键 builder（model-capabilities:decision-jev:*
+// 与旧 knowledge-jev:* 键）随 Jev 能力节点拆除——插件侧凭据走 userConfig sensitive
+// 注入（D8）；asr/tts/image-generation 的 apiKey 复用官方供应商卡（§13），本域已无
+// 自含凭据键。
 
 // ---------------------------------------------------------------------------
 // 档案 schema（spec §3.2：zod 在 shared 定义，services 持久化时校验）
@@ -68,29 +51,15 @@ export const modelCapabilityCredentialKey = {
  * 档案文件 schema。非敏感字段（baseUrl、modelId、engine、enabled）进档案文件明文；
  * apiKey 一律不进档案文件，只在 credentialService。
  *
- * - providerKind 带 catch：坏值降级 typesafe 而非整文件判废；
- * - embedding.mode 仅 local（"remote" 为 schema 预留，V1 解析 fail-closed 拒绝）；
  * - 条件必填（asr engine=remote 时 baseUrl 必填、image-generation enabled 时
  *   baseUrl/modelId 必填等）不在 schema 展开——由消费方按 fail-closed 语义校验
  *   （与现 jevAssembly「缺必填即禁用」一致）。
  */
 export const modelCapabilitiesFileSchema = z.object({
   schemaVersion: z.literal(2),
+  // P7（spec §1-C11）：decision-jev/embedding 两节点删除；旧档案文件残留的这两键按
+  // 未知键 strip（zod object 非严格对象默认透传丢弃），不做迁移映射（见文件头注记）。
   capabilities: z.object({
-    "decision-jev": z.object({
-      enabled: z.boolean().default(false),
-      providerKind: z.enum(KNOWLEDGE_JEV_PROVIDERS).catch("typesafe"),
-      // 三供应商共用一对可选字段；解析时按 providerKind 取（与现 jevAssembly 语义一致）：
-      // typesafe: baseUrl（空=官方默认 https://api.typesafe.ai）
-      // openrouter / ai-gateway: baseUrl（空=内置默认）+ modelId 必填
-      baseUrl: z.string().default(""),
-      modelId: z.string().default(""),
-    }),
-    embedding: z.object({
-      enabled: z.boolean().default(false),
-      mode: z.literal("local"), // "remote" 为 schema 预留，V1 解析器 fail-closed 拒绝
-      localModelId: z.literal("local-bge-small-zh-v1.5-int8"),
-    }),
     // §13 引用式条目：供应商卡（官方模型管理）持有 baseUrl+apiKey，条目只存路由
     // （providerRef=providerId）与模型选择；baseUrlOverride 留空继承供应商卡
     // （手填覆盖优先，spec §13.4），网关分域名边缘用。
@@ -131,8 +100,6 @@ export function defaultModelCapabilitiesFile(): ModelCapabilitiesFile {
   return {
     schemaVersion: 2,
     capabilities: {
-      "decision-jev": { enabled: false, providerKind: "typesafe", baseUrl: "", modelId: "" },
-      embedding: { enabled: false, mode: "local", localModelId: "local-bge-small-zh-v1.5-int8" },
       asr: { engine: "webSpeech", providerRef: "", modelId: "", baseUrlOverride: "" },
       tts: { engine: "system", providerRef: "", modelId: "", voice: "", baseUrlOverride: "" },
       "image-generation": { enabled: false, providerRef: "", modelId: "", baseUrlOverride: "" },
@@ -151,31 +118,23 @@ export type ModelCapabilityEntriesPatch = {
   [K in ModelCapabilityPurpose]?: Partial<ModelCapabilities[K]>;
 };
 
-/** 凭据补丁（§13 后仅 decision-jev）：value 为 null（或空串，ApiKeyRow「留空保存即删除」语义）= 删除该键。 */
-interface ModelCapabilitiesCredentialPatch {
-  /** decision-jev 按 providerKind 分键写删。 */
-  decisionJev?: { providerKind: KnowledgeJevProvider; value: string | null };
-}
-
+// P7（spec §1-C11）：凭据补丁面随 decision-jev 凭据键拆除——本域已无自含凭据键
+//（asr/tts/image-generation 走官方供应商卡，§13）。
 export interface ModelCapabilitiesUpdate {
   capabilities?: ModelCapabilityEntriesPatch;
-  credentials?: ModelCapabilitiesCredentialPatch;
 }
 
 // ---------------------------------------------------------------------------
 // 旧键迁移映射（spec §3.3，F-7 一次性；迁移后旧键删除，不做降级兼容）
 // ---------------------------------------------------------------------------
 
-/** 旧 AppSettings 键全集（14 键；批次二随 schema 删除，此清单是迁移与删键的唯一出处）。 */
+/**
+ * 旧 AppSettings 键清单（P7 后仅剩 voice 6 键；此清单是迁移与删键的唯一出处）。
+ * knowledgeJev* 7 键与 knowledgeSemanticEnabled 已随 Jev/embedding 能力节点拆除
+ * （spec §1-C11）：旧键值按 D8 注记丢弃，不再列入迁移/删键清单——setting.json 中的
+ * 残留键由 appSettings schema 的 strip 语义在下次任意设置写盘时一并物理清除。
+ */
 export const MODEL_CAPABILITIES_LEGACY_SETTINGS_KEYS = [
-  "knowledgeJevEnabled",
-  "knowledgeJevProvider",
-  "knowledgeJevBaseUrl",
-  "knowledgeJevOpenrouterModel",
-  "knowledgeJevOpenrouterBaseUrl",
-  "knowledgeJevAiGatewayModel",
-  "knowledgeJevAiGatewayBaseUrl",
-  "knowledgeSemanticEnabled",
   "voiceAsrEngine",
   "voiceVendorBaseUrl",
   "voiceAsrVendorModel",
@@ -185,19 +144,13 @@ export const MODEL_CAPABILITIES_LEGACY_SETTINGS_KEYS = [
 ] as const;
 
 /**
- * 旧凭据键 → 新凭据键映射（decision-jev 三键一一对应；voice 单键双写 asr+tts）。
+ * 旧凭据键 → 新凭据键映射（P7 后仅剩 voice 单键双写 asr+tts 与 §13 自含三键）。
  *
- * 批次二收尾（spec §3.3）：旧 AppSettings 14 键与旧凭据键（含 voice:vendor:api-key）
- * 已从运行时消费面删除，此处键值降级为冻结字面量（迁移表唯一出处；不再作为
- * 运行时凭据键导出——生产/消费一律走 modelCapabilityCredentialKey 新键）。
+ * 冻结字面量（迁移表唯一出处；不作为运行时凭据键导出）。
  */
 export const MODEL_CAPABILITIES_LEGACY_CREDENTIAL_KEYS = {
-  decisionJev: {
-    /** 原 KNOWLEDGE_JEV_CREDENTIAL_KEY（knowledge-jev.ts 三键，批次一翻转迁入后随批次二删除导出）。 */
-    typesafe: "knowledge-jev:typesafe-api-key",
-    openrouter: "knowledge-jev:openrouter-api-key",
-    "ai-gateway": "knowledge-jev:ai-gateway-api-key",
-  },
+  // P7（spec §1-C11）：decision-jev 三旧凭据键（knowledge-jev:*）随 Jev 节点拆除——
+  // 键值丢弃（D8 注记：终裁选映射 userConfig 时由插件首启迁移补批处理）。
   /** 原 VOICE_VENDOR_CREDENTIAL_KEY（contracts/voice.ts，随 voice 契约收窄删除导出）。 */
   voiceVendor: "voice:vendor:api-key",
   /**

@@ -108,12 +108,6 @@ export const SETTINGS_USER_ACTION_FEATURES = {
   // 模型能力档案（specs/model-capabilities.md §5.1 五条目；knowledge 分区随批次二删除，
   // 旧 settings.knowledge 动作组由本组承接迁移后的配置面）。
   "settings.model_capabilities": [
-    "toggle_decision_jev",
-    "change_decision_jev_provider",
-    "save_decision_jev_base_url",
-    "save_decision_jev_model",
-    "save_decision_jev_api_key",
-    "test_decision_jev_connection",
     "toggle_embedding",
     "download_embedding_model",
     "change_asr_engine",

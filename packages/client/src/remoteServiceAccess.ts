@@ -53,10 +53,6 @@ import {
   IHooksService,
   IMemoryService,
   IOutputStyleService,
-  IObsidianVaultService,
-  IKnowledgeIndexService,
-  IKnowledgeQueryService,
-  IKnowledgeReviewService,
   ISettingsSyncService,
   IFeedbackService,
   IPromptAttachmentTransferService,
@@ -140,17 +136,9 @@ export class RemoteServiceAccess implements IServiceAccessor {
   readonly hooksService: IHooksService;
   readonly memoryService: IMemoryService;
   readonly outputStyleService: IOutputStyleService;
-  // obsidianVaultService 在 IServiceAccessor 上可选（远端/bots host 不注册该频道），
-  // 但桌面 renderer 经 RPC 一定能拿到（desktop/web host 始终注册此 descriptor）。
-  // 修复依据：eff2ee71 曾加入本 getter，后续分支合并把它从本文件合并丢失——丢失后
-  // VaultView 拿到的 accessor 上该属性为 undefined，面板恒显示「Vault 服务不可用」。
-  readonly obsidianVaultService: IObsidianVaultService;
-  // Knowledge 索引/检索（W04 智能问库）：与 Vault 面板同形，host 未注册时为调用期失败
-  // （ChannelClient.getChannel 不抛错），由 UI 错误态呈现，不在构造期失败。
-  readonly knowledgeIndexService: IKnowledgeIndexService;
-  readonly knowledgeQueryService: IKnowledgeQueryService;
-  // 审核写入（W06）：与 Knowledge 同形，host 未注册时为调用期失败，由 UI 错误态呈现。
-  readonly knowledgeReviewService: IKnowledgeReviewService;
+  // P7 本体清除（specs/obsidian-vault-phase2-true-extraction.md §1-C7）：
+  // obsidianVault / knowledgeIndex / knowledgeQuery / knowledgeReview 四 getter
+  // 随本体服务拆除——插件 knowledge server 持有唯一实现，renderer 侧不再有该 RPC 面。
   readonly settingsSyncService: ISettingsSyncService;
   readonly feedbackService: IFeedbackService;
   readonly promptAttachmentTransferService: IPromptAttachmentTransferService;
@@ -363,19 +351,6 @@ export class RemoteServiceAccess implements IServiceAccessor {
     );
     this.outputStyleService = ProxyChannel.toService<IOutputStyleService>(
       channelClient.getChannel(IOutputStyleService.channelName),
-    );
-    this.obsidianVaultService = ProxyChannel.toService<IObsidianVaultService>(
-      channelClient.getChannel(IObsidianVaultService.channelName),
-    );
-    this.knowledgeIndexService = ProxyChannel.toService<IKnowledgeIndexService>(
-      channelClient.getChannel(IKnowledgeIndexService.channelName),
-    );
-    this.knowledgeQueryService = ProxyChannel.toService<IKnowledgeQueryService>(
-      channelClient.getChannel(IKnowledgeQueryService.channelName),
-    );
-    // 审核写入（W06）：与 Knowledge 同形，host 未注册该频道时为调用期失败。
-    this.knowledgeReviewService = ProxyChannel.toService<IKnowledgeReviewService>(
-      channelClient.getChannel(IKnowledgeReviewService.channelName),
     );
     this.feedbackService = ProxyChannel.toService<IFeedbackService>(
       channelClient.getChannel(IFeedbackService.channelName),

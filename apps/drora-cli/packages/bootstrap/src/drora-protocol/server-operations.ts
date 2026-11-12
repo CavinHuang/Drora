@@ -150,7 +150,6 @@ import { createWorkspaceDroraApp, ensureSessionModelAvailable } from "./workspac
 import { buildAppUsageSnapshot, resolveTzOffsetMs } from "./usage-stats-builder.js";
 import { createProtocolInteractionBroker } from "./interaction-broker.js";
 import { createProtocolAutomationPort } from "./automation-port.js";
-import { createProtocolVaultSearchPort } from "./vault-search-port.js";
 import { createProtocolImageGenerationPort } from "./generate-image-port.js";
 import { createProtocolOffPeakPort } from "./offpeak-port.js";
 import { createProtocolTopicResourcePort } from "./topic-resource-port.js";
@@ -3682,12 +3681,12 @@ async function createRecord(
     permissionBroker: createProtocolInteractionBroker(context),
     automationPort: createProtocolAutomationPort(context, () => ownSessionRecord),
     topicResourcePort: createProtocolTopicResourcePort(context),
-    // agent 只读 vault 检索（obsidian-knowledge.md §5f）：host 无 knowledge 服务时工具
-    // 报结构化不可用；端口恒注入（工具注册由 includeVaultSearch 门 + 错误语义双层兜底）。
-    vaultSearchPort: createProtocolVaultSearchPort(context),
-    // agent 内置文生图（specs/model-capabilities.md §6.2）：端口恒注入、不做 include 门
-    // （与 VaultSearch 的有意分歧）：可用性由错误语义统一表达——旧 host -32601 翻译为
-    // ConfigurationError，档案未启用/未配置由 host 返回结构化失败。
+    // P7 本体清除（specs/obsidian-vault-phase2-true-extraction.md §1-C8 双轨下线）：
+    // vaultSearchPort 注入（drora-protocol 反向请求）随旧工具面拆除——检索走插件
+    // knowledge MCP server。
+    // agent 内置文生图（specs/model-capabilities.md §6.2）：端口恒注入、不做 include 门：
+    // 可用性由错误语义统一表达——旧 host -32601 翻译为 ConfigurationError，
+    // 档案未启用/未配置由 host 返回结构化失败。
     imageGenerationPort: createProtocolImageGenerationPort(context),
     // 只接入 Host 已开放的工具面；缺省不注入。复用现行异步工厂，
     // 不恢复旧 deferred ModelAdapter/Registry overlay，也不改变 Session Selection。

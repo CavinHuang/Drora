@@ -139,6 +139,7 @@ import {
   droraPluginOperationProgressNotificationSchema,
   droraPluginsRestoreBuiltinResultSchema,
   droraPluginsSetEnabledResultSchema,
+  droraPluginsSetHostComponentsEnabledResultSchema,
   droraPluginsCancelOperationResultSchema,
   droraPluginsUninstallResultSchema,
   droraPluginsValidateResultSchema,
@@ -162,7 +163,6 @@ import {
   summarizeOfficialMcpIdentityHeaders,
   droraProtocolEmptyResultSchema,
   droraProtocolMethods,
-  droraKnowledgeSearchParamsSchema,
   droraModelCapabilityGenerateImageParamsSchema,
   droraProtocolNotifications,
   droraMcpTelemetryEventSchema,
@@ -212,9 +212,7 @@ import {
   type DroraPluginOperationProgressNotification,
   type DroraTaskMode,
 } from "@drora/shared";
-import type { IKnowledgeQueryService } from "#src/knowledge/knowledgeQuery.js";
 import type { ImageGenerationResult } from "#src/model-capabilities/node.js";
-import { toVaultSearchProtocolResult } from "#src/knowledge/vaultSearchProtocol.js";
 import { createServiceLogger } from "#src/logger/serviceLogger.js";
 import { createOfficialMcpIssuanceAudit } from "#src/official-mcp/officialMcpIssuanceAudit.js";
 import type {
@@ -282,6 +280,7 @@ import type {
   DroraAgentSetModeParams,
   DroraAgentSetModelParams,
   DroraAgentSetPluginEnabledParams,
+  DroraAgentSetHostComponentsEnabledParams,
   DroraAgentSetThoughtLevelParams,
   DroraAgentPluginReferenceCatalogParams,
   DroraAgentSkillReferenceCatalogParams,
@@ -1128,16 +1127,12 @@ interface CreateDroraAgentServiceBaseOptions extends Omit<
 > {
   /** 仅供 MCP 状态探测进程使用，不能把空闲回收传给 chat。 */
   mcpStatusIdleTimeoutMs?: number;
-  /**
-   * agent 只读 vault 检索入口（obsidian-knowledge.md §5f）：返回 null = 本 host 无
-   * knowledge 服务（远程/降级），knowledge/search 分发为结构化不可用。thunk 形式——
-   * knowledgeServices 在 createLocalServices 内晚于本服务构造，只在请求期解引用。
-   */
-  knowledgeQuerySource?: () => Pick<IKnowledgeQueryService, "createRun" | "search"> | null;
+  // P7 本体清除（spec §1-C7）：knowledgeQuerySource thunk option 随本体 knowledge 栈
+  // 拆除（agent 侧检索走插件 knowledge MCP server，本体无反向分发通道）。
   /**
    * agent 内置文生图入口（specs/model-capabilities.md §6）：返回 null = 本 host 无
    * 画图服务（未注入档案服务/远程降级），modelCapability/generateImage 分发回 -32601，
-   * CLI 翻译为固定不可用文案（照 knowledge/search 的 thunk 解引用模式）。
+   * CLI 翻译为固定不可用文案。
    */
   imageGenerationSource?: () => {
     generate(request: { prompt: string; size?: string }): Promise<ImageGenerationResult>;
@@ -3581,45 +3576,11 @@ export function createDroraAgentService(
           return;
         }
 
-        // agent 只读 vault 检索（obsidian-knowledge.md §5f）：分发到进程内 knowledge
-        // query 服务（与 UI 同链）。无 knowledge 服务的 host（远程/降级）结构化不可用；
-        // 入参校验失败 -32602；服务异常 -32603 透传消息。零出站：不携带 decisionConsentId。
-        if (request.method === droraProtocolMethods.knowledgeSearch) {
-          const parsed = droraKnowledgeSearchParamsSchema.safeParse(request.params ?? {});
-          if (!parsed.success) {
-            void client.respondError(request.id, {
-              code: -32602,
-              message: "Invalid knowledge search params",
-              data: parsed.error.flatten(),
-            });
-            return;
-          }
-          void (async () => {
-            try {
-              const knowledgeQuery = options?.knowledgeQuerySource?.();
-              if (!knowledgeQuery) {
-                await client.respondError(request.id, {
-                  code: -32603,
-                  message: "Vault search is unavailable on this host (no knowledge service).",
-                });
-                return;
-              }
-              const run = await knowledgeQuery.createRun({
-                query: parsed.data.query,
-                // 纯检索 run：不绑会话（§5.1 无会话语义），不携带决策授权（§5f.2 零出站）。
-                clientRequestId: `vault-search-${randomUUID()}`,
-              });
-              const finished = await knowledgeQuery.search({ runId: run.runId });
-              await client.respond(request.id, toVaultSearchProtocolResult(finished));
-            } catch (error) {
-              await client.respondError(request.id, {
-                code: -32603,
-                message: error instanceof Error ? error.message : String(error),
-              });
-            }
-          })();
-          return;
-        }
+        // P7 本体清除（specs/obsidian-vault-phase2-true-extraction.md §1-C6/C7）：
+        // knowledge/search 与 knowledge/neighbors 反向分发（knowledgeQuerySource thunk
+        // 解引用进程内 knowledge query 服务）随本体 knowledge 栈拆除——agent 侧 vault
+        // 检索改由插件 knowledge MCP server 提供（mcp__plugin_obsidian_knowledge__*
+        // 工具面），本体协议不再携带这两个方法键（shared schema 同批删除）。
 
         // agent 内置文生图（specs/model-capabilities.md §6）：分发到进程内模型能力档案
         // 画图服务（出站与凭据解密全部留在 host，凭据零出 host）。无画图服务的 host
@@ -6051,6 +6012,21 @@ export function createDroraAgentService(
           ...(params.scope ? { scope: params.scope } : {}),
         },
         droraPluginsSetEnabledResultSchema,
+        { timeoutMs: PLUGIN_MANAGEMENT_REQUEST_TIMEOUT_MS },
+      );
+    },
+
+    async setHostComponentsEnabled(params: DroraAgentSetHostComponentsEnabledParams) {
+      // 宿主能力独立开关（§3 D1a，B1）：与 setPluginEnabled 同链路（插件管理 client →
+      // RPC plugins/setHostComponentsEnabled → CLI file-config 原子写 user 级配置）。
+      const client = await getPluginManagementClient();
+      return client.request(
+        droraProtocolMethods.pluginsSetHostComponentsEnabled,
+        {
+          workspace: buildWorkspaceRef(params),
+          enabled: params.enabled,
+        },
+        droraPluginsSetHostComponentsEnabledResultSchema,
         { timeoutMs: PLUGIN_MANAGEMENT_REQUEST_TIMEOUT_MS },
       );
     },

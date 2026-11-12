@@ -31,6 +31,18 @@ export const DRORA_PLUGIN_HOOK_COMMAND = "__drora-plugin-hook";
  * 由 bootstrap 在 SEA 判定后把它作为 argsPrefix 递给 harness。
  */
 export const DRORA_DWF_CHILD_COMMAND = "__drora-dwf-child";
+/**
+ * app 级常驻服务（g1，specs/obsidian-vault-phase2-true-extraction.md §3/§6/§10-P1）标记
+ * env 键：bootstrap appService 启动链经 `__drora-plugin-host` 拉起的插件 server 进程携带
+ * `DRORA_PLUGIN_APP_SERVICE=1`，供 server 进程内区分「宿主常驻实例」与「会话级 stdio
+ * 实例」（P3 起消费，如日志与 lease owner 命名）。契约键单一出处在本 contracts 常量区；
+ * obsidian-plugin 包不依赖 contracts，消费侧以本地常量 + 注释锁定同值
+ * （OFFICIAL_OBSIDIAN_PLUGIN_ID 分侧锁定先例）。该键由宿主权威写入，插件
+ * manifest/user env 不可覆盖（启动链最后覆写）。
+ */
+export const DRORA_PLUGIN_APP_SERVICE_ENV_KEY = "DRORA_PLUGIN_APP_SERVICE";
+/** {@link DRORA_PLUGIN_APP_SERVICE_ENV_KEY} 的固定值；常量化避免生产/消费两侧字面量漂移。 */
+export const DRORA_PLUGIN_APP_SERVICE_ENV_VALUE = "1";
 
 /**
  * 官方保留市场 id 判定（对齐原版 UQ 的双 id 语义 + Drora 改名桥接的上游别名）：
@@ -184,27 +196,47 @@ export interface PluginManifest {
   version?: string;
 }
 
-/** 面板生命周期：第一版只接受会话级；`draft` 留待需要时放开。 */
+/**
+ * 面板生命周期：`session` = 会话级沙箱面板（server+resourceUri 形态）。
+ * 阶段一引入的 `app` 宿主面板形态（hostPanelId + renderer 注册表）已随阶段二 P7
+ * 本体清除整体废除（specs/obsidian-vault-phase2-true-extraction.md §1-C4：联合
+ * 成员删除不留死成员；若日后需要 app 级沙箱面板须另立 spec 重引入）。
+ */
 export type PluginUiSurfaceAvailability = "session";
 /** 标题：单一字符串或按 locale 键的映射（`{ "zh-CN": "...", "en-US": "..." }`）。 */
 export type PluginUiSurfaceTitle = string | Record<string, string>;
-export interface PluginUiSurfaceDefinition {
+interface PluginUiSurfaceBaseDefinition {
   id: string;
   title: PluginUiSurfaceTitle;
   icon?: string;
+}
+/** session 形态：需要插件运行时 MCP（server+resourceUri），UI 走沙箱面板链路。 */
+export interface PluginUiSurfaceSessionDefinition extends PluginUiSurfaceBaseDefinition {
   /** 运行时 namespaced MCP server 名（`plugin:${name}:${server}`），UI 直接用它调 mcp/uiReadResource。 */
   server: string;
   /** 清单里声明的原始 server 键，仅供诊断与展示。 */
   declaredServer: string;
   /** 必须以 `ui://` 开头。 */
   resourceUri: string;
-  availability: PluginUiSurfaceAvailability;
+  availability: "session";
 }
+/**
+ * 清单 `ui.surfaces[]` 条目：session 唯一形态（P7 废除 app/hostPanelId 形态后，
+ * 解析器对 `availability:"app"` 与 `hostPanelId` 字段一律拒绝并记诊断，
+ * 契约测试锁定该拒绝行为，防止白名单外形态回流）。
+ */
+export type PluginUiSurfaceDefinition = PluginUiSurfaceSessionDefinition;
 
 export interface PluginConfig {
   dirs: string[];
   enabled: boolean;
   enabledPlugins: Record<string, boolean>;
+  /**
+   * 宿主能力独立开关（specs/obsidian-vault-plugin-extraction.md §3，D1a）：缺省 true；
+   * 键名与三态合成语义的单一出处在 shared contracts（DRORA_PLUGINS_CONFIG_KEYS /
+   * resolvePluginHostComponentsPresence），此处类型仅承载 config 装载结果。
+   */
+  hostComponents?: boolean;
   extraKnownMarketplaces: Record<string, PluginMarketplaceConfig>;
   options: Record<string, PluginOptionValues>;
   suppressedBuiltins: string[];

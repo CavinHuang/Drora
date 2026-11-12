@@ -1,5 +1,33 @@
 # Obsidian 插件 Spec（复刻 Proma Vault 能力）
 
+> **2026-11-12 阶段二真抽离完成态（P8 收尾回填）**：`specs/obsidian-vault-phase2-
+> true-extraction.md` P1-P8 全批次落地——vault/知识实现（服务进程、webview 面板、
+> agent 工具）全部归本插件包（manifest 0.4.0：mcpServers.knowledge 常驻 server +
+> ui.surfaces session 级沙箱面板），本体八包残留扫描零命中；本文件全部行为契约
+> （9 条安全不变量、W01 收窄、hooks 三事件、验收场景 1-21）**语义零变化**——hooks
+> 实现文件阶段二全程未触碰，验收 1-21 于 P8 复跑全绿（agent-access/permission-path-
+> policy/hooks-e2e 三件套 + obsidianVaultConfig/obsidianVaultAtomicCreate 门面单测；
+> 复跑记录见 `apps/drora-cli/packages/obsidian-plugin/docs/phase2-p8-capability-parity.md`）。
+> 下文「2026-11-11 插件化剥离」段为阶段一（中间态）历史记录，装配归属表述以阶段二
+> spec 为准。
+
+> **2026-11-11 插件化剥离【B1-B6 已落地，B7 收尾对账】**：已立项把内置 Vault 能力剥离为本插件
+> 所有（0.3.0：hooks 与 skills + 宿主面板 VaultView + 宿主服务
+> obsidian-vault/knowledge 三服务 + 宿主工具 VaultSearch 与 vault_neighbors）。
+> **实现状态（本分支工作区，逐批 gate 见剥离 spec §10）**：B1 插件体系扩展
+> （ui.surfaces app 级宿主面板形态、启用状态键上移 shared contracts/pluginEnablement.ts、
+> 定义级 uninstallKeepData）已落地；B2 落地 manifest ui.surfaces 宿主面板声明、官方定义
+> componentTypes/hostServices/uninstallKeepData（definitions:344-378）、知识检索能力指南
+> skills/obsidian-knowledge，三处版本一致由 bootstrap 播种测试锁定（**例外：B2 的
+> 「宿主能力开关设置面」renderer 控件尚未实现——服务链/RPC/装配链完整，开关缺省
+> true=在场，存量体验不受影响；缺口记录见剥离 spec §3 修订注记**）；B3 面板接线与
+> 装配条件化（node.ts:3209 构造级条件化 + renderer host-panel-registry）、B4 注册门联动
+> （runtimeFeatures obsidianHostComponents）、B5 vault_neighbors 与 N1、B6 N2/N3/N4
+> 均已落地并有各自回归测试。能力归属、两层启用位、装配条件化、插件体系先行扩展、数据
+> 兼容与实施批次见
+> **`specs/obsidian-vault-plugin-extraction.md`**（归属类冲突以该文件为准；本文件
+> 继续持有 hooks 语义与安全不变量契约）。
+
 来源：`D:\workspace\projects\ai-projects\Proma` 的 Obsidian Vault 能力（`vault-service.ts` +
 agent 集成），完整移植为 Drora 官方插件 `obsidian`（`apps/drora-cli/packages/obsidian-plugin`）。
 
@@ -292,3 +320,34 @@ Proma 在用户于右侧 Vault 标签聚焦笔记/文件夹时，把焦点快照
    对话框/教程）接入 `vault.*` 键（en-US/zh-CN 同步），消除硬编码中文。
    `error.message.includes("不存在")` 为匹配服务端错误文案的行为逻辑，非 UI 文案，
    有意保留。
+
+## 插件化剥离升级（2026-11-11 立项；B1-B6 已落地，B7 收尾对账）
+
+用户裁定把内置 Obsidian Vault 能力（`packages/services/src/obsidian-vault/`、
+`packages/services/src/knowledge/`、`packages/ui/src/v4/VaultView.tsx` 及装配）剥离为
+本插件所有。完整设计（能力归属表、两层启用位、宿主面板形态、hostServices 装配
+条件化、数据兼容、缺口对照与批次，含评审 2 轮修订）见
+`specs/obsidian-vault-plugin-extraction.md`。对**本文件契约**的影响与落地状态
+（B7 实现状态回填，逐项证据为本分支工作区实码）：
+
+1. **形态（已落地，B2）**：插件从「hooks 插件」升级为「完整能力面官方插件」，
+   版本 0.2.0→0.3.0（plugin.json / package.json / 官方定义三处一致）；
+   `componentTypes` 增加 `"ui"` + manifest ui.surfaces 宿主面板声明
+   （plugin.json:8-17，hostPanelId="vault" 命中 shared 白名单）；hooks 缺省启用维持
+   false（现状与「defaultEnabled 仅限内容型插件」约定不变，D1b 按建议值执行）。
+2. **不变（已保持）**：本文件全部行为契约——9 条安全不变量、W01 收窄策略、hooks
+   三事件语义、`vault-config.json`/`vault-focus.json` 单文件事实源与单写方、验收
+   场景 1-21——剥离批次未触碰 hooks 实现文件（本包改动仅 plugin.json / package.json /
+   skills/obsidian/SKILL.md 与新增 skills/obsidian-knowledge/）。
+3. **状态所有者表述更新（已按此表述落地，B3）**：「由 VaultView 面板对应的 host
+   服务写入」改述为「由插件的宿主服务（`packages/services/src/obsidian-vault/`，
+   物理位置不变）写入，服务在场性由独立宿主能力开关驱动（缺省开，不随 hooks
+   启用位）」（新 spec §3）——实现为 node.ts:3209 起的构造级条件化
+   （宿主能力关闭即不构造四服务/不开库/不占 lease）。
+4. **新增组件（已落地，B5）**：宿主工具 vault_neighbors（CLI core handler 加反向
+   协议，与 VaultSearch 同机制、同 `VaultSearchPort` 端口扩展，只读近邻检索；原
+   「宿主 MCP server vault-knowledge」方案在评审 2 轮撤回，见新 spec §4.3）与
+   skills 增补（skills/obsidian-knowledge/ 能力指南 + SKILL.md 使用段）。写入类新
+   能力一律走本文件 L1/L2 既有授权路径（N2 面板写入为用户动作经门面 CAS 直写，
+   不属 L1；批量分支 L2 Proposal 只读 + apply fail-closed，见 obsidian-knowledge.md
+   §5h）。

@@ -114,7 +114,16 @@ export async function startAgent(
       source: string,
       serverName = "fixture",
       workspaceIdentity?: string,
-      demo?: { serverScript: string; resourceUri: string },
+      demo?: {
+        serverScript: string;
+        resourceUri: string;
+        /**
+         * demo server 的协议年代（P5 obsidian e2e）：knowledge server（@modelcontextprotocol/
+         * server 2.0.0，serveStdio legacy:"reject"）只讲 modern era，需 pin "2026-07-28"；
+         * fixture 自带 server 维持缺省 "legacy"。
+         */
+        protocolVersion?: string;
+      },
     ) {
       await mkdir(workspacePath, { recursive: true });
       const workspace = {
@@ -135,7 +144,7 @@ export async function startAgent(
               ? [demo.serverScript]
               : [join(root, "mcp-server.mjs"), String(port), join(root, "widget.html"), source],
             env: [],
-            protocolVersion: "legacy",
+            protocolVersion: demo?.protocolVersion ?? "legacy",
             isolation: "session",
           },
         ],

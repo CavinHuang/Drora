@@ -114,3 +114,48 @@ export function acquirePluginUiPage(key: string, create: () => Page): Promise<Pa
   creating.set(key, pending);
   return pending;
 }
+
+/**
+ * g9 宿主→面板 openWith 的窗口级投递入口（specs/obsidian-vault-phase2-true-extraction.md
+ * §6/§8，C5a citation 打开路由）。key 为 `buildPluginUiSurfaceKey` 结果；页面已在
+ * 窗口管理器里（面板 tab 已打开）时直接转发，controller 未握手则由其暂存补发。
+ * 页面不存在返回 false——调用方（P5 UI 编排）按「先打开面板 tab、再投递载荷」的顺序
+ * 使用；不在此隐式建页面，避免绕过锚点/容量准入。
+ */
+export function notifyPluginUiPageOpenWith(key: string, payload: unknown): boolean {
+  const page = pluginUiPages.get(key);
+  if (!page) return false;
+  page.notifyOpenWith(payload);
+  return true;
+}
+
+/**
+ * g9 navigate 编排用的投递变体：面板页尚不在窗口（刚请求打开 tab，页面在异步准入中）时，
+ * 等页面创建后投递一次；超时（对齐握手上限 15s）如实放弃并返回 false。
+ * 只等待「已发起打开」的页面，不做任何打开动作——打开仍归 UI 层（launcher / navigate handler）。
+ */
+export function deliverPluginUiPageOpenWith(
+  key: string,
+  payload: unknown,
+  timeoutMs = 15_000,
+): Promise<boolean> {
+  if (notifyPluginUiPageOpenWith(key, payload)) return Promise.resolve(true);
+  return new Promise((resolve) => {
+    // subscribePage 订阅时同步触发一次 listener（覆盖「首次检查与订阅之间页面已创建」的竞态），
+    // 因此 finish 必须容忍在 off 赋值前被调用：先以空函数占位，避免 TDZ 崩溃。
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let settled = false;
+    let off: () => void = () => {};
+    const finish = (ok: boolean) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      off();
+      resolve(ok);
+    };
+    off = subscribePage(key, () => {
+      if (notifyPluginUiPageOpenWith(key, payload)) finish(true);
+    });
+    timer = setTimeout(() => finish(false), timeoutMs);
+  });
+}

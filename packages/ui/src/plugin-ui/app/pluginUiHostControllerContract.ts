@@ -127,6 +127,12 @@ export interface PluginUiHostController {
   notifyToolResult(result: McpAppsToolResultPayload): void;
   /** 宿主工具被停止 → ui/notifications/tool-cancelled。 */
   notifyToolCancelled(): void;
+  /**
+   * g9 宿主→面板方向（specs/obsidian-vault-phase2-true-extraction.md §6/§8）：发送
+   * `drora/openWith { payload }` 通知（C5a citation 打开路由）。未握手时暂存，`initialized`
+   * 后补发一次；页面须在启动期注册 onOpenWith 才能收到（错过由页面拉取自身状态兜底）。
+   */
+  notifyOpenWith(payload: unknown): void;
   dispose(): Promise<void>;
   readonly phase: PluginUiHostPhase;
 }

@@ -51,15 +51,64 @@ jobs:
         # 现按 D01 三工程结构把它显式登记进 scripts/drora-test-files.json
         # （drora 工程，--project 选择），并改根级调用（完成度审查 2026-11-01
         # 发现该测试曾全通道失执行——CI 与本地同现 No test files found）。
+        # B7 对账（specs/obsidian-vault-plugin-extraction.md §10）修复死条目：
+        # ① conversationSelectionReference / oauthCachedSessionRestore——上游 v3.17.2
+        #   合并（b3e44cb2a）已删除这两个测试文件，filter 为死条目（vitest 在其余
+        #   filter 有匹配时对未匹配项静默忽略，CI 不红但测试也从不执行）；
+        # ② knowledgeAskModel / knowledgeEvidenceVerification——实测为 node:test 面
+        #   （文件头 import test from "node:test"），vitest 无法执行 node:test 注册的
+        #   suite（同 spec 注 1 分流机制），在本 vitest 行属静默 no-op，本地实测本行
+        #   13/17 文件执行、这两个无任何测试结果——移入下方 node --test 步骤真实执行。
+        # P7 本体清除（specs/obsidian-vault-phase2-true-extraction.md §1-C10）：C5b
+        # 生产端/面板模型测试（handoff/sources/navigation/transaction/quoteReveal/
+        # review*/insights*/connections*/askModel 等）随实现拆除；保留 C5a 渲染/投影/
+        # 失败语义端（citation markdown/turn citations/message 渲染/open 事件总线/
+        # openFeedback/sendFailure）+ 既有 rootJwtInvalidBroadcastGate。
         run: |
-          pnpm exec vitest run packages/ui/test/conversationSelectionReference.test.ts packages/ui/test/knowledgeAskModel.test.ts packages/ui/test/knowledgeEvidenceVerification.test.ts packages/ui/test/knowledgeAgentHandoff.test.ts packages/ui/test/conversationKnowledgeSources.test.ts packages/ui/test/knowledgeCitationNavigation.test.ts packages/ui/test/knowledgeCitationTransaction.test.ts packages/ui/test/knowledgeTurnCitations.test.ts packages/ui/test/knowledgeCitationMarkdown.test.ts packages/ui/test/messageResponseKnowledgeCitation.test.ts packages/ui/test/messageCitationOpenIntegration.test.ts packages/ui/test/knowledgeCitationOpenFeedback.test.ts packages/ui/test/knowledgeEvidenceSendFailure.test.ts packages/ui/test/vaultQuoteRevealCodeMirror.test.ts packages/ui/test/knowledgeReviewProposalInput.test.ts packages/ui/test/oauthCachedSessionRestore.test.ts packages/ui/test/rootJwtInvalidBroadcastGate.test.ts
-          pnpm exec vitest run --project drora packages/ui/test/knowledgeReviewView.test.tsx
+          pnpm exec vitest run packages/ui/test/knowledgeTurnCitations.test.ts packages/ui/test/knowledgeCitationMarkdown.test.ts packages/ui/test/messageResponseKnowledgeCitation.test.ts packages/ui/test/messageCitationOpenIntegration.test.ts packages/ui/test/knowledgeCitationOpenFeedback.test.ts packages/ui/test/knowledgeEvidenceSendFailure.test.ts packages/ui/test/rootJwtInvalidBroadcastGate.test.ts
       - name: Obsidian source-to-receipt integration and CLI admission gate
         # The bootstrap handler imports @drora/contracts/dist at runtime. Run that
         # wiring suite in cli-build after its dependency closure has been built.
         # EC-2（e2e-a-2，2026-10-18 终审）修复：knowledgeChunkerTokenizer
         # （分词器虚词表回归）此前不在任何 CI 通道，追加进本清单。
-        run: node --import tsx --test packages/services/test/knowledgeE2EFullChain.test.ts packages/services/test/knowledgeIndexQuery.test.ts apps/drora-cli/packages/bootstrap/test/knowledge-evidence-gate.test.mjs packages/services/test/knowledgeReviewWritePath.test.ts packages/services/test/knowledgeReview.test.ts packages/services/test/obsidianVaultConfig.test.ts packages/services/test/knowledgeReceiptIsolation.test.ts packages/services/test/knowledgeReviewFreshApproval.test.ts packages/services/test/knowledgeReviewOwnership.test.ts packages/services/test/obsidianVaultAtomicCreate.test.ts packages/services/test/knowledgeChunkerTokenizer.test.ts
+        # B5（specs/obsidian-vault-plugin-extraction.md §10）：vault_neighbors 服务面
+        # 近邻测试与 CLI handler 契约测试（node:test 面）登记本清单。
+        # P3（specs/obsidian-vault-phase2-true-extraction.md §1-C10/§10-P3）：services
+        # knowledge/obsidian 测试随实现迁入 obsidian-plugin/test（迁后路径，逐文件
+        # HEAD 对照头注释），本清单同步改指；bootstrap/core/ui 条目不受影响。
+        # B7 对账（specs/obsidian-vault-plugin-extraction.md §10）登记补齐：node:test
+        # 面文件按契约（vitest.config.ts 头注释 / generate-drora-test-files.mjs）不进
+        # drora-test-files.json，其显式 CI 登记通道即本清单——此前 services knowledge
+        # 全集 25 个 node 面文件仅 11 个登记、14 个只靠保留集自动发现（无 CI 通道）；
+        # 此处补齐至全集，并把上方 vitest 行移出的 knowledgeAskModel /
+        # knowledgeEvidenceVerification 与同面的 knowledgeInsightsModel 一并登记。
+        run: >-
+          node --import tsx --test
+          apps/drora-cli/packages/obsidian-plugin/test/knowledgeE2EFullChain.test.ts
+          apps/drora-cli/packages/obsidian-plugin/test/knowledgeIndexQuery.test.ts
+          apps/drora-cli/packages/obsidian-plugin/test/knowledgeReviewWritePath.test.ts
+          apps/drora-cli/packages/obsidian-plugin/test/knowledgeReview.test.ts
+          apps/drora-cli/packages/obsidian-plugin/test/obsidianVaultConfig.test.ts
+          apps/drora-cli/packages/obsidian-plugin/test/knowledgeReceiptIsolation.test.ts
+          apps/drora-cli/packages/obsidian-plugin/test/knowledgeReviewFreshApproval.test.ts
+          apps/drora-cli/packages/obsidian-plugin/test/knowledgeReviewOwnership.test.ts
+          apps/drora-cli/packages/obsidian-plugin/test/obsidianVaultAtomicCreate.test.ts
+          apps/drora-cli/packages/obsidian-plugin/test/knowledgeChunkerTokenizer.test.ts
+          apps/drora-cli/packages/obsidian-plugin/test/knowledgeNeighbors.test.ts
+          apps/drora-cli/packages/obsidian-plugin/test/knowledgeAskUiFlow.test.ts
+          apps/drora-cli/packages/obsidian-plugin/test/knowledgeAutoIndex.test.ts
+          apps/drora-cli/packages/obsidian-plugin/test/knowledgeDecisionPipeline.test.ts
+          apps/drora-cli/packages/obsidian-plugin/test/knowledgeDecisionPolicy.test.ts
+          apps/drora-cli/packages/obsidian-plugin/test/knowledgeEmbeddingInput.test.ts
+          apps/drora-cli/packages/obsidian-plugin/test/knowledgeEvaluationHarness.test.ts
+          apps/drora-cli/packages/obsidian-plugin/test/knowledgeEvidence.test.ts
+          apps/drora-cli/packages/obsidian-plugin/test/knowledgeFtsColumns.test.ts
+          apps/drora-cli/packages/obsidian-plugin/test/knowledgeInsights.test.ts
+          apps/drora-cli/packages/obsidian-plugin/test/knowledgeLeaseFencing.test.ts
+          apps/drora-cli/packages/obsidian-plugin/test/knowledgeLocalEmbedding.test.ts
+          apps/drora-cli/packages/obsidian-plugin/test/knowledgeSemanticAccuracy.test.ts
+          apps/drora-cli/packages/obsidian-plugin/test/knowledgeVaultSearchProtocol.test.ts
+          apps/drora-cli/packages/obsidian-plugin/test/knowledgeVectorRecall.test.ts
       - name: Gen UI asset checkout integrity (autocrlf)
         run: node --test scripts/test/gen-ui-asset-checkout.test.mjs
       - name: Architecture boundaries (changed)
@@ -117,8 +166,11 @@ jobs:
           pnpm --dir "apps/drora-cli/packages/$pkg" run build || exit 1;
           done
         shell: bash
-      - name: Obsidian evidence session wiring (built CLI dependency closure)
-        run: node --import tsx --test apps/drora-cli/packages/bootstrap/test/evidence-session-wiring.test.mjs apps/drora-cli/packages/bootstrap/test/knowledge-user-input-provenance.test.mjs
+      - name: Obsidian evidence provenance (built CLI dependency closure)
+        # P7 本体清除（spec §1-C6/C8）：evidence-session-wiring（admission 复验 gate 接线）
+        # 随 CLI gate 拆除；保留 knowledge-user-input-provenance（投影/冷恢复消费端，
+        # 已改写为 P7 语义：新账本不持久化 refs、旧账本条目仍可投影、伪造形状 fail-closed）。
+        run: node --import tsx --test apps/drora-cli/packages/bootstrap/test/knowledge-user-input-provenance.test.mjs
       - name: S03 write-safety permission regressions
         run: >-
           node --import tsx --test

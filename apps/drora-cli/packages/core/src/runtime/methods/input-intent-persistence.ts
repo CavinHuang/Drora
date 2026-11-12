@@ -24,10 +24,9 @@ export function buildPersistedConversationInputIntent(
   return {
     ...(intent.inputOrigin ? { inputOrigin: intent.inputOrigin } : {}),
     ...(intent.conversationQuotes ? { conversationQuotes: intent.conversationQuotes } : {}),
-    // 只持久化已经过 CLI admission 校验的 opaque 回执（evidenceRefs）。冷恢复的溯源
-    // 只能从这份经 schema 校验的持久 intent 重建，绝不能从模型文本、来源标签或未验证
-    // 路径重建——否则 live 与 cold 会出现两套输入事实（见本文件头部不变量）。
-    ...(intent.evidenceRefs?.length ? { evidenceRefs: [...intent.evidenceRefs] } : {}),
+    // P7 本体清除（spec §1-C6）：evidenceRefs 持久化写入删除——新 intent 不再携带
+    // 证据引用（生产端写入路径全删）；旧持久化账本中的 refs 条目仍可被 schema 解析
+    // （wire 字段 deprecated 保留），并在冷恢复提升边界由 legacy 探测器拒绝。
     ...(intent.botGroupSource ? { botGroupSource: intent.botGroupSource } : {}),
     sourceCommandId: intent.sourceCommandId,
     queueItemId: intent.queueItemId,

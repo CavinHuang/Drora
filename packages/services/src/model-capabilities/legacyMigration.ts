@@ -11,11 +11,8 @@
  * 旧键物理清理走空补丁整写（见 deleteLegacySettingsKeys）。
  */
 import {
-  KNOWLEDGE_JEV_PROVIDERS,
   MODEL_CAPABILITIES_LEGACY_CREDENTIAL_KEYS,
   MODEL_CAPABILITIES_LEGACY_SETTINGS_KEYS,
-  modelCapabilityCredentialKey,
-  type KnowledgeJevProvider,
   type ModelCapabilities,
 } from "@drora/shared";
 import type { ICredentialService } from "../credential/credential.js";
@@ -45,12 +42,6 @@ function isNonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0;
 }
 
-function isJevProvider(value: unknown): value is KnowledgeJevProvider {
-  return (
-    typeof value === "string" && (KNOWLEDGE_JEV_PROVIDERS as readonly string[]).includes(value)
-  );
-}
-
 /** 旧 AppSettings 快照的宽松读取形状（批次一 schema 仍含 14 键；这里按 unknown 容错解析）。 */
 type LegacySettingsSnapshot = Record<string, unknown>;
 
@@ -69,37 +60,10 @@ function applyLegacySettings(
   capabilities: ModelCapabilities,
   settings: LegacySettingsSnapshot,
 ): void {
-  // --- decision-jev ---
-  const jevEnabled = readLegacySettings(settings, "knowledgeJevEnabled");
-  if (typeof jevEnabled === "boolean") {
-    capabilities["decision-jev"].enabled = jevEnabled;
-  }
-  const jevProvider = readLegacySettings(settings, "knowledgeJevProvider");
-  if (isJevProvider(jevProvider)) {
-    capabilities["decision-jev"].providerKind = jevProvider;
-  }
-  // baseUrl/modelId 按激活提供商取对应旧键（spec §3.3「对应激活时」）。
-  const activeKind = capabilities["decision-jev"].providerKind;
-  if (activeKind === "typesafe") {
-    const baseUrl = readLegacySettings(settings, "knowledgeJevBaseUrl");
-    if (isNonEmptyString(baseUrl)) capabilities["decision-jev"].baseUrl = baseUrl.trim();
-  } else if (activeKind === "openrouter") {
-    const baseUrl = readLegacySettings(settings, "knowledgeJevOpenrouterBaseUrl");
-    if (isNonEmptyString(baseUrl)) capabilities["decision-jev"].baseUrl = baseUrl.trim();
-    const model = readLegacySettings(settings, "knowledgeJevOpenrouterModel");
-    if (isNonEmptyString(model)) capabilities["decision-jev"].modelId = model.trim();
-  } else {
-    const baseUrl = readLegacySettings(settings, "knowledgeJevAiGatewayBaseUrl");
-    if (isNonEmptyString(baseUrl)) capabilities["decision-jev"].baseUrl = baseUrl.trim();
-    const model = readLegacySettings(settings, "knowledgeJevAiGatewayModel");
-    if (isNonEmptyString(model)) capabilities["decision-jev"].modelId = model.trim();
-  }
-
-  // --- embedding ---
-  const semanticEnabled = readLegacySettings(settings, "knowledgeSemanticEnabled");
-  if (typeof semanticEnabled === "boolean") {
-    capabilities.embedding.enabled = semanticEnabled;
-  }
+  // P7 本体清除（specs/obsidian-vault-phase2-true-extraction.md §1-C11，D8 建议值先行）：
+  // Jev 决策（7 旧键，见 shared MODEL_CAPABILITIES 注记）与本地语义（1 旧键）的旧值映射
+  // 随能力节点拆除**丢弃**——迁移注记：终裁若选「映射 userConfig」，由插件首启迁移
+  // 补批按 spec §1-C11 注记落点补齐；setting.json 残键由 schema strip 物理清除。
 
   // --- asr ---
   const asrEngine = readLegacySettings(settings, "voiceAsrEngine");
@@ -152,30 +116,15 @@ async function saveCredentialOrWarn(
 }
 
 /**
- * 旧凭据 → 新凭据键迁移（spec §3.3）：decision-jev 三键一一对应；
+ * 旧凭据 → 新凭据键迁移（spec §3.3；P7 后仅剩 voice 腿）：
  * voice:vendor:api-key 单键双写 asr + tts 同值。读到空值/读取失败 = 旧值缺失，跳过；
  * 只有对应新键全部写成功的旧键才进删除清单（任一写失败保留旧键待重试）。
+ * Jev 三旧凭据键随能力节点拆除不再迁移（D8 注记：值丢弃；键面见 shared 注记）。
  */
 async function migrateLegacyCredentials(
   credentialService: Pick<ICredentialService, "load" | "save">,
 ): Promise<string[]> {
   const keysToDelete: string[] = [];
-  for (const kind of KNOWLEDGE_JEV_PROVIDERS) {
-    const legacyKey = MODEL_CAPABILITIES_LEGACY_CREDENTIAL_KEYS.decisionJev[kind];
-    const value = await credentialService.load(legacyKey).catch(() => null);
-    if (!isNonEmptyString(value)) {
-      continue;
-    }
-    const saved = await saveCredentialOrWarn(
-      credentialService,
-      modelCapabilityCredentialKey.decisionJev(kind),
-      value.trim(),
-      legacyKey,
-    );
-    if (saved) {
-      keysToDelete.push(legacyKey);
-    }
-  }
   const legacyVoiceKey = MODEL_CAPABILITIES_LEGACY_CREDENTIAL_KEYS.voiceVendor;
   const voiceValue = await credentialService.load(legacyVoiceKey).catch(() => null);
   if (isNonEmptyString(voiceValue)) {
@@ -183,7 +132,7 @@ async function migrateLegacyCredentials(
     // 单键双写：asr 与 tts 都写成功才删旧键。已写入的一腿保留（同值双写，
     // 重试幂等覆盖），旧键保留保证任一腿失败时值不丢。
     // §13：voice 旧键值转存到自含键（selfContained.asr/tts），由 §13 迁移器
-    // 按 baseUrlOverride 自动建卡后删除；不再有 modelCapabilityCredentialKey.asr/tts。
+    // 按 baseUrlOverride 自动建卡后删除（P7 后本域已无运行时凭据键导出）。
     const asrSaved = await saveCredentialOrWarn(
       credentialService,
       MODEL_CAPABILITIES_LEGACY_CREDENTIAL_KEYS.selfContained.asr,

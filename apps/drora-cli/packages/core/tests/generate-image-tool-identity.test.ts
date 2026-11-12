@@ -47,8 +47,6 @@ const KNOWN_TABLE_EXEMPTIONS = new Set<string>([
   "OffPeakCreate",
   "OffPeakList",
   "DeferredToolCall",
-  // 已知渲染缺口，独立工单跟踪（core 侧 vaultSearchPort 传递链断裂一并处理）：
-  "VaultSearch",
 ]);
 
 describe("内置工具必须登记进 UI 已知工具表", () => {

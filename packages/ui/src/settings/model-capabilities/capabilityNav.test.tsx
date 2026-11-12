@@ -31,7 +31,7 @@ function mountNavigation() {
 }
 
 describe("「模型能力」导航分组（specs/model-capabilities.md §5.1）", () => {
-  it("第三分组 capabilities：五条目固定顺序 = 契约 purpose 顺序", () => {
+  it("第三分组 capabilities：条目固定顺序 = 契约 purpose 顺序（P7 后三条目）", () => {
     const { result } = mountNavigation();
     const groups = result.current.navigationGroups;
     expect(groups.map((group: ModelProviderNavGroup) => group.id)).toEqual([
@@ -56,11 +56,11 @@ describe("「模型能力」导航分组（specs/model-capabilities.md §5.1）"
 
   it("选中能力条目：side selection key 原样返回节点 key（无 family 归一）", () => {
     const item = {
-      key: createCapabilityNodeKey("decision-jev"),
+      key: createCapabilityNodeKey("asr"),
       type: "capability",
-      purpose: "decision-jev",
-      label: "知识评分",
+      purpose: "asr",
+      label: "语音识别",
     } as never as ModelProviderNavItem;
-    expect(resolveModelProviderSideSelectionKey(item)).toBe("capability:decision-jev");
+    expect(resolveModelProviderSideSelectionKey(item)).toBe("capability:asr");
   });
 });

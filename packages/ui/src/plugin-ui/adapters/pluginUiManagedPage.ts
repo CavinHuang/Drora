@@ -22,7 +22,7 @@ import type {
   McpUiAppCapabilities,
   McpUiHostContext,
 } from "@modelcontextprotocol/ext-apps/app-bridge";
-import type { PluginSandboxHandle } from "@drora/shared/mcp-apps";
+import type { McpAppsHostActionName, PluginSandboxHandle } from "@drora/shared/mcp-apps";
 import { buildPluginSandboxScopeId } from "@drora/shared/mcp-apps";
 import { clearPluginUiSurfaceFeed } from "../app/pluginUiSurfaceFeedStore.js";
 import {
@@ -46,6 +46,22 @@ import { pluginUiPages } from "./pluginUiPageRegistry.js";
 import { attachPluginUiResourceDeltaFeed } from "./pluginUiResourceDeltaFeed.js";
 type Platform = IPlatformService;
 type Services = IServiceAccessor;
+
+/**
+ * g9 `drora/openDirectoryPicker` 的解析：调用方注入优先；缺省回落平台
+ * `IPlatformService.selectDirectory`（spec §6：宿主 renderer 原生目录选择对话框；
+ * 现有平台签名无标题参数，title 仅作页面侧提示文案透传，不进对话框）。返回 undefined
+ * 表示本环境无目录选择能力（动作回 -32601），能力宣告同步裁剪、不对页面谎报。
+ */
+function resolveDirectoryPicker(
+  interactions: UsePluginUiHostInput["interactions"],
+  platform: Platform,
+): ((input: { title?: string }) => Promise<{ path: string | null }>) | undefined {
+  if (interactions?.onSelectDirectory) return interactions.onSelectDirectory;
+  if (typeof platform.selectDirectory === "function")
+    return () => platform.selectDirectory().then((path) => ({ path: path ?? null }));
+  return undefined;
+}
 export function createPage(
   key: string,
   input: UsePluginUiHostInput,
@@ -294,18 +310,32 @@ export function createPage(
       // widgetState 初值直接读宿主内存 store（唯一 owner），不经 props 再缓存一份；
       // 端口投递时才读；切换展示位置仍使用同一 guest 与内存状态。
       getWidgetState: () => getPluginUiWidgetState(surfaceKey),
-      getHostCapabilities: () =>
-        buildPluginUiHostCapabilities({
+      getHostCapabilities: () => {
+        // g9 白名单动作：只宣告真实接了 handler 的动作（声明与 handler 一一对应）。
+        // directoryPicker 是平台能力（IPlatformService.selectDirectory，桌面原生对话框），
+        // 与 UI 业务无关，页面管理器直接提供缺省实现；handoff/navigate 由调用方（侧栏/卡片模型）注入。
+        const hostActions: McpAppsHostActionName[] = [
+          ...(latest.current.interactions?.onOpenConversationHandoff
+            ? (["openConversationHandoff"] as const)
+            : []),
+          ...(resolveDirectoryPicker(latest.current.interactions, platform)
+            ? (["openDirectoryPicker"] as const)
+            : []),
+          ...(latest.current.interactions?.onNavigate ? (["navigate"] as const) : []),
+        ];
+        return buildPluginUiHostCapabilities({
           canSendFollowUpMessage: Boolean(latest.current.interactions?.onSendFollowUpMessage),
           canUpdateModelContext: Boolean(latest.current.interactions?.onUpdateModelContext),
           canSetWidgetState: true,
           canSample: Boolean(services?.pluginUiSamplingService && getPluginUiSessionActions(scope)),
           canSubscribeResources: true,
           canDownloadFile: Boolean(platformInteractions?.onDownloadFile),
+          ...(hostActions.length ? { hostActions } : {}),
           ...(scope.scope.kind === "surface"
             ? { surfaceId: scope.scope.surfaceId, surfaceStateKey }
             : {}),
-        }),
+        });
+      },
       ...platformInteractions,
       // 经 latest ref 转调，回调 identity 变化不触发 controller 重建；缺省回 -32601（端口层翻译成 ProtocolError）。
       onSendFollowUpMessage: (payload, context) =>
@@ -315,6 +345,19 @@ export function createPage(
       onUpdateModelContext: (payload) =>
         latest.current.interactions?.onUpdateModelContext
           ? latest.current.interactions.onUpdateModelContext(payload)
+          : Promise.reject(Object.assign(new Error("Not supported"), { code: -32601 })),
+      // g9 白名单动作：经 latest ref 转调（回调 identity 变化不触发 controller 重建）；
+      // directoryPicker 未被调用方覆盖时回落平台 selectDirectory（桌面原生目录对话框）。
+      onOpenConversationHandoff: (payload) =>
+        latest.current.interactions?.onOpenConversationHandoff
+          ? latest.current.interactions.onOpenConversationHandoff(payload)
+          : Promise.reject(Object.assign(new Error("Not supported"), { code: -32601 })),
+      onSelectDirectory: (input) =>
+        resolveDirectoryPicker(latest.current.interactions, platform)?.(input) ??
+        Promise.reject(Object.assign(new Error("Not supported"), { code: -32601 })),
+      onNavigate: (target) =>
+        latest.current.interactions?.onNavigate
+          ? latest.current.interactions.onNavigate(target)
           : Promise.reject(Object.assign(new Error("Not supported"), { code: -32601 })),
       onUpdateWidgetState: async (widgetState) => {
         setPluginUiWidgetState(surfaceKey, widgetState);
@@ -406,6 +449,11 @@ export function createPage(
     },
     busy: () => controller?.isBusy() ?? false,
     running: () => controller !== null || starting,
+    // g9 宿主→面板：controller 不在时（未 ensure / 已销毁）静默丢弃——openWith 是导航命令，
+    // 调用方（P5 citation 路由）约定「先打开面板 tab 再投递」，页面不存在属于路由序错误。
+    notifyOpenWith(payload) {
+      controller?.notifyOpenWith(payload);
+    },
     bind(node, sidebar) {
       const off = plane.bind({
         node,

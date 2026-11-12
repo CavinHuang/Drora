@@ -63,7 +63,8 @@ import { toast as droraToast } from "@/components/ui/toast.js";
 import { requestKnowledgeCitationOpen } from "@/lib/conversationSelectionReference.js";
 // ui-cite-a-2 修复（2026-10-18 终审）：下方 E2E 诊断投影的 hasManifest 原先手写
 // manifest 表头字面量，违反契约键单一出处——表头漂移时诊断判定会静默失效。
-import { KNOWLEDGE_SOURCE_MANIFEST_HEADER } from "@/lib/conversationKnowledgeSources.js";
+// P7 后唯一出处随消费端迁至 knowledgeTurnCitations（C5b 生产端已拆除）。
+import { KNOWLEDGE_SOURCE_MANIFEST_HEADER } from "@/v4/knowledgeTurnCitations.js";
 import { createKnowledgeCitationOpenFeedbackController } from "@/v4/knowledgeCitationOpenFeedback.js";
 import { HighspeedShareDialog } from "@/highspeed/HighspeedShareNoticeCard.js";
 import { isHighspeedShareEligible } from "@/highspeed/highspeedShare.js";

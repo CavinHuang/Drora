@@ -9,6 +9,7 @@ import {
   removePluginEnabledFromFileConfig,
   removePluginFromFileConfig,
   removeSuppressedBuiltinInFileConfig,
+  updateHostComponentsInFileConfig,
   updatePluginEnabledInFileConfig,
   updatePluginOptionsInFileConfig,
   type ConfigResult,
@@ -28,6 +29,7 @@ import {
   DEFAULT_ENABLED_OFFICIAL_PLUGIN_IDS,
   OFFICIAL_NODE_REPL_HOST_PLUGIN_NAME,
   OFFICIAL_PLUGIN_DEFINITIONS,
+  resolveOfficialPluginUninstallKeepData,
 } from "./app/official-plugin-definitions.js";
 import { getCliStorageRoot, getPluginStorageRoot } from "./app/paths.js";
 import { withPluginStorageLock } from "./lib/plugin-storage-lock.js";
@@ -149,7 +151,12 @@ export interface UninstallDroraMarketplacePluginOptions extends ResolveDroraPlug
   pluginName?: string;
   marketplace?: string;
   removeCache?: boolean;
-  /** 保留 data/<plugin-id> 用户数据目录（`drora plugins uninstall --keep-data`）。 */
+  /**
+   * 保留 data/<plugin-id> 用户数据目录（`drora plugins uninstall --keep-data`）。
+   * 未显式传时回落官方定义级 uninstallKeepData 默认（§6 D6-a：obsidian 等
+   * vault-config.json 所在数据目录随插件 id 推导的插件声明 true，重装零损失）；
+   * 显式传值优先于定义级默认，未声明定义维持全局「删数据目录」语义不变。
+   */
   keepData?: boolean;
 }
 
@@ -471,6 +478,42 @@ export async function setDroraPluginEnabled(
   };
 }
 
+export interface SetDroraHostComponentsEnabledOptions extends ResolveDroraPluginsOptions {
+  enabled: boolean;
+}
+
+export interface SetDroraHostComponentsEnabledResult {
+  enabled: boolean;
+  path: string;
+}
+
+/**
+ * 宿主能力开关落盘（specs/obsidian-vault-plugin-extraction.md §3 D1a，B1）：
+ * `plugins.hostComponents` 的唯一写路径（renderer 设置页 → RPC plugins/setHostComponentsEnabled
+ * → 本函数 → file-config 原子写），与 setDroraPluginEnabled 同链路（同 config 装载、同
+ * resolvePluginConfigPath 的 user 级路径、同 temp+rename 原子写）。重启生效，无热切换
+ * （§4.2 事件顺序）；无插件粒度寻址，不做 discover。
+ */
+export async function setDroraHostComponentsEnabled(
+  options: SetDroraHostComponentsEnabledOptions,
+): Promise<SetDroraHostComponentsEnabledResult> {
+  const workingDirectory = resolve(options.workingDirectory ?? process.cwd());
+  const configResult =
+    options.configResult ??
+    createConfig({
+      env: options.env,
+      projectConfigPath: options.projectConfigPath,
+      workingDirectory,
+      skipUserConfig: options.skipUserConfig,
+      userConfigPath: options.userConfigPath,
+    });
+  const patch = await updateHostComponentsInFileConfig(
+    resolvePluginConfigPath(options, configResult, workingDirectory),
+    options.enabled,
+  );
+  return { enabled: patch.enabled, path: patch.path };
+}
+
 export async function addDroraPluginMarketplace(
   options: AddDroraMarketplaceOptions,
 ): Promise<DroraMarketplaceSummaryData> {
@@ -770,7 +813,10 @@ export async function uninstallDroraMarketplacePlugin(
         pluginId,
         // 卸载语义即彻底清除：除非调用方显式传 removeCache=false，否则连缓存与 data 目录一起删。
         removeCache: options.removeCache ?? true,
-        keepData: options.keepData,
+        // keepData 解析（阶段二 §11-D6 升级为强制）：obsidian 声明 uninstallKeepData=true
+        // ——数据目录现含知识库（索引库/向量/审核账本）+ 嵌入模型，rm 即全库丢失，
+        // 显式 keepData:false 也不生效；未声明插件维持「显式参数优先，缺省 false（删）」。
+        keepData: resolveOfficialPluginUninstallKeepData(pluginId, options.keepData),
         storageRoot: pluginStorageRoot,
       });
       if (!removed) return null;
@@ -798,7 +844,10 @@ export async function uninstallDroraMarketplacePlugin(
       // 缓存；把 config 清理放在删除之前可保证「恢复时从干净状态开始」即便删除中途失败。
       await removePluginFromFileConfig(configResult.sources.user.path, pluginId);
       // 不删除官方 cache：它与 Marketplace Catalog 同属详情/恢复所需的只读资产。
-      if (options.keepData !== true) {
+      // keepData 合成口径与 installedRecord 分支一致（阶段二 §11-D6 强制语义）：
+      // obsidian 声明 true → 数据目录无条件留存（知识库+模型全在，恢复零损失），
+      // 显式 keepData:false 不生效；未声明定义维持「显式参数优先，缺省删」现状。
+      if (!resolveOfficialPluginUninstallKeepData(pluginId, options.keepData)) {
         await rm(getPluginDataDir(pluginStorageRoot, pluginId), { force: true, recursive: true });
       }
       const now = new Date().toISOString();
@@ -1231,6 +1280,11 @@ function toInstalledPluginData(
     installedAt: record.installedAt,
     componentTypes: loaded ? inferComponentTypesFromMetadata(loaded) : undefined,
     ...(loaded ? { hookDetails: loaded.hookDetails } : {}),
+    // §11-D6：声明卸载数据保留的插件（obsidian）把事实投影到已装摘要，卸载确认
+    // UI 据此明示「数据目录将保留」——提示与行为不允许各说各话。
+    ...(resolveOfficialPluginUninstallKeepData(record.id)
+      ? { uninstallKeepData: true }
+      : {}),
   };
 }
 

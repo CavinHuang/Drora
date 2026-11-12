@@ -5,12 +5,18 @@ import { resolve } from "node:path";
 // CLI 保留各包原生 runner；根 Vitest 的 discovery 不覆盖这些套件。
 // 任何失败都会令入口失败，已知上游失败仅记录在迁移证据中，不作自动豁免。
 const root = resolve(import.meta.dirname, "..");
+// 修复原因（2026-11-11，B1 gate 执行时发现）：3f8f2e63b 将 CLI 拆为独立 workspace
+// （根 pnpm-workspace.yaml 删除 CLI glob，"五处跨界 --filter 断点修复"漏了本入口第六处），
+// 从根 workspace 发现 CLI 包恒为空集。discovery 与逐包执行改在 apps/drora-cli
+// workspace 内进行（与 ci.yml 的 --dir apps/drora-cli 口径一致），过滤 glob 相应改为
+// ./packages/*；结果产物仍写在根目录 .drora-cli-test-results（既有消费路径不变）。
+const cliWorkspace = resolve(root, "apps", "drora-cli");
 const output = resolve(root, process.env.DRORA_CLI_TEST_OUTPUT ?? ".drora-cli-test-results");
 const pnpm = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
 const discovery = spawnSync(
   pnpm,
-  ["--filter", "./apps/drora-cli/packages/*", "list", "--depth", "-1", "--json"],
-  { cwd: root, encoding: "utf8", shell: process.platform === "win32" },
+  ["--filter", "./packages/*", "list", "--depth", "-1", "--json"],
+  { cwd: cliWorkspace, encoding: "utf8", shell: process.platform === "win32" },
 );
 if (discovery.status !== 0) throw new Error(discovery.stderr || "CLI workspace discovery failed");
 const packages = JSON.parse(discovery.stdout);
@@ -25,7 +31,7 @@ for (const pkg of packages) {
   process.stdout.write(`Testing ${pkg.name}\n`);
   let log = "";
   const child = spawn(pnpm, ["--filter", pkg.name, "test"], {
-    cwd: root,
+    cwd: cliWorkspace,
     env: process.env,
     shell: process.platform === "win32",
     stdio: ["ignore", "pipe", "pipe"],

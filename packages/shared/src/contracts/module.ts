@@ -12,5 +12,6 @@ export const sharedContractsModule = {
     "voice.ts",
     "persona.ts",
     "modelCapabilities.ts",
+    "pluginEnablement.ts",
   ],
 } as const;

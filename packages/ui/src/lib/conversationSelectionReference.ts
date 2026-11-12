@@ -32,10 +32,6 @@ export interface MarkdownSelectionReference extends ConversationSelectionText {
   contentType: "markdown";
   sourceKey: string;
   sourceTitle: string;
-  /** Renderer-only: opaque server-issued receipt; never serialize into the model-facing userselect block. */
-  evidenceReceiptId?: string;
-  /** Renderer-only numbered source label; never included in the model-facing userselect block. */
-  evidenceSource?: import("./conversationKnowledgeSources.js").KnowledgeDraftSource;
 }
 
 export type ConversationSelectionReference = MessageSelectionReference | MarkdownSelectionReference;
@@ -68,24 +64,27 @@ export type ConversationSelectionAppendResult =
   | { ok: false; reason: ConversationSelectionLimitReason };
 
 const ADD_EVENT = "drora:conversation-selection-add";
-const KNOWLEDGE_HANDOFF_EVENT = "drora:knowledge-agent-handoff";
 const KNOWLEDGE_CITATION_OPEN_EVENT = "drora:knowledge-citation-open";
 
 export type KnowledgeCitationOpenResult =
   | { ok: true }
-  | { ok: false; reason: "unavailable" | "stale" | "missing" | "forbidden" | "failed" };
+  | {
+      ok: false;
+      /** unavailable：插件面板不在场（未启用/投影缺席/bridge 缺席）——P7 后唯一空态终态。 */
+      reason: "unavailable" | "stale" | "missing" | "forbidden" | "failed";
+    };
 
 export interface KnowledgeCitationOpenEventDetail {
   targetSessionId: string;
   workspaceKey: string;
   receiptId: string;
-  /** Set immediately by exactly one active VaultView to acknowledge ownership. */
+  /** Set immediately by exactly one citation-open consumer to acknowledge ownership. */
   accepted: boolean;
-  /** Turns false on completion or timeout; async Vault handlers must check before navigation. */
+  /** Turns false on completion or timeout; async handlers must check before navigation. */
   isActive: () => boolean;
-  /** Claim a one-time wait while the matching workspace lazily mounts VaultView. */
+  /** Claim a one-time wait while the matching workspace lazily mounts the panel consumer. */
   deferUntilMounted: () => boolean;
-  /** Re-dispatch the same active request after VaultView installed its resolver listener. */
+  /** Re-dispatch the same active request after the consumer installed its resolver listener. */
   retryAfterMount: () => boolean;
   finish: (result: KnowledgeCitationOpenResult) => void;
 }
@@ -178,18 +177,6 @@ export function isKnowledgeCitationOpenEvent(
   return event.type === KNOWLEDGE_CITATION_OPEN_EVENT && event instanceof CustomEvent;
 }
 
-export type KnowledgeAgentHandoffResult =
-  | ConversationSelectionAppendResult
-  | { ok: false; reason: "unavailable" | "draft-not-empty" };
-
-export interface KnowledgeAgentHandoffEventDetail {
-  targetSessionId: string;
-  workspaceKey: string;
-  prompt: string;
-  references: readonly MarkdownSelectionReference[];
-  /** Synchronous acknowledgment from the session-scoped, mounted composer. */
-  result?: KnowledgeAgentHandoffResult;
-}
 const USER_SELECT_BLOCK_PATTERN = /(?:\n\n)?# userselect:\n```userselect\n([\s\S]*?)\n```\s*$/;
 const LEGACY_BLOCK_PATTERN =
   /(?:\n\n)?# Conversation selections:\n```drora-conversation-selections\n([\s\S]*?)\n```\s*$/;
@@ -256,21 +243,16 @@ function readPersistedReferenceScope(
     const persisted = (parsed as PersistedReferenceFile).scopes[sessionId ?? "__draft__"];
     if (!Array.isArray(persisted)) return null;
     // 形状守卫：只收 contentType/text 齐全的条目；坏存储整批丢弃（回落无引用态，
-    // 与旧行为一致，不抛错）。
-    // ui-lib-b-1 补强（2026-10-18 终审）：evidenceReceiptId / evidenceSource 是渲染器
-    // 私有可信元数据的入口，形状不符（number 化 receipt、字符串化 source 等）时不能
-    // 流入 manifest 校验与发送链——按条丢弃，与坏存储同处置。
+    // 与旧行为一致，不抛错）。P7 后 markdown 引用不再携带 evidenceReceiptId/
+    // evidenceSource（C5b 生产端拆除），历史存储中的残留字段按条丢弃。
     const references = persisted.filter(
       (item): item is ConversationSelectionReference =>
         typeof item === "object" &&
         item !== null &&
         typeof (item as { contentType?: unknown }).contentType === "string" &&
         typeof (item as { text?: unknown }).text === "string" &&
-        ((item as { evidenceReceiptId?: unknown }).evidenceReceiptId === undefined ||
-          typeof (item as { evidenceReceiptId?: unknown }).evidenceReceiptId === "string") &&
-        ((item as { evidenceSource?: unknown }).evidenceSource === undefined ||
-          (typeof (item as { evidenceSource?: unknown }).evidenceSource === "object" &&
-            (item as { evidenceSource?: unknown }).evidenceSource !== null)),
+        (item as { evidenceReceiptId?: unknown }).evidenceReceiptId === undefined &&
+        (item as { evidenceSource?: unknown }).evidenceSource === undefined,
     );
     return references.length > 0 ? references : [];
   } catch (error) {
@@ -399,18 +381,6 @@ export function appendConversationSelectionReference(
     (item) => getConversationSelectionDedupeKey(item) === key,
   );
   if (duplicateIndex !== -1) {
-    const existing = current[duplicateIndex];
-    // A reverified receipt must replace the stale one even when the visible quote is identical.
-    if (
-      reference.contentType === "markdown" &&
-      reference.evidenceReceiptId &&
-      existing?.contentType === "markdown" &&
-      existing.evidenceReceiptId !== reference.evidenceReceiptId
-    ) {
-      const next = [...current];
-      next[duplicateIndex] = reference;
-      return { ok: true, references: next, duplicate: false };
-    }
     return { ok: true, references: current, duplicate: true };
   }
   if (current.length >= CONVERSATION_SELECTION_MAX_COUNT) {
@@ -440,62 +410,12 @@ export function appendConversationSelectionReferences(
   return { ok: true, references: next, duplicate };
 }
 
-/**
- * Only an active composer can acknowledge this handoff. No session/global draft is mutated
- * when a target composer is absent, busy or already contains user-authored text.
- */
-export function requestKnowledgeAgentHandoff(
-  input: Omit<KnowledgeAgentHandoffEventDetail, "result">,
-): KnowledgeAgentHandoffResult {
-  const detail: KnowledgeAgentHandoffEventDetail = { ...input };
-  window.dispatchEvent(new CustomEvent(KNOWLEDGE_HANDOFF_EVENT, { detail }));
-  return detail.result ?? { ok: false, reason: "unavailable" };
-}
-
-export function isKnowledgeAgentHandoffEvent(
-  event: Event,
-): event is CustomEvent<KnowledgeAgentHandoffEventDetail> {
-  return event.type === KNOWLEDGE_HANDOFF_EVENT && event instanceof CustomEvent;
-}
-
-export function getKnowledgeAgentHandoffEventName(): string {
-  return KNOWLEDGE_HANDOFF_EVENT;
-}
-
-/** Commit an already preflighted set of refs and notify the existing selection hook once. */
-export function commitKnowledgeAgentHandoff(
-  input: KnowledgeAgentHandoffEventDetail,
-  result: Extract<ConversationSelectionAppendResult, { ok: true }>,
-): void {
-  setConversationSelectionReferenceScope(
-    input.targetSessionId,
-    input.workspaceKey,
-    result.references,
-  );
-  window.dispatchEvent(
-    new CustomEvent(ADD_EVENT, {
-      detail: {
-        targetSessionId: input.targetSessionId,
-        workspaceKey: input.workspaceKey,
-        reference: input.references[0],
-        result,
-      },
-    }),
-  );
-}
-
-/** Read the only trusted receipt identifiers from frozen composer selections; ordinary quotes carry none. */
-export function collectConversationEvidenceRefs(
-  references: readonly ConversationSelectionReference[],
-): Array<{ receiptId: string }> {
-  const receipts = new Set<string>();
-  for (const ref of references) {
-    if (ref.contentType === "markdown" && ref.evidenceReceiptId) {
-      receipts.add(ref.evidenceReceiptId);
-    }
-  }
-  return [...receipts].map((receiptId) => ({ receiptId }));
-}
+// P7 本体清除（specs/obsidian-vault-phase2-true-extraction.md §1-C5b/C6）：
+// drora:knowledge-agent-handoff 窗口事件与 collectConversationEvidenceRefs
+// （发送链 evidenceRefs 生产端）已随 VaultView 生产面拆除——插件面板的 handoff 走
+// g9 `drora/openConversationHandoff`（pluginUiModelContext 既有通道），发送链不再
+// 携带 wire 证据引用（evidenceRefs 字段 deprecated，旧账本带 refs 条目由 CLI
+// legacy 探测器 fail-closed 拒绝）。
 
 export function parsePromptConversationSelections(text: string): {
   visibleContent: string;

@@ -2,8 +2,10 @@
  * 模型能力档案服务单测（specs/model-capabilities.md §4 / MC-1、MC-4 可单测部分）。
  *
  * 断言：update → 档案原子落盘 → onDidChange 收到新快照；条目浅合并不清空兄弟字段；
- * 凭据写删走 ICredentialService（null/空串=删除，ApiKeyRow 语义）；坏 JSON 启动
- * 降级为全默认 + 按内容确定性备份原文件（fail-closed，各能力默认关闭）。
+ * 坏 JSON 启动降级为全默认 + 按内容确定性备份原文件（fail-closed，各能力默认关闭）。
+ * P7 本体清除（specs/obsidian-vault-phase2-true-extraction.md §1-C11）：Jev 决策与
+ * 本地语义嵌入两节点随 knowledge 栈迁插件拆除——凭据补丁面（credentials）随
+ * decision-jev 分键拆除，本测试只剩档案面三条目（asr/tts/image-generation）。
  */
 import assert from "node:assert/strict";
 import { existsSync, readdirSync } from "node:fs";
@@ -13,7 +15,6 @@ import { join } from "node:path";
 import { afterEach, it } from "vitest";
 import {
   MODEL_CAPABILITIES_FILE_NAME,
-  modelCapabilityCredentialKey,
   type ModelCapabilitiesFile,
 } from "@drora/shared";
 import { setDataBaseDir } from "../src/paths.js";
@@ -79,49 +80,39 @@ afterEach(async () => {
   }
 });
 
-it("MC-1：首启无档案 → get 迁移落盘全默认（标记 true）；update → 原子落盘 + onDidChange 新快照 + 凭据写入", async () => {
+it("MC-1：首启无档案 → get 迁移落盘全默认（标记 true）；update → 原子落盘 + onDidChange 新快照", async () => {
   const root = await makeRoot();
-  const { service, credentials } = createService();
+  const { service } = createService();
   const received: ModelCapabilitiesFile[] = [];
   service.onDidChange((snapshot) => received.push(snapshot));
 
   const initial = await service.get();
   assert.equal(initial.migratedFromLegacySettings, true, "首次初始化即写迁移标记");
-  assert.equal(initial.capabilities["decision-jev"].enabled, false);
+  assert.equal(initial.capabilities.asr.engine, "webSpeech");
   assert.ok(existsSync(archivePath(root)), "迁移应落盘档案文件");
 
   const updated = await service.update({
     capabilities: {
-      "decision-jev": {
-        enabled: true,
-        providerKind: "openrouter",
+      asr: {
+        engine: "remote",
         // 档案按原样持久化（spec §3.2 schema 无 trim transform）；消费方解析时
-        // trim（jevAssembly normalizeBaseURL，knowledgeJevAssembly.test.ts K-JEV-9 已覆盖）。
-        baseUrl: "https://or.example/api",
-        modelId: "typesafe/jev-latest",
+        // trim（与语音适配器既有语义一致）。
+        providerRef: "custom:asr",
+        modelId: "asr-model-1",
+        baseUrlOverride: "https://asr.example/api",
       },
     },
-    credentials: {
-      decisionJev: { providerKind: "openrouter", value: " sk-or " },
-    },
   });
-  assert.equal(updated.capabilities["decision-jev"].enabled, true);
-  assert.equal(updated.capabilities["decision-jev"].baseUrl, "https://or.example/api");
+  assert.equal(updated.capabilities.asr.engine, "remote");
+  assert.equal(updated.capabilities.asr.baseUrlOverride, "https://asr.example/api");
 
   const onDisk = JSON.parse(await readFile(archivePath(root), "utf-8")) as ModelCapabilitiesFile;
-  assert.equal(onDisk.capabilities["decision-jev"].providerKind, "openrouter");
+  assert.equal(onDisk.capabilities.asr.providerRef, "custom:asr");
   assert.equal(onDisk.capabilities["image-generation"].enabled, false, "未触及条目保持默认");
   assert.equal(onDisk.migratedFromLegacySettings, true);
 
-  assert.equal(
-    credentials.store.get(modelCapabilityCredentialKey.decisionJev("openrouter")),
-    "sk-or",
-    "凭据写入（trim）且不进档案文件",
-  );
-  assert.equal(JSON.stringify(onDisk).includes("sk-or"), false, "apiKey 不得进档案文件");
-
   assert.equal(received.length, 1, "update 触发一次广播");
-  assert.equal(received[0].capabilities["decision-jev"].enabled, true);
+  assert.equal(received[0].capabilities.asr.engine, "remote");
 });
 
 it("MC-1：条目浅合并——补丁只覆盖给定字段，兄弟字段与其余条目不动", async () => {
@@ -142,33 +133,7 @@ it("MC-1：条目浅合并——补丁只覆盖给定字段，兄弟字段与其
   assert.equal(updated.capabilities.tts.providerRef, "custom:tts");
   assert.equal(updated.capabilities.tts.voice, "alloy");
   assert.equal(updated.capabilities["image-generation"].modelId, "cogview");
-  assert.equal(updated.capabilities["decision-jev"].enabled, false, "其余条目不动");
-});
-
-it("MC-1：凭据留空保存即删除（ApiKeyRow 语义）；纯凭据更新也广播", async () => {
-  await makeRoot();
-  const { service, credentials } = createService();
-  const jevKey = modelCapabilityCredentialKey.decisionJev("typesafe");
-  const orKey = modelCapabilityCredentialKey.decisionJev("openrouter");
-  await service.update({
-    credentials: {
-      decisionJev: { providerKind: "typesafe", value: "sk-jev" },
-    },
-  });
-  await service.update({
-    credentials: {
-      decisionJev: { providerKind: "openrouter", value: "sk-or" },
-    },
-  });
-  assert.equal(credentials.store.get(jevKey), "sk-jev");
-  assert.equal(credentials.store.get(orKey), "sk-or", "providerKind 分键互不影响");
-
-  const received: ModelCapabilitiesFile[] = [];
-  service.onDidChange((snapshot) => received.push(snapshot));
-  await service.update({ credentials: { decisionJev: { providerKind: "typesafe", value: "" } } });
-  assert.equal(credentials.store.has(jevKey), false, "空串删除该 providerKind 键");
-  assert.equal(credentials.store.get(orKey), "sk-or", "兄弟 providerKind 键不受影响");
-  assert.equal(received.length, 1, "纯凭据变更也触发广播");
+  assert.equal(updated.capabilities.asr.engine, "webSpeech", "其余条目不动");
 });
 
 it("MC-1：坏 JSON → 备份原文件 + 降级全默认（fail-closed），不阻断读路径", async () => {
@@ -180,8 +145,8 @@ it("MC-1：坏 JSON → 备份原文件 + 降级全默认（fail-closed），不
 
   const { service } = createService();
   const snapshot = await service.get();
-  assert.equal(snapshot.capabilities["decision-jev"].enabled, false, "降级全默认");
-  assert.equal(snapshot.capabilities.embedding.enabled, false);
+  assert.equal(snapshot.capabilities.asr.engine, "webSpeech", "降级全默认");
+  assert.equal(snapshot.capabilities.tts.engine, "system");
 
   const backups = readdirSync(join(root, ".drora", "v2")).filter((name) =>
     /\.corrupt-[0-9a-f]+\.bak$/.test(name),

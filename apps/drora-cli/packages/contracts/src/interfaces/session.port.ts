@@ -435,10 +435,12 @@ export interface TurnInputIntentMetadata {
     context_id: string;
   }>;
   /**
-   * VaultView Evidence 引用（W03 / specs/obsidian-knowledge.md §5.3）：opaque receiptId
-   * 集合，admission 时从 sendText payload 固定；sendQueuedNow 提升时由 CLI gate 按
-   * 同一组 refs 执行时复验（排队期间改文件/撤权/切库 → 旧 evidence 不当 current）。
-   * 形状单一出处 = @drora/shared KnowledgeEvidenceRef。
+   * @deprecated P7 本体清除（specs/obsidian-vault-phase2-true-extraction.md §1-C6）：
+   * 旧 VaultView Evidence 引用（W03）。生产端写入路径已全删；字段定义保留仅为
+   * 解析旧持久化账本（删定义会使 .strict() 硬解析失败、破坏会话恢复）。旧账本
+   * 携带 refs 的条目由 CLI intent 层 D9 legacy 探测器拒绝
+   * （legacy_evidence_unverifiable，fail-closed）。形状单一出处 =
+   * @drora/shared KnowledgeEvidenceRef（deprecated wire 兼容区）。
    */
   evidenceRefs?: Array<KnowledgeEvidenceRef>;
   /** edit/retry 重建的新 command 对原始 canonical input cause 的稳定追溯。 */

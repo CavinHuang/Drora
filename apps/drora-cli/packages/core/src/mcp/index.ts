@@ -200,7 +200,13 @@ export function createMcpToolEntry(
     outputSchema: McpToolOutputJsonSchema,
     metadata: {
       shouldDefer: true,
-      alwaysLoad: descriptor.alwaysLoad,
+      // g3（specs/obsidian-vault-phase2-true-extraction.md §4/§6/§10-P2）：manifest 工具级
+      // `deferred: true` 声明压过常驻声明——isDeferredTool 先判 alwaysLoad!==true 再看
+      // shouldDefer，因此这里把该工具的 alwaysLoad 归零，使其进入 tool-search「先公告、
+      // 按需加载 schema」集合（deferred-eligible 语义）。优先级：manifest 工具级
+      // deferred > 工具 _meta anthropic/alwaysLoad / server 级 alwaysLoad > 缺省（MCP 工具
+      // 缺省即 deferred-eligible）。未声明时行为与 v3.16.1 上游语义完全一致。
+      alwaysLoad: descriptor.deferred === true ? false : descriptor.alwaysLoad,
       searchHint: descriptor.searchHint,
       concurrentSafe: readOnly || descriptor.annotations?.idempotentHint === true,
       destructive,

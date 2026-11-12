@@ -755,6 +755,7 @@ function PluginList({
               : ""
           }
           pending={uninstall.uninstalling}
+          keepData={uninstall.pendingKeepsData}
           onCancel={uninstall.cancelUninstall}
           onConfirm={() => void uninstall.confirmUninstall()}
         />
@@ -912,6 +913,7 @@ function PluginList({
             : ""
         }
         pending={uninstall.uninstalling}
+          keepData={uninstall.pendingKeepsData}
         onCancel={uninstall.cancelUninstall}
         onConfirm={() => void uninstall.confirmUninstall()}
       />

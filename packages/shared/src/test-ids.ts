@@ -536,13 +536,16 @@ export const TID_MODEL_PROVIDER_MODEL_DELETE_BUTTON = "model-provider-model-dele
 export const TID_MODEL_PROVIDER_ADD_MODEL_BUTTON = "model-provider-add-model-button";
 
 // Model Capabilities（模型能力档案设置，specs/model-capabilities.md §5.1/§5.2）
-/** 模型能力左侧导航条目（动态后缀为 capability node key，如 decision-jev） */
+// P7 本体清除（specs/obsidian-vault-phase2-true-extraction.md §1-C11）：知识评分
+//（连接测试按钮）与语义嵌入（下载按钮）两条目 test-id 随表单拆除；注释中的
+// decision/embedding 示例后缀同步改为现存条目。
+/** 模型能力左侧导航条目（动态后缀为 capability node key，如 asr） */
 export const TID_MODEL_CAPABILITY_NAV_ITEM = "model-capability-nav-item";
 /** 模型能力条目 API Key 输入框 */
 export const TID_MODEL_CAPABILITY_API_KEY_INPUT = "model-capability-api-key-input";
 /** 模型能力条目 API Key 保存按钮（留空保存即删除） */
 export const TID_MODEL_CAPABILITY_API_KEY_SAVE_BUTTON = "model-capability-api-key-save-button";
-/** 模型能力条目 baseUrl 输入框（动态后缀为条目名，如 asr / tts / decision-jev / image-generation） */
+/** 模型能力条目 baseUrl 输入框（动态后缀为条目名，如 asr / tts / image-generation） */
 export const TID_MODEL_CAPABILITY_BASE_URL_INPUT = "model-capability-base-url-input";
 /** 模型能力条目 baseUrl 行内警告（连接区 https 校验） */
 export const TID_MODEL_CAPABILITY_BASE_URL_WARNING = "model-capability-base-url-warning";
@@ -551,16 +554,10 @@ export const TID_MODEL_CAPABILITY_MODEL_INPUT = "model-capability-model-input";
 
 /** §13 供应商引用下拉（asr/tts/image-generation 条目）。 */
 export const TID_MODEL_CAPABILITY_PROVIDER_SELECT = "model-capability-provider-select";
-/** 模型能力条目开关（动态后缀为条目名，如 decision-jev / embedding / image-generation） */
+/** 模型能力条目开关（动态后缀为条目名，如 asr / image-generation） */
 export const TID_MODEL_CAPABILITY_TOGGLE = "model-capability-toggle";
 /** 模型能力条目引擎下拉触发器（动态后缀为 asr / tts） */
 export const TID_MODEL_CAPABILITY_ENGINE_SELECT = "model-capability-engine-select";
-/** 知识评分连接测试按钮 */
-export const TID_MODEL_CAPABILITY_TEST_CONNECTION_BUTTON =
-  "model-capability-test-connection-button";
-/** 语义嵌入模型下载/重试按钮（动态后缀为 action / retry） */
-export const TID_MODEL_CAPABILITY_EMBEDDING_DOWNLOAD_BUTTON =
-  "model-capability-embedding-download-button";
 /** §15 语音合成音色下拉（火山厂商变形行，动态后缀为条目名 tts） */
 export const TID_MODEL_CAPABILITY_VOICE_SELECT = "model-capability-voice-select";
 /** §15 语音合成模型下拉（内置厂商 models 预设，动态后缀为条目名 tts） */

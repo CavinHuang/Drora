@@ -195,16 +195,8 @@ import { PptxElementReferenceChip } from "@/v4/composer/PptxElementReferenceChip
 import { useOpenPptxElementReference } from "@/v4/composer/useOpenPptxElementReference.js";
 import type { CodeViewerSource } from "@/lib/codeViewer.js";
 import { useConversationSelectionReferences } from "@/v4/composer/useConversationSelectionReferences.js";
-import { validateKnowledgeSourceManifest } from "@/lib/conversationKnowledgeSources.js";
 import {
-  appendConversationSelectionReferences,
-  collectConversationEvidenceRefs,
-  commitKnowledgeAgentHandoff,
-  getConversationSelectionReferenceScope,
-  getKnowledgeAgentHandoffEventName,
-  isKnowledgeAgentHandoffEvent,
   requestKnowledgeCitationOpen,
-  setConversationSelectionReferenceScope,
   type ConversationSelectionReference,
 } from "@/lib/conversationSelectionReference.js";
 import { ConversationBackgroundWorkTrigger } from "@/v4/composer/ConversationBackgroundWorkTrigger.js";
@@ -247,8 +239,6 @@ export interface ConversationComposerSendOptions {
   /** Prompt 文本内携带的上下文附件数量；用于阻止 /goal 等本地命令误消费。 */
   contextAttachmentCount?: number;
   conversationQuotes?: import("@drora/shared").ConversationSelectionText[];
-  /** Opaque trusted citations travel beside (never inside) model-facing userselect quotes. */
-  evidenceRefs?: Array<{ receiptId: string }>;
   /** renderer-only：ACK accepted 后由 SessionPane 绑定真实 commandId/sessionId。 */
   telemetrySeed?: ConversationPromptTelemetrySeed;
   /** 本次 busy input 的一次性投递覆盖，不改 session 偏好。 */
@@ -782,13 +772,10 @@ function ConversationComposerImpl({
   const [sendTooltipOpen, setSendTooltipOpen] = useState(false);
   // submit 经 ref 读取最新文本/pending，避免回调随每次输入变更引用。
   const textRef = useRef("");
-  // R6 来源清单守卫（PF13，specs/agent-write-safety.md）：mismatch 布尔由 updateText
-  // （文本汇聚点）与渲染期 reconcile（引用 chip 增删）两条路径共同维护；ref 去重，
-  // 只在结果翻转时 setState，与 reloadText 同款窄派生布尔模式。
-  const [knowledgeSourceMismatch, setKnowledgeSourceMismatch] = useState(false);
-  const knowledgeSourceMismatchRef = useRef(false);
-  // updateText 在事件/命令期执行时读不到 hook 返回值，经该 ref 取最新可信引用。
-  const conversationSelectionReferencesRef = useRef<readonly ConversationSelectionReference[]>([]);
+  // P7 本体清除（specs/obsidian-vault-phase2-true-extraction.md §1-C5b）：R6 来源清单
+  // 守卫（knowledgeSourceMismatch / validateKnowledgeSourceManifest）与 handoff 事件
+  // 链随 VaultView 生产端拆除——插件面板 handoff 走 g9 openConversationHandoff 通道，
+  // 发送链不再携带 evidenceRefs（wire 字段 deprecated，写入路径全删）。
   const contentRevisionRef = useRef(0);
   const pendingRef = useRef(false);
   const uiStore = useContext(StoreContext);
@@ -822,26 +809,9 @@ function ConversationComposerImpl({
   // 40px 编辑区并覆盖工具栏。手机端改用短文案并限制两行；桌面端继续保留完整提示。
   const compactMobilePlaceholder = isWebRemoteControl && isMobileTextInputViewport;
   const sendShortcut = resolveChatEnterShortcut({ enterSubmits });
-  // 根因修复（R6 G26 回归，v3.16.1→v3.17.1 合并）：上游把整段正文 state 换成
-  // textPresence 布尔（避免每次按键重渲染）后，编辑草稿不再触发任何重渲染，原先
-  // 仅在渲染期从 textRef 计算的 mismatch 会冻结在上一次渲染的值——删除/篡改来源
-  // 行后告警与发送禁用永不出现。守卫布尔改在 updateText（全仓唯一文本汇聚点：
-  // 键入/handoff/草稿恢复/外部插入均经此）内同步复验，且只在结果翻转时 setState；
-  // 引用 chip 增删仍由渲染期 reconcile（见 knowledgeSourceMismatch 计算处）兜底。
-  // 保持上游「按键不重渲染」的性能意图：校验是 O(草稿行数) 字符串比对，不翻转不渲染。
-  const revalidateKnowledgeSourceManifest = useCallback((text: string) => {
-    const mismatch =
-      validateKnowledgeSourceManifest(text, conversationSelectionReferencesRef.current) ===
-      "mismatch";
-    if (knowledgeSourceMismatchRef.current !== mismatch) {
-      knowledgeSourceMismatchRef.current = mismatch;
-      setKnowledgeSourceMismatch(mismatch);
-    }
-  }, []);
   const updateText = useCallback(
     (next: string) => {
       textRef.current = next;
-      revalidateKnowledgeSourceManifest(next);
       const reload = next.trim() === "/reload";
       if (reloadTextRef.current !== reload) {
         reloadTextRef.current = reload;
@@ -860,7 +830,7 @@ function ConversationComposerImpl({
       }
       onTextChange?.(next);
     },
-    [onTextChange, revalidateKnowledgeSourceManifest, workspaceIdentity, workspacePath],
+    [onTextChange, workspaceIdentity, workspacePath],
   );
 
   const initialization = snapshot?.runtimeInitialization;
@@ -1008,8 +978,6 @@ function ConversationComposerImpl({
     draftScopeKey: rootDraftScopeKey,
   });
   const hasConversationSelectionReferences = conversationSelectionReferences.length > 0;
-  // updateText 在事件/命令期执行时经该 ref 读最新可信引用；渲染期同步（snapshotRef 同款）。
-  conversationSelectionReferencesRef.current = conversationSelectionReferences;
   const openKnowledgeCitation = useCallback(
     async (receiptId: string): Promise<void> => {
       if (!sessionId) return;
@@ -1394,85 +1362,10 @@ function ConversationComposerImpl({
     updateText,
   ]);
 
-  // Obsidian ANSWER/COMPARE: trusted references + original question are one scoped,
-  // synchronous user-triggered handoff. Never overwrite a pre-existing user draft.
-  useEffect(() => {
-    if (!listenAddToChatEvents || disabled || !sessionId || typeof window === "undefined") return;
-    const handleKnowledgeHandoff = (event: Event) => {
-      if (!isKnowledgeAgentHandoffEvent(event)) return;
-      const detail = event.detail;
-      if (
-        detail.result ||
-        detail.targetSessionId !== sessionId ||
-        detail.workspaceKey !== workspaceKey
-      )
-        return;
-      const inputApi = inputApiRef.current;
-      if (
-        !inputApi ||
-        !detail.prompt.trim() ||
-        detail.references.length === 0 ||
-        detail.references.some((ref) => ref.contentType !== "markdown" || !ref.evidenceReceiptId)
-      ) {
-        detail.result = { ok: false, reason: "unavailable" };
-        return;
-      }
-      if (
-        textRef.current.trim() ||
-        inputApi.getMarkdown().trim() ||
-        hasAttachments ||
-        hasCodeCommentContexts ||
-        hasWebElementContexts ||
-        hasPptxElementReferences ||
-        hasPluginUiContexts ||
-        pendingShareContext ||
-        getConversationSelectionReferenceScope(sessionId, workspaceKey).length > 0
-      ) {
-        detail.result = { ok: false, reason: "draft-not-empty" };
-        return;
-      }
-      // ui-cite-a-3 修复（2026-10-18 终审）：handoff 是「文本 + 引用 scope」两半一次事务。
-      // 此前 append 成功后若 setText/updateText/commit 任一抛错（如 commit 在
-      // setConversationSelectionReferenceScope 之后、事件分发之前失败），已写入的 receipt
-      // 引用会残留成孤儿——与后续草稿混用触发 manifest mismatch，并因 scope 非空把之后的
-      // handoff 全部拒成 draft-not-empty。失败路径统一恢复 append 前快照，保证一致回退。
-      const scopeBeforeAppend = getConversationSelectionReferenceScope(sessionId, workspaceKey);
-      const appended = appendConversationSelectionReferences(scopeBeforeAppend, detail.references);
-      if (!appended.ok) {
-        detail.result = appended;
-        return;
-      }
-      try {
-        // preflight all refs before changing either the prompt or the selection scope.
-        inputApi.setText(detail.prompt);
-        updateText(detail.prompt);
-        scheduleDraftPersist();
-        commitKnowledgeAgentHandoff(detail, appended);
-        detail.result = appended;
-        requestComposerFocus();
-      } catch {
-        setConversationSelectionReferenceScope(sessionId, workspaceKey, scopeBeforeAppend);
-        detail.result = { ok: false, reason: "unavailable" };
-      }
-    };
-    window.addEventListener(getKnowledgeAgentHandoffEventName(), handleKnowledgeHandoff);
-    return () =>
-      window.removeEventListener(getKnowledgeAgentHandoffEventName(), handleKnowledgeHandoff);
-  }, [
-    disabled,
-    hasAttachments,
-    hasCodeCommentContexts,
-    hasWebElementContexts,
-    hasPptxElementReferences,
-    hasPluginUiContexts,
-    listenAddToChatEvents,
-    pendingShareContext,
-    requestComposerFocus,
-    scheduleDraftPersist,
-    sessionId,
-    updateText,
-    workspaceKey,
-  ]);
+  // P7 本体清除（specs/obsidian-vault-phase2-true-extraction.md §1-C5b）：Obsidian
+  // ANSWER/COMPARE 的 drora:knowledge-agent-handoff 窗口事件监听随 VaultView 生产端
+  // 拆除——插件面板的「交给 Agent」经 g9 openConversationHandoff 走 pluginUiModelContext
+  // 既有通道（plugin-ui/adapters/pluginUiModelContextEvents），不再进本组件。
 
   // 新建任务（含已在草稿态重复 Cmd/Ctrl+N，scope 未变）：startDraft 递增 nonce 即重新聚焦。
   const lastFocusVersionRef = useRef(draftFocusVersion);
@@ -1531,20 +1424,6 @@ function ConversationComposerImpl({
   const canStop = Boolean(snapshot?.control.canStop);
   const modifiedEnterReversesDelivery = modifiedEnterSubmits && canStop;
   const hasText = textPresence.trimmed;
-  // 上游 v3.17.1 把整段正文 state 换成 textPresence 布尔（避免每次按键重渲染）；
-  // Drora 的知识来源清单校验需要实际正文。textPresence 只在「空↔非空」时变化，
-  // 篡改/删除来源行这类「非空→非空」编辑不触发重渲染，因此守卫布尔的翻转主体在
-  // updateText（见 revalidateKnowledgeSourceManifest）；此处渲染期 reconcile 只覆盖
-  // 「引用 chip 增删」这类必然重渲染的输入变化（此时 textRef 已是最新），与
-  // configPickerState 同款渲染期调整模式。提交边界的强校验在下方用 Lexical 快照
-  // 独立执行，不依赖此处。
-  const knowledgeSourceMismatchExpected =
-    validateKnowledgeSourceManifest(textRef.current, conversationSelectionReferences) ===
-    "mismatch";
-  if (knowledgeSourceMismatchRef.current !== knowledgeSourceMismatchExpected) {
-    knowledgeSourceMismatchRef.current = knowledgeSourceMismatchExpected;
-    setKnowledgeSourceMismatch(knowledgeSourceMismatchExpected);
-  }
   const hasDraftToSubmit =
     hasText ||
     hasAttachments ||
@@ -1597,7 +1476,6 @@ function ConversationComposerImpl({
       (routingAllowsSend &&
         attachmentsReady &&
         submissionReady &&
-        !knowledgeSourceMismatch &&
         !runtimeBlocked));
   // 旧 UI 状态机：streaming + 空草稿 → Stop；有草稿 → 发送键（入队）。
   const showStopControl = canStop && !hasDraftToSubmit;
@@ -1631,11 +1509,6 @@ function ConversationComposerImpl({
       const currentConversationSelections = conversationSelectionReferences;
       const hasPendingConversationSelections = currentConversationSelections.length > 0;
       const submittedShareContext = pendingShareContext;
-      // This runs again at the actual submit boundary, not just as a disabled
-      // button state. Enter/queue confirmations must not bypass the source map.
-      if (validateKnowledgeSourceManifest(trimmed, currentConversationSelections) === "mismatch") {
-        return;
-      }
       // /reload 是本地操作，在模型配置、队列和消息历史处理之前截获；参数和附件不发给模型。
       if (/^\/reload(?:\s|$)/.test(trimmed)) {
         if (
@@ -1933,23 +1806,16 @@ function ConversationComposerImpl({
           ...(currentConversationSelections.length
             ? {
                 conversationQuotes: currentConversationSelections.map(
-                  ({ text, path, senderName, senderId, messageId, sentAt, evidenceReceiptId }) => ({
+                  ({ text, path, senderName, senderId, messageId, sentAt }) => ({
                     text,
                     path,
                     senderName,
                     senderId,
                     messageId,
                     sentAt,
-                    // 可信 Markdown 引用携带收据绑定（D-2）：完成态读取端据此把可信
-                    // 引用与普通选区分开，混合输入不再整组丢引用。收据只进结构化
-                    // quote 元数据，不进模型可见提示词。
-                    evidenceReceiptId,
                   }),
                 ),
               }
-            : {}),
-          ...(currentConversationSelections.length
-            ? { evidenceRefs: collectConversationEvidenceRefs(currentConversationSelections) }
             : {}),
           telemetrySeed,
           onCommandCreated: subscribeToCommandResolution,
@@ -3013,15 +2879,6 @@ function ConversationComposerImpl({
             </ComposerSubmissionPendingContext.Provider>
           </div>
         ) : null}
-        {knowledgeSourceMismatch ? (
-          <div
-            role="alert"
-            data-testid="knowledge-source-manifest-mismatch"
-            className="relative z-10 mb-2 w-full rounded-lg border border-[var(--color-warning)]/30 bg-[var(--color-warning)]/10 px-3 py-2 text-ui-base text-foreground"
-          >
-            {intl.formatMessage({ id: "chat.selections.evidenceSourceMismatch" })}
-          </div>
-        ) : null}
         {conversationSelectionLimitReason ? (
           <div
             role="alert"
@@ -3050,8 +2907,7 @@ function ConversationComposerImpl({
               (runtimeBlocked ||
                 !routingAllowsSend ||
                 !attachmentsReady ||
-                !submissionReady ||
-                knowledgeSourceMismatch))
+                !submissionReady))
           }
           allowSubmitWhenEmpty={
             // 发送按钮已把代码评论视为可发送上下文，但这里曾漏掉同一状态，

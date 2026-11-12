@@ -5,6 +5,10 @@ import type {
   McpUiStyles,
 } from "@modelcontextprotocol/ext-apps/app-bridge";
 import type { McpAppsHostTitleBar, McpAppsStyleVariables } from "@drora/shared/mcp-apps";
+import {
+  MCP_APPS_LOCALE_CONTEXT_KEY,
+  MCP_APPS_THEME_CONTEXT_KEY,
+} from "@drora/shared/mcp-apps";
 import { PLUGIN_UI_CARD_MAX_HEIGHT_PX } from "../contract.js";
 
 export interface PluginUiHostContextInput {
@@ -40,6 +44,11 @@ export function buildPluginUiHostContext(input: PluginUiHostContextInput): McpUi
     platform: "desktop",
     userAgent: "drora",
     timeZone: input.timeZone ?? resolveTimeZone(),
+    // g4（specs/obsidian-vault-phase2-true-extraction.md §2/§6/§10-P2）：Drora 只读扩展键，值与标准位
+    // theme/locale 同源同步写入（本函数是 hostContext 唯一构造点，不产生第二事实源）。页面只读：
+    // 沙箱 alias 不提供写回成员，主题/locale 的唯一所有者仍是宿主 UI store，防止面板页面→宿主的回环写入。
+    [MCP_APPS_THEME_CONTEXT_KEY]: input.theme,
+    [MCP_APPS_LOCALE_CONTEXT_KEY]: input.locale,
     // 桌面宿主固定有 hover、无 touch。
     deviceCapabilities: { hover: true, touch: false },
     ...(input.styleVariables ? { styles: { variables: input.styleVariables as McpUiStyles } } : {}),

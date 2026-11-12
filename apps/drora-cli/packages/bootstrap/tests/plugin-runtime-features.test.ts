@@ -150,8 +150,15 @@ describe("resolvePluginRuntimeFeatures", () => {
     expect(
       resolvePluginRuntimeFeatures(outcome([plugin("browser-use@drora-plugins-official", false)])),
     ).toEqual({});
-    expect(resolvePluginRuntimeFeatures(outcome([plugin("browser@third-party", true)]))).toEqual(
-      {},
-    );
+    expect(resolvePluginRuntimeFeatures(outcome([plugin("browser@third-party", true)]))).toEqual({});
   });
+
+  // ---------------------------------------------------------------------------
+  // P7 本体清除（specs/obsidian-vault-phase2-true-extraction.md §1-C8）：
+  // B4 的 obsidianHostComponents 三态合成下发随 VaultSearch 注册门拆除——CLI 内建
+  // vault 工具面下线后该 runtime feature 无消费方；三态合成语义（hooks/宿主能力
+  // 两位互不读取、卸载抑制双失效）仍由 shared pluginEnablement 契约测试锁定
+  // （bootstrap/tests/plugin-ui-surfaces.test.ts 第二 describe）。
+  // ---------------------------------------------------------------------------
 });
+

@@ -38,16 +38,11 @@ const {
     },
   };
   // §13 v2 形态（providerRef 路由表；原 v1 残留形态陈旧）。
+  // §13 v2 形态（providerRef 路由表；P7 后三条目，Jev/embedding 节点随 knowledge 栈拆除）。
   const capabilityPayload = {
     current: {
       schemaVersion: 2,
       capabilities: {
-        "decision-jev": { enabled: false, providerKind: "typesafe", baseUrl: "", modelId: "" },
-        embedding: {
-          enabled: false,
-          mode: "local",
-          localModelId: "local-bge-small-zh-v1.5-int8",
-        },
         asr: { engine: "webSpeech", providerRef: "", modelId: "", baseUrlOverride: "" },
         tts: { engine: "system", providerRef: "", modelId: "", voice: "", baseUrlOverride: "" },
         "image-generation": { enabled: false, providerRef: "", modelId: "", baseUrlOverride: "" },

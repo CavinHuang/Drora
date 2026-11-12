@@ -4,12 +4,32 @@
  * Composer state or find receipts by searching an assistant's generated text.
  *
  * The label index comes from the original prompt. Labels are NOT authority:
- * clicking a source passes only the opaque receipt to the Vault host, which
- * resolves a fresh citation and determines the actual file/quote.
+ * clicking a source passes only the opaque receipt to the panel (g9 openWith，
+ * P7 后解析在插件面板内经插件 server 完成)，which resolves a fresh citation and
+ * determines the actual file/quote.
+ *
+ * P7 本体清除注记（specs/obsidian-vault-phase2-true-extraction.md §1-C5a/C6）：
+ * 本文件是 wire evidenceRefs 的投影消费端（历史会话引用渲染），保留读取；生产端
+ * （conversationKnowledgeSources）已随 C5b 拆除，manifest 表头常量随消费迁入此处
+ * 成为唯一出处（旧持久化行渲染仍需识别该表头）。
  */
 import type { UserInputRow } from "@drora/shared/drora-protocol-v4";
 import { KNOWLEDGE_EVIDENCE_RECEIPT_ID_PREFIX, MAX_EVIDENCE_REFS_PER_INPUT } from "@drora/shared";
-import { KNOWLEDGE_SOURCE_MANIFEST_HEADER } from "@/lib/conversationKnowledgeSources.js";
+
+/** 旧来源清单表头（C5b 拆除前生产端的固定文案）；仅历史投影行识别用，不再生产。 */
+export const KNOWLEDGE_SOURCE_MANIFEST_HEADER = "来源索引（顺序与附带的原文证据片段一致）：";
+
+/** @deprecated 旧来源清单行格式化（C5b 生产端已拆除）；行形状与 SOURCE_LINE 正则同源
+ * （本文件唯一出处），供历史投影行的测试/回放工具复用，禁止新生产路径调用。 */
+export function formatKnowledgeDraftSource(source: {
+  index: number;
+  relativePath: string;
+  heading: string | null;
+  startLine: number;
+  endLine: number;
+}): string {
+  return `[${source.index}] path=${JSON.stringify(source.relativePath)} heading=${JSON.stringify(source.heading)} lines=${source.startLine}-${source.endLine}`;
+}
 
 export interface KnowledgeTurnCitation {
   index: number;

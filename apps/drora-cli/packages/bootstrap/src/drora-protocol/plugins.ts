@@ -8,6 +8,7 @@ import {
   droraPluginsOverviewParamsSchema,
   droraPluginsListParamsSchema,
   droraPluginsSetEnabledParamsSchema,
+  droraPluginsSetHostComponentsEnabledParamsSchema,
   droraPluginsUninstallParamsSchema,
   droraPluginsUpdateParamsSchema,
   droraPluginsValidateParamsSchema,
@@ -27,6 +28,7 @@ import {
   type DroraPluginsOverviewResult,
   type DroraPluginsRestoreBuiltinResult,
   type DroraPluginsSetEnabledResult,
+  type DroraPluginsSetHostComponentsEnabledResult,
   type DroraPluginsUninstallResult,
   type DroraPluginsValidateResult,
 } from "@drora/shared";
@@ -43,6 +45,7 @@ import {
   resetDroraPluginConfig,
   restoreBuiltinPlugin as restoreBuiltinPluginCore,
   setDroraPluginEnabled,
+  setDroraHostComponentsEnabled,
   uninstallDroraMarketplacePlugin,
   updateDroraPluginMarketplace,
   validateDroraPlugin,
@@ -94,8 +97,12 @@ function toPluginInfo(plugin: PluginMetadata, configResult?: ConfigResult): Dror
     declaredMcpServerNames: plugin.declaredMcpServerNames,
     ...(plugin.uiSurfaces?.length ? { uiSurfaces: plugin.uiSurfaces.map((surface) => ({
       pluginId: plugin.id, pluginName: plugin.name, id: surface.id, title: surface.title,
-      ...(surface.icon ? { icon: surface.icon } : {}), server: surface.server,
-      resourceUri: surface.resourceUri, availability: surface.availability,
+      ...(surface.icon ? { icon: surface.icon } : {}),
+      // P7 本体清除（spec §1-C4）：session 唯一形态投影（app/hostPanelId 分支废除，
+      // 解析侧已拒绝该形态，此处不会再出现非 session 条目）。
+      server: surface.server,
+      resourceUri: surface.resourceUri,
+      availability: surface.availability,
     })) } : {}),
     mcpServerNames: plugin.mcpServerNames,
     ...(hostMcpServerNames.length > 0 ? { hostMcpServerNames } : {}),
@@ -261,6 +268,23 @@ export async function setPluginEnabled(
     },
     enabled: result.enabled,
   };
+}
+
+export async function setHostComponentsEnabled(
+  context: DroraProtocolAgentServerContext,
+  rawParams: unknown,
+  abortSignal?: AbortSignal,
+): Promise<DroraPluginsSetHostComponentsEnabledResult> {
+  const params = parseParams(droraPluginsSetHostComponentsEnabledParamsSchema, rawParams);
+  abortSignal?.throwIfAborted();
+  const result = await setDroraHostComponentsEnabled({
+    enabled: params.enabled,
+    logger: context.logger,
+    workingDirectory: params.workspace.workspacePath,
+  });
+  // 开关写盘与 setPluginEnabled 同为不可回滚 IO：取消只阻断后续响应，不回写文件。
+  abortSignal?.throwIfAborted();
+  return { enabled: result.enabled };
 }
 
 export async function getPluginsOverview(

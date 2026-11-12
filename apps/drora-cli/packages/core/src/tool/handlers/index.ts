@@ -48,7 +48,6 @@ import {
   cronUpdateToolEntry,
 } from "./cron.js";
 import { offPeakCreateToolEntry, offPeakListToolEntry } from "./off-peak.js";
-import { vaultSearchToolEntry } from "./vault-search.js";
 import { generateImageToolEntry } from "./generate-image.js";
 import {
   createEnterPlanModeToolEntry,
@@ -101,11 +100,11 @@ export const builtInTools: ToolEntry[] = [
   cronPauseSelfToolEntry,
   offPeakCreateToolEntry,
   offPeakListToolEntry,
-  // agent 只读 vault 检索（obsidian-knowledge.md §5f）：host 注入 VaultSearchPort 才注册，
-  // 与 automationPort 同一门式——端口缺席时不产生指向不存在能力的工具面。
-  vaultSearchToolEntry,
-  // agent 内置文生图（specs/model-capabilities.md §6.2）：**恒注入、不做 include 布尔门**
-  // （与 VaultSearch 的有意分歧）：能力发现本身是产品需求——create-pet 等技能按「真实
+  // P7 本体清除（specs/obsidian-vault-phase2-true-extraction.md §1-C8 双轨下线）：
+  // 两个 vault 内建检索工具注册随本体端口拆除——agent 侧检索改由插件 knowledge
+  // MCP server 的 vault_search/vault_neighbors 工具提供（P4 已迁移）。
+  // agent 内置文生图（specs/model-capabilities.md §6.2）：**恒注入、不做 include 布尔门**：
+  // 能力发现本身是产品需求——create-pet 等技能按「真实
   // schema 注册」判定可用性，未配置环境由结构化 ConfigurationError（含设置页指引）表达，
   // 不靠工具缺席隐藏。
   generateImageToolEntry,
@@ -207,8 +206,6 @@ interface RegisterBuiltInToolsOptions {
   includeAutomation?: boolean;
   /** Off-Peak 会话内创建工具面；由 host 的 offPeakToolEnabled flag（灰度/远程门）驱动。 */
   includeOffPeak?: boolean;
-  /** VaultSearch 工具面；由 host 注入 VaultSearchPort 与否驱动（§5f，同 includeAutomation 门式）。 */
-  includeVaultSearch?: boolean;
   /**
    * 动态工作流灰度门。**只有显式 false
    * 才下架** DYNAMIC_WORKFLOW_TOOL_NAMES：缺席代表调用方不参与灰度（TUI、headless、
@@ -286,9 +283,6 @@ export function registerBuiltInTools(
       (entry.metadata.name === "OffPeakCreate" || entry.metadata.name === "OffPeakList") &&
       options.includeOffPeak !== true
     ) {
-      continue;
-    }
-    if (entry.metadata.name === "VaultSearch" && options.includeVaultSearch !== true) {
       continue;
     }
     if (

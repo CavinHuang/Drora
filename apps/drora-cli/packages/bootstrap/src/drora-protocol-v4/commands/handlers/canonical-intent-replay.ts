@@ -44,7 +44,8 @@ function buildCanonicalIntent(
     envelope,
     {
       kind: editTarget.intent.kind,
-      evidenceRefs: editTarget.intent.evidenceRefs,
+      // P7（spec §1-C6）：evidenceRefs 不再随重建传递——带 refs 的 editTarget 在
+      // fork-edit-retry 边界已由 legacy 探测器拒绝，重建只承接空 refs 条目。
       conversationQuotes:
         envelope.type === "editUserQuery"
           ? ((envelope.payload as CommandPayloadMap["editUserQuery"]).conversationQuotes ??

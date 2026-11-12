@@ -3,7 +3,8 @@
  *
  * v2（§13）：asr/tts/image-generation 条目为路由表形态（providerRef 指向官方供应商卡，
  * baseUrl+apiKey 归 provider_config.json 单点持有）；档案不再为这三者存凭据。
- * decision-jev（System One 线协议）与 embedding（本地资产）维持自含现状。
+ * P7 本体清除（specs/obsidian-vault-phase2-true-extraction.md §1-C11）：Jev 决策与
+ * 本地语义嵌入两节点随 knowledge 栈迁插件拆除，本服务只剩三条语音/图像能力。
  *
  * 迁移链（读取层升级，双标记幂等）：
  * - migratedFromLegacySettings（§3.3 v1 迁移）：AppSettings 14 键 + 旧凭据 5 键 → v1 档案
@@ -17,7 +18,6 @@ import {
   MODEL_CAPABILITIES_FILE_NAME,
   defaultModelCapabilitiesFile,
   modelCapabilitiesFileSchema,
-  modelCapabilityCredentialKey,
   type ModelCapabilities,
   type ModelCapabilitiesFile,
   type ModelCapabilityEntriesPatch,
@@ -94,12 +94,6 @@ function applyCapabilityPatch(
   if (!patch) return base;
   return {
     ...base,
-    ...(patch["decision-jev"] !== undefined
-      ? { "decision-jev": { ...base["decision-jev"], ...patch["decision-jev"] } }
-      : {}),
-    ...(patch.embedding !== undefined
-      ? { embedding: { ...base.embedding, ...patch.embedding } }
-      : {}),
     ...(patch.asr !== undefined ? { asr: { ...base.asr, ...patch.asr } } : {}),
     ...(patch.tts !== undefined ? { tts: { ...base.tts, ...patch.tts } } : {}),
     ...(patch["image-generation"] !== undefined
@@ -237,26 +231,8 @@ export function createModelCapabilitiesService(
     await ready;
   }
 
-  /** 凭据写删（§13 后仅 decision-jev）：null/空串 = 删除。 */
-  async function writeOrDeleteCredential(key: string, value: string | null): Promise<void> {
-    const trimmed = value?.trim();
-    if (!trimmed) {
-      await credentialService.delete(key);
-      return;
-    }
-    await credentialService.save(key, trimmed);
-  }
-
-  async function applyCredentials(params: ModelCapabilitiesUpdate): Promise<void> {
-    const credentials = params.credentials;
-    if (!credentials) return;
-    if (credentials.decisionJev !== undefined) {
-      await writeOrDeleteCredential(
-        modelCapabilityCredentialKey.decisionJev(credentials.decisionJev.providerKind),
-        credentials.decisionJev.value,
-      );
-    }
-  }
+  // P7（spec §1-C11）：凭据写删面（Jev 分键）随 Jev 节点拆除——本域已无
+  // 自含凭据键（asr/tts/image-generation 走官方供应商卡，§13）。
 
   function notify(): void {
     for (const listener of listeners) {
@@ -295,9 +271,8 @@ export function createModelCapabilitiesService(
         return merged;
       });
       current = next;
-      // 凭据变更在档案落盘后写 credentialService（spec §4 顺序），失败向上抛
-      // （档案面已生效、凭据面保持旧值 = fail-closed 不出站）。
-      await applyCredentials(params);
+      // P7（spec §1-C11）：凭据补丁面已随 Jev 节点拆除（本域无自含凭据键），
+      // update 只剩条目浅合并 + 落盘 + 广播。
       notify();
       return structuredClone(current);
     },

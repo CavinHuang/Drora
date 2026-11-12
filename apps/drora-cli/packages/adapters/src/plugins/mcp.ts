@@ -195,6 +195,10 @@ function resolveMcpServerConfig(
         : undefined,
     timeoutMs: typeof server.timeoutMs === "number" ? server.timeoutMs : undefined,
     source: { kind: official ? "builtin" : "plugin" },
+    // g3（specs/obsidian-vault-phase2-true-extraction.md §4/§6/§10-P2）：manifest 工具级
+    // `tools.<toolName>.deferred: true` 声明。形不合规则禁用整台 server（与其他无效配置
+    // 同处置），不静默丢弃——静默会让插件作者以为 deferred 已生效而工具面仍常驻。
+    tools: normalizeManifestToolDeclarations(server.tools, identity.mcpKey),
   };
 
   // drora_official 允许 http 与 stdio，sse 出现即禁用该 MCP，不静默忽略——静默会让配置作者以为鉴权已生效。
@@ -366,6 +370,42 @@ function resolveMcpOAuthConfig(
 
 function inferMcpType(server: Record<string, unknown>): string {
   return typeof server.command === "string" ? "stdio" : "http";
+}
+
+/**
+ * g3：manifest `mcpServers.<server>.tools` 的严格归一化。条目键是 tools/list 的原始
+ * tool 名（非 namespaced 名）；每条只接受 `{ deferred?: boolean }`，出现未知形态即抛错
+ * 禁用整台 server（fail-closed，与 sse+auth 无效组合同处置），不静默忽略字段——
+ * 拼错的声明静默失效会让「deferred 已收敛」变成假象（spec §4 deferred 语义的对偶面）。
+ */
+function normalizeManifestToolDeclarations(
+  value: unknown,
+  mcpKey: string,
+): Record<string, { deferred?: boolean }> | undefined {
+  if (value === undefined) return undefined;
+  if (!isRecord(value)) {
+    throw new Error(`MCP server ${mcpKey}: tools declarations must be an object`);
+  }
+  const result: Record<string, { deferred?: boolean }> = {};
+  for (const [toolName, declaration] of Object.entries(value)) {
+    if (!isRecord(declaration)) {
+      throw new Error(`MCP server ${mcpKey}: tools.${toolName} declaration must be an object`);
+    }
+    const deferred = declaration.deferred;
+    if (deferred !== undefined && typeof deferred !== "boolean") {
+      throw new Error(
+        `MCP server ${mcpKey}: tools.${toolName}.deferred must be a boolean, got ${typeof deferred}`,
+      );
+    }
+    // 未知键拒绝：工具级声明面保持最小（只收 deferred），防止悄悄演化出第二配置位。
+    for (const key of Object.keys(declaration)) {
+      if (key !== "deferred") {
+        throw new Error(`MCP server ${mcpKey}: tools.${toolName} has unsupported key "${key}"`);
+      }
+    }
+    result[toolName] = deferred === undefined ? {} : { deferred };
+  }
+  return result;
 }
 
 function requireString(value: unknown, message: string): string {

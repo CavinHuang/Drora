@@ -37,6 +37,13 @@ export async function checkArchitecture({
   const knownFiles = new Set(files);
   const modulesByFile = new Map(files.map((file) => [file, moduleForFile(file, policy)]));
   const edges = new Map(files.map((file) => [file, []]));
+  // 环检测专用视图：只收运行时边（typeOnly=false）。importDeclarationsOf 对 type-only
+  // 的既有口径是「不产生运行时依赖」（见 policy.mjs 注释），但下方建边循环把 type-only
+  // 也计入 edges——那是模块边界/深导入规则的有意口径（边界规则按边计算），环检测却
+  // 因此把「export type re-export ↔ import type」的纯类型环误报为循环依赖
+  // （P3 实证：obsidian-plugin-server 迁入件 knowledgeTypes.ts ↔ evidence/
+  // evidenceRegistry.ts，HEAD 既有单一出处 re-export 模式，无运行时环）。
+  const cycleEdges = new Map(files.map((file) => [file, []]));
   const violations = [];
   const manifestRequiresByModule = new Map();
   const moduleIds = new Set(policy.modules.map((module) => module.id));
@@ -166,9 +173,10 @@ export async function checkArchitecture({
     const source = await fs.readFile(file, "utf8");
     const declarations = importDeclarationsOf(file, source);
     // 边对所有文件建立（含 unmanaged），否则 --changed 的反向闭包与环检测都会缺边；规则只对 managed 生效。
-    for (const { specifier } of declarations) {
+    for (const { specifier, typeOnly } of declarations) {
       const target = resolveImport(file, specifier, knownFiles, workspace);
       if (target) edges.get(file).push(target);
+      if (target && !typeOnly) cycleEdges.get(file).push(target);
     }
     if (policy.global.managedOnly && !module.managed) continue;
 
@@ -335,7 +343,7 @@ export async function checkArchitecture({
   }
 
   if (policy.global.forbidCycles)
-    violations.push(...cycleViolations(edges, policy, modulesByFile, cwd));
+    violations.push(...cycleViolations(cycleEdges, policy, modulesByFile, cwd));
   if (addedFiles) violations.push(...unmanagedNewFileViolations(addedFiles, policy, cwd));
 
   const baseline = await readBaseline(cwd);

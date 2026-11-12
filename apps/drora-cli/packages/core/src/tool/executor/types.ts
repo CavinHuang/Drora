@@ -11,7 +11,6 @@ import type {
   EmbeddedSearchBackend,
   ExecutionPort,
   ExecutionShellSelection,
-  VaultSearchPort,
   FileSystemPort,
   HttpClientPort,
   ImageGenerationPort,
@@ -111,8 +110,6 @@ export interface ToolExecutorOptions {
   workflowEscalatePort?: WorkflowEscalatePort;
   artifactStore?: ToolArtifactStorePort;
   automationPort?: AutomationPort;
-  /** agent 只读 vault 检索端口（obsidian-knowledge.md §5f）；缺席则 VaultSearch 不注册。 */
-  vaultSearchPort?: VaultSearchPort;
   /**
    * agent 内置文生图端口（specs/model-capabilities.md §6）。恒注入（不做注册门），
    * 可用性由端口错误语义统一表达（缺席/-32601/档案未启用 → ConfigurationError）。
@@ -245,8 +242,6 @@ export interface ToolExecutorDeps {
   workflowEscalatePort?: WorkflowEscalatePort;
   artifactStore?: ToolArtifactStorePort;
   automationPort?: AutomationPort;
-  /** agent 只读 vault 检索端口（obsidian-knowledge.md §5f）；缺席则 VaultSearch 不注册。 */
-  vaultSearchPort?: VaultSearchPort;
   /**
    * agent 内置文生图端口（specs/model-capabilities.md §6）。恒注入（不做注册门），
    * 可用性由端口错误语义统一表达（缺席/-32601/档案未启用 → ConfigurationError）。

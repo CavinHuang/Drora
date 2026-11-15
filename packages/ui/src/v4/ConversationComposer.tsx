@@ -104,6 +104,8 @@ import {
 } from "@/components/ui/dialog.js";
 import { Spinner } from "@/components/ui/spinner.js";
 import { useComposerVoiceInput, VoiceInputButton } from "@/voice-input/index.js";
+import { resolveOfficialVoiceButtonVisible } from "@/voice/voiceComposerEntryState.js";
+import { useVoiceEntrySupport } from "@/voice/useVoiceEntrySupport.js";
 import { ImagePreviewDialog } from "@/components/ai-elements/image-preview-dialog.js";
 import {
   ChatMediaAttachmentPreviewDialog,
@@ -788,6 +790,16 @@ function ConversationComposerImpl({
     sessionId,
     enabled: !isWebRemoteControl,
   });
+  // §11 收编互斥门（specs/voice-agent-integration.md §11，2026-11-15 用户裁定 D6 升级）：
+  // 官方服务端 ASR 已收编为自研听写的第 4 引擎（engine=official 时自研 mic 入口经
+  // officialServerAsrAdapter 桥接官方链路）——mic 入口收敛为单入口：自研 voice 入口
+  // 可见时官方 VoiceInputButton 不渲染。可见性判定单一出处 =
+  // voiceComposerEntryState.resolveVoiceComposerEntryView（经 useVoiceEntrySupport 汇聚，
+  // 与自研入口 useVoiceComposerEntry 共用同一派生，不建第二判定源）。
+  // E2E 兼容（packages/desktop/test/e2e/ui-shell/composer/composer-voice-input.test.ts 17 例）：
+  // 测试环境默认 voiceComposerEntryHidden=true（!== false 判定，§6.1 开关 1 默认隐藏）→
+  // 自研入口不可见 → 本门条件为真 → 官方按钮照常渲染，17 例语义零变化。
+  const selfVoiceEntrySupport = useVoiceEntrySupport({ isWebRemoteControl });
   const settleVoiceInput = voiceInput.settle;
   const composerMountedRef = useRef(true);
   useEffect(() => {
@@ -2754,7 +2766,14 @@ function ConversationComposerImpl({
             />
           </span>
         ) : null}
-        {voiceInput.available && remoteAvailable ? (
+        {/* §11 收编互斥门（D6 升级）：自研 voice 入口可见时官方按钮让位（单入口，
+            engine=official 时自研入口即承载官方服务端 ASR）；默认 voiceComposerEntryHidden=true
+            → 自研入口不可见 → 官方按钮照常渲染（官方 wdio E2E 17 例基线不变）。
+            谓词单一出处 resolveOfficialVoiceButtonVisible（voiceComposerEntryState 纯函数层）。 */}
+        {resolveOfficialVoiceButtonVisible({
+          officialAvailable: voiceInput.available && remoteAvailable,
+          selfVoiceEntryVisible: selfVoiceEntrySupport.view.visible,
+        }) ? (
           <VoiceInputButton
             state={voiceInput.state}
             onToggle={voiceInput.toggle}
@@ -2809,6 +2828,7 @@ function ConversationComposerImpl({
       voiceInput.toggle,
       voiceInput.subscribeLevel,
       voiceInput.permissionGuide,
+      selfVoiceEntrySupport.view.visible,
       composerUsage,
       disabled,
       modelSelectionPending,

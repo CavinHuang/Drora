@@ -117,8 +117,10 @@ export const voiceInputSourceSchema = z
     kind: z.literal(VOICE_INPUT_SOURCE_KIND),
     /** BCP-47；听写发生时的 locale 快照（诊断面，不参与路由）。 */
     lang: z.string().min(1).max(35).optional(),
-    /** 引擎标识；新增引擎 = additive 追加枚举成员，同样遵守 CLI 先行。 */
-    engine: z.enum(["webSpeech", "remote"]).optional(),
+    /** 引擎标识；新增引擎 = additive 追加枚举成员，同样遵守 CLI 先行。
+     *  §11 收编（2026-11-15）：official = 官方服务端 ASR 桥接（renderer 现零生产方，
+     *  附录 C CLI-first 门禁维持，纯 schema 真值化）。 */
+    engine: z.enum(["webSpeech", "remote", "official"]).optional(),
   })
   .strict();
 export const conversationInputSourceSchema = z.discriminatedUnion("kind", [

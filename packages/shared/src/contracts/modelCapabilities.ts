@@ -64,7 +64,9 @@ export const modelCapabilitiesFileSchema = z.object({
     // （providerRef=providerId）与模型选择；baseUrlOverride 留空继承供应商卡
     // （手填覆盖优先，spec §13.4），网关分域名边缘用。
     asr: z.object({
-      engine: z.enum(["webSpeech", "remote"]).default("webSpeech"),
+      // §11 收编（specs/voice-agent-integration.md）：official = 官方服务端 ASR
+      //（drora-server realtime，登录态；无厂商档字段，可用性由装配点判定）。
+      engine: z.enum(["webSpeech", "remote", "official"]).default("webSpeech"),
       providerRef: z.string().default(""), // engine=remote 时必填（指向 provider_config 的 providerId）
       modelId: z.string().default(""),
       baseUrlOverride: z.string().default(""),

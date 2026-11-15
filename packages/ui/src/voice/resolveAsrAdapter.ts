@@ -8,8 +8,8 @@
 
 /** 选型输入形状（useVoiceDictation 以对象字面量内联构造，无具名 import）。@lintignore */
 export interface AsrEngineChoiceInputs {
-  /** 设置页 voiceAsrEngine（缺省 webSpeech）。 */
-  engine: "webSpeech" | "remote";
+  /** 模型能力档案 asr.engine（缺省 webSpeech；§11 收编后含 official）。 */
+  engine: "webSpeech" | "remote" | "official";
   /**
    * 厂商档完整谓词（§9.6.2-5）：baseUrl.trim() && asrVendorModel.trim() && apiKey.trim()
    * 三者同时非空。apiKey 由调用方经凭据服务读取后传入。
@@ -19,14 +19,29 @@ export interface AsrEngineChoiceInputs {
   remoteSupported: boolean;
   /** webSpeech 能力探测（SpeechRecognition 存在性）。 */
   webSpeechSupported: boolean;
+  /**
+   * §11 收编：official 引擎可用性（platform.microphone × base 连接 voiceInputService
+   * × 已登录，与官方 useComposerVoiceInput available 判定同源）。缺省 false
+   * （fail-closed：不显式传入即视为不可用，回退树兜底）。
+   */
+  officialSupported?: boolean;
 }
 
 /** 选型结果单一出处（useVoiceDictation 按字面量消费；协议形状导出）。@lintignore */
-export type AsrEngineChoice = "webSpeech" | "remote" | null;
+export type AsrEngineChoice = "webSpeech" | "remote" | "official" | null;
 
 import { validateVoiceVendorBaseUrl } from "./voiceVendorBaseUrl.js";
 
 export function resolveAsrEngineChoice(inputs: AsrEngineChoiceInputs): AsrEngineChoice {
+  if (inputs.engine === "official") {
+    // §11.2：official 且官方链路可用 → official；不可用（未登录/服务缺席/平台无 mic）
+    // → webSpeech 回落（§9.6.6 回退树同型；调用方对回落记 voice.asr info）。
+    // 默认解析维持 webSpeech 不变（§11.2 选择理由：official 改变音频数据去向
+    //（drora-server 处理，§6.2 披露 1 要求用户显式选择）且依赖登录态，收编是
+    //「能力归一」不是「默认切换」——本分支只在用户显式选择 official 时进入。
+    if (inputs.officialSupported === true) return "official";
+    return inputs.webSpeechSupported ? "webSpeech" : null;
+  }
   if (inputs.engine !== "remote") {
     return inputs.webSpeechSupported ? "webSpeech" : null;
   }

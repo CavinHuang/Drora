@@ -111,3 +111,21 @@ export function resolveVoiceComposerEntryView(
   if (inputs.hiddenBySettings) return { visible: false };
   return { visible: true, tooltipMessageId: TOOLTIP_MESSAGE_ID };
 }
+
+/**
+ * §11 收编互斥门（2026-11-15 用户裁定 D6 升级）：官方 VoiceInputButton 的渲染谓词
+ * 单一出处（ConversationComposer 消费）。规则：官方语音链路可用且**自研 voice 入口
+ * 不可见**时才渲染官方按钮——单入口承载双引擎（engine=official 时自研 mic 入口经
+ * officialServerAsrAdapter 桥接官方服务端 ASR）。
+ *
+ * E2E 兼容（官方 wdio 17 例）：测试环境默认 voiceComposerEntryHidden=true →
+ * selfVoiceEntryVisible=false → 本谓词为真 → 官方按钮照常渲染。
+ */
+export function resolveOfficialVoiceButtonVisible(inputs: {
+  /** 官方链路可用（voiceInput.available && remoteAvailable，ConversationComposer 现场组合）。 */
+  officialAvailable: boolean;
+  /** 自研 voice 入口可见性（useVoiceEntrySupport.view.visible，同一派生）。 */
+  selfVoiceEntryVisible: boolean;
+}): boolean {
+  return inputs.officialAvailable && !inputs.selfVoiceEntryVisible;
+}

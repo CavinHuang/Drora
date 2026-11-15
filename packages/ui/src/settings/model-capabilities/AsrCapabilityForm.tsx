@@ -34,7 +34,7 @@ export function AsrCapabilityForm() {
   const engine = entry?.engine ?? "webSpeech";
 
   const handleEngineChange = useCallback(
-    async (next: "webSpeech" | "remote") => {
+    async (next: "webSpeech" | "remote" | "official") => {
       const trace = startUserAction({
         featureId: "settings.model_capabilities",
         action: "change_asr_engine",
@@ -131,7 +131,7 @@ export function AsrCapabilityForm() {
           <Select
             value={engine}
             onValueChange={(value) => {
-              if (value === "webSpeech" || value === "remote") {
+              if (value === "webSpeech" || value === "remote" || value === "official") {
                 void handleEngineChange(value);
               }
             }}
@@ -149,6 +149,11 @@ export function AsrCapabilityForm() {
               </SelectItem>
               <SelectItem value="remote">
                 {intl.formatMessage({ id: "settings.modelCapability.asr.engine.remote" })}
+              </SelectItem>
+              {/* §11 收编（D6 升级）：官方服务端 ASR 桥接引擎——需登录；未登录时
+                  运行时回退 webSpeech（§11.2 回退树，此处仅提示不阻断选择）。 */}
+              <SelectItem value="official">
+                {intl.formatMessage({ id: "settings.modelCapability.asr.engine.official" })}
               </SelectItem>
             </SelectContent>
           </Select>

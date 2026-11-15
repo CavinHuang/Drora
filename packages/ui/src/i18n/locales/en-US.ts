@@ -9408,6 +9408,7 @@ const enUS: Record<string, string> = {
   "settings.modelCapability.asr.engine.description":
     "Cloud engine is used only when its endpoint config is complete; otherwise dictation falls back to the built-in engine.",
   "settings.modelCapability.asr.engine.label": "Speech recognition engine",
+  "settings.modelCapability.asr.engine.official": "Official service (sign-in required)",
   "settings.modelCapability.asr.engine.remote": "Cloud engine",
   "settings.modelCapability.asr.engine.webSpeech": "Built-in (Web Speech)",
   "settings.modelCapability.asr.model.placeholder": "e.g. FunAudioLLM/SenseVoiceSmall",

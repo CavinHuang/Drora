@@ -22,9 +22,19 @@ export interface UseVoiceDictationParams {
   workspaceIdentity?: string;
   lang: string;
   requestStart: () => boolean;
-  asrEngine?: "webSpeech" | "remote";
+  asrEngine?: "webSpeech" | "remote" | "official";
   vendor?: { baseUrl: string; model: string };
   getVendorApiKey?: () => Promise<string | null>;
+  /**
+   * §11 收编（D6 升级）：官方服务端 ASR 引擎装配。engine=official 且本句柄在场 →
+   * officialServerAsrAdapter 桥接官方链路（service = 官方 voiceInputService 原对象，
+   * ensureMicAccess = 官方 microphone.ensureAccess，均由 useVoiceComposerEntry 注入，
+   * 官方文件零改动）；句柄缺席（未登录/服务缺失）→ webSpeech 回落（§11.2 回退树）。
+   */
+  officialAsr?: {
+    service: import("./officialServerAsrAdapter.js").OfficialServerAsrEngineHandle;
+    ensureMicAccess: () => Promise<"granted" | "denied" | "unsupported">;
+  };
   /**
    * §9.9.3-M9：入口可见性（useVoiceComposerEntry 汇聚 voiceComposerEntryState 纯函数
    * 的 view.visible）。true→false 沿（录音中把入口设回隐藏）= 持有者定向停止：
@@ -250,15 +260,28 @@ export function useVoiceDictation(params: UseVoiceDictationParams): VoiceDictati
     void (async () => {
       let adapter: VoiceAsrPort = webSpeechAdapter;
       // §9.6.10：doubao 流式引擎自身出 partial——混合预览不适用（双引擎无增益且
-      // 桌面 webSpeech 死引擎徒占音频）。
+      // 桌面 webSpeech 死引擎徒占音频）。§11 收编：official 引擎同款（result 快照
+      // 实时流式）。
       let isStreamingCloudAdapter = false;
       try {
+        // §11 收编：engine=official 且官方句柄在场 → 官方服务端 ASR 桥接（第 4 引擎）；
+        // 句柄缺席（未登录/服务缺失/远控壳）→ 维持 webSpeech（§11.2 回退树，装配点
+        // 的可见性判定与起录同一解析，此处无需再判 officialSupported）。
+        if (current.asrEngine === "official" && current.officialAsr) {
+          const { createOfficialServerAsrAdapter } = await import(
+            "./officialServerAsrAdapter.js"
+          );
+          if (generation !== generationRef.current) return;
+          adapter = createOfficialServerAsrAdapter({
+            handle: current.officialAsr.service,
+            ensureMicAccess: current.officialAsr.ensureMicAccess,
+          });
+          isStreamingCloudAdapter = true;
+          logger.info("voice.asr", "asr engine resolved: official");
+        } else if (current.asrEngine === "official") {
+          logger.info("voice.asr", "official asr handle absent; falling back to webSpeech");
+        }
         // §9.6.10：火山卡 + ASR 流通道在场 → 豆包流式适配器（partial 实时 + 逐句 final）。
-        console.info("[ASR-DBG] 选型条件", {
-          engine: current.asrEngine,
-          hasStream: !!current.asrStream,
-          baseUrl: current.vendor?.baseUrl ?? "",
-        });
         if (
           current.asrEngine === "remote" &&
           current.asrStream &&

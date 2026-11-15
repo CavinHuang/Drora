@@ -65,4 +65,11 @@ describe("§9.9.4-L12 remote ASR 文案与已实现能力一致", () => {
       }
     }
   });
+
+  it("§11 收编：official 引擎选项双语在位且标注登录前置（D6 升级）", () => {
+    expect(zhCN["settings.modelCapability.asr.engine.official"]).toBeTruthy();
+    expect(enUS["settings.modelCapability.asr.engine.official"]).toBeTruthy();
+    expect(zhCN["settings.modelCapability.asr.engine.official"]).toContain("登录");
+    expect(enUS["settings.modelCapability.asr.engine.official"]).toContain("sign-in");
+  });
 });

@@ -1507,6 +1507,69 @@ sequenceDiagram
 
 ---
 
+## 11. 收编整合：官方 ASR 收编为第 4 引擎 + 单入口互斥（2026-11-15 用户裁定 D6 升级）
+
+### 11.1 决策记录
+
+**用户裁定（D6 升级，2026-11-15）**：官方 v3.18.0 还原的 composer 语音输入链路（`packages/ui/src/voice-input/` + `packages/services/src/voice-input/` + `platform.microphone`，下称「官方链路」）不自研替代、也不双入口并存——其服务端 ASR（drora-server realtime WS 协议）**收编为自研听写体系的第 4 ASR 引擎（`official`）**，入口收敛为自研 mic 入口单点（互斥门）；TTS 腿、豆包流式引擎（§9.6.10）、系统级听写（§5.6）全部保留不动。
+
+硬纪律（冻结）：
+
+1. **官方还原文件零改动**：`packages/ui/src/voice-input/`、`useComposerVoiceInput`、`packages/services/src/voice-input/`、`microphone-access` 平台实现全部不动；桥接一律在新文件（自研 `packages/ui/src/voice/` 模块）里做，方向为「自研 import 官方」的只读依赖（AGENTS.md「ports、服务注册或协议方法接入现有链路」形态），禁止反向。
+2. **官方 wdio E2E 17 例保持绿**（`packages/desktop/test/e2e/ui-shell/composer/composer-voice-input.test.ts`）：互斥门条件设计为「自研入口可见时才隐藏官方按钮」，测试环境默认 `voiceComposerEntryHidden=true`（§6.1 开关 1 默认值）→ 自研入口不可见 → 官方按钮照常渲染 → 17 例语义不变。
+3. 自研入口承载双引擎：engine=official 时点击自研 mic 按钮走桥接链（官方服务端 ASR），转写仍按 §5.1 写入规则注入 composer 正文（不进官方链路的 setVoiceText 语音文字节点——两写入路径互斥由「单入口」构造性保证）。
+
+### 11.2 架构
+
+**第 4 引擎 = official（桥接适配器）**：
+
+```
+自研入口 V4ComposerVoiceEntry（单入口，双引擎）
+  └─ useVoiceComposerEntry（装配点，engine=official 时注入官方句柄）
+      └─ useVoiceDictation（episode 编排零分叉，§3.2 状态机不变）
+          └─ officialServerAsrAdapter（新，packages/ui/src/voice/）：VoiceAsrPort 第 4 实现
+              ├─ 句柄注入：OfficialServerAsrEngineHandle（start/sendAudio/finish/cancel/onEvent，
+              │   结构即官方 IVoiceInputService；由装配点从 useBaseWorkspaceServices 取
+              │   voiceInputService 直传——官方服务对象不改一行）
+              ├─ 采集：复用本模块 pcmStreamCapture（与豆包 sauc 同格式同源：16k/16bit/
+              │   mono PCM16；官方 startPcmCapture 属 voice-input 模块内部件、不在其
+              │   publicEntrypoints，voice 模块按架构治理不 deep-import，官方采集件
+              │   保持仅供官方链路自用）
+              ├─ 权限预检：注入官方 microphone.ensureAccess（denied → not-allowed fail-closed；
+              │   与官方 useComposerVoiceInput begin() 同一预检语义）
+              ├─ 事件映射：result（整段快照）→ onPartial（预览条）；completed（终稿）
+              │   → onFinal 恰一次 + stop() resolve {final:""}（对齐 remoteAsrAdapter 批量
+              │   交付契约，防双交付）；error → §5.3 错误码映射
+              └─ 错误映射：network/proxy/rate_limited/unavailable/upstream_timeout/failed
+                  → network；unauthorized → service-not-allowed；audio_limit_exceeded → aborted；
+                  audio_too_short → no-speech
+```
+
+**引擎枚举与路由**（按现有惯例：模型能力档案 asr 条目，非 appSettings 键）：
+
+- `contracts/modelCapabilities.ts` asr.engine 枚举 additive 追加 `"official"`（zod enum 三成员；档案 default 仍 webSpeech）。
+- `contracts/../drora-protocol-v4/input-intent.ts` engine 枚举同步追加 `"official"`（§2.2 additive 成员；renderer 现零生产方——附录 C CLI-first 门禁维持，纯 schema 真值化）。
+- `resolveAsrAdapter.ts`：engine 类型扩 `"official"`；新输入 `officialSupported`（缺省 false，fail-closed——官方链路可用性 = platform.microphone × base 连接 voiceInputService × 已登录，与官方 useComposerVoiceInput available 判定同源）。路由：engine=official 且 officialSupported → official；不满足 → webSpeech 回落（§9.6.6 回退树同型）。
+- **默认解析维持 webSpeech 不变**（选择理由：official 引擎改变音频数据去向——drora-server 处理，§6.2 披露 1「切换引擎如实标注数据处理方」要求用户显式选择；且依赖登录态，静默改默认会在登出态引发回退抖动。收编是「能力归一」不是「默认切换」）。
+- useVoiceDictation：engine=official 且句柄在场 → official 适配器（自身流式，混合预览不适用，同 §9.6.10 豆包先例）；句柄缺席（未登录/服务缺失）→ webSpeech 回落 + voice.asr info。
+
+**互斥门（单入口）**：
+
+- 官方 `VoiceInputButton` 渲染条件（ConversationComposer）追加 `!自研入口可见`；自研入口可见性判定单一出处仍是 `resolveVoiceComposerEntryView` 纯函数（voiceComposerEntryState.ts）——把 useVoiceComposerEntry 的「引擎支持 × 厂商档解析 × 设置」汇聚段抽为新 hook `useVoiceEntrySupport`（同文件族新文件），入口 hook 与 composer 互斥门共用同一派生，不复制判定逻辑（AGENTS.md 单一事实源）。
+- E2E 兼容：默认 `voiceComposerEntryHidden !== false` → 自研入口不可见 → 官方按钮渲染条件为真 → 官方 17 例零影响；自研入口开启（hidden=false）且引擎可用 → 官方按钮让位，自研 mic 承载（engine=official 时即官方服务端 ASR）。
+- 官方 `useComposerVoiceInput` hook 本身保留在 ConversationComposer 中原样调用（其 settle/Escape/会话切换语义服务官方按钮；互斥门只在按钮渲染层生效，hook 调用无副作用差异）。
+
+### 11.3 验收场景
+
+- given engine=official 且官方链路可用（登录+服务+mic），when 点自研 mic，则走 officialServerAsrAdapter：pcmStreamCapture 采集（16k/mono PCM16，AEC/NS/AGC）→ voiceInputService.sendAudio 上行；result 快照只进预览条（§5.1 partial 不进正文零变化）；点停止 → 尾块 remainder 上行 → finish → completed 终稿恰一次注入 composer（mode=append），stop() resolve 空串不双交付。
+- given engine=official 且未登录/服务缺席，则入口可见性按回退树（webSpeech 可用→入口仍可见走 webSpeech；均不可用→入口不渲染，官方按钮因自研入口不可见照常渲染兜底）。
+- given 自研入口开启（hidden=false）且引擎可用，则官方 VoiceInputButton 不渲染（互斥）；given hidden=true（默认），则官方按钮照常渲染（E2E 17 例基线）。
+- given 录音中官方服务 error（network/unauthorized 族），则 §5.3 映射出腿（network → 保留已注入文本+提示；service-not-allowed → 权限提示），不自动重启，下次点按重新选型。
+- given engine=official 录音中，则混合流式预览不启动（引擎自身流式，§9.6.10 同款）。
+- 官方还原文件 git diff 零行（voice-input/ 两包 + microphone-access）；TTS/豆包/系统级听写现有测试全绿（回归）。
+
+---
+
 ## 附录 A：待决点裁决记录
 
 | id | kind | 裁决 |

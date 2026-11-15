@@ -107,6 +107,13 @@ vi.mock("@/hooks/usePlatform.js", () => ({
   useOptionalPlatform: () => fakePlatform,
 }));
 
+// §11 收编：useVoiceEntrySupport（入口与互斥门共用装配 hook）经 useDroraStore 读登录态
+// 判定 official 引擎可用性——组件级测试无 StoreProvider，mock 未登录（official 不可用
+// → 回退树走 webSpeech，与既有用例的 webSpeech 前提一致）。
+vi.mock("@/store/StoreProvider.js", () => ({
+  useDroraStore: (selector: (state: { user: unknown }) => unknown) => selector({ user: null }),
+}));
+
 vi.mock("@/hooks/useSettingService.js", () => ({
   useSettings: () => ({ settings: settingsState.current, update: vi.fn(async () => undefined) }),
 }));
@@ -234,6 +241,30 @@ describe("V4ComposerVoiceEntry 组件级渲染（修复轮 F1/F2 回归）", () 
     setSettings({ ...settingsState.current, voiceComposerEntryHidden: undefined } as never);
     harness.rerender(<V4ComposerVoiceEntry sessionId="sess-1" workspacePath="/ws" />);
     expect(harness.queryByTestId("v4-composer-voice-entry")).toBeNull();
+  });
+
+  it("§11 收编回归：engine=official 但官方链路不可用（未登录）→ 回退 webSpeech，入口照常渲染", () => {
+    // 装配点无 voiceInputService 且 mock 未登录 → officialSupported=false →
+    // resolveAsrEngineChoice 回落 webSpeech（§11.2 回退树）→ 入口可见性按 webSpeech
+    // 判定，engine=official 不使入口消失（互斥门侧官方按钮此时是否渲染由
+    // officialVoiceButtonGate.test 的派生链守护）。
+    capabilityPayload.current = {
+      ...capabilityPayload.current,
+      capabilities: {
+        ...capabilityPayload.current.capabilities,
+        asr: { engine: "official", providerRef: "", modelId: "", baseUrlOverride: "" },
+      },
+    };
+    const harness = renderEntry();
+    expect(harness.queryByTestId("v4-composer-voice-entry")).not.toBeNull();
+    // 复位引擎档，避免污染同 describe 后续用例（beforeEach 不重置 capabilityPayload）。
+    capabilityPayload.current = {
+      ...capabilityPayload.current,
+      capabilities: {
+        ...capabilityPayload.current.capabilities,
+        asr: { engine: "webSpeech", providerRef: "", modelId: "", baseUrlOverride: "" },
+      },
+    };
   });
 
   it("F1 回归：idle 态的 notice 可见（修复前零可见帧）", () => {

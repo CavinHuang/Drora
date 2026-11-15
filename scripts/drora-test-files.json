@@ -246,6 +246,8 @@
   "packages/ui/src/voice/doubaoStreamingAsrAdapter.test.ts",
   "packages/ui/src/voice/interruptCommandFlow.test.ts",
   "packages/ui/src/voice/interruptionWords.test.ts",
+  "packages/ui/src/voice/officialServerAsrAdapter.test.ts",
+  "packages/ui/src/voice/officialVoiceButtonGate.test.ts",
   "packages/ui/src/voice/pcmStreamCapture.test.ts",
   "packages/ui/src/voice/remoteAsrAdapter.test.ts",
   "packages/ui/src/voice/resolveAsrAdapter.test.ts",

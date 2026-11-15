@@ -351,8 +351,10 @@ export interface HighspeedMessageMetadata {
  */
 export type TurnInputSourceMetadata =
   | { kind: "pluginUi"; pluginId: string; toolCallId: string }
-  /** 语音输入来源（镜像 voiceInputSourceSchema additive，spec §9.1/§9.6.7；E2E 构建门发现的类型漏同步）。 */
-  | { kind: "voice"; lang?: string; engine?: "webSpeech" | "remote" }
+  /** 语音输入来源（镜像 voiceInputSourceSchema additive，spec §9.1/§9.6.7；E2E 构建门发现的类型漏同步）。
+   *  §11 收编（2026-11-15）：official = 官方服务端 ASR 桥接引擎（additive 枚举成员，
+   *  与 shared 侧 schema 同批对齐，维持一一对应）。 */
+  | { kind: "voice"; lang?: string; engine?: "webSpeech" | "remote" | "official" }
   | { kind: "genUi"; path: string; title?: string }
   // title 只读旧数据（规格 0.13）：标题是会变的派生展示字段，新数据只带身份。
   | { kind: "session"; sessionId: string; title?: string }

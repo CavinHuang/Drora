@@ -8897,6 +8897,7 @@ const zhCN: Record<string, string> = {
   "settings.modelCapability.asr.engine.description":
     "云端引擎仅在端点配置完整时启用；否则听写自动回退内置引擎。",
   "settings.modelCapability.asr.engine.label": "语音识别引擎",
+  "settings.modelCapability.asr.engine.official": "官方服务（需登录）",
   "settings.modelCapability.asr.engine.remote": "云端引擎",
   "settings.modelCapability.asr.engine.webSpeech": "内置（Web Speech）",
   "settings.modelCapability.asr.model.placeholder": "如 FunAudioLLM/SenseVoiceSmall",

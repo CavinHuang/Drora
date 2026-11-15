@@ -58,6 +58,15 @@ export const VOICE_ASR_SPONTANEOUS_END_SETTLE_MS = 2_000;
 export const VOICE_TTS_CLOUD_CONSECUTIVE_FAILURES = 3;
 
 /**
+ * §11 收编 official 引擎 stop() 终稿等待窗口（ms）：completed（服务端终稿优化文本）
+ * 正常路径按事件到达结算；窗口耗尽仍无 completed → 按 network 出腿（对齐
+ * remoteAsrAdapter 上传失败语义）+ stop() 空串结算防停止链悬挂。取 8s 与豆包
+ * stop settle 同量级（服务端 roundtrip 含尾块 flush + 终稿重排，2s 的既有
+ * webSpeech 兜底窗过紧）。调参面不冻值。
+ */
+export const VOICE_OFFICIAL_ASR_STOP_SETTLE_TIMEOUT_MS = 8_000;
+
+/**
  * 听写提示（notice）可见寿命（ms，修复轮 F1）：notice 写入与「回 idle」同批，若渲染
  * 入口只认 recording 态则零可见帧——现扩为「recording 或存在未过期 notice」。选择
  * 「TTL 6s 自然消退」而非「下次起录才清除」：错误提示（权限/网络/设备）需要用户读到，

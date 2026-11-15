@@ -115,6 +115,13 @@ describe("voiceInputSourceSchema (strict, additive)", () => {
     expect(parsed).toEqual({ kind: "voice", lang: "zh-CN", engine: "webSpeech" });
   });
 
+  it("parses engine=official round-trip (§11 收编 additive 枚举成员)", () => {
+    expect(voiceInputSourceSchema.parse({ kind: "voice", engine: "official" })).toEqual({
+      kind: "voice",
+      engine: "official",
+    });
+  });
+
   it("parses the minimal voice source (source stays optional on intent)", () => {
     expect(voiceInputSourceSchema.parse({ kind: "voice" })).toEqual({ kind: "voice" });
   });

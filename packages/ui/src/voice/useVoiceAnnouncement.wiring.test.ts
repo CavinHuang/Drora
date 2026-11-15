@@ -321,6 +321,13 @@ vi.mock("@/hooks/useServices.js", () => ({
   useOptionalServices: () => stableServices,
 }));
 
+// §11 收编：useVoiceComposerEntry 经 useVoiceEntrySupport 读登录态判定 official 引擎
+// 可用性——本测试无 StoreProvider，mock 未登录（official 不可用 → 回退树不受影响，
+// 本文件用例均走 remote/webSpeech 路径）。
+vi.mock("@/store/StoreProvider.js", () => ({
+  useDroraStore: (selector: (state: { user: unknown }) => unknown) => selector({ user: null }),
+}));
+
 vi.mock("@/hooks/useSettingService.js", () => ({
   useSettings: () => ({ settings: settingsState.current }),
 }));

@@ -25207,7 +25207,7 @@
     "scripts/architecture/resolver.mjs": "100644 0ce57687334ec49761751369526b776ad35dca2f",
     "scripts/architecture/session-control-boundary.mjs": "100644 ebfa3f4b9841749778daaaacf2f15d4da31a4cec",
     "scripts/architecture/upstream-admission.mjs": "100644 f0612ac97534eb258424bf7e257332c9c594a086",
-    "scripts/architecture/upstream-snapshot.json": "100644 871bef905b20de490d651fa2d9750a9047dd244c",
+    "scripts/architecture/upstream-snapshot.json": "100644 1b3973faf999c68bb837bbdbbe8fce070d1be3e9",
     "scripts/architecture/upstream-snapshot.mjs": "100644 e1917393a6e83df2ee40576f450ea964d3056af5",
     "scripts/architecture/violations.mjs": "100644 604102128d1c86be3408b2da4ef1e48b60ce50eb",
     "scripts/assert-node-version.mjs": "100644 c627b5f14e57a5c65ab6e9ab6f9f13b4d16545ce",

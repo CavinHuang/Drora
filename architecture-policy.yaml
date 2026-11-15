@@ -2696,6 +2696,11 @@ exceptions:
     paths:
       - apps/drora-cli/packages/adapters/src/memory-diagnostics/module.ts
     reason: 上游固有子集形态（同 plugin-discovery-manifest-subset-form 先例，v3.18.2 增量）：module.ts 为上游逐字稿，只声明目录内 2 个相对入口（index.ts/contract.ts）；policy 的 cli-memory-diagnostics 登记 4 个绝对入口，其中 resource-sampler.ts/feedbackLogArchive.ts 是模块的单文件根，文件根无法以「模块根相对名」形态写进清单（checker 的 normalize 只做 root+entry 拼接）。上游 checker 无 publicEntrypoints 交叉校验（本仓自研全域审查增强）故上游不显形；对齐上游不改写清单。
+  - id: mcp-ui-manifest-subset-form
+    rule: manifest-policy-mismatch
+    paths:
+      - apps/drora-cli/packages/bootstrap/src/drora-protocol/mcp-ui/module.ts
+    reason: 上游固有子集形态（同 plugin-discovery/cli-memory-diagnostics manifest-subset-form 先例）：上游 v3.18.2 的 module.ts 仅声明 index.ts/contract.ts，policy 的 mcp-ui 段额外登记 core/src/runtime/methods/sample-model.ts 单文件根（git show fec975905a 两侧逐字实证不一致）；单文件根无法以「模块根相对名」写进清单。上游 checker 无此交叉校验（本仓自研增强）故不显形；对齐上游不改写。
   - id: visualize-plugin-icon-existing-edit
     rule: unmanaged-new-file
     paths: [packages/ui/src/lib/pluginIconSource.ts]

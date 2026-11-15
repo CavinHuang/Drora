@@ -1,6 +1,10 @@
 // official plugin hook 运行时单测：manifest hooks 重写（specs/obsidian-plugin.md
 // 「Proma 式原生访问重构」验收场景 12）+ hook env overlay 合并 + __drora-plugin-hook runner。
 // 经 tsx 直接消费 src（与 adapters/test 先例一致；@drora/contracts、@drora/core 依赖闭包需先 build）。
+// 注意：writeOfficialPluginRuntimeManifest 自上游 v3.18.2 合并（07ca61734）起为异步
+// （await readFile + 原子写重试），测试必须 await 后再读 manifest——不 await 时同步 read()
+// 读到的是重写前的原始 manifest（command 仍为 "node"），且 withManifest 清理临时目录后
+// 悬挂的写入会以 ENOENT 未处理拒绝收尾。
 import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -27,13 +31,15 @@ async function test(name, fn) {
   }
 }
 
-function withManifest(manifest, fn) {
+// 回调改为 async 后必须 `return await`：直接 return promise 会让 finally 的 rmSync
+// 在 promise 落定前就删掉临时目录，回调内的读写在 Windows 上以 ENOENT 失败。
+async function withManifest(manifest, fn) {
   const rootPath = mkdtempSync(join(tmpdir(), "drora-official-plugin-runtime-"));
   try {
     mkdirSync(join(rootPath, ".zcode-plugin"), { recursive: true });
     const manifestPath = join(rootPath, ".zcode-plugin", "plugin.json");
     writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
-    return fn({ rootPath, manifestPath, read: () => JSON.parse(readFileSync(manifestPath, "utf8")) });
+    return await fn({ rootPath, manifestPath, read: () => JSON.parse(readFileSync(manifestPath, "utf8")) });
   } finally {
     rmSync(rootPath, { recursive: true, force: true });
   }
@@ -49,8 +55,8 @@ const HOOK_ENTRY = {
 // ---- manifest hooks 重写 ----
 
 await test("hooks 中 command:\"node\" 被重写为 __drora-plugin-hook 宿主启动", () => {
-  withManifest({ name: "obsidian", hooks: { SessionStart: [{ hooks: [structuredClone(HOOK_ENTRY)] }] } }, ({ rootPath, read }) => {
-    writeOfficialPluginRuntimeManifest({ pluginName: "obsidian", rootPath });
+  withManifest({ name: "obsidian", hooks: { SessionStart: [{ hooks: [structuredClone(HOOK_ENTRY)] }] } }, async ({ rootPath, read }) => {
+    await writeOfficialPluginRuntimeManifest({ pluginName: "obsidian", rootPath });
     const entry = read().hooks.SessionStart[0].hooks[0];
     const prefix = officialPluginHookPrefixArgs();
     assert.ok(prefix);
@@ -65,10 +71,10 @@ await test("hooks 中 command:\"node\" 被重写为 __drora-plugin-hook 宿主�
 });
 
 await test("重写幂等：二次调用内容字节不变", () => {
-  withManifest({ name: "obsidian", hooks: { PermissionRequest: [{ matcher: "Write|Edit", hooks: [structuredClone(HOOK_ENTRY)] }] } }, ({ rootPath, manifestPath }) => {
-    writeOfficialPluginRuntimeManifest({ pluginName: "obsidian", rootPath });
+  withManifest({ name: "obsidian", hooks: { PermissionRequest: [{ matcher: "Write|Edit", hooks: [structuredClone(HOOK_ENTRY)] }] } }, async ({ rootPath, manifestPath }) => {
+    await writeOfficialPluginRuntimeManifest({ pluginName: "obsidian", rootPath });
     const first = readFileSync(manifestPath, "utf8");
-    writeOfficialPluginRuntimeManifest({ pluginName: "obsidian", rootPath });
+    await writeOfficialPluginRuntimeManifest({ pluginName: "obsidian", rootPath });
     assert.equal(readFileSync(manifestPath, "utf8"), first);
   });
 });
@@ -79,8 +85,8 @@ await test("根外逃逸脚本参数保持原样（不被重写）", () => {
       name: "obsidian",
       hooks: { SessionStart: [{ hooks: [{ ...structuredClone(HOOK_ENTRY), args: ["${DRORA_PLUGIN_ROOT}/../../evil.mjs"] }] }] },
     },
-    ({ rootPath, read }) => {
-      writeOfficialPluginRuntimeManifest({ pluginName: "obsidian", rootPath });
+    async ({ rootPath, read }) => {
+      await writeOfficialPluginRuntimeManifest({ pluginName: "obsidian", rootPath });
       const entry = read().hooks.SessionStart[0].hooks[0];
       assert.equal(entry.command, "node");
       assert.equal(entry.env, undefined);
@@ -103,8 +109,8 @@ await test("非 node 命令与 command 型 hook 不参与重写", () => {
         ],
       },
     },
-    ({ rootPath, read }) => {
-      writeOfficialPluginRuntimeManifest({ pluginName: "obsidian", rootPath });
+    async ({ rootPath, read }) => {
+      await writeOfficialPluginRuntimeManifest({ pluginName: "obsidian", rootPath });
       const hooks = read().hooks.SessionStart[0].hooks;
       assert.equal(hooks[0].command, "deno");
       assert.equal(hooks[1].type, "command");
@@ -120,8 +126,8 @@ await test("mcpServers 与 hooks 并存时两者都被重写（历史 MCP 行为
       mcpServers: { srv: { command: "node", args: ["${DRORA_PLUGIN_ROOT}/dist/mcp/server.js"] } },
       hooks: { SessionStart: [{ hooks: [structuredClone(HOOK_ENTRY)] }] },
     },
-    ({ rootPath, read }) => {
-      writeOfficialPluginRuntimeManifest({ pluginName: "mixed", rootPath });
+    async ({ rootPath, read }) => {
+      await writeOfficialPluginRuntimeManifest({ pluginName: "mixed", rootPath });
       const manifest = read();
       assert.equal(manifest.mcpServers.srv.command, process.execPath);
       assert.equal(manifest.mcpServers.srv.args.at(-1), resolve(rootPath, "dist/mcp/server.js"));
@@ -134,9 +140,9 @@ await test("mcpServers 与 hooks 并存时两者都被重写（历史 MCP 行为
 });
 
 await test("skill-only manifest（无 mcpServers/hooks）文件保持不动", () => {
-  withManifest({ name: "content", skills: "skills" }, ({ rootPath, manifestPath }) => {
+  withManifest({ name: "content", skills: "skills" }, async ({ rootPath, manifestPath }) => {
     const before = readFileSync(manifestPath, "utf8");
-    writeOfficialPluginRuntimeManifest({ pluginName: "content", rootPath });
+    await writeOfficialPluginRuntimeManifest({ pluginName: "content", rootPath });
     assert.equal(readFileSync(manifestPath, "utf8"), before);
   });
 });
@@ -208,15 +214,19 @@ await test("runner：合法脚本调用 main()，且不改写 process.argv（自
 });
 
 // ---- 真实 adapters 加载链消费 obsidian plugin.json（specs/obsidian-plugin.md 验收场景 12 的
-//      发现面：manifest 内联 hooks 形状必须被公开 discoverPluginsSync 接受且无诊断错误） ----
+//      发现面：manifest 内联 hooks 形状必须被公开发现接口接受且无诊断错误） ----
 
 const OBSIDIAN_PLUGIN_ROOT = resolve(import.meta.dirname, "../../obsidian-plugin");
 
-await test("discoverPluginsSync：obsidian manifest 内联 hooks 被解析为三个事件", () => {
+// 修复原因：上游 v3.18.2 合并（07ca61734）把 NodePluginAdapter 的同步发现面
+// discoverPluginsSync 收敛为唯一异步 discoverPlugins（材料缓存 + 重建循环），
+// 此处同步调用会得到 "discoverPluginsSync is not a function"。断言面不变，
+// 仅改为 await 异步发现接口。
+await test("discoverPlugins：obsidian manifest 内联 hooks 被解析为三个事件", async () => {
   const storageRoot = mkdtempSync(join(tmpdir(), "drora-hook-discover-"));
   try {
     const adapter = createNodePluginAdapter({ storageRoot });
-    const outcome = adapter.discoverPluginsSync({
+    const outcome = await adapter.discoverPlugins({
       config: {
         dirs: [OBSIDIAN_PLUGIN_ROOT],
         enabled: true,

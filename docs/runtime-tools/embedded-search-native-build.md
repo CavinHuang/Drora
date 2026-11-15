@@ -167,7 +167,7 @@ producer 仍可作为显式人工流程使用：在对应平台的 producer runn
 - 仓库归档与内网镜像同名、同 SHA-256，release plan 同时给出 `downloadUrl`（仅 `intranet`）与 `archivePath`；两种来源不能混用或互为失败兜底，任一路径校验失败都直接终止。
 - remote 资产使用 `resolveRemoteNativeSearchPrebuiltPlan`：Linux 与 desktop/SEA 同一 plan，macOS 保留 rg13；legacy rg13 的版本与摘要仍由 `native-search-tools-config.mjs` 唯一持有。
 - 两种来源在返回前都通过 `stageNativeSearchNotices` 在每个工具目录写入 `THIRD-PARTY-NOTICES.txt` 与 `SOURCES.json`（`binary.origin` 分别为 `intranet-mirror` / `repository-archive`），缓存命中也刷新；remote 组件在计算内容哈希前完成写入，因此组件归档自带材料。
-- 解包、定位与归档验真只有 `prebuilt-binary-extract.mjs` 一份实现，下载链路复用它；Windows 上 tar 参数统一使用正斜杠并优先相对 cwd 的归档路径，避免 GNU tar 把盘符当成远程主机。
+- 解包、定位与归档验真只有 `prebuilt-binary-extract.mjs` 一份实现，下载链路复用它；Windows 上 tar 参数统一使用正斜杠并优先相对 cwd 的归档路径，避免 GNU tar 把盘符当成远程主机。Windows 的 zip 归档优先用系统自带 bsdtar（System32/tar.exe）解包——runner 上 Windows PowerShell 5.1 会按机器级 PSModulePath 加载 PowerShell 7 的 Microsoft.PowerShell.Archive，其三参 ExtractToDirectory 重载在 .NET Framework 4.x 不存在（CI run 43685502935）；仅 bsdtar 缺席的旧系统回退 Expand-Archive。
 - producer 打包（`pack:native-search` / `ci:ensure-native-search-deps`）仍只打入二进制，保持与已固定 SHA-256 的归档逐字节可复现。
 
 ## 源码与依赖

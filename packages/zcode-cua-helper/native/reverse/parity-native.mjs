@@ -190,10 +190,25 @@ const shape = (v) =>
   const pb = new Set(b.map((x) => `${x.pid}:${x.bundle_id}`));
   const onlyOrig = [...pa].filter((x) => !pb.has(x));
   const onlyRest = [...pb].filter((x) => !pa.has(x));
+  // W6 2026-11-15（CI run 43685502935）：orig 与 rest 两次枚举之间，GitHub Actions
+  // 自身的 hosted-compute-agent 辅助进程恰好在其中一侧消失（orig-only=…GitHub\
+  // HostedComputeAgent\hosted-compute-agent），属 runner 环境噪声而非 addon 能力差。
+  // 该检查本意是 API 形态（pid→exe 枚举能力）对齐而非进程清单恒等；对称差集中
+  // exe 路径命中 CI runner 噪声模式的条目予以豁免（豁免项仍打进 detail 日志），
+  // 其余差维持恒等要求，信号不放松。
+  const ciRunnerNoisePattern =
+    /github[\\/]hostedcomputeagent|github-actions|[\\/]runneradmin[\\/]|[\\/]actions-runner[\\/]|runner\.(worker|service|listener)\.exe/i;
+  const exemptOrig = onlyOrig.filter((x) => ciRunnerNoisePattern.test(x));
+  const exemptRest = onlyRest.filter((x) => ciRunnerNoisePattern.test(x));
+  const signalOrig = onlyOrig.filter((x) => !ciRunnerNoisePattern.test(x));
+  const signalRest = onlyRest.filter((x) => !ciRunnerNoisePattern.test(x));
   check(
     "listApplications pid:exe set",
-    onlyOrig.length === 0 && onlyRest.length === 0,
-    `orig-only=${onlyOrig.slice(0, 3)} rest-only=${onlyRest.slice(0, 3)}`,
+    signalOrig.length === 0 && signalRest.length === 0,
+    `orig-only=${signalOrig.slice(0, 3)} rest-only=${signalRest.slice(0, 3)}` +
+      (exemptOrig.length + exemptRest.length > 0
+        ? ` (exempt ci-runner-noise: orig=${exemptOrig.slice(0, 3)} rest=${exemptRest.slice(0, 3)})`
+        : ""),
   );
 }
 

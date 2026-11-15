@@ -36,10 +36,34 @@ function resolveTarArchiveArg(archivePath, cwd) {
   return toTarPosixPath(archivePath);
 }
 
+// Bugfix（W6 2026-11-15，CI run 43685502935）：windows-2022 runner 上 `powershell.exe`
+// （Windows PowerShell 5.1）会按机器级 PSModulePath 加载 PowerShell 7 自带的
+// Microsoft.PowerShell.Archive.psm1（CI 日志：C:\program files\powershell\7\Modules\...），
+// 该模块内部调用 .NET Core 专属的三参 `[ZipFileExtensions]::ExtractToDirectory(zip, path, overwrite)`
+// 重载，5.1 所在的 .NET Framework 4.x 没有这个重载 → "Cannot find an overload for
+// ExtractToDirectory and the argument count: 3"，Expand-Archive 实际一个文件都没解出。
+// Windows 10 1803+ 自带 bsdtar（C:/Windows/System32/tar.exe）原生支持 zip 归档，
+// 与下方 tar.gz 分支同一优先级；仅 bsdtar 缺席的旧系统才回退 Expand-Archive
+// （旧系统没有 PS7 并存污染，该路径历史上工作正常）。
+function resolveWindowsZipExtractCommand() {
+  return existsSync("C:/Windows/System32/tar.exe") ? "C:/Windows/System32/tar.exe" : null;
+}
+
 export function extractPrebuiltArchive({ archivePath, archiveExt, extractDir, cwd }) {
   mkdirSync(extractDir, { recursive: true });
   if (archiveExt === "zip") {
     if (process.platform === "win32") {
+      const bsdTar = resolveWindowsZipExtractCommand();
+      if (bsdTar) {
+        const zipCwd = cwd ?? process.cwd();
+        runCommand(
+          bsdTar,
+          ["-xf", resolveTarArchiveArg(archivePath, zipCwd), "-C", toTarPosixPath(extractDir)],
+          { cwd: zipCwd },
+        );
+        return;
+      }
+
       runCommand("powershell.exe", [
         "-NoProfile",
         "-NonInteractive",

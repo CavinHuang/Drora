@@ -1,4 +1,7 @@
 import childProcess from "node:child_process";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 const POWERSHELL_COMMON_ARGS = ["-NoLogo", "-NoProfile", "-NonInteractive"];
 
@@ -19,12 +22,6 @@ function encodeUtf8Value(value) {
   return Buffer.from(value, "utf8").toString("base64");
 }
 
-// 修复依据：Windows PowerShell 5.1 的 [Console]::Out 默认按本机控制台输出代码页
-// （如 zh-CN 的 GBK）写出，Node 侧按 utf8 解码导致非 ASCII 值往返即成 mojibake
-// （powershell-command.test 实测中文路径损坏）。注入脚本前先把控制台输出编码显式
-// 置为 UTF-8；重定向 stdout 下该 setter 会重建写入器，对后续 [Console]::Out.Write 生效。
-const UTF8_OUTPUT_BOOTSTRAP = "[Console]::OutputEncoding=[System.Text.Encoding]::UTF8;";
-
 export function createEncodedPowerShellArgs(script, values = []) {
   // Windows PowerShell 5.1 会把普通 `-Command` 后续 argv 拼回命令文本，
   // 不会把它们注入 `$args`。动态值先单独编码，再放进 `-EncodedCommand`，同时避免
@@ -35,38 +32,62 @@ export function createEncodedPowerShellArgs(script, values = []) {
         `$droraArg${index}=[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${encodeUtf8Value(value)}'));`,
     )
     .join("");
-  const encodedCommand = Buffer.from(
-    `${UTF8_OUTPUT_BOOTSTRAP}${valueBindings}${script}`,
-    "utf16le",
-  ).toString("base64");
+  const encodedCommand = Buffer.from(`${valueBindings}${script}`, "utf16le").toString("base64");
   return [...POWERSHELL_COMMON_ARGS, "-EncodedCommand", encodedCommand];
+}
+
+export function escapePowerShellLiteral(value) {
+  // PowerShell 将排版单引号也视为定界符，必须与 ASCII 单引号一样双写，防止路径变成代码。
+  if (/[\0\r\n]/u.test(value)) {
+    throw new Error("PowerShell path literal cannot contain NUL or newline characters");
+  }
+  return `'${value.replace(/['\u2018\u2019\u201A\u201B]/g, "$&$&")}'`;
 }
 
 export function createWindowsPowerShellSecurityArgs(script, values = []) {
   // 由 pwsh 启动的 Node 会继承 PowerShell 7 的 PSModulePath，随后再启动
   // Windows PowerShell 5.1 时可能错误发现不兼容的 Security 模块。直接从当前
-  // powershell.exe 的 PSHOME 加载系统模块，避免把外部环境变量当作模块信任根。
+  // powershell.exe 的 PSHOME 显式加载系统模块，避免把外部环境变量当作模块信任根。
   return createEncodedPowerShellArgs(`${WINDOWS_POWERSHELL_SECURITY_BOOTSTRAP}${script}`, values);
 }
 
 export async function readWindowsAuthenticodeSignature(filePath) {
-  const script = [
-    "[Console]::OutputEncoding=[Text.UTF8Encoding]::new($false);",
-    "$signature=Get-AuthenticodeSignature -LiteralPath $droraArg0;",
-    "@{status=[int]$signature.Status;subject=$signature.SignerCertificate.Subject}|ConvertTo-Json -Compress;",
-  ].join("");
-  const stdout = await new Promise((resolve, reject) => {
-    childProcess.execFile(
-      "powershell.exe",
-      createWindowsPowerShellSecurityArgs(script, [filePath]),
-      { encoding: "utf8", timeout: 30_000, windowsHide: true },
-      (error, output, stderr) => {
-        if (error || stderr) reject(error ?? new Error(stderr));
-        else resolve(output);
-      },
-    );
-  });
-  return JSON.parse(stdout.replace(/^\uFEFF/u, "").trim());
+  const pathLiteral = escapePowerShellLiteral(filePath);
+  const outputDir = await mkdtemp(join(tmpdir(), "drora-signature-"));
+  try {
+    const outputPath = join(outputDir, "signature.json");
+    // 受限语言模式会禁止路径解码和 Console 编码的 .NET 调用；专用查询只用 cmdlet，
+    // 结果写入独立 UTF-8 文件，既保留中文签名者，也不改变其他 PowerShell 消费者。
+    const script = [
+      `$droraArg0=${pathLiteral};`,
+      `$droraSignatureOutput=${escapePowerShellLiteral(outputPath)};`,
+      "$ProgressPreference='SilentlyContinue';",
+      "$ErrorActionPreference='Stop';",
+      "try{",
+      "$securityModule=Join-Path $PSHOME 'Modules/Microsoft.PowerShell.Security/Microsoft.PowerShell.Security.psd1';",
+      "Import-Module -Name $securityModule -Force -ErrorAction Stop;",
+      "$signature=Microsoft.PowerShell.Security\\Get-AuthenticodeSignature -LiteralPath $droraArg0;",
+      "@{status=[int]$signature.Status;subject=$signature.SignerCertificate.Subject}|ConvertTo-Json -Compress|Out-File -LiteralPath $droraSignatureOutput -Encoding utf8 -NoNewline;",
+      "}catch{Write-Error ('Windows Authenticode query failed: ' + $_.Exception.Message) -ErrorAction Continue;exit 27};",
+    ].join("");
+
+    await new Promise((resolve, reject) => {
+      childProcess.execFile(
+        "powershell.exe",
+        createEncodedPowerShellArgs(script),
+        { encoding: "utf8", timeout: 30_000, windowsHide: true },
+        (error, _stdout, stderr) => {
+          if (error) reject(error);
+          else if (stderr) reject(new Error(stderr));
+          else resolve();
+        },
+      );
+    });
+    const output = await readFile(outputPath, "utf8");
+    return JSON.parse(output.replace(/^\uFEFF/u, "").trim());
+  } finally {
+    await rm(outputDir, { recursive: true, force: true });
+  }
 }
 
 export async function verifyWindowsAuthenticodeSignature(filePath) {

@@ -48,11 +48,12 @@ const DIRECT_BRANCH_EXPECTED_PROVIDER_TOOL_ORDER = [
   "DeferredToolCall",
   // generate_image（specs/model-capabilities.md §6，b0094ed4b）恒注册、无 include 门
   // （能力发现靠真实 schema 注册）；不进
-  // SORTED_PROVIDER_TOOL_NAMES，按注册序排在 DeferredToolCall 与 ReadSessionContext 之间。
+  // SORTED_PROVIDER_TOOL_NAMES，按注册序排在 DeferredToolCall 与 ReadTopicResource 之间。
   // B4 修复依据：该工具落地时未同步本期望清单，tool-contracts 在 HEAD 上先红（与
   // 注册门改动无关的既有失败），按实际注册面机械补齐。
+  // v3.18.0：ReadSessionContext 退役，上游同位替换为 ReadTopicResource。
   "generate_image",
-  "ReadSessionContext",
+  "ReadTopicResource",
   // "ReplyToChannel",
   "CreateWorkflow",
   // 修订入口紧随 CreateWorkflow 注册（docs/dynamic-workflow/launch.md「The `AmendWorkflow` tool」）。
@@ -150,6 +151,7 @@ describe("tool contract declarations", () => {
       includeAgent: true,
       includeSendMessage: true,
       includeSkill: true,
+      includeTopicResource: true,
     });
     expect(directRegistry.list().slice(0, 4)).toEqual([
       "ToolSearch",
@@ -167,6 +169,7 @@ describe("tool contract declarations", () => {
       includeAgent: true,
       includeSendMessage: true,
       includeSkill: true,
+      includeTopicResource: true,
     });
     expect(
       orderProviderVisibleToolContracts(embeddedRegistry.toContracts()).map((tool) => tool.name),
@@ -181,9 +184,9 @@ describe("tool contract declarations", () => {
         { name: "TodoRead" },
         { name: "Task" },
         { name: "Read" },
-        { name: "ReadSessionContext" },
+        { name: "ReadTopicResource" },
       ]).map((tool) => tool.name),
-    ).toEqual(["Bash", "Read", "TodoRead", "TodoWrite", "Task", "ReadSessionContext"]);
+    ).toEqual(["Bash", "Read", "TodoRead", "TodoWrite", "Task", "ReadTopicResource"]);
   });
 
   it("sorts MCP tools by name after the local-only tools", () => {
@@ -192,14 +195,14 @@ describe("tool contract declarations", () => {
         { name: "mcp__beta__search" },
         { name: "Bash" },
         { name: "mcp__alpha__write" },
-        { name: "ReadSessionContext" },
+        { name: "ReadTopicResource" },
         { name: "mcp__alpha__read" },
         { name: "Read" },
       ]).map((tool) => tool.name),
     ).toEqual([
       "Bash",
       "Read",
-      "ReadSessionContext",
+      "ReadTopicResource",
       "mcp__alpha__read",
       "mcp__alpha__write",
       "mcp__beta__search",
@@ -233,10 +236,10 @@ describe("tool contract declarations", () => {
       orderProviderVisibleToolContracts([
         { name: "Write" },
         { name: "Workflow" },
-        { name: "ReadSessionContext" },
+        { name: "ReadTopicResource" },
         { name: "WebSearch" },
       ]).map((tool) => tool.name),
-    ).toEqual(["WebSearch", "Workflow", "Write", "ReadSessionContext"]);
+    ).toEqual(["WebSearch", "Workflow", "Write", "ReadTopicResource"]);
   });
 
   it("matches source-derived provider-visible schema facts for supported tools", () => {

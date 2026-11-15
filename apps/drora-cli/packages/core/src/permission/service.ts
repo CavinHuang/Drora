@@ -306,6 +306,14 @@ export class PermissionService {
       );
     }
 
+    if (capability.permission?.confirmationHandledByTool) {
+      return this.allow(
+        context,
+        capability,
+        "tool.explicitConfirmation",
+        "Tool collects explicit confirmation before mutations",
+      );
+    }
     if (context.mode === "edit") {
       return this.checkEditMode(context, capability);
     }
@@ -328,7 +336,7 @@ export class PermissionService {
     if (toolRules.length === 0) return false;
     if (rulePolicy) {
       // 有内容级评估器的工具（Bash）由它自己处理整工具规则 × 安全性
-      // （洞 3 修复后：整工具 allow 只对 safe 命令生效），这里不过滤。
+      // （2026-11-14 用户裁定后评估器恢复上游语义：整工具 allow 恒短路），这里不过滤。
       return rulePolicy.evaluateRules(behavior, toolRules);
     }
     // S03 洞 2 评估侧（specs/agent-write-safety.md §2 与 2026-10-17 收尾复评契约）：无
@@ -775,6 +783,7 @@ export class PermissionService {
         !this.isReadOnlyTool(context.toolName),
       permissionCapabilityGroup: toolCapability?.permissionCapabilityGroup,
       permissionName: toolCapability?.permission?.permission,
+      permission: toolCapability?.permission,
     };
   }
 
@@ -838,6 +847,7 @@ export class PermissionService {
 }
 
 interface ResolvedPermissionCapability {
+  permission?: ToolPermissionSpec;
   allowedInPlanMode: boolean;
   alwaysAsk: boolean;
   readOnly: boolean;

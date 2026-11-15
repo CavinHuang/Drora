@@ -74,7 +74,8 @@ describe("P2 桌宠当前态表达映射（spec §11、PM18/58）", () => {
     );
     // 唯一导入是 @drora/shared 的 Locale 类型：结构上不可能接触录音/播报/取消与来源身份。
     expect(source.match(/import (?:type )?\{[^}]*\} from "[^"]*"/g)).toEqual([
-      'import type { Locale } from "@drora/shared"',
+      // S1 Locale 五语言化：新增 toZhOrEnLocale 值导入（仍仅 @drora/shared 单一来源）。
+      'import { toZhOrEnLocale, type Locale } from "@drora/shared"',
     ]);
   });
 });

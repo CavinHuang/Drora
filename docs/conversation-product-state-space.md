@@ -123,9 +123,9 @@ completion-blocking active work：
 | CLI restart + admitted nonterminal input                        | explicit discarded；`queue/guide` 静默结算，只有未进 transcript 的 `startNow`/`unknown` 提示确认重发；不自动重放                                                         |
 | `sendText`/`editUserQuery` accepted input ACK + projection silent | 宽限期后对当前 owned subscription single-flight resync；权威 queue/user row 到达后收口；edit 已提交 branch cut 时也不补造 UI 事实、不恢复旧分支、不自动重发 |
 | edit/retry preflight passed + branch cut committed + Registry changed | Core 不重复执行可变目录准入；模型创建失败时沿普通轮生命周期先落 replacement `TurnStarted`/user row，再落 `TurnError(model_creation)`；落库失败仍报原始创建错误，Stop 为 `completed(cancelled)`，hook 拦截按普通轮处理；guide 回落 queue；workspace rewind 可保留，但 replacement 不得丢失 |
-| `/compact` + Registry changed                                         | 不发布 `TurnStarted`、不落 `/compact` user row；直接发布 `TurnError(model_creation)`                                                                                                                                                                                                      |
-| sendQueuedNow                                                         | reserve -> stop barrier -> promote；成功才 remove，失败原位保留                                                                                                                                                                                                                           |
-| collaborationMode=plan + goal command                                 | UI admission reject；toast；保留 composer 原文；不创建 session、不发 command                                                                                                                                                                                                              |
+| `/compact` + Registry changed                                   | 不发布 `TurnStarted`、不落 `/compact` user row；直接发布 `TurnError(model_creation)` |
+| sendQueuedNow                                                   | reserve -> stop barrier -> promote；成功才 remove，失败原位保留                                                                                                          |
+| collaborationMode=plan + goal command                           | UI admission reject；toast；保留 composer 原文；不创建 session、不发 command                                                                                             |
 
 传输维度不是产品 guard 的自由变量。host 根据 attachment 可信注入 profile，并按 connection-owned
 subscription 路由：

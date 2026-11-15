@@ -36,6 +36,11 @@ import type {
 } from "./rendererActionTrace.js";
 import type { RendererHeapSample } from "./validation.js";
 import type {
+  ExtensionNotificationClick,
+  ExtensionNotificationPayload,
+  NotificationsShowResult,
+} from "#src/extension-host/notifications.js";
+import type {
   CancelPendingRemoteConnectionRequest,
   BindRemoteWorkspaceSessionContextRequest,
   BrowserViewScreenshotSurfacePreparePayload,
@@ -43,6 +48,7 @@ import type {
   BrowserViewScreenshotSurfaceReleasePayload,
   BrowserViewCloseTabNotification,
   BrowserViewCloseTabRequest,
+  BrowserViewPromoteDraftTabsRequest,
   BrowserViewResidencyReportPayload,
   BrowserViewResidencyTransitionPayload,
   BrowserViewRestoredTabShell,
@@ -68,6 +74,11 @@ import type {
   SaveFileRequest,
   SaveFileResult,
   PrintPageToPdfResult,
+  MicrophoneAccessResetResult,
+  MicrophoneAccessResult,
+  MicrophoneSettingsTarget,
+  CaptureBrowserGuestPageRequest,
+  CaptureBrowserGuestPageResult,
   OpenInEditorOptions,
   PostUpdateReleaseNotesPayload,
   RemoteSessionClosedEvent,
@@ -107,6 +118,7 @@ export function toOfficialRpcChannelAlias(channelName: string): string | null {
 }
 
 /** RPC 服务频道名。与 ServiceDescriptor.channelName 对应。 */
+/** RPC 服务频道名。与 ServiceDescriptor.channelName 对应。 */
 export const ServiceChannels = {
   File: "file",
   MediaPreview: "media-preview",
@@ -134,6 +146,8 @@ export const ServiceChannels = {
   /** Drora session 应用服务 */
   DroraSession: "drora-session",
   Project: "project",
+  /** 受管 worktree 任务管理（列表、删除、起点、fork 到新 worktree），仅本地桌面 Host。 */
+  ManagedWorktrees: "managed-worktrees",
   TaskGroups: "task-groups",
   RemoteProjects: "remote-projects",
   /** 手机远端 attachment 的窗口目录；原 project 继续属于工作区。 */
@@ -160,6 +174,12 @@ export const ServiceChannels = {
   DeviceSyncState: "device-sync-state",
   /** 桌面 Host 的数据同步页模型提供商：读取 / 重试 Main 协调器的 Provisioning lane（仅本机注册） */
   ProviderProvisioningStatus: "provider-provisioning-status",
+  /** 桌面 Host 的扩展门面（docs/plugins/extension-host.md）：贡献表、扩展进程状态、命令、重新加载（仅本机注册） */
+  Extensions: "extensions",
+  /** 桌面 Host 的扩展视图门面（docs/plugins/extension-host.md §8）：视图实例、页面请求与通知、views.open（仅本机注册） */
+  ExtensionViews: "extension-views",
+  /** 桌面 Host 的扩展授权门面（docs/plugins/extension-host.md §17.7）：授予、撤销、授权状态、启用确认、最近操作（仅本机注册） */
+  ExtensionGrants: "extension-grants",
   /** 本地 usage 统计服务 */
   UsageStats: "usage-stats",
   /** Coding Plan 订阅购买服务 */
@@ -169,6 +189,8 @@ export const ServiceChannels = {
   ClientScenes: "client-scenes",
   CloudContent: "cloud-content",
   MarketingTouch: "marketing-touch",
+  /** 桌面 Host 的语音输入：连接 drora-server ASR（docs/chat/composer-voice-input.md，仅本机 base 连接） */
+  VoiceInput: "voice-input",
   /** Skills 管理服务 */
   Skills: "skills",
   /** SSH 远程 skills 同步服务 */
@@ -236,14 +258,6 @@ export const PlatformChannels = {
   PluginSandboxOwnerWebContentsId: "drora:plugin-sandbox-owner-web-contents-id",
   /** 打开系统目录选择框 */
   SelectDirectory: "drora:select-directory",
-  /**
-   * Main ⇄ Renderer：手机 workspace-reconnect-request 的重连委托（官方
-   * drora:web-remote-control-reconnect-workspace 同款，2026-09-28 取证）。
-   * main→renderer 发 {requestId, workspaceKey}，renderer 处理后经同一通道回
-   * {requestId, workspaceKey, success, error?}——重连事实（历史/target/凭据）归
-   * 窗口 renderer，main 只做转发与等待（官方 qb 语义，120s 超时）。
-   */
-  WebRemoteControlReconnectWorkspace: "drora:web-remote-control-reconnect-workspace",
   /** 打开系统多目录选择框 */
   SelectDirectories: "drora:select-directories",
   /** 打开系统文件选择框 */
@@ -258,6 +272,14 @@ export const PlatformChannels = {
   SaveFile: "drora:save-file",
   /** Renderer → Main：用 Chromium 打印引擎把当前页面 print 媒体版面导出为 PDF */
   PrintToPdf: "drora:print-to-pdf",
+  /** Renderer → Main：检查并按需请求系统麦克风权限 */
+  MicrophoneAccess: "drora:microphone-access",
+  /** Renderer → Main：macOS 重置本 App 的麦克风授权记录并重新请求 */
+  ResetMicrophoneAccess: "drora:reset-microphone-access",
+  /** Renderer → Main：打开系统麦克风权限 / 声音输入设置页 */
+  OpenMicrophoneSettings: "drora:open-microphone-settings",
+  /** Renderer → Main：在 main 截取内置浏览器 guest 当前视口为 PNG（renderer 侧 capturePage 会崩溃） */
+  CaptureBrowserGuestPage: "drora:capture-browser-guest-page",
   /** Main → Renderer：转发远程连接过程日志 */
   RemoteConnectionLog: "drora:remote-connection-log",
   /** Main → Renderer：远程 workspace session 已关闭 */
@@ -276,7 +298,6 @@ export const PlatformChannels = {
   BindRemoteWorkspaceSessionContext: "drora:bind-remote-workspace-session-context",
   /** 为当前 workspace 开启 Web 远程控制 */
   StartWebRemoteControl: "drora:start-web-remote-control",
-  /** 轮换当前 workspace 的 Web 远控配对（二维码泄露时刷新）；Drora 保留面，字面量还原自 3.15.1 bundle */
   /** 关闭当前窗口的 Web 远程控制 */
   StopWebRemoteControl: "drora:stop-web-remote-control",
   /** 查询当前窗口的 Web 远程控制状态 */
@@ -307,6 +328,8 @@ export const PlatformChannels = {
   SyncWindowTabs: "drora:sync-window-tabs",
   /** Renderer → Main：同步当前窗口可供 Web 远程控制切换的 workspace */
   SyncWebRemoteControlWorkspaces: "drora:sync-web-remote-control-workspaces",
+  /** Main → Renderer：手机端请求重连当前窗口里的远程 workspace */
+  WebRemoteControlReconnectWorkspace: "drora:web-remote-control-reconnect-workspace",
   /** Main → Renderer：手机请求置顶/归档任务或新建本地项目，Renderer 按侧栏同一路径执行 */
   WebRemoteControlRendererAction: "drora:web-remote-control-renderer-action",
   /** Renderer → Main：同步当前窗口的未读 task 数 */
@@ -461,6 +484,10 @@ export const PlatformChannels = {
   DesktopPetRender: "drora:desktop-pet-render",
   /** Pet → Main：宠物拖拽事件（start/move/end/cancel） */
   DesktopPetDrag: "drora:desktop-pet-drag",
+  /** Renderer → Main：弹扩展的系统通知并返回结果（§18.1 H8） */
+  ShowExtensionNotification: "drora:show-extension-notification",
+  /** Main → Preload：用户点了扩展通知，携带插件 id 与要打开的视图 */
+  ExtensionNotificationClick: "drora:extension-notification-click",
   /** Renderer → Main：导出日志（打包 ~/.drora/v2 及外部 agent 日志为 zip 并在 Finder 中显示） */
   ExportLogs: "drora:export-logs",
   /** Renderer → Main：截取当前窗口作为反馈附件 */
@@ -512,6 +539,8 @@ export const PlatformChannels = {
   BrowserViewCloseTabFromRenderer: "drora:browser-view-close-tab-from-renderer",
   /** Renderer → Main：上报 Browser tab residency/display facts。 */
   BrowserViewReportResidency: "drora:browser-view-report-residency",
+  /** Renderer → Main：草稿首发后把草稿 human tab 的 owner 升级为新会话。 */
+  BrowserViewPromoteDraftTabs: "drora:browser-view-promote-draft-tabs",
   /** Renderer → Main：指定 generation 的 guest 已卸载。 */
   BrowserViewSuspendReady: "drora:browser-view-suspend-ready",
   /** Renderer → Main：用户访问 suspended tab，请求恢复。 */
@@ -604,6 +633,22 @@ export type PlatformChannelName = (typeof PlatformChannels)[keyof typeof Platfor
 export const EmbeddedBrowserWebviewChannels = {
   /** Guest 无法继续消费某方向的滚动时，把二维 delta 转交自由尺寸画布。 */
   WheelBoundary: "drora:embedded-browser-wheel-boundary",
+  /**
+   * 设计运行时的页面事件（docs/browser-use/2026-11-03-browser-design-mode-spec.md）：页面主世界
+   * `window.postMessage` 带命名空间的信封，preload 校验后把 `events` 数组转给宿主。
+   */
+  DesignEvents: "drora:embedded-browser-design-events",
+  /**
+   * 页面上按下 Cmd/Ctrl + Z（Shift 为重做），且按键当下的目标不是可编辑元素：preload 隔离世界只认 isTrusted 的按键，
+   * 页面脚本发不出这条，设计工具据此撤销 / 重做源码写回。
+   */
+  DesignUndoShortcut: "drora:embedded-browser-design-undo-shortcut",
+} as const;
+
+/** 设计运行时 postMessage 信封：`{ [messageKey]: 1, events: unknown[] }`；events 序列化后超过上限（UTF-8 字节）的消息 preload 直接丢弃。 */
+export const EMBEDDED_BROWSER_DESIGN_BRIDGE = {
+  messageKey: "__droraDesign",
+  maxMessageBytes: 256 * 1024,
 } as const;
 
 export interface EmbeddedBrowserWheelBoundaryPayload {
@@ -670,6 +715,8 @@ export const InternalChannels = {
   ScopedServicePort: "drora:scoped-service-port",
   /** renderer → main：scoped MessagePort 已注册，可安全切换 attachment */
   ScopedServicePortReady: "drora:scoped-service-port-ready",
+  /** main → renderer：ready ACK 到达时 route 已不存在，窗口释放这次 attachment 的登记 */
+  ScopedServicePortReleased: "drora:scoped-service-port-released",
   /** main → renderer：在线 Source 的配置专用 MessagePort */
   SourceSettingsServicePort: "drora:source-settings-service-port",
   /** preload → renderer：主进程已确认系统通知展示，renderer 可播放提示音 */
@@ -689,6 +736,10 @@ export const DRORA_RPC_HOST_CAPABILITY_HEADER = "x-zcode-rpc-host-capability";
 
 /** main → host process 的初始化消息类型 */
 export const HostMessageTypes = {
+  /** Main → Host：仅经已绑定私有通道返回加解密结果，不含系统主密钥。 */
+  CredentialCipherResult: "credential-cipher-result",
+  /** Main → Host：数据存储路径切换时的系统密钥登记结果，只含受控错误码。 */
+  CredentialKeyShareResult: "credential-key-share-result",
   /** main → Host：准备手机项目目录，只复用已在线物理 Source。 */
   PrepareProjectWorkspace: "prepare-project-workspace",
   DatabaseStartupControl: "database-startup-control",
@@ -757,6 +808,13 @@ export const HostMessageTypes = {
 
 /** host process → main process 的反馈消息类型 */
 export const HostResponseTypes = {
+  /** Host → Main：对本 Host 绑定的凭据目录执行加解密。 */
+  CredentialCipherRequest: "credential-cipher-request",
+  /**
+   * Host → Main：数据存储路径切换后，请求 Main 把当前绑定目录的系统密钥登记到目标数据根。
+   * 只传目标数据根，Main 自行推导凭据路径；不读出密钥，也不开放对目标目录的加解密。
+   */
+  CredentialKeyShareRequest: "credential-key-share-request",
   /** Host → main：已准入的目录与 scope，main 不解释项目业务。 */
   ProjectWorkspacePrepared: "project-workspace-prepared",
   DatabaseStartupState: "database-startup-state",
@@ -804,6 +862,8 @@ export const HostResponseTypes = {
   NetworkCaptureBatch: "network-capture-batch",
   /** host 内当前正在执行 prompt 的 agent session 数量变化 */
   AgentRunningTaskCountChanged: "agent-running-task-count-changed",
+  /** host 内阻止退出的事项变化（例如正在创建的 worktree） */
+  QuitBlockersChanged: "quit-blockers-changed",
   /** host 内指定 workspace 当前仍未 terminal 的 task 数量变化 */
   WorkspaceRunningTaskCountChanged: "workspace-running-task-count-changed",
   /** host → main：Windows desktop-local CUA turn 的操作提示状态 */
@@ -899,6 +959,22 @@ export interface PlatformChannelMap {
   [PlatformChannels.PrintToPdf]: {
     request: void;
     response: PrintPageToPdfResult;
+  };
+  [PlatformChannels.MicrophoneAccess]: {
+    request: void;
+    response: MicrophoneAccessResult;
+  };
+  [PlatformChannels.ResetMicrophoneAccess]: {
+    request: void;
+    response: MicrophoneAccessResetResult;
+  };
+  [PlatformChannels.OpenMicrophoneSettings]: {
+    request: MicrophoneSettingsTarget;
+    response: boolean;
+  };
+  [PlatformChannels.CaptureBrowserGuestPage]: {
+    request: CaptureBrowserGuestPageRequest;
+    response: CaptureBrowserGuestPageResult;
   };
   [PlatformChannels.RemoteConnectionLog]: {
     request: {
@@ -1267,6 +1343,14 @@ export interface PlatformChannelMap {
     request: import("./desktopPet.js").DesktopPetDrag;
     response: void;
   };
+  [PlatformChannels.ShowExtensionNotification]: {
+    request: ExtensionNotificationPayload;
+    response: NotificationsShowResult;
+  };
+  [PlatformChannels.ExtensionNotificationClick]: {
+    request: ExtensionNotificationClick;
+    response: void;
+  };
   [PlatformChannels.WindowFullscreenChanged]: {
     request: boolean;
     response: void;
@@ -1300,6 +1384,7 @@ export interface PlatformChannelMap {
       size: number;
     } | null;
   };
+  // CDP-on-guest pivot：renderer `<webview>` 上报 guest webContentsId → main attach。
   [PlatformChannels.VoiceVendorProxyFetch]: {
     request: import("./contracts/voice.js").VoiceVendorProxyFetchRequest;
     response: import("./contracts/voice.js").VoiceVendorProxyFetchResponse;
@@ -1356,7 +1441,6 @@ export interface PlatformChannelMap {
     request: { enabled: boolean };
     response: import("./contracts/voice.js").VoiceGlobalTriggerStateFrame;
   };
-  // CDP-on-guest pivot：renderer `<webview>` 上报 guest webContentsId → main attach。
   [PlatformChannels.BrowserViewAttachGuest]: {
     request: {
       key: string;
@@ -1380,6 +1464,10 @@ export interface PlatformChannelMap {
   [PlatformChannels.BrowserViewReportResidency]: {
     request: BrowserViewResidencyReportPayload;
     response: void;
+  };
+  [PlatformChannels.BrowserViewPromoteDraftTabs]: {
+    request: BrowserViewPromoteDraftTabsRequest;
+    response: string[];
   };
   [PlatformChannels.BrowserViewSuspendReady]: {
     request: { tabId: string; generation: number };

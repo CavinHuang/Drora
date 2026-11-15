@@ -1,5 +1,5 @@
 // oxlint-disable-file
-// 发行 bundle 还原稿：结构忠实于原编译产物，待语义化拆分。
+// 发行 bundle 还原稿（结构级）：结构忠实于原编译产物，待语义化拆分。
 import { DEV_HELPER_APP_NAME_APP } from "./region-constants.js";
 // oxlint-disable-file -- 还原草稿：仅供继续手工重建参考，不参与编译
 import { z } from "zod";

@@ -113,3 +113,5 @@ packages/desktop/.e2e-home-*/
 .persona-eval-artifacts/
 # 3.14.2→3.17.2 参照物换装：旧参照转 reference（同 3.11.2 先例，P1）
 packages/desktop/resources/cua-helper-3.14.3-reference/
+# CR-01：afterPack 生成的 NSIS helper define，按架构命名，不得入库
+packages/desktop/build/generated/

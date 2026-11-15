@@ -8,7 +8,6 @@
  */
 import assert from "node:assert/strict";
 import {
-  chmodSync,
   existsSync,
   mkdirSync,
   readdirSync,
@@ -221,20 +220,19 @@ test("失败回退：中途失败 → 已搬文件逆序搬回、原件保留", 
   try {
     seedLegacyLibrary(fixture);
     seedModelFiles(fixture);
-    // 注入中途失败：源侧加 lockeddir/x.bin，其目标父目录预置为只读——排序上
+    // 注入中途失败：源侧加 lockeddir/x.bin，目标侧 lockeddir 预置为普通文件——排序上
     // extra-config.json 先搬成功、lockeddir/x.bin 再失败，制造「部分已搬」再断言回退。
+    // win32 适配（05-remaining-gaps §3 #6，台账 31 登记的既有项收口）：原注入
+    // chmodSync(目录, 0o500) 在 win32 对目录是无操作（探针实证子文件写入仍成功）、
+    // root POSIX 亦绕过权限位；改为「目标父目录置为文件」全平台确定性触发
+    // mkdir(recursive) ENOENT（探针实证），注入语义（中途失败→回退）不变。
     mkdirSync(join(fixture.legacyDir, "lockeddir"), { recursive: true });
     writeFileSync(join(fixture.legacyDir, "lockeddir", "x.bin"), "x");
-    mkdirSync(join(fixture.pluginKnowledgeDir, "lockeddir"), { recursive: true });
-    chmodSync(join(fixture.pluginKnowledgeDir, "lockeddir"), 0o500);
+    mkdirSync(fixture.pluginKnowledgeDir, { recursive: true });
+    writeFileSync(join(fixture.pluginKnowledgeDir, "lockeddir"), "not-a-dir");
     const before = countFiles(fixture.legacyDir);
 
-    let outcome: Awaited<ReturnType<typeof migrateLegacyKnowledgeData>>;
-    try {
-      outcome = await migrateLegacyKnowledgeData(resolveKnowledgeDataPlan());
-    } finally {
-      chmodSync(join(fixture.pluginKnowledgeDir, "lockeddir"), 0o700);
-    }
+    const outcome = await migrateLegacyKnowledgeData(resolveKnowledgeDataPlan());
 
     assert.ok(
       outcome.phase === "failed" && outcome.rollbackRestored,

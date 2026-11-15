@@ -33,7 +33,14 @@ const GREP_ROOTS = [
 
 /** 文件 → 冻结门数；行号不冻结（上游无关改动会平移），文件集与每文件计数冻结。 */
 const FROZEN_GATES: Readonly<Record<string, number>> = {
-  "apps/drora-cli/packages/core/src/runtime/helpers/runtime-tools.ts": 6,
+  // 2026-11-14 v3.18.0 S4 段门复跑再冻结（17→19，10→12 文件）：
+  // ① runtime-reminders.ts:289 的门在战役前 HEAD 树已存在（模式提醒精简形态门，
+  //   askUserQuestionAvailable 按子会话工具表推导）但 2026-11-01 清点漏登——本轮补录；
+  // ② runtime-tools.ts 新增 includePluginDiscovery 门（:85，subagent_child 不注册插件
+  //   发现工具）——与同文件 automation/offPeak「子会话不暴露」同款语义，teammate
+  //   （taskType=subagent_child）按 §9 继承原则自动继承，逐点复核通过。
+  "apps/drora-cli/packages/core/src/runtime/helpers/runtime-reminders.ts": 1,
+  "apps/drora-cli/packages/core/src/runtime/helpers/runtime-tools.ts": 7,
   "apps/drora-cli/packages/core/src/runtime/methods/background-notifications.ts": 2,
   "apps/drora-cli/packages/core/src/runtime/methods/model-request-session-type.ts": 1,
   "apps/drora-cli/packages/core/src/runtime/methods/turn-model-step-usage.ts": 1,
@@ -61,8 +68,10 @@ const TOTAL_FROZEN_GATES = Object.values(FROZEN_GATES).reduce(
 
 /** 各文件门的继承效果速查（specs/agents-team.md §9 表；teammate 自动获得）。 */
 export const GATE_INHERITANCE_NOTES: Readonly<Record<string, string>> = {
+  "apps/drora-cli/packages/core/src/runtime/helpers/runtime-reminders.ts":
+    "子会话模式提醒精简形态（askUserQuestionAvailable 按工具表推导），teammate 同为 subagent_child 自动适用",
   "apps/drora-cli/packages/core/src/runtime/helpers/runtime-tools.ts":
-    "RespondToCoordinator 注册门 / automation、offPeak 不注册 / 后台 bash 上限 / runtimeScope=subagent / isSubagentChildRuntime 标记",
+    "RespondToCoordinator 注册门 / automation、offPeak、pluginDiscovery 不注册（v3.18.0 新增同款门）/ 后台 bash 上限 / runtimeScope=subagent / isSubagentChildRuntime 标记",
   "apps/drora-cli/packages/core/src/runtime/helpers/tool-allowlist.ts":
     "RespondToCoordinator 经 allowlist 补回",
   "apps/drora-cli/packages/bootstrap/src/drora-protocol/v4-bridge.ts":
@@ -113,7 +122,7 @@ function groupByPath(gates: readonly GateLine[]): Map<string, number> {
 }
 
 describe("subagent_child behavior gates frozen census", () => {
-  it("keeps the 17-gate census exactly as frozen in specs/agents-team.md §9", async () => {
+  it("keeps the 19-gate census exactly as frozen in specs/agents-team.md §9", async () => {
     const current = groupByPath(await collectCurrentGates());
 
     const missing = Object.keys(FROZEN_GATES).filter((path) => !current.has(path));
@@ -128,7 +137,7 @@ describe("subagent_child behavior gates frozen census", () => {
 缺失文件（门被移除？）: ${JSON.stringify(missing)}
 新增文件（新门——按 spec §9 继承原则确认 teammate 自动继承后，把文件与计数加入 FROZEN_GATES）: ${JSON.stringify(added)}
 计数漂移: ${JSON.stringify(drifted)}`,
-    ).toEqual({ missing: [], added: [], drifted: [], total: 17 });
+    ).toEqual({ missing: [], added: [], drifted: [], total: 19 });
   });
 
   it("notes cover the load-bearing gates referenced by the design", () => {

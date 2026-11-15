@@ -59,6 +59,13 @@
 3. **third-party/ 与 THIRD-PARTY-NOTICES.md**：来源出处记录（provenance），改名即篡改记录。
 4. **docs/cua-restoration-manifest.md**：17-19 轮还原历史档案，保留原称谓。
 5. **pnpm-lock.yaml**：不 sed，由 `pnpm install` 重生成。
+6. **apps/drora-cli/packages/design-plugin/skills/design/design-resources/**
+   （上游 `apps/zcode-cli/packages/design-plugin/skills/design/design-resources/`，
+   v3.18.0 S3 段登记）：官方设计资产逐字 seed（361 件），溯源以 git blob sha256
+   对上游 `refs/upstream-trees/v3.18.0` 校验，改名即虚假溯源 + hash 全失配
+   （specs/upstream-v3.18.0-migration.md §5 D2）；NOTICE.md/LICENSE/SKILL.md 等
+   出处与指令文本一并逐字。路径段（apps/zcode-cli→apps/drora-cli）仍走正常映射，
+   豁免仅针对内容。
 
 ## 豁免区引发的兼容点
 

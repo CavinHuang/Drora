@@ -41,6 +41,32 @@ export const DRORA_KNOWN_TOOL_NAMES = [
   // 消息流落 raw fallback 卡，node_repl_images 展示载荷（图片内联）没有任何渲染器
   // 消费——用户只见「Image saved to: <path>」文本，看不到生成的图（§12 修复 F-1）。
   "generate_image",
+  // 修复（2026-11-14，v3.18.0 S4 段门复跑归因）：上游 v3.18.0 新增的内置工具族未随
+  // 合并登记本表——core 的 builtInTools parity 测试（generate-image-tool-identity）
+  // 如实拦截（identity 回 unknown ⇒ raw fallback 卡）。分三组登记：
+  // ① 会话控制 12 工具（S2 会话控制域，wire 见 drora-protocol-v4）：其中
+  //    ListSessions/ReadSession/SendToSession/WaitSessions 四件 UI 已按名分流到
+  //    SessionToolCallBlock（登记前后两种世界都成立，workflowToolNames 同款先例），
+  //    其余八件落 session-control family 的通用 FallbackToolCallBlock（不再是 raw JSON）；
+  // ② ReadTopicResource：ReadSessionContext 的净迁移后继（S4「ReadSessionContext→
+  //    ReadTopicResource 净迁移」），沿用 session-context family 走既有专用卡；
+  //    ReadSessionContext 保留供历史投影识别；
+  // ③ 插件发现两工具（S4 plugin-discovery 域）：plugin family 通用卡。
+  "ListSessions",
+  "ReadSession",
+  "CreateSession",
+  "ForkSession",
+  "SendToSession",
+  "WaitSessions",
+  "InterruptSession",
+  "RenameSession",
+  "ListProjects",
+  "OpenSession",
+  "SetSessionArchived",
+  "SetSessionPinned",
+  "ReadTopicResource",
+  "SearchPlugins",
+  "SuggestPluginInstall",
 ] as const;
 
 export type DroraKnownToolName = (typeof DRORA_KNOWN_TOOL_NAMES)[number];
@@ -57,10 +83,12 @@ export type DroraToolFamily =
   | "skill"
   | "goal"
   | "session-context"
+  | "session-control"
   | "message"
   | "task-control"
   | "node-repl"
   | "image-generation"
+  | "plugin"
   | "workflow";
 
 const TOOL_FAMILY_BY_NAME: Record<DroraKnownToolName, DroraToolFamily> = {
@@ -93,6 +121,25 @@ const TOOL_FAMILY_BY_NAME: Record<DroraKnownToolName, DroraToolFamily> = {
   mcp__node_repl__js_reset: "node-repl",
   mcp__node_repl__js_add_node_module_dir: "node-repl",
   generate_image: "image-generation",
+  // v3.18.0 新增工具族归属（登记原因见上方 DRORA_KNOWN_TOOL_NAMES 注释块）：
+  // 会话控制 12 工具统一 session-control family（4 件 UI 按名优先分流不受影响，
+  // 其余走 resolveRenderer default 的通用 FallbackToolCallBlock）。
+  ListSessions: "session-control",
+  ReadSession: "session-control",
+  CreateSession: "session-control",
+  ForkSession: "session-control",
+  SendToSession: "session-control",
+  WaitSessions: "session-control",
+  InterruptSession: "session-control",
+  RenameSession: "session-control",
+  ListProjects: "session-control",
+  OpenSession: "session-control",
+  SetSessionArchived: "session-control",
+  SetSessionPinned: "session-control",
+  // ReadSessionContext 的净迁移后继，沿用专用卡 family；旧名保留供历史投影。
+  ReadTopicResource: "session-context",
+  SearchPlugins: "plugin",
+  SuggestPluginInstall: "plugin",
   Agent: "agent",
   Task: "agent",
   Skill: "skill",

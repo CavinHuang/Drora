@@ -54,7 +54,12 @@ test("R1.1 desktopHostProcess 注入键名切换（源文本锁定）", () => {
 
 test("R1.2.1 lazy launch 路径解析序：随包/显式注入优先，回落已安装候选", () => {
   const bundledPath = "/opt/bundled/Drora Computer Use.app";
-  const installedPath = "/home/u/.drora/computer-use/Drora Computer Use.app";
+  // 修复原因：原 posix 字面量期望只在 darwin/linux 宿主成立——win 宿主上
+  // standaloneHelperCandidatePaths 按 node:path join 语义产出反斜杠候选（这是产品
+  // 正确行为，非注入丢失；docs/cua-restoration-manifest.md 第八十轮门禁已定性本断言
+  // 为"win 宿主平台敏感项、非产品回归"）。期望值改为与产品同一 join 派生：posix 宿主
+  // 上与原字面量逐字节相同（语义不变），win 宿主不再误报。
+  const installedPath = join("/home/u/.drora", "computer-use", "Drora Computer Use.app");
   const exists = (path) => path === bundledPath || path === installedPath;
   // ① 随包在场（desktop 场景）：DRORA_CUA_BUNDLED_HELPER_APP_PATH 注入值优先。
   assert.equal(
@@ -98,9 +103,16 @@ test("R1.2.2 install variant 桥接值对齐我方安装根语义", () => {
 
 test("R1.2 mac 桥接 env 构造（darwin）", async () => {
   const appPath = "/opt/bundled/Drora Computer Use.app";
+  // 修复原因：本用例锁的是 darwin 桥接面（标题即声明），但原稿漏传 platform——
+  // ZcodeCuaLazyLaunchBridgeEnvOptions.platform 契约注释明确"缺省 process.platform。
+  // 测试注入用"（姊妹用例 R1.2.2 即以 platform:"win32" 注入），win 宿主缺省会落入
+  // win32 recipe 分支返回空桥接。产品侧在真实宿主平台各走各的分支、注入链无回归
+  // （docs/cua-restoration-manifest.md 第八十轮门禁定性：win 宿主平台敏感项、
+  // 非产品回归）。补注入后三宿主均可跑 darwin 面断言，期望值零改动。
   const bridge = await buildZcodeCuaLazyLaunchBridgeEnv({
     env: { DRORA_CUA_BUNDLED_HELPER_APP_PATH: appPath },
     exists: (path) => path === appPath,
+    platform: "darwin",
   });
   // 第二轮 R7.6：CLI standalone 无 host 注入层，桥接兜底补 ZCODE_HOME=Drora 数据根
   //（切段 candidates 兜底臂不再落到 ~/.zcode 找官方名 Helper——同机官方 ZCode 负测前提）。
@@ -115,6 +127,7 @@ test("R1.2 mac 桥接 env 构造（darwin）", async () => {
       await buildZcodeCuaLazyLaunchBridgeEnv({
         env: { DRORA_CUA_BUNDLED_HELPER_APP_PATH: appPath, ZCODE_HOME: "/custom/root" },
         exists: (path) => path === appPath,
+        platform: "darwin",
       })
     ).ZCODE_HOME,
     undefined,
@@ -125,6 +138,7 @@ test("R1.2 mac 桥接 env 构造（darwin）", async () => {
       await buildZcodeCuaLazyLaunchBridgeEnv({
         env: { DRORA_CUA_BUNDLED_HELPER_APP_PATH: appPath, DRORA_HOME: "/drora-home" },
         exists: (path) => path === appPath,
+        platform: "darwin",
       })
     ).ZCODE_HOME,
     "/drora-home",
@@ -132,7 +146,7 @@ test("R1.2 mac 桥接 env 构造（darwin）", async () => {
   // 路径不可解析 → 空桥接（bundled/variant 不注入；ZCODE_HOME 兜底仍在，切段
   // candidates 兜底臂同样需要数据根路由）。
   assert.deepEqual(
-    await buildZcodeCuaLazyLaunchBridgeEnv({ env: {}, exists: () => false }),
+    await buildZcodeCuaLazyLaunchBridgeEnv({ env: {}, exists: () => false, platform: "darwin" }),
     { ZCODE_HOME: join(homedir(), ".drora") },
   );
 });

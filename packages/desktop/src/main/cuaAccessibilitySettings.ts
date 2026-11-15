@@ -20,6 +20,7 @@ import type {
   PrepareCuaHelperPermissionDragResult,
 } from "@drora/shared";
 import { createDesktopCuaHelperInstaller } from "./desktopCuaHelperInstaller.js";
+import type { BrokerLogger } from "@drora/drora-cua/broker/server";
 
 export const MACOS_ACCESSIBILITY_SETTINGS_URL =
   "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility";
@@ -204,19 +205,12 @@ async function verifyHelperPermissionIdentityUnchanged(
   return fingerprint;
 }
 
-// 冻结还原包（R3）的 CuaHelperInstallerOptions.logger 是 unknown（0.6.3 原始形态），
-// 不能从其派生安装器 logger 形状；按上游安装器契约（traceId 首参）显式定义，
-// 返回值赋给 unknown logger 字段结构兼容。
-type CuaHelperInstallerLogger = {
-  debug: (traceId: string | undefined, ...args: unknown[]) => void;
-  info: (traceId: string | undefined, ...args: unknown[]) => void;
-  warn: (traceId: string | undefined, ...args: unknown[]) => void;
-  error: (traceId: string | undefined, ...args: unknown[]) => void;
-};
-
+// 冻结还原包（R3）的 CuaHelperInstallerOptions.logger 已随上游 v3.18.2 桩 d.ts
+// 对齐收紧为导出的 BrokerLogger（traceId 首参契约）；此处适配器把设置页 logger
+// 降级映射到该形状，本地不再复制类型定义（契约单一出处）。
 function toInstallerLogger(
   logger: OpenCuaAccessibilitySettingsOptions["logger"],
-): CuaHelperInstallerLogger | undefined {
+): BrokerLogger | undefined {
   if (!logger) return undefined;
   return {
     debug: (_traceId: string | undefined, ...args: unknown[]) => logger.debug?.(...args),

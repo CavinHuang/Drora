@@ -30,6 +30,10 @@ _Avoid_: 与 Manual Refresh 混用；把它称作"检查更新"（更新角标�
 商店页顶栏刷新按钮触发的全市场刷新，不受自动刷新节流影响。
 _Avoid_: 刷新、检查更新（口语可用，文档统一"手动刷新"）
 
+**Session Reload（会话重载）**：重建同一任务的运行实例，保留任务身份与历史。安装后的自动重载等待当前工作安全结束；不重放上一条请求。与刷新市场目录分别表述。
+
+**Plugin Readiness（插件就绪）**：当前会话实际可以使用插件能力。安装成功、已启用和会话实例 ready 均不能独立证明插件就绪。
+
 ### 商店页结构
 
 **Public Segment（公开）**:
@@ -87,3 +91,24 @@ _Avoid_: 未安装 CDN 插件、临时禁用的内置插件
 **Orphaned Installed Plugin（孤立已安装插件）**:
 对应 Personal Source 已被删除、但安装目录和用户数据仍保留的插件。它仍可使用、配置、启停和卸载；来源重新添加前不能更新，重新添加同一来源后恢复目录关联。
 _Avoid_: 安装损坏、manifest 缺失、已卸载插件
+### 扩展宿主与插槽（Extension Host & Slots，v3.18.0 合入）
+
+**Extension Host（扩展宿主）**:
+官方 v3.18.0 的插件扩展进程链（`zcode-extension-host`→`drora-extension-host` 服务名）：插件以受控子进程运行，经 parentPort 消息族（init/attach-window/probe/dispose 等 15 消息）与主进程通信。与本仓自研 `services/src/drora-extensions/`（Drora 扩展服务）物理隔离、互不合并。
+_Avoid_: 与 Plugin Host（MCP 插件 UI 面板宿主，`ui/src/plugin-ui/`）混称；与 Drora Extensions 混称
+
+**Extension View（扩展视图）**:
+扩展声明的 Side Pane 页签（`ui/src/extension-slots/` 消费）：插件市场之后的扩展导航入口，支持 views.open 能力打开、logs 侧栏查看；标题按界面语言本地化（`locale` 传递链）。
+_Avoid_: Plugin UI Panel（插件 UI 面板，plugin-ui 域的 MCP App 页面，两域同名异义）
+
+**Extension Slot（扩展插槽）**:
+扩展在宿主界面注入 UI 的锚点族：`composer.status`（Composer 状态条）、`composer.mention`（提及候选）、`sidePane.launcher`（侧栏启动器条目）、`nav.primary`（「插件市场」之后的扩展导航条目，经 `navPrimarySlot` 挂到 project-sidebar）。插槽值按工作区作用域合并动态值（badge/value/visible）。
+_Avoid_: 把插槽叫"插件设置页"或"市场分区"；Slot ≠ Segment
+
+**Extension Grants（扩展授权档位）**:
+扩展安装/运行前的权限档位授予（`extension-grants` 通道），决定扩展可用的宿主能力集；与插件权限（permissions 键族）联动展示。
+_Avoid_: 与 MCP 工具授权（permission broker）混称
+
+**Static Slot Item / Slot Value / Slot Badge（静态插槽条目/动态值/徽标）**:
+插槽数据的三层拆分：StaticSlotItem 是清单声明的静态部分；SlotValue 是运行时动态值（工作区作用域）；SlotBadge 是徽标展示值。
+_Avoid_: 把三者统称"插槽配置"

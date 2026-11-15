@@ -317,7 +317,7 @@ export async function main(): Promise<void> {
     });
   }
   let shutdownStarted = false;
-  const shutdown = () => {
+  const shutdown = (exitCode: number = 0) => {
     if (shutdownStarted) return;
     shutdownStarted = true;
     // dispose：停 run 事件流/autoReconcile 定时器 → 释放租约（TTL 兜底）→ 关 DB。
@@ -329,7 +329,7 @@ export async function main(): Promise<void> {
     void handle
       .close()
       .catch(() => undefined)
-      .finally(() => process.exit(0));
+      .finally(() => process.exit(exitCode));
   };
   process.stdin.on("end", shutdown);
   process.stdin.on("close", shutdown);
@@ -337,7 +337,12 @@ export async function main(): Promise<void> {
   process.on("SIGINT", shutdown);
   process.on("uncaughtException", (error) => {
     process.stderr.write(`[knowledge-server] uncaught: ${String(error)}\n`);
-    shutdown();
+    // 崩溃路径退出码非零：宿主 appService 崩溃重启按退出码区分「stdin 收尾 /
+    // SIGTERM = 0」与「uncaughtException = 1」——原统一 exit(0) 会让宿主把崩溃
+    // 当正常收尾而错过重启/告警。不改为 process.exitCode 自然退出：uncaughtException
+    // 后事件循环状态不可依赖，且关闭链经 handle.close() 异步收尾，沿既有 finally
+    // 显式 exit 以参数携带退出码最确定。
+    shutdown(1);
   });
 }
 

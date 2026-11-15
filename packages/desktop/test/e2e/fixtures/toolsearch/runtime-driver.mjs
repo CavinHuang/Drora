@@ -27,8 +27,8 @@ const app = await createDroraApp({
     toolAllowlist: [
       "Read",
       "ToolSearch",
-      "WebFetch",
-      "TodoWrite",
+      "TaskOutput",
+      "TodoRead",
       "DeferredToolCall",
       ...(options.recording ? [recordingTool] : []),
     ],

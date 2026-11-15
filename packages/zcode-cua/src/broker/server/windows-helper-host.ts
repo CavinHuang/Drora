@@ -1,5 +1,5 @@
 // oxlint-disable-file
-// 发行 bundle 还原稿：结构忠实于原编译产物，待语义化拆分。
+// 发行 bundle 还原稿（结构级）：结构忠实于原编译产物，待语义化拆分。
 function Pe(scope: string) {
   // 发行包中 Pe 为作用域日志工厂；本还原以静默实现保持默认行为。
   return { debug() {}, info() {}, warn() {}, error() {} };

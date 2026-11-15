@@ -31,6 +31,12 @@ export interface KnowledgeEmbeddingPort {
   status?(): KnowledgeSemanticPortStatus;
   /** 手动就绪（模型下载 + 会话初始化）；长耗时，失败上抛。可选。 */
   ensureReady?(): Promise<void>;
+  /**
+   * 释放端口持有的本地原生资源（如 ONNX InferenceSession）；服务 dispose / 热切换
+   * 换端口时调用（2026-11-15 审计 §四补口）。可选；实现须幂等且吞释放错误——
+   * dispose 链同步，不因释放失败阻塞进程收尾。无原生资源的出站实现可不提供。
+   */
+  dispose?(): void;
 }
 
 /** 服务面状态映射：null 端口 = 功能关闭；无 status 的实现 = 无法确认（按缺模型处理）。 */

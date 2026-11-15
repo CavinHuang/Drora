@@ -1,3 +1,4 @@
+import type { SessionControlBinding } from "../session-control/contract.js";
 import type {
   AgentExecutionTelemetryPort,
   AgentTelemetryActorKind,
@@ -11,6 +12,7 @@ import type {
   EmbeddedSearchBackend,
   ExecutionPort,
   ExecutionShellSelection,
+  PluginDiscoveryPort,
   FileSystemPort,
   HttpClientPort,
   ImageGenerationPort,
@@ -34,6 +36,7 @@ import type {
   TraceContext,
   TurnId,
   WorkflowEscalatePort,
+  WorkflowWebSearchBudgetPort,
   WorkflowPort,
   WorkflowSubmitPort,
 } from "@drora/contracts";
@@ -108,7 +111,10 @@ export interface ToolExecutorOptions {
   workflowSubmitPort?: WorkflowSubmitPort;
   /** actor 的升级端口；存在即为该会话注册 escalate。 */
   workflowEscalatePort?: WorkflowEscalatePort;
+  /** actor 每个 ask 的 WebSearch 预算；缺席即无上限。 */
+  webSearchBudget?: WorkflowWebSearchBudgetPort;
   artifactStore?: ToolArtifactStorePort;
+  sessionControl?: SessionControlBinding;
   automationPort?: AutomationPort;
   /**
    * agent 内置文生图端口（specs/model-capabilities.md §6）。恒注入（不做注册门），
@@ -117,6 +123,7 @@ export interface ToolExecutorOptions {
   imageGenerationPort?: ImageGenerationPort;
   offPeakPort?: OffPeakPort;
   topicResourcePort?: TopicResourcePort;
+  pluginDiscoveryPort?: PluginDiscoveryPort;
   sessionStore?: SessionStorePort;
   sessionModePort?: SessionModePort;
   workflowPort?: WorkflowPort;
@@ -135,6 +142,7 @@ export interface ToolExecutorOptions {
   workingDirectory?: string;
   workspaceRoot?: string;
   workspaceIdentity?: string;
+  workspaceKey?: string;
   remoteSessionId?: string;
   clientMode?: "desktop-continuous" | "web-remote-replayable";
   deliveryKind?: "desktop-continuous" | "web-remote-replayable";
@@ -194,6 +202,7 @@ export interface ToolExecutor {
 
 export interface ToolExecuteOptions {
   toolSearch?: ToolSearchExecutionContext;
+  pluginDiscoveryUi?: boolean;
   automationTurn?: boolean;
   automationId?: string;
   offPeakTurn?: boolean;
@@ -240,7 +249,10 @@ export interface ToolExecutorDeps {
   workflowSubmitPort?: WorkflowSubmitPort;
   /** actor 的升级端口；存在即为该会话注册 escalate。 */
   workflowEscalatePort?: WorkflowEscalatePort;
+  /** actor 每个 ask 的 WebSearch 预算；缺席即无上限。 */
+  webSearchBudget?: WorkflowWebSearchBudgetPort;
   artifactStore?: ToolArtifactStorePort;
+  sessionControl?: SessionControlBinding;
   automationPort?: AutomationPort;
   /**
    * agent 内置文生图端口（specs/model-capabilities.md §6）。恒注入（不做注册门），
@@ -249,6 +261,7 @@ export interface ToolExecutorDeps {
   imageGenerationPort?: ImageGenerationPort;
   offPeakPort?: OffPeakPort;
   topicResourcePort?: TopicResourcePort;
+  pluginDiscoveryPort?: PluginDiscoveryPort;
   sessionStore?: SessionStorePort;
   sessionModePort?: SessionModePort;
   workflowPort?: WorkflowPort;
@@ -269,6 +282,7 @@ export interface ToolExecutorDeps {
   setWorkingDirectory?: (cwd: string) => Promise<void> | void;
   getWorkspaceRoot: () => string;
   workspaceIdentity?: string;
+  workspaceKey?: string;
   remoteSessionId?: string;
   clientMode?: "desktop-continuous" | "web-remote-replayable";
   deliveryKind?: "desktop-continuous" | "web-remote-replayable";

@@ -481,7 +481,7 @@ presentation 区分 teammate 消息，加值的偏斜面已澄清（该枚举不
    重放同一过滤。反 laundering 价值：工具面收窄的裁决权在部署方不在模型。v1 可先
    不做（profile tools 治理已覆盖基本需求）。
 
-## 9. subagent_child 行为门验证清单（17 处，零改动验证）
+## 9. subagent_child 行为门验证清单（19 处，零改动验证）
 
 2026-10-16 实测：`grep -rn 'subagent_child' core/bootstrap/services src（非测试）| grep '===|!=='`
 共 **22 处**（core/bootstrap 19 + services sessionKind 3）。
@@ -510,11 +510,21 @@ droraAgentService.ts 会话归属守卫、task-facts/repairSubagentTaskIndex.ts 
 四个调用点（syncer:1691 / adapter:1438 / service:3879 / repair:27）分支结构与原 `===/!==`
 字面量门逐字对应（service 与 repair 为取反形态），teammate（taskType=subagent_child）
 仍命中、任务索引排除与父链归属的继承语义不变；shared 不在 census grep roots 内，
-属形状迁移而非门移除。census 21 → **17 处（10 文件）**，FROZEN_GATES 已再冻结。分布：
+属形状迁移而非门移除。census 21 → **17 处（10 文件）**，FROZEN_GATES 已再冻结。
+
+**2026-11-14 再冻结（v3.18.0 S4 全量合并段门复跑）**：census 17 → **19 处（12 文件）**。
+两处漂移逐点复核（behavior-gates.snapshot.test.ts 有意失败后人工复核，FROZEN_GATES
+同批更新）：① `core/src/runtime/helpers/runtime-reminders.ts:289` 的模式提醒精简形态门
+（子会话 `askUserQuestionAvailable` 按工具表推导）在战役前 HEAD 树已存在，2026-11-01
+清点漏登，本轮补录——teammate 同为 subagent_child，精简提醒自动适用，继承语义一致；
+② `runtime-tools.ts` 新增 `includePluginDiscovery` 门（:85，subagent_child 不注册插件
+发现工具）——与同文件 automation/offPeak「子会话不暴露」同款语义，teammate 按继承原则
+自动继承。分布：
 
 | 文件                                                                                                                         | 处数 | 继承效果（taskType=subagent_child ⇒ 自动获得）                                                                                                 |
 | ---------------------------------------------------------------------------------------------------------------------------- | ---- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| core/src/runtime/helpers/runtime-tools.ts（:56/:67/:72/:214/:228/:269）                                                      | 6    | RespondToCoordinator 注册门、automation/offPeak 不注册、subagentBackgroundBashMaxMs 适用、runtimeScope="subagent"、isSubagentChildRuntime 标记 |
+| core/src/runtime/helpers/runtime-reminders.ts(:289)                                                                          | 1    | 模式提醒精简形态（askUserQuestionAvailable 按工具表推导）；战役前漏登、2026-11-14 补录                                                        |
+| core/src/runtime/helpers/runtime-tools.ts（:56/:67/:72/:85/:214/:228/:269）                                                  | 7    | RespondToCoordinator 注册门、automation/offPeak/pluginDiscovery 不注册（:85 为 v3.18.0 新增）、subagentBackgroundBashMaxMs 适用、runtimeScope="subagent"、isSubagentChildRuntime 标记 |
 | core/src/runtime/methods/background-notifications.ts                                                                         | 2    | 通知封印按子会话现状                                                                                                                           |
 | bootstrap/src/drora-protocol/server-operations.ts                                                                            | 1    | 子会话下钻/查询包含 teammate；v3.17.1 起另两处收敛进 isReadonlyAgentSessionKind（见上）                                                       |
 | bootstrap/src/app/subagent-observation.ts（:51/:95）                                                                         | 2    | 子代理观察面适用                                                                                                                               |

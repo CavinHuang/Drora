@@ -23,13 +23,11 @@
 ### Task 1: HTTP Server Static And Token Support
 
 **Files:**
-
 - Modify: `packages/server/src/http.ts`
 - Modify: `packages/server/src/entry-http.ts`
 - Test: `packages/server/test/serverInfoHttp.test.ts`
 
 **Interfaces:**
-
 - Produces: `HttpServerOptions.staticRoot?: string`, `HttpServerOptions.spaFallback?: boolean`, `HttpServerOptions.host?: string`, `HttpServerOptions.authToken?: string`.
 - Consumes: Existing `createHttpServer(services, port, options)` call sites remain compatible.
 
@@ -41,11 +39,9 @@
 ### Task 2: Plain Web Bootstrap Workspace
 
 **Files:**
-
 - Modify: `packages/web/src/main.tsx`
 
 **Interfaces:**
-
 - Produces: plain Web bootstrap can populate `initialWorkspaceAbsPath` from `/api/server-info`.
 - Consumes: Existing `ServerRemoteInfo.workspaces` response.
 
@@ -56,12 +52,10 @@
 ### Task 3: Drora Lite Build Script
 
 **Files:**
-
 - Create: `scripts/build-drora-lite.mjs`
 - Modify: `package.json`
 
 **Interfaces:**
-
 - Produces: `pnpm build:lite`.
 - Produces: `dist/drora-lite/install.sh`, `dist/drora-lite/latest.json`, and `dist/drora-lite/releases/<version>/drora-lite-<version>.tar.gz`.
 
@@ -73,11 +67,9 @@
 ### Task 4: Local Verification And Upload
 
 **Files:**
-
 - No source files for upload; upload remains a one-off command.
 
 **Interfaces:**
-
 - Consumes: local `dist/drora-lite` output.
 - Produces: remote static directory at `/Users/dev/shared/drora/deps/drora-lite`.
 

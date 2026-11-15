@@ -28,7 +28,7 @@ Helper/CUA runtime。桌面使用 `desktop-continuous`，手机使用 `web-remot
 
 | 事实                      | 权威 owner                   | 产物/校验                                                                          |
 | ------------------------- | ---------------------------- | ---------------------------------------------------------------------------------- |
-| CUA SDK                   | `@drora/drora-cua-plugin`    | `scripts/computer-use-client.mjs` + `scripts/check-sdk.mjs`                        |
+| CUA SDK                   | `@zcode/zcode-cua-plugin`    | `scripts/computer-use-client.mjs` + `scripts/check-sdk.mjs`                        |
 | CUA 文档与 Skill          | producer plugin              | `docs/computer-use.md`、`skills/computer-use/SKILL.md`                             |
 | node_repl MCP             | `@drora/browser-use-plugin`  | `dist/mcp/server.js` + `scripts/computer-use-client.mjs`（shared host runtime）    |
 | CUA runtime/session/frame | shared-host `CuaControlPort` | `createComputerUseRuntime()`；按 `workspaceKey`/`remoteSessionId`/`sessionId` 隔离 |
@@ -60,6 +60,6 @@ Helper/CUA runtime。桌面使用 `desktop-continuous`，手机使用 `web-remot
 - `apps/drora-cli/packages/browser-use-plugin/src/cua-bridge.ts`
 - `apps/drora-cli/packages/browser-use-plugin/src/mcp/cua-broker.ts`
 - `apps/drora-cli/packages/browser-use-plugin/src/mcp/server.ts`
-- `apps/drora-cli/packages/drora-cua-plugin/scripts/computer-use-client.mjs`
+- `apps/drora-cli/packages/zcode-cua-plugin/scripts/computer-use-client.mjs`
 - `apps/drora-cli/packages/bootstrap/src/app/built-in-node-repl.ts`
 - `docs/cua/2026-08-24-cua-node-repl-sdk-migration-spec.md`

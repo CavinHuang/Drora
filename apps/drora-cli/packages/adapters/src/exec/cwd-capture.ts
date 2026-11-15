@@ -34,10 +34,12 @@ export function createCwdCapturePlan(
   const wrappedCommand =
     options.dialect === "cmd"
       ? createWindowsCmdCwdCaptureCommand(request.command.command, cwdFilePath)
-      : createPosixCwdCaptureCommand(
-          request.command.command,
-          options.dialect === "git-bash" ? windowsPathToGitBashPath(cwdFilePath) : cwdFilePath,
-        );
+      : options.dialect === "git-bash"
+        ? createGitBashCwdCaptureCommand(
+            request.command.command,
+            windowsPathToGitBashPath(cwdFilePath),
+          )
+        : createPosixCwdCaptureCommand(request.command.command, cwdFilePath);
 
   return {
     command: {
@@ -53,6 +55,26 @@ function createPosixCwdCaptureCommand(command: string, cwdFilePath: string): str
     command,
     "__drora_status=$?",
     `if [ "$__drora_status" -eq 0 ]; then pwd -P > ${shellQuote(cwdFilePath)}; fi`,
+    'exit "$__drora_status"',
+  ].join("\n");
+}
+
+function createGitBashCwdCaptureCommand(command: string, cwdFilePath: string): string {
+  return [
+    command,
+    "__drora_status=$?",
+    // win32 根因链（v3.18.0 战役 05-remaining-gaps §3 #2，探针实证）：Git Bash 把
+    // TMP/TEMP 视为 MSYS 虚拟挂载 /tmp，%TEMP% 下的 cwd 经 `pwd -P` 写出的是
+    // `/tmp/...`；readCapturedCwd 走 gitBashPathToWindowsPath 时既非 //、/cygdrive、
+    // 也非 /<盘符>/ 形态，落进兜底分支 replaceAll("/","\\") 得到当前盘相对的
+    // `\tmp\...`，statSync 失败 → resolvedCwd 恒为 undefined（subagent-workspace
+    // 用例 status=completed/exit 0 仍断言失败）。改用 cygpath -w 让 shell 侧直接
+    // 产出原生 Windows 路径，不依赖对 /tmp 挂载点的任何假设；Git Bash 自带
+    // /usr/bin/cygpath（本机探针 /tmp → %TEMP% 实证）。产物 `C:\...` 经
+    // gitBashPathToWindowsPath 为无正斜杠的原样透传，readCapturedCwd 兼容不变。
+    // 若环境缺 cygpath，管道失败落空文件，readCapturedCwd 判空返回 undefined，
+    // 与修复前的降级语义一致。
+    `if [ "$__drora_status" -eq 0 ]; then pwd -P | cygpath -w -f - > ${shellQuote(cwdFilePath)}; fi`,
     'exit "$__drora_status"',
   ].join("\n");
 }

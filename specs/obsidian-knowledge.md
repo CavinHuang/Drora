@@ -443,8 +443,15 @@ A02（新增→coverage 准确）、A03（改/删/重命名→旧 chunk 不可�
   （model_quantized.onnx + vocab.txt）。校验策略（如实降级）：v1 以**尺寸界**校验
   （onnx 5–60MB / vocab 100KB–2MB，越界即删重下）+ 运行时 sha256 写日志——预固定
   哈希因开发环境网络受限无法预下载，**发布前必须补 pin**（发布门禁）。下载失败 →
-  端口不可用，下次使用重试。打包核对项（后续）：electron-builder 需 asarUnpack
-  onnxruntime 的 .node 原生产物。
+  端口进入**失败冷却**（2026-11-14 修订；原文「端口不可用，下次使用重试」按字面执行
+  时，离线/被墙环境下 reconcile 的逐文档嵌入、尾部回填与每次查询都会各自重试整轮
+  镜像下载——单镜像 120s 超时 × 2 镜像 × 2 文件，job 以「每文档一轮下载」爬行至
+  分钟级、检索周期性卡顿；P5 gate `vaultUiResources` N1 用例在离线环境实证 30s
+  轮询超时、indexedFiles 恒 0）：冷却期（10 分钟，对齐 §5b.8 autoReconcile 陈旧
+  TTL）内后续 embed **快速失败不再出站**（词法照常既有语义），冷却期满后下次使用
+  自动重试（环境可能恢复）；手动 `knowledge_index_download_semantic_model`
+  （ensureReady）是显式用户意图，**不受冷却限制**立即重试。打包核对项（后续）：
+  electron-builder 需 asarUnpack onnxruntime 的 .node 原生产物。
 
 **向量存储（schema v5）**：
 

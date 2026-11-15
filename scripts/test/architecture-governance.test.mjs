@@ -136,6 +136,22 @@ test("manifest-policy-mismatch：publicEntrypoints 漂移被拦截（全域审�
       assert.match(drift[0].message, /模块内不存在 ghost\.ts/);
     },
   );
+  // 漂移形态三：跨段中间态——清单为上游逐字稿、publicEntrypoints 引用后续切段才落位的文件；
+  // scoped 例外（rule: manifest-policy-mismatch，按 module.ts 文件粒度）应同时压掉
+  // requires 与 publicEntrypoints 两分支（S2 段门实证：例外机制首版漏接本规则）。
+  await fixture(
+    {
+      ...base,
+      "src/alpha/module.ts": manifest(["contract.ts", "ghost.ts"]),
+      "architecture-policy.yaml": `${POLICY.trimEnd()}\nexceptions:\n  - id: cross-segment-manifest-intermediate\n    rule: manifest-policy-mismatch\n    paths: [src/alpha/module.ts]\n    reason: 跨段中间态清单，消费段落位后自愈。\n`,
+    },
+    async (cwd) => {
+      const drift = (await checkArchitecture({ cwd })).violations.filter(
+        (v) => v.rule === "manifest-policy-mismatch",
+      );
+      assert.equal(drift.length, 0, "例外应压掉该 module.ts 的全部 manifest 失配");
+    },
+  );
 });
 
 test("managed module needs contracts and documentation but no unit test", async () => {

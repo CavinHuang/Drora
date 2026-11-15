@@ -8,6 +8,7 @@
 
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { mapRelPath, zoneOf } from "./transform-upstream-tree.mjs";
 
@@ -16,75 +17,46 @@ const getArg = (n) => {
   const i = args.indexOf(`--${n}`);
   return i >= 0 ? args[i + 1] : undefined;
 };
-const BASE_REF = "3c5b227649371507ddc4eb46ac5133afe6db1cab";
-const THEIRS_REF = "upstream/main";
-const baseDir = getArg("base-dir") ?? "/tmp/golden/base-transformed";
-const theirsDir = getArg("theirs-dir") ?? "/tmp/dryrun/theirs";
-const outDir = getArg("out") ?? "/tmp/dryrun";
+// v3.18.0 战役重定标（specs/upstream-v3.18.0-migration.md §4 S0）：
+// base=v3.17.2（上一轮合并完成点），theirs=本仓 git 对象库固定树（gh api tarball 导入）。
+// v3.18.2 增量战役重定标（05-remaining-gaps.md §1 吸收路径）：base=已对齐的 v3.18.0，theirs=v3.18.2。
+const BASE_REF = "refs/upstream-trees/v3.18.0";
+const THEIRS_REF = "refs/upstream-trees/v3.18.2";
+const baseDir = getArg("base-dir") ?? "C:/Users/A/AppData/Local/Temp/dryrun/theirs"; // v3.18.2 战役：base=v3.18.0 变换树（曾误指 v3.17.2 树致三方全失真）
+const theirsDir = getArg("theirs-dir") ?? "C:/Users/A/AppData/Local/Temp/dryrun/theirs-v3182";
+const outDir = getArg("out") ?? "C:/Users/A/AppData/Local/Temp/dryrun-v3182";
 
 const sh = (cmd) =>
   execFileSync("sh", ["-c", cmd], { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
 
-// 段划分（ specs/upstream-v3.16.1-migration.md 段表；drora 命名空间路径）
-const SEGMENTS = [
-  ["S2", ["apps/drora-cli/"]],
-  ["S4", ["packages/desktop/"]],
-  [
-    "S3",
-    [
-      "packages/services/",
-      "packages/server/",
-      "packages/provider/",
-      "packages/provider-node/",
-      "packages/client/",
-      "packages/drora-server-cli/",
-      "packages/model-option-map/",
-      "packages/android/",
-      "packages/formal-proof/",
-      "packages/share-ui/",
-      "packages/web-share/",
-      "packages/stream-animate/",
-      "packages/e2e-report/",
-      "harness/",
-      "config/",
-    ],
-  ],
-  ["S5", ["packages/ui/", "packages/web/", "packages/mobile-web/", "public/"]],
-  ["S1", ["packages/shared/", "packages/rpc/"]],
-  [
-    "S6",
-    [
-      "packages/zcode-cua/",
-      "packages/zcode-cua-helper/",
-      "docs/",
-      "scripts/",
-      "patches/",
-      "third-party/",
-      ".agents/",
-      ".github/",
-      "apps/dev-docs/",
-      "THIRD-PARTY-NOTICES.md",
-      "AGENTS.md",
-      "DESIGN.md",
-      "CONTEXT.md",
-      "README.md",
-      "README.en.md",
-      "UI_PLUGIN.md",
-      "UI_PLUGIN.en.md",
-      "NOTICE.md",
-      ".gitattributes",
-      ".gitignore",
-      ".oxlintrc.json",
-      ".oxfmtrc.json",
-    ],
-  ],
-  ["S1", []], // 兜底：根级杂项归 S1
-];
+// 段划分：v3.18.0 起改由 03-segment-rules.json 单一出处加载（含 exceptions 最长前缀优先），
+// 与 check-segment-coverage.mjs 同源，避免段表硬编码与本轮 spec 漂移。
+const RULES_PATH = getArg("rules") ?? "docs/upstream-v3.18.0-diff-2026-11-11/03-segment-rules.json";
+const rules = JSON.parse(fs.readFileSync(RULES_PATH, "utf8"));
+const SEGMENTS = rules.segments.map((s) => [s.id, s.prefixes ?? []]);
+const RULE_EXCEPTIONS = rules.exceptions ?? [];
 const segmentOf = (p) => {
-  for (const [seg, prefixes] of SEGMENTS) {
-    if (prefixes.some((x) => p === x || p.startsWith(x))) return seg;
+  // 例外最长前缀优先，其次段前缀最长匹配；均未命中归 S8 之外的兜底报错（分配表应全覆盖）。
+  let exHit = "";
+  let exSeg = "";
+  for (const ex of RULE_EXCEPTIONS) {
+    if (p.startsWith(ex.prefix) && ex.prefix.length > exHit.length) {
+      exHit = ex.prefix;
+      exSeg = ex.segment;
+    }
   }
-  return "S1";
+  if (exHit) return exSeg;
+  let bestPrefix = "";
+  let bestSeg = "UNASSIGNED";
+  for (const [seg, prefixes] of SEGMENTS) {
+    for (const x of prefixes) {
+      if ((p === x || p.startsWith(x)) && x.length > bestPrefix.length) {
+        bestPrefix = x;
+        bestSeg = seg;
+      }
+    }
+  }
+  return bestSeg;
 };
 
 // theirs 转换树（缓存：若目录已存在则跳过）
@@ -104,6 +76,16 @@ const raw = sh(`git diff --name-status --no-renames ${BASE_REF} ${THEIRS_REF}`)
     return { status: m[1], upstreamPath: m[2] };
   });
 
+// v3.18.2 增量战役修复：v3.18.0 战役成果未提交（工作树态），ours 若读 HEAD 会把
+// 工作树已就位文件误判为不存在（假 theirs-modify-ours-deleted）。ours 改为优先读工作树文件。
+const worktreeOurs = (p) => {
+  try {
+    return fs.readFileSync(path.join(repoRootForRead(), p));
+  } catch {
+    return readGit("HEAD", p);
+  }
+};
+const repoRootForRead = () => process.cwd();
 const readGit = (ref, p) => {
   try {
     return execFileSync("git", ["cat-file", "-p", `${ref}:${p}`], {
@@ -121,7 +103,28 @@ const readFile = (dir, rel) => {
     return null;
   }
 };
-const sameBuf = (a, b) => !Buffer.compare(a, b);
+// 与 01-merge-inventory 分类器同口径：比较前做 BOM 剥离 + CRLF→LF 归一化，
+// 否则本仓 CRLF blob 与变换树的 LF 内容会全部判成幻影 conflict（v3.17.2 后仓内 CRLF blob 增多）。
+const normText = (buf) => {
+  let s = buf.toString("utf8");
+  if (s.charCodeAt(0) === 0xfeff) s = s.slice(1);
+  return Buffer.from(s.replace(/\r\n/g, "\n").replace(/\r/g, "\n"), "utf8");
+};
+const isTextBuf = (buf) => {
+  for (const b of buf.subarray(0, 4096)) if (b === 0) return false;
+  try {
+    new TextDecoder("utf-8", { fatal: true }).decode(buf);
+    return true;
+  } catch {
+    return false;
+  }
+};
+const sameBuf = (a, b) => {
+  if (!Buffer.compare(a, b)) return true;
+  if (isTextBuf(a) && isTextBuf(b) && !Buffer.compare(normText(a), normText(b))) return true;
+  return false;
+};
+const normIfText = (buf) => (buf && isTextBuf(buf) ? normText(buf) : buf);
 
 const results = [];
 for (const { status, upstreamPath } of raw) {
@@ -133,7 +136,7 @@ for (const { status, upstreamPath } of raw) {
   // 上游侧内容（转换树；new/modify 均存在，delete 不存在）
   const theirs = readFile(theirsDir, droraPath);
   const base = readFile(baseDir, droraPath);
-  const ours = readGit("HEAD", droraPath);
+  const ours = worktreeOurs(droraPath);
 
   if (zone === "verbatim" || zone === "cua-limited") {
     // 豁免区/还原区：Drora 拥有，上游变化一律走决策表（R3/还原资产）
@@ -160,15 +163,19 @@ for (const { status, upstreamPath } of raw) {
     } else if (!ours) entry.outcome = "theirs-modify-ours-deleted";
     else if (base && sameBuf(ours, base)) entry.outcome = "take-theirs";
     else if (base && sameBuf(theirs, base)) entry.outcome = "keep-ours";
-    else {
-      // 三方试合并
-      const tmp = fs.mkdtempSync("/tmp/3way-");
+    else if (!base) {
+      // 防御（v3.18.2 预演实测触发）：M 状态但 base 树缺此文件——按 new/冲突记录，避免 writeFileSync(null) 崩溃。
+      console.error(`[dryrun] base 缺失的 M 文件: ${upstreamPath} -> ${droraPath}`);
+      entry.outcome = "new";
+    } else {
+      // 三方试合并（临时目录走 os.tmpdir：Node 下 "/tmp" 会落到当前盘根，D 盘满时必炸）
+      const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "3way-"));
       const fO = path.join(tmp, "ours"),
         fB = path.join(tmp, "base"),
         fT = path.join(tmp, "theirs");
-      fs.writeFileSync(fO, ours);
-      fs.writeFileSync(fB, base);
-      fs.writeFileSync(fT, theirs);
+      fs.writeFileSync(fO, normIfText(ours));
+      fs.writeFileSync(fB, normIfText(base));
+      fs.writeFileSync(fT, normIfText(theirs));
       let mergeOut = "";
       try {
         execFileSync(

@@ -260,20 +260,20 @@ Events：
 Parent：当前 Turn；通常与触发它的 Step 同属 Turn，但不是 Step 的“错误恢复字段”。内部模型请求
 作为 Child Call/Attempt。
 
-| 专属字段                                                  | 类型     | 含义                                                           |
-| --------------------------------------------------------- | -------- | -------------------------------------------------------------- |
-| `drora.context_compaction.trigger`                        | enum     | Contracts 中的 `CompactTrigger`                                |
-| `drora.context_compaction.phase`                          | enum     | Contracts 中的 `CompactPhase`                                  |
-| `drora.context_compaction.model_mode`                     | enum     | `streaming` / `non_streaming`                                  |
-| `drora.context_compaction.outer_attempt`                  | integer? | 外层恢复尝试序号                                               |
-| `drora.context_compaction.max_attempts`                   | integer? | 外层最大尝试数                                                 |
-| `drora.context_compaction.triggering_step_index`          | integer? | 触发压缩的 Step 序号                                           |
-| `drora.context_compaction.recovered_from_logical_call_id` | string?  | 恢复来源 Call ID                                               |
+| 专属字段                                                  | 类型     | 含义                            |
+| --------------------------------------------------------- | -------- | ------------------------------- |
+| `drora.context_compaction.trigger`                        | enum     | Contracts 中的 `CompactTrigger` |
+| `drora.context_compaction.phase`                          | enum     | Contracts 中的 `CompactPhase`   |
+| `drora.context_compaction.model_mode`                     | enum     | `streaming` / `non_streaming`   |
+| `drora.context_compaction.outer_attempt`                  | integer? | 外层恢复尝试序号                |
+| `drora.context_compaction.max_attempts`                   | integer? | 外层最大尝试数                  |
+| `drora.context_compaction.triggering_step_index`          | integer? | 触发压缩的 Step 序号            |
+| `drora.context_compaction.recovered_from_logical_call_id` | string?  | 恢复来源 Call ID                |
 | `drora.context_compaction.input_tokens`                   | number?  | Auto / Reactive 触发压缩时的当前 provider-visible 上下文 Token |
-| `drora.context_compaction.output_tokens`                  | number?  | 压缩输出 Token                                                 |
-| `drora.context_compaction.policy_context_window_tokens`   | number?  | Auto / Reactive 本次执行模型使用的策略上下文窗口               |
-| `drora.context_compaction.threshold_tokens`               | number?  | Auto Compact 本次决策使用的触发阈值；其他触发类型可省略        |
-| `drora.context_compaction.token_source`                   | enum?    | `estimate` / `provider_usage`；说明 `input_tokens` 的来源      |
+| `drora.context_compaction.output_tokens`                  | number?  | 压缩输出 Token                  |
+| `drora.context_compaction.policy_context_window_tokens`   | number?  | Auto / Reactive 本次执行模型使用的策略上下文窗口 |
+| `drora.context_compaction.threshold_tokens`               | number?  | Auto Compact 本次决策使用的触发阈值；其他触发类型可省略 |
+| `drora.context_compaction.token_source`                   | enum?    | `estimate` / `provider_usage`；说明 `input_tokens` 的来源 |
 
 ```text
 outcome = completed | discarded | failed | cancelled | abandoned
@@ -317,8 +317,6 @@ failure_stage = schedule | execute | commit | unhandled
 | `project_memory_extract`          | Project Memory 提取       | system-sidecar |
 | `project_memory_dream`            | Project Memory Dream/整理 | system-sidecar |
 | `project_memory_recall`           | Project Memory 召回       | system-sidecar |
-| `read_session_context_extract`    | Session Context 抽取阶段  | tool           |
-| `read_session_context_synthesize` | Session Context 合成阶段  | tool           |
 | `session_title_generation`        | Session 标题生成          | system-sidecar |
 | `tool_internal_model_call`        | 未单列的 Tool 内模型工作  | tool/system    |
 | `web_fetch_processing`            | Web Fetch 内容处理        | tool           |

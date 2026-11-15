@@ -6,6 +6,9 @@
     ".": "./src/index.ts",
     "./button": "./src/components/ui/button.tsx",
     "./dialog": "./src/components/ui/dialog.tsx",
+    "./alert-dialog": "./src/components/ui/alert-dialog.tsx",
+    "./dropdown-menu": "./src/components/ui/dropdown-menu.tsx",
+    "./select": "./src/components/ui/select.tsx",
     "./useTheme": "./src/useTheme.ts",
     "./website-hero": "./src/websiteHeroMock.ts",
     "./conversation-share-readonly": "./src/v4/ConversationShareReadonlyTimeline.tsx",
@@ -30,7 +33,8 @@
   },
   "scripts": {
     "lint": "oxlint",
-    "lint:fix": "oxlint --fix"
+    "lint:fix": "oxlint --fix",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@aiden0z/pptx-renderer": "1.2.4",
@@ -69,6 +73,11 @@
     "@xterm/addon-fit": "^0.10.0",
     "@xterm/xterm": "^5.5.0",
     "@xyflow/react": "^12.10.1",
+    "@drora/design-runtime": "workspace:*",
+    "@drora/provider": "workspace:*",
+    "@drora/rpc": "workspace:*",
+    "@drora/services": "workspace:*",
+    "@drora/shared": "workspace:*",
     "ai": "^6.0.138",
     "ansi-to-react": "^6.2.6",
     "class-variance-authority": "^0.7.1",

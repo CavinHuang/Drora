@@ -263,16 +263,16 @@ Host / Agent 最大数量各为 1。RSS 首尾采样 1220 / 1211 MB；这只是�
 
 ## 真实 / 模拟边界
 
-| 环节              | 实现                                                                                                                                                                |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 连接              | 产品 SSH 弹窗真实填 host/port/user/password，仅密码认证                                                                                                             |
-| 远端主机          | 同机 Docker 容器（`drora-remote-ssh:test`），每 case 重建                                                                                                           |
-| 远端 server/Agent | 真装真跑，测试读远端 PID/startTicks/日志对账                                                                                                                        |
-| server 产物       | 本机构建的 `mock-cdn/releases/<版本>`，走"本地下载/上传"安装，不用真 CDN                                                                                            |
-| 模型请求          | 默认 replay：`createSSHReplayTunnel` 经 SSH 反向端口转发把本机 replay server 暴露成容器内 `127.0.0.1:<port>`；`tunnel` 用户单独承载，避免被"杀 dev 的 sshd"故障连带 |
-| 真实模型          | 仅 `live-zapi`、`live-bigmodel-team`、`docker-transport` 三个 case                                                                                                  |
-| 故障注入          | `docker exec` 杀容器内 sshd / 只读探针；本机 loopback TCP 代理挂起首连；本机 HTTP 代理验证下载路径；伪造 release 源                                                 |
-| 手机端            | 本机 chromium（`R3_MOBILE_CHROME`）390×844 viewport；默认托管同批源码的 v4 Web 构建，使用标准 test 外部 relay（`wss://zcode.z.ai/ws`）；显式页面 URL 覆盖仍有效     |
+| 环节              | 实现                                                                                                                                                                    |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 连接              | 产品 SSH 弹窗真实填 host/port/user/password，仅密码认证                                                                                                                 |
+| 远端主机          | 同机 Docker 容器（`drora-remote-ssh:test`），每 case 重建                                                                                                               |
+| 远端 server/Agent | 真装真跑，测试读远端 PID/startTicks/日志对账                                                                                                                            |
+| server 产物       | 本机构建的 `mock-cdn/releases/<版本>`，走"本地下载/上传"安装，不用真 CDN                                                                                                |
+| 模型请求          | 默认 replay：`createSSHReplayTunnel` 经 SSH 反向端口转发把本机 replay server 暴露成容器内 `127.0.0.1:<port>`；`tunnel` 用户单独承载，避免被"杀 dev 的 sshd"故障连带     |
+| 真实模型          | 仅 `live-zapi`、`live-bigmodel-team`、`docker-transport` 三个 case                                                                                                      |
+| 故障注入          | `docker exec` 杀容器内 sshd / 只读探针；本机 loopback TCP 代理挂起首连；本机 HTTP 代理验证下载路径；伪造 release 源                                                     |
+| 手机端            | 本机 chromium（`R3_MOBILE_CHROME`）390×844 viewport；默认托管同批源码的 v4 Web 构建，使用标准 test 外部 relay（`wss://zcode.z.ai/ws`）；显式页面 URL 覆盖仍有效 |
 
 ## Case 与档位映射
 
@@ -287,22 +287,22 @@ Host / Agent 最大数量各为 1。RSS 首尾采样 1220 / 1211 MB；这只是�
 落盘隔离；后者在用例内创建 TCP 代理并注入断连，整份 spec 顺序执行，不过滤其中的握手前断开场景。
 两者均保留 pending 状态；清单检查还需核对实际生成的执行计划，防止只登记 spec 却漏排队列。
 
-| 组                           | 档位                                       | 说明                                                                                                                                                         |
-| ---------------------------- | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 1 结构与恢复                 | `a`（entry-attribution 用 `a`+`c`）        | boundary / ack-loss / mixed / recovery / renderer / shared-waiters / source-lines / stale-gen / transport-loss                                               |
-| 2 UI / 设备 / 设置           | `a`，offline-icons 与 remote-dialog 零连接 | device-row / task-actions / ui-pairwise / settings-scopes / desktop-settings-authority / offline-icons / remote-dialog / settings-ui-polish(MP-UI-05-remote) |
-| 3 Provider / 模型            | `a`                                        | project-entry / provisioning-gui / model-candidates / connectivity / model-switch / queue-selection / provisioning-ready                                     |
-| 4 任务 / 会话                | `a`                                        | compact-goal / subagent / task-control / task-faults / task-lifecycle / settings-overlay                                                                     |
-| 5 远端开发                   | `a`                                        | attachments / media-preview / file-local-actions / remote-hooks / terminal                                                                                   |
-| 6 安装 / 升级 / 连接生命周期 | `a`（install-faults 用 `a`+`c`）           | daemon-detached / install-faults / server-update / uninstall / cancel-retry / cold-reconnect / server-fault / download-proxy                                 |
-| 7 既有 P0                    | `a`，development-p0 需带 git 的容器        | ssh-remote-p0 / connection-p0 / development-p0                                                                                                               |
-| 8 RDUX 与 scope              | `a`                                        | rdux-13 / rdux-14 / project-read-failed / project-conversation-scope / share-ssh-artifact                                                                    |
-| 9 远程 workspace 插件        | identity 用 `a`+`c`，sync 用 `a`           | WPL-010 / WPL-011                                                                                                                                            |
-| 10 Bot 远程 workspace        | 无容器                                     | BOT-E2E-RW-01（synthetic fixture 契约）                                                                                                                      |
-| 11 移动端                    | `a` + chromium + relay                     | mobile / mobile-permission                                                                                                                                   |
-| 12 soak                      | `a`                                        | soak-reconnect(10 轮) / soak-dual(10 分钟)                                                                                                                   |
-| 13 受限环境安装              | `d` / `e` / `f` / `g`                      | noexec-tmp / no-tar / no-forwarding / old-glibc（注入返回 `glibc 2.17` 的 getconf）                                                                          |
-| 14 live                      | `a`，docker transport 用 `dt`              | live-zapi / live-bigmodel-team / docker-transport                                                                                                            |
+| 组                           | 档位                                       | 说明                                                                                                                                                              |
+| ---------------------------- | ------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1 结构与恢复                 | `a`（entry-attribution 用 `a`+`c`）        | boundary / ack-loss / mixed / recovery / renderer / shared-waiters / source-lines / stale-gen / transport-loss                                                    |
+| 2 UI / 设备 / 设置           | `a`，offline-icons 与 remote-dialog 零连接 | device-row / task-actions / ui-pairwise / settings-scopes / desktop-settings-authority / offline-icons / remote-dialog / settings-ui-polish(MP-UI-05-remote)      |
+| 3 Provider / 模型            | `a`                                        | project-entry / provisioning-gui / model-candidates / connectivity / model-switch / queue-selection / provisioning-ready                                          |
+| 4 任务 / 会话                | `a`                                        | compact-goal / subagent / task-control / task-faults / task-lifecycle / settings-overlay                                                                          |
+| 5 远端开发                   | `a`                                        | attachments / media-preview / file-local-actions / remote-hooks / terminal                                                                                        |
+| 6 安装 / 升级 / 连接生命周期 | `a`（install-faults 用 `a`+`c`）           | daemon-detached / install-faults / server-update / uninstall / cancel-retry / cold-reconnect / server-fault / download-proxy                                      |
+| 7 既有 P0                    | `a`，development-p0 需带 git 的容器        | ssh-remote-p0 / connection-p0 / development-p0                                                                                                                    |
+| 8 RDUX 与 scope              | `a`                                        | rdux-13 / rdux-14 / project-read-failed / project-conversation-scope / share-ssh-artifact                                                                         |
+| 9 远程 workspace 插件        | identity 用 `a`+`c`，sync 用 `a`           | WPL-010 / WPL-011                                                                                                                                                 |
+| 10 Bot 远程 workspace        | 无容器                                     | BOT-E2E-RW-01（synthetic fixture 契约）                                                                                                                           |
+| 11 移动端                    | `a` + chromium + relay                     | mobile / mobile-permission                                                                                                                                        |
+| 12 soak                      | `a`                                        | soak-reconnect(10 轮) / soak-dual(10 分钟)                                                                                                                        |
+| 13 受限环境安装              | `d` / `e` / `f` / `g`                      | noexec-tmp / no-tar / no-forwarding / old-glibc（注入返回 `glibc 2.17` 的 getconf）；old-glibc-runtime 需真实 glibc 2.27 镜像，未入队，见 harness README 本机运行 |
+| 14 live                      | `a`，docker transport 用 `dt`              | live-zapi / live-bigmodel-team / docker-transport                                                                                                                 |
 
 队列覆盖：队列手工维护，没有自动门禁核对它与远程 spec 是否一致；新增远程 case 时须同步入队。现有档位造不出 fixture 的用例登记在 `packages/desktop/scripts/r3-remote-spec-inventory.mjs` 的 `DEDICATED_FIXTURE_SPECS`，必须显式报告阻塞，不得从计划分母消失。RDUX-16 已在 case 内真实首装，再通过本 run 的 staged archive 构造同版本异 SHA 更新；不再要求人工预装。更新与安装故障解除本 run 的硬链接后再写，公共构建包保持只读。
 
@@ -489,7 +489,7 @@ provider/model/endpoint 正确。业务 401 退出、登录弹窗、SSH 协议�
 | share 分享入口 `conversation-share-trigger` 始终 missing                      | 入口条件含 `user &&`，而 `user` 是 OAuth 产物（credentials 的 `oauth:<provider>:user_info`），API Key 登录不产生。已排除 `remoteTarget.kind`（实测 `"ssh"`）、header 缺失、草稿态。**仍未跑通**：补 OAuth 凭据要先让应用进到可操作状态，而该 case 沿用的老 conversation helper（`prepareConversationE2E` → `ensureDeepSeekProviderForE2E`）内部走 WebDriver clickable，正是容器里会误判的路径（`chat-model-select-trigger still not clickable`）。要跑通得先把它迁到 `prepareV4ConversationE2E` 体系 |
 | settings-ui-polish FAIL                                                       | 远程用例 MP-UI-05-remote 本身通过，被同 spec 的本机用例 MP-UI-06 拖累；已用 `DRORA_E2E_MOCHA_GREP` 只跑远程用例                                                                                                                                                                                                                                                                                                                                                                                      |
 | 一整轮 8 个 case 各在 1 秒内 FAIL(1)                                          | 复跑脚本传的 runId 前缀不满足 runner 校验，而队列把 runner 输出丢进 `/dev/null` —— 编排失败与业务失败无法区分。现在写 `run-logs/<runId>.launcher.log`                                                                                                                                                                                                                                                                                                                                                |
-| live-zapi / dockertrn                                                         | `zapi.z.ai` 从宿主与容器均不可达，等飞连（用户手动配）                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| live-zapi / dockertrn                                                         | `zapi.z.ai` 从宿主与容器均不可达，等飞连（用户手动配）                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | live-team                                                                     | 同上，注入 live 凭据后应用停在 `root-startup-loading`（`bodyText:""`、`localStorageKeys:[]`），启动阶段的账号请求打不通                                                                                                                                                                                                                                                                                                                                                                              |
 
 ### 结果（commit `7573244112` 全量）

@@ -1,4 +1,8 @@
-import { isAbsolute, resolve } from "node:path";
+import { isAbsolute, relative, resolve } from "node:path";
+import { classifyLocalSessionDirectory } from "@drora/adapters/config";
+import { resolveModelSelectionAtAdmission } from "../drora-protocol-v4/commands/input-admission.js";
+import { subscribeSessionContextComposition } from "./context-composition/index.js";
+
 import {
   isAuxiliarySessionKind,
   isReadonlyAgentSessionKind,
@@ -6,6 +10,11 @@ import {
 } from "@drora/shared";
 /* eslint-disable max-lines -- Drora Protocol 的 session/workspace 方法共享同一个 server context 与 snapshot helpers，迁移期先集中维护。 */
 import { observeSessionDebug } from "./session-debug.js";
+import { createProtocolPluginDiscoveryPort } from "./plugin-discovery-port.js";
+import {
+  isTranscriptVisibleMessage,
+  projectActiveSessionMessages,
+} from "../active-transcript/index.js";
 import {
   TASK_LIST_SESSION_TYPES,
   isTaskListSessionType,
@@ -14,6 +23,11 @@ import { resolveEffectiveBashShellSelection } from "@drora/adapters/exec";
 // Agents Team 装配接缝消费端（specs/agents-team.md §11）：hub 装配广播早于本层订阅。
 import { notifyAgentsTeamConfigInvalidated } from "../app/drora-team/config-invalidation.js";
 import { inputIntentMetadata } from "../drora-protocol-v4/commands/input-intent.js";
+import {
+  MODEL_UNAVAILABLE_REASON_CODE,
+  RUNTIME_MODEL_UNAVAILABLE_ERROR_CODE,
+  resolveTurnModelAdmissionMessage,
+} from "../drora-protocol-v4/commands/prompt-turn.js";
 import { createModelExecutionContext } from "./model-execution.js";
 import type { SendInputOptions } from "../app/types.js";
 import { repairPersistedRemoteSessionPaths, type TurnAttachment } from "@drora/core";
@@ -24,9 +38,6 @@ import {
   createPartId,
   createSessionId,
   createCoreError,
-  parseRewindTriggeredPayload,
-  RewindScope,
-  RewindStrategy,
   type EventId,
   type ExecutionShellSelection,
   type MessageWithParts,
@@ -57,6 +68,7 @@ import {
   droraSessionCancelBackgroundTaskParamsSchema,
   droraSessionCompactParamsSchema,
   droraSessionCloseParamsSchema,
+  droraSessionReleaseUnderDirectoryParamsSchema,
   droraSessionCreateParamsSchema,
   droraSessionEventsParamsSchema,
   droraSessionForkParamsSchema,
@@ -129,11 +141,13 @@ import {
   formatProtocolModelSelection,
   mapSessionEventForProtocol,
   mapSessionInfo,
+  mapSnapshotMessages,
   resolveSessionContextUsage,
   shouldExposeSessionEventToProtocol,
 } from "./mapper.js";
 import { mapMessageWithParts } from "./message-mapper.js";
 import { optionalModelSelectionFromString } from "./model-mapper.js";
+import { resolveResumeWorkspaceRef } from "./workspace.js";
 import {
   ProtocolRequestError,
   assertExpectedRevision,
@@ -146,19 +160,26 @@ import {
   type DroraProtocolSessionRecord,
   type DroraProtocolToolInputTransmissionState,
 } from "./server-types.js";
-import { createWorkspaceDroraApp, ensureSessionModelAvailable } from "./workspace-model-runtime.js";
+import { createWorkspaceDroraApp } from "./workspace-model-runtime.js";
 import { buildAppUsageSnapshot, resolveTzOffsetMs } from "./usage-stats-builder.js";
 import { createProtocolInteractionBroker } from "./interaction-broker.js";
 import { createProtocolAutomationPort } from "./automation-port.js";
 import { createProtocolImageGenerationPort } from "./generate-image-port.js";
+import { createAppSessionControlBinding } from "../session-control/index.js";
 import { createProtocolOffPeakPort } from "./offpeak-port.js";
 import { createProtocolTopicResourcePort } from "./topic-resource-port.js";
 import { createProtocolBrowserControlBroker } from "./browser-control-broker.js";
 import { mapComputerUseOperationEvent } from "./computer-use-operation-event.js";
 import { protocolMcpServersToRuntimeMcpConfig } from "./protocol-mcp-config.js";
-import { projectIdFromDirectory } from "../app/paths.js";
+import {
+  getCliStorageRoot,
+  getSubagentOutputRootDir,
+  projectIdFromDirectory,
+} from "../app/paths.js";
+import { createConfig, resolvePath } from "@drora/adapters/config";
 import {
   collectSubagentChildSessionIds,
+  loadPreviousRuntimeRunMetadata,
   paginateEndedSubagents,
   projectSessionSubagents,
 } from "./subagent-session-query.js";
@@ -168,7 +189,9 @@ import {
   runWithSessionResidencyFinalization,
   getSessionLifecycle,
   closeSessionRuntime,
+  deactivateSessionRecord,
   discardSessionRuntime,
+  readSessionBusyState,
 } from "./session-residency.js";
 
 const PLAN_MODE_GOAL_CONTINUATION_SKIPPED_MESSAGE = "Plan mode 下已记录 goal，但不会自动继续。";
@@ -199,6 +222,8 @@ type DroraSessionRecordParams = (
 ) & { taskType?: SessionTaskType };
 
 interface SessionStartupPreferences {
+  /** 只接受当前 Host 的能力响应；旧 Host 和独立 app-server 缺省关闭。 */
+  appControlEnabled?: boolean;
   additionalDirectories?: readonly string[];
   subagentRuntimeConfigEnabled?: boolean;
   memoryEnabled: boolean;
@@ -1563,21 +1588,18 @@ export async function activateSessionRuntime(
     );
   }
   session = await repairLegacyRemoteSessionWorkspaceForResume(context, session);
-  const workspace =
-    params.workspace ??
-    buildWorkspaceRef({
-      // V4 历史会话冷订阅只传 sessionId；远端会话若在这里仅用目录
-      // 重建 workspace，identity 会退化成 path key，无法命中按 workspaceID 隔离的
-      // provider registry，最终把可用模型误判为不可用并永久触发 restoreWarning。
-      workspaceIdentity: session.workspaceID,
-      workspacePath: session.path ?? session.directory,
-    });
+  // V4 历史会话冷订阅只传 sessionId 时按存储重建：远端会话若仅用目录重建 workspace，
+  // identity 会退化成 path key，无法命中按 workspaceID 隔离的 provider registry。
+  // Host 携带本地 workspace 时只取它的身份，执行路径仍用存储的 cwd（受管 worktree 任务）。
+  const workspace = resolveResumeWorkspaceRef(params.workspace, {
+    ...(session.workspaceID ? { workspaceID: String(session.workspaceID) } : {}),
+    ...(session.path ? { path: session.path } : {}),
+    directory: session.directory,
+  });
   let persistedMessages =
     options.persistedMessages ?? (await readPersistedSessionMessages(context, params.sessionId));
   const mode = derivePersistedSessionMode(persistedMessages);
-  // shell 设置变更只对新 session 生效；冷恢复必须使用创建时落库的
-  // Bash shell 快照。runtime.resumeFromStore 会读取快照；这里只负责不把
-  // resume 请求里携带的当前 settings 重新注入老 session。
+  // resume 请求不携带 shell 设置；冷恢复由 app 的 resume 入口向 Host 读取当前设置。
   const record = await materializeSessionRecord(
     context,
     {
@@ -1618,7 +1640,7 @@ export async function activateSessionRuntime(
     const result = options.reusePersistedMessages
       ? await record.app.resume({ persistedMessages })
       : await record.app.resume();
-    // 仅用于首次投影种子，包含有效模型+空档位；它不是第二份可执行 Runtime 选择。
+    // 保留冷恢复原选择供投影与输入接纳重校验，不直接把不可用模型绑定到 Runtime。
     record.restoredModelSelection = result.modelSelection;
     return result;
   });
@@ -1716,6 +1738,12 @@ function resolveLegacyRemoteSessionWorkspace(
   session: SessionInfo,
 ) {
   const directory = session.path ?? session.directory;
+  // 修复（2026-11-14，v3.18.0 S4 段门复跑归因）：fork/继承链路的 SessionInfo 可能
+  // path 与 directory 双缺——下方「session.directory === directory」在两者同为
+  // undefined 时恒真，把 undefined 传进 parseRemoteWorkspaceIdentity 直接
+  // TypeError（Cannot read 'startsWith' of undefined）。无目录的会话不存在
+  // 「遗留远端目录会话」语义，按 null 收口（识别失败回落既有路径，不炸激活链）。
+  if (directory === undefined) return null;
   return !session.workspaceID && session.directory === directory
     ? resolveLegacyRemoteWorkspace(context, directory)
     : null;
@@ -1753,6 +1781,73 @@ function resolveLegacyRemoteWorkspace(
   };
 }
 
+/**
+ * 本地会话目录是否属于 workspace（docs/git/worktree.md §9.3 归属判定）。冷恢复 / 激活校验与
+ * 本地冷列表、sessionsIndex/reconcile 共用这一函数，不能各写一份：
+ * - 与 workspace 是同一个真实目录（含大小写差异）；
+ * - cwd 是受管 worktree，严格 resolver 映射回该真实目录；
+ * - cwd 是已删除的受管 worktree（文件系统无法证明），才用创建时持久化的 projectID 兜底。
+ * 修复原因：冷恢复曾把 resolver 结果（realpath，磁盘真实大小写）和 workspace key（保留用户输入的
+ * 大小写）按字符串比较，key 大小写不同或 worktree 已删除时报 project.session-lineage-invalid。
+ * projectID 是有损 slug，不同项目可能相同（如 "my project" 与 "my-project"），不能作为一般的归属
+ * 证明，否则另一个项目的会话可以挂在当前 key 下执行（MR !3520 review CR-01）。
+ */
+export async function isLocalSessionDirectoryInWorkspace(
+  context: Pick<DroraProtocolAgentServerContext, "deps">,
+  session: { directory: string; projectID?: string },
+  workspacePath: string,
+): Promise<boolean> {
+  if (session.directory === workspacePath) return true;
+  const relation = await classifyLocalSessionDirectory({
+    directory: session.directory,
+    workspacePath,
+    ...(context.deps.env ? { env: context.deps.env } : {}),
+  });
+  if (relation === "same" || relation === "worktree") return true;
+  return (
+    relation === "removed-worktree" &&
+    session.projectID !== undefined &&
+    session.projectID === projectIdFromDirectory(workspacePath)
+  );
+}
+
+async function isSameSessionWorkspacePath(
+  context: DroraProtocolAgentServerContext,
+  storedPath: string | undefined,
+  workspace: DroraWorkspaceRef,
+  projectID?: string,
+): Promise<boolean> {
+  // 修复（2026-11-14，v3.18.0 S4 段门复跑归因）：调用方的 path 取
+  // legacy?.workspacePath ?? (current.path || current.directory)，fork/继承链路的
+  // SessionInfo 可能双缺（undefined）——isAbsolute(undefined) 直接 TypeError，炸掉
+  // 会话激活预检（persona fork 继承用例两段同因）。无存储路径无从比对，按 false 收口。
+  if (storedPath === undefined) return false;
+  if (
+    storedPath === workspace.workspacePath ||
+    (isAbsolute(storedPath) &&
+      isAbsolute(workspace.workspacePath) &&
+      resolve(storedPath) === resolve(workspace.workspacePath))
+  )
+    return true;
+  if (workspace.workspaceIdentity?.trim() || workspace.workspaceKey.startsWith("remote:"))
+    return false;
+  // 受管 worktree 的 cwd 不等于项目 workspace；本地 workspace 的 key 就是项目目录。存储的 cwd 与
+  // 请求的执行路径都要按统一归属判定证明属于该项目，不能取消归属校验或把任意不同目录视为合法的
+  // 冷恢复/激活请求。
+  return (
+    (await isLocalSessionDirectoryInWorkspace(
+      context,
+      { directory: storedPath, ...(projectID ? { projectID } : {}) },
+      workspace.workspaceKey,
+    )) &&
+    (await isLocalSessionDirectoryInWorkspace(
+      context,
+      { directory: workspace.workspacePath },
+      workspace.workspaceKey,
+    ))
+  );
+}
+
 async function resolvePersistedDirectorySession(
   context: DroraProtocolAgentServerContext,
   session: SessionInfo,
@@ -1771,11 +1866,7 @@ async function resolvePersistedDirectorySession(
     const key = identity || path;
     const auxiliary = isAuxiliarySessionKind(current.taskType);
     // 旧 root 曾保存规范化 cwd；只在目标 OS 的绝对路径词法等价时兼容，绝不重写身份 key。
-    const samePath =
-      path === workspace.workspacePath ||
-      (isAbsolute(path) &&
-        isAbsolute(workspace.workspacePath) &&
-        resolve(path) === resolve(workspace.workspacePath));
+    const samePath = await isSameSessionWorkspacePath(context, path, workspace, current.projectID);
     const sameIdentity =
       key === expectedKey || (!identity && !workspace.workspaceIdentity?.trim() && samePath);
     if (samePath && sameIdentity && (!resolveOwner || !auxiliary)) return current;
@@ -1798,7 +1889,7 @@ export async function validateSessionActivationWorkspace(
     // key 相同不保证显式 identity 相同；与在途操作一样逐字段校验，避免错误请求关闭原实例。
     if (
       active.workspace.workspaceKey !== workspace.workspaceKey ||
-      active.workspace.workspacePath !== workspace.workspacePath ||
+      !(await isSameSessionWorkspacePath(context, active.workspace.workspacePath, workspace)) ||
       active.workspace.workspaceIdentity !== workspace.workspaceIdentity ||
       active.workspace.remoteSessionId !== workspace.remoteSessionId
     )
@@ -1941,6 +2032,27 @@ export async function listSessionSubagents(
   const parentProjection = liveParent
     ? await liveParent.app.runtime.getProjection().catch(() => undefined)
     : undefined;
+  const runtimeStartedAt = performance.timeOrigin;
+  const previousRuntimeRunMetadata = await loadPreviousRuntimeRunMetadata({
+    parentSession,
+    messages,
+    parentEvents,
+    runtimeStartedAt,
+    // 与 create-app 写入时同一目录规则；只有 launch ACK 不带 output_file 时才解析配置。
+    resolveOutputRootDir: () => {
+      try {
+        const configResult = createConfig({
+          env: context.deps.env,
+          workingDirectory: parentSession.directory,
+        });
+        return getSubagentOutputRootDir(
+          getCliStorageRoot(resolvePath(configResult.config.storage.dir)),
+        );
+      } catch {
+        return undefined;
+      }
+    },
+  }).catch(() => new Map());
   const projection = projectSessionSubagents({
     revision: liveParent?.stateRevision ?? parentSession.time.updated,
     parentSession,
@@ -1958,6 +2070,8 @@ export async function listSessionSubagents(
     ),
     ...(parentProjection ? { parentProjection } : {}),
     ...(parentEvents.length > 0 ? { parentEvents } : {}),
+    runtimeStartedAt,
+    previousRuntimeRunMetadata,
   });
   const ended = paginateEndedSubagents(projection.ended, {
     cursor: params.endedCursor,
@@ -2080,24 +2194,79 @@ export async function readSessionContextUsage(
 
 export async function readMessages(context: DroraProtocolAgentServerContext, rawParams: unknown) {
   const params = parseParams(droraSessionMessagesParamsSchema, rawParams);
-  const record = requireSession(context, params.sessionId);
-  const allMessages = await readActiveSessionMessages(context, record);
+  // Bug 根因：forward 只服务会话控制的 ReadSession，但这里一律 requireSession，冷会话（例如用户
+  // 只用 #sess 引用、从未打开过）没有活跃 record 就抛 sessionUnavailable，被 Host 压成
+  // "App control failed"；同一引用的 summary 视图不需要 runtime，所以能读、正文读不了。
+  // 规格 0.9：forward 在 record 缺失时从会话库冷读，与独立 CLI 的读取口径一致；
+  // backward（桌面分页历史）保持原行为，仍要求活跃 record。
+  const record =
+    params.direction === "forward"
+      ? context.sessions.get(params.sessionId)
+      : requireSession(context, params.sessionId);
+  const allMessages = record
+    ? await readForwardVisibleMessages(context, record, params.direction)
+    : await readColdVisibleMessages(context, params.sessionId);
   const afterMessageIndex = params.afterMessageId
     ? allMessages.findIndex((message) => String(message.info.id) === params.afterMessageId)
     : -1;
+  // forward 的 cursor 必须命中；找不到（例如两页之间发生 rewind）时报错，不能从头重读造成重复页。
+  if (params.direction === "forward" && params.afterMessageId && afterMessageIndex < 0)
+    throw createCoreError(CoreErrorType.InvalidInput, "Message cursor is no longer available", {
+      recoverable: true,
+    });
   const messages = afterMessageIndex >= 0 ? allMessages.slice(afterMessageIndex + 1) : allMessages;
-  // 有意分歧（对照官方 3.14.3 bundle，specs/mobile-relay-server.md「session/messages
-  // schema 漂移」）：官方 WKo（zcode.cjs@14490259）把 session store 的 v4 原始行
-  // （info.id/sessionID、part.callID）直接作为 {messages} 返回，与其自身声明的结果
-  // schema U5i/WZe（@755909/@657821，info.messageId/partId/callId legacy 形状）不一致；
-  // 官方手机页不调用该 op（official-phone-bundle 0 命中），漂移在上游不可见。本仓 R2
-  // 手机页消费该 op，这里按官方 snapshot 路径同款映射（JPn/FKa @14406172/@14407132 =
-  // message-mapper.mapMessageWithParts）投影为声明契约形状，再交给协议边界校验。
-  // afterMessageId 分页在映射前按原始 info.id 切片：mapped messageId = String(info.id)，
-  // 两态字面量同值，客户端回传任一形态都能命中同一切分点。
+  // App 从最早消息向后分页；若仍截尾，limit+1 探测会跳过首页及 cursor 后的消息。
+  // 只有显式 forward 改为取头部，其他消费者继续使用原来的最近历史窗口。
+  const page =
+    params.direction === "forward"
+      ? messages.slice(0, params.limit)
+      : limitMessages(messages, params.limit);
+  // 冷读没有 runtime 可回填历史图片的 data URL，保留 drora-artifact:// 引用（hydrate 失败即保留原值）。
+  // ReadSession 两侧都只取 text part，回填只会放大结果（见规格 0.4 的 32 KiB 现场）。
   return {
-    messages: (params.limit ? messages.slice(-params.limit) : messages).map(mapMessageWithParts),
+    // 原先直接返回 Core 的 id/sessionID/messageID，真实客户端严格 wire schema 因此拒绝整页历史。
+    // 与 session/read 共用完整映射，保留媒体回填和工具展示元数据，并继续过滤仅供 Agent 恢复的字段。
+    messages: await mapSnapshotMessages(
+      record?.app ?? {
+        readToolResultArtifact: () => {
+          throw new Error("Cold session read does not hydrate artifacts");
+        },
+      },
+      page,
+    ),
   };
+}
+
+async function readForwardVisibleMessages(
+  context: DroraProtocolAgentServerContext,
+  record: DroraProtocolSessionRecord,
+  direction: "forward" | "backward" | undefined,
+): Promise<MessageWithParts[]> {
+  const activeMessages = await readActiveSessionMessages(context, record);
+  // forward 只服务会话控制的 ReadSession。staging 起运行时提醒、环境信息与中断标记也以隐藏
+  // user 消息落库；不先过滤会把它们当成用户原话返回，并让分页 limit 与 cursor 落在隐藏消息上。
+  return direction === "forward"
+    ? activeMessages.filter(isTranscriptVisibleMessage)
+    : activeMessages;
+}
+
+/**
+ * 冷会话的 active 分支：没有活跃 runtime 就没有内存 rewind 事件，只按 session.revert 投影，
+ * 与独立 CLI 的 readVisibleMessages 同口径。读取不恢复 runtime、不认领 owner、不改 CLI 事实。
+ */
+async function readColdVisibleMessages(
+  context: DroraProtocolAgentServerContext,
+  sessionId: string,
+): Promise<MessageWithParts[]> {
+  const sessionStore = context.deps.sessionStore;
+  const session = sessionStore ? await getPersistedSession(context, sessionId) : null;
+  if (!sessionStore || !session || session.time.deleted)
+    throw new ProtocolRequestError(
+      droraProtocolErrorCodes.sessionUnavailable,
+      `Session is not available: ${sessionId}`,
+    );
+  const messages = await sessionStore.messages({ sessionID: sessionId as SessionId });
+  return projectActiveSessionMessages(messages, session, []).filter(isTranscriptVisibleMessage);
 }
 
 export async function readEvents(context: DroraProtocolAgentServerContext, rawParams: unknown) {
@@ -2167,7 +2336,14 @@ export async function sendPrompt(context: DroraProtocolAgentServerContext, rawPa
       workspace: record.workspace,
     });
   }
-  await ensureSessionModelAvailableForNextTurn(context, record);
+  // 旧协议入口没有 V4 preflight；带附件的手机远控 / Bot 输入仍走这里，必须共用同一份模型准入。
+  assertLegacyTurnModelAvailable(record, {
+    selection:
+      params.modelSelection ??
+      record.app.runtime.getSessionModelSelection() ??
+      record.restoredModelSelection,
+    modelExecution: params.modelExecution,
+  });
   if (record.persistence === "deferred") {
     // 未发送前的 draft session 不进入两份 sqlite；用户真正发送首条消息时，
     // 才把它提升为普通 session，让后续 list/syncer/task index 按真实任务处理。
@@ -2186,8 +2362,12 @@ export async function sendPrompt(context: DroraProtocolAgentServerContext, rawPa
   const inputId = params.inputId ?? (params.modelSelection ? crypto.randomUUID() : undefined);
   // 旧附件载荷也经同一个 canonical intent 固定本次选择，不先改 Session。这里只借用
   // 公共 metadata 构造器（非 V4 ACK/重放入口）；无 V4 admission 的序号沿既有值 0。
+  const admittedModelSelection = resolveModelSelectionAtAdmission(
+    record.app.runtime.getSessionModelSelection(),
+    params,
+  );
   const intent =
-    params.modelSelection && inputId
+    admittedModelSelection && inputId
       ? inputIntentMetadata(
           {
             commandId: inputId,
@@ -2200,7 +2380,7 @@ export async function sendPrompt(context: DroraProtocolAgentServerContext, rawPa
           {
             text: params.content,
             requestedDelivery: "startNow",
-            modelSelection: params.modelSelection,
+            modelSelection: admittedModelSelection,
           },
         )
       : undefined;
@@ -2263,7 +2443,9 @@ export async function compactSession(context: DroraProtocolAgentServerContext, r
       workspace: record.workspace,
     });
   }
-  await ensureSessionModelAvailableForNextTurn(context, record);
+  assertLegacyTurnModelAvailable(record, {
+    selection: record.app.runtime.getSessionModelSelection() ?? record.restoredModelSelection,
+  });
   const instructions = params.instructions?.trim();
   const command = instructions ? `/compact ${instructions}` : "/compact";
   const abortController = new AbortController();
@@ -2398,6 +2580,17 @@ export async function goalSession(context: DroraProtocolAgentServerContext, rawP
   }
 
   if (params.action === "resume") {
+    if (!(await record.app.readTarget())) {
+      return {
+        response: "No goal to resume.",
+        snapshot: await snapshot(context, record),
+        startedTurn: false,
+      };
+    }
+    // Bug 根因：模型准入曾放在续跑阶段，目标状态已先改成 active，请求却以 modelUnavailable 失败，
+    // 调用方按失败处理而目标已变化、也不再广播。准入必须先于任何目标写入（与 V4 resumeGoal 同序）。
+    const continuation = resolveLegacyGoalContinuation(record);
+    assertLegacyGoalModelAvailable(record, continuation);
     const target = await record.app.updateTargetStatus("active");
     if (!target) {
       return {
@@ -2407,6 +2600,7 @@ export async function goalSession(context: DroraProtocolAgentServerContext, rawP
       };
     }
     return await continueGoalAfterChange(context, record, {
+      continuation,
       inputId: params.inputId,
       reason: "goal_resumed",
       target,
@@ -2441,8 +2635,12 @@ export async function goalSession(context: DroraProtocolAgentServerContext, rawP
   const replacesExistingGoal =
     params.action === "replace" || Boolean(await record.app.readTarget());
 
+  // 同 resume：会续跑的 set / replace 先做模型准入，再写目标；失败时目标与历史保持原样。
+  const continuation = resolveLegacyGoalContinuation(record);
+  assertLegacyGoalModelAvailable(record, continuation);
   const target = await record.app.setTarget({ objective, status: "active" });
   return await continueGoalAfterChange(context, record, {
+    continuation,
     inputId: params.inputId,
     reason: replacesExistingGoal ? "goal_replaced" : "goal_set",
     target,
@@ -2482,12 +2680,31 @@ export async function registerForkedSession(
 ) {
   const [context, record, fork] = args;
   let result: Awaited<ReturnType<typeof registerForkedSessionRuntime>> | undefined;
+  // 裁定（2026-11-14，05-remaining-gaps §3#1 仲裁落地，用户总裁定「自研特性保留」）：
+  // fork 子会话的 workspace 归属沿父链判定，不走以子会话自身持久化事实为准的 restore
+  // 预检。放行条件（两条同时成立才跳过 validateSessionActivationWorkspace）：
+  //  1. 父会话 live 且未被打替：context.sessions 里登记的就是本次传入的 record——
+  //     它经由 create（claims 占位）或 resume/attach（restore 预检）入场，workspace
+  //     已在本进程校验过，即「父会话 live 且已过校验」；
+  //  2. fork 对象指向本父：fork.parentSessionId 缺省视为本父（v4-bridge:585 同款
+  //     约定），显式异值则不满足。
+  // 安全面评估：本函数非 RPC handler，生产调用方仅 forkSession（session/fork RPC，
+  // 经 requireSession 权限与 active-turn guard）与 v4-bridge 三处
+  // registerCommittedForkBestEffort；fork 对象全部由 runtime 产
+  // （forkWorkspaceFromCheckpoint / createSelectionSideConversation），子会话 id 不可
+  // 由 RPC 调用方注入，且子会话 runtime 钉死在第三参 record.workspace（父 workspace），
+  // 不存在跨 workspace 逃逸面。非 fork 的 lineage 校验（resume/ensureReady/restart）
+  // 保持上游逐字不动。guard 不满足时回落 restore 预检，维持上游 fail-closed 行为。
+  const forkChainAttributedToLiveParent =
+    context.sessions.get(record.app.sessionId) === record &&
+    (fork.parentSessionId === undefined || fork.parentSessionId === record.app.sessionId);
   await getSessionLifecycle(context).initialize(
     fork.forkedSessionId,
     async () => {
       result = await registerForkedSessionRuntime(...args);
     },
     record.workspace,
+    forkChainAttributedToLiveParent ? "create" : "restore",
   );
   if (!result) throw new Error("Fork runtime already initialized");
   return result;
@@ -2524,7 +2741,12 @@ async function registerForkedSessionRuntime(
       model: optionalModelSelectionFromString(parentModel),
       ...(fork.parentSessionId ? { parentSessionId: fork.parentSessionId } : {}),
       taskType: forkedSession.taskType,
-      workspace: record.workspace,
+      // 子会话属于父会话的 workspace；执行路径取子会话持久化的 cwd。fork 到受管 worktree
+      // 时两者不同（docs/git/worktree.md §8.2），普通 fork 下与父路径相同。
+      workspace: resolveResumeWorkspaceRef(record.workspace, {
+        ...(forkedSession.path ? { path: forkedSession.path } : {}),
+        directory: forkedSession.directory,
+      }),
     },
     fork.forkedSessionId as SessionId,
     true,
@@ -2774,10 +2996,36 @@ function resolvePromptTurnOffPeakTaskId(params: {
   return offPeakTaskId.length > "offpeak-".length ? offPeakTaskId : undefined;
 }
 
+interface LegacyGoalContinuation {
+  isPlanMode: boolean;
+  /** continueActiveTarget 是 App 的必选能力；能否继续只取决于当前模式和是否已有活跃 turn。 */
+  canContinue: boolean;
+}
+
+function resolveLegacyGoalContinuation(
+  record: DroraProtocolSessionRecord,
+): LegacyGoalContinuation {
+  const isPlanMode = record.app.runtime.getPlanEnabled?.() ?? record.app.getMode?.() === "plan";
+  return { isPlanMode, canContinue: !isPlanMode && !record.activeAbortController };
+}
+
+/** 只有会续跑的目标命令才需要会话模型；Plan 模式或已有活跃 turn 时只写目标，不做准入。 */
+function assertLegacyGoalModelAvailable(
+  record: DroraProtocolSessionRecord,
+  continuation: LegacyGoalContinuation,
+): void {
+  if (!continuation.canContinue) return;
+  assertLegacyTurnModelAvailable(record, {
+    selection: record.app.runtime.getSessionModelSelection() ?? record.restoredModelSelection,
+  });
+}
+
 async function continueGoalAfterChange(
   context: DroraProtocolAgentServerContext,
   record: DroraProtocolSessionRecord,
   params: {
+    /** 目标写入前已完成的续跑判定与模型准入；这里不再重复判定，避免写入前后两套结论。 */
+    continuation: LegacyGoalContinuation;
     inputId?: string;
     reason: string;
     target: ProtocolGoalTarget;
@@ -2785,12 +3033,9 @@ async function continueGoalAfterChange(
   },
 ) {
   const response = formatGoalChanged(params.title, params.target);
-  const isPlanMode = record.app.runtime.getPlanEnabled?.() ?? record.app.getMode?.() === "plan";
-  // continueActiveTarget 是 App 的必选能力；能否继续只取决于当前模式和是否已有活跃 turn。
-  const canContinue = !isPlanMode && !record.activeAbortController;
+  const { isPlanMode, canContinue } = params.continuation;
 
   if (canContinue) {
-    await ensureSessionModelAvailableForNextTurn(context, record);
     const abortController = new AbortController();
     record.activeAbortController = abortController;
     void runWithSessionResidencyFinalization(record, () =>
@@ -2973,6 +3218,33 @@ export async function closeSession(context: DroraProtocolAgentServerContext, raw
   return { closed: true };
 }
 
+/**
+ * 卸载 cwd 位于 directory 内的全部驻留会话（Host 删除受管 worktree 前使用，docs/git/worktree.md §8.3）。
+ * 会话选择与忙闲都以本进程驻留表为准（包括 Host 镜像尚未同步的同目录 fork 子会话）；
+ * 任一会话忙时全部不卸载。判断与开始卸载之间没有 await；之后的新命令由 Host 删除租约拦截。
+ * 只做驻留去激活，不删除持久会话，也不发 session.removed。
+ */
+export async function releaseSessionsUnderDirectory(
+  context: DroraProtocolAgentServerContext,
+  rawParams: unknown,
+) {
+  const params = parseParams(droraSessionReleaseUnderDirectoryParamsSchema, rawParams);
+  const sessionIds = [...context.sessions]
+    .filter(([, record]) => isPathWithin(params.directory, record.workspace.workspacePath))
+    .map(([sessionId]) => sessionId);
+  const busy = sessionIds.filter(
+    (sessionId) => readSessionBusyState(context, sessionId) === "busy",
+  );
+  if (busy.length > 0) return { released: [], busy };
+  for (const sessionId of sessionIds) await deactivateSessionRecord(context, sessionId);
+  return { released: sessionIds, busy: [] };
+}
+
+function isPathWithin(parent: string, candidate: string): boolean {
+  const rel = relative(resolve(parent), resolve(candidate));
+  return rel === "" || (!rel.startsWith("..") && !isAbsolute(rel));
+}
+
 export function shouldCloseSessionForExpectedPersistence(
   currentPersistence: DroraSessionPersistence,
   expectedPersistence?: DroraSessionPersistence,
@@ -3076,13 +3348,24 @@ function assertExpectedProviderRevision(
   void expectedProviderRevision;
 }
 
-export async function ensureSessionModelAvailableForNextTurn(
-  context: DroraProtocolAgentServerContext,
+/**
+ * 旧协议入口（session/send、session/compact、goal 续跑）的模型准入：判定与 V4 preflight 共用
+ * prompt-turn 的 resolveTurnModelAdmissionMessage（含 execution 作用域的退回声明规则），
+ * 拒绝沿用 restoreWarning 的 -32031 信封并带稳定 code / reasonCode，
+ * Renderer 据此本地化为「模型已不可用，请重新选择」，不展示 Registry 内部文案。
+ */
+function assertLegacyTurnModelAvailable(
   record: DroraProtocolSessionRecord,
-): Promise<void> {
-  if (await ensureSessionModelAvailable(context, record)) {
-    record.stateRevision++;
-  }
+  admission: Parameters<typeof resolveTurnModelAdmissionMessage>[1],
+): void {
+  const message = resolveTurnModelAdmissionMessage(record, admission);
+  if (!message) return;
+  throw new ProtocolRequestError(-32031, message, {
+    code: RUNTIME_MODEL_UNAVAILABLE_ERROR_CODE,
+    reasonCode: MODEL_UNAVAILABLE_REASON_CODE,
+    sessionId: record.app.sessionId,
+    workspace: record.workspace,
+  });
 }
 
 async function resolveForkTarget(
@@ -3291,7 +3574,7 @@ export function onSessionEvent(
   }
   const nonActivityEvent = isNonActivitySessionEvent(event);
   if (event.type === SessionEventType.ModelSelected) {
-    // 恢复候选只服务初始 UI；用户新选择生效后不能在后续清空时被旧候选复活。
+    // 恢复候选服务未绑定时的投影与输入接纳；新选择生效后不能在后续清空时被旧候选复活。
     delete record.restoredModelSelection;
   }
   if (!nonActivityEvent) {
@@ -3503,6 +3786,7 @@ async function resolveSessionStartupPreferences(
   if (source.kind === "inherit") {
     const inheritedShellSelection = source.parent.app.runtime.getSessionShellSelection();
     return {
+      appControlEnabled: source.parent.appControlEnabled === true,
       memoryEnabled: source.parent.memoryEnabled,
       // 执行许可 E 随普通 fork 继承父 Runtime 的冻结值（spec §5），不重读 Host 设置。
       personaEnabled: source.parent.personaEnabled,
@@ -3527,6 +3811,7 @@ async function resolveSessionStartupPreferences(
     runtimePreferences.askUserQuestionAutoResolutionEnabled,
   );
   return {
+    appControlEnabled: runtimePreferences.appControlEnabled === true,
     additionalDirectories: runtimePreferences.additionalDirectories,
     subagentRuntimeConfigEnabled: runtimePreferences.subagentRuntimeConfigEnabled,
     memoryEnabled: runtimePreferences.memoryEnabled,
@@ -3561,31 +3846,39 @@ async function materializeSessionRecord(
   source: SessionStartupPreferencesSource,
   trace?: DroraProtocolTrace,
 ): Promise<DroraProtocolSessionRecord> {
-  let directorySessionId: string | undefined;
-  if (source.kind === "host" && context.sessionDirectorySourceEnabled) {
-    directorySessionId = sessionId;
-    if (resume) {
-      const session = await getPersistedSession(context, sessionId);
-      const workspace =
-        params.workspace ?? buildWorkspaceRef({ workspacePath: context.deps.cwd ?? process.cwd() });
-      const directorySession = session
-        ? await resolvePersistedDirectorySession(context, session, workspace, true)
-        : null;
-      if (!directorySession) throw new Error("project.session-lineage-invalid");
-      directorySessionId = directorySession.id;
+  // 先登记跨进程驻留，再做异步物化；永久删除与新 runtime 不能越过同一个 SQLite 屏障。
+  await context.deps.sessionStore?.registerSessionRuntime?.(sessionId);
+  try {
+    let directorySessionId: string | undefined;
+    if (source.kind === "host" && context.sessionDirectorySourceEnabled) {
+      directorySessionId = sessionId;
+      if (resume) {
+        const session = await getPersistedSession(context, sessionId);
+        const workspace =
+          params.workspace ??
+          buildWorkspaceRef({ workspacePath: context.deps.cwd ?? process.cwd() });
+        const directorySession = session
+          ? await resolvePersistedDirectorySession(context, session, workspace, true)
+          : null;
+        if (!directorySession) throw new Error("project.session-lineage-invalid");
+        directorySessionId = directorySession.id;
+      }
     }
+    // 冷恢复曾把 child 当主任务查项目。反向请求直接带持久化归属，避免 Host 再发
+    // session/list 排在当前恢复请求之后，形成双方互等；原 sessionId 和写入目标不变。
+    const startupPreferences = await resolveSessionStartupPreferences(
+      context,
+      sessionId,
+      source,
+      trace,
+      directorySessionId,
+      params.workspace ?? buildWorkspaceRef({ workspacePath: context.deps.cwd ?? process.cwd() }),
+    );
+    return await createRecord(context, params, sessionId, resume, startupPreferences, trace);
+  } catch (error) {
+    await context.deps.sessionStore?.unregisterSessionRuntime?.(sessionId);
+    throw error;
   }
-  // 冷恢复曾把 child 当主任务查项目。反向请求直接带持久化归属，避免 Host 再发
-  // session/list 排在当前恢复请求之后，形成双方互等；原 sessionId 和写入目标不变。
-  const startupPreferences = await resolveSessionStartupPreferences(
-    context,
-    sessionId,
-    source,
-    trace,
-    directorySessionId,
-    params.workspace ?? buildWorkspaceRef({ workspacePath: context.deps.cwd ?? process.cwd() }),
-  );
-  return createRecord(context, params, sessionId, resume, startupPreferences, trace);
 }
 
 async function createRecord(
@@ -3679,6 +3972,19 @@ async function createRecord(
     // core 遇到 permission / AskUserQuestion 只能走默认拒绝，UI 永远收不到阻塞请求。
     // 这里把阻塞交互转换成 server-to-client JSON-RPC request，由 app 通过 response 释放 runtime。
     permissionBroker: createProtocolInteractionBroker(context),
+    // fork 的 parentID 记录历史来源，仍是独立根会话；不能把 lineage 当作子代理继承权限。
+    ...(startupPreferences.appControlEnabled === true &&
+    (taskType === "fork" ||
+      (!parentSessionId && (taskType === "interactive" || taskType === "workflow_parent")))
+      ? {
+          sessionControl: createAppSessionControlBinding({
+            requestClient: context.requestClient.bind(context),
+            sessionId,
+            workspacePath: workspace.workspacePath,
+            workspaceIdentity: workspace.workspaceIdentity,
+          }),
+        }
+      : {}),
     automationPort: createProtocolAutomationPort(context, () => ownSessionRecord),
     topicResourcePort: createProtocolTopicResourcePort(context),
     // P7 本体清除（specs/obsidian-vault-phase2-true-extraction.md §1-C8 双轨下线）：
@@ -3688,6 +3994,26 @@ async function createRecord(
     // 可用性由错误语义统一表达——旧 host -32601 翻译为 ConfigurationError，
     // 档案未启用/未配置由 host 返回结构化失败。
     imageGenerationPort: createProtocolImageGenerationPort(context),
+    // 能力归属每条输入，不归属创建/恢复 record 的第一个连接。延迟目录初始化，旧端及 headless 不读插件存储。
+    ...(!isReadonlyAgentSessionKind(taskType)
+      ? {
+          pluginDiscoveryPort: (() => {
+            let port: ReturnType<typeof createProtocolPluginDiscoveryPort> | undefined;
+            const current = () =>
+              (port ??= createProtocolPluginDiscoveryPort(
+                context,
+                workspace,
+                sessionId,
+                context.deps.pluginActivationPort,
+                () => ownSessionRecord,
+              ));
+            return {
+              search: (input, request) => current().search(input, request),
+              suggest: (input, request) => current().suggest(input, request),
+            };
+          })(),
+        }
+      : {}),
     // 只接入 Host 已开放的工具面；缺省不注入。复用现行异步工厂，
     // 不恢复旧 deferred ModelAdapter/Registry overlay，也不改变 Session Selection。
     ...(("offPeakToolEnabled" in params && params.offPeakToolEnabled === true) ||
@@ -3740,6 +4066,7 @@ async function createRecord(
   const now = Date.now();
   const record: DroraProtocolSessionRecord = {
     app,
+    appControlEnabled: startupPreferences.appControlEnabled === true,
     createdAt: now,
     eventStore,
     memoryEnabled: startupPreferences.memoryEnabled,
@@ -3763,9 +4090,11 @@ async function createRecord(
   context.assertServing?.();
   let subscribed = true;
   let unsubscribeSessionEvents = () => {};
+  let unsubscribeContextComposition = () => {};
   record.unsubscribe = () => {
     subscribed = false;
     unsubscribeSessionEvents();
+    unsubscribeContextComposition();
   };
   unsubscribeSessionEvents = app.runtime.subscribeEvents({
     // 解除订阅前已排队的 callback 仍可能迟到，不能污染重启后的同名 session 投影。
@@ -3773,6 +4102,11 @@ async function createRecord(
       if (subscribed) onSessionEvent(context, record, event);
     },
   });
+  unsubscribeContextComposition = subscribeSessionContextComposition(
+    context,
+    sessionId,
+    app.runtime,
+  );
   // 绑定归属会话，供 automation-port 读取本会话实时 model/mode/thought。
   ownSessionRecord = record;
   return record;
@@ -3926,6 +4260,10 @@ async function snapshotWithDiagnostics(
     persistedGoalVerificationEvents,
     session,
     slashCommandOptions: {
+      pluginPreparation: context.deps?.pluginPreparation,
+      pluginDiscovery: context.deps?.pluginDiscovery,
+      workspaceIdentity: record.workspace.workspaceIdentity,
+      remoteSessionId: record.workspace.remoteSessionId,
       // session snapshot 的 `/` 目录与 workspace presentation 必须给出同一份灰度结论，
       // 否则关闭态下侧栏面板还能看到 `workflow`。
       dynamicWorkflowEnabled: context.appRuntimePreferences.dynamicWorkflowEnabled,
@@ -4149,169 +4487,12 @@ async function readSessionRewindEvents(
   return events.filter((event) => event.type === SessionEventType.RewindTriggered);
 }
 
-function projectActiveSessionMessages(
-  messages: MessageWithParts[],
-  session: SessionInfo | null | undefined,
-  rewindEvents: readonly SessionEvent[],
-): MessageWithParts[] {
-  const activeConversationRewinds: ActiveConversationRewindPayload[] = [];
-  const sessionRewindPayload = activeConversationRewindPayloadFromSession(session);
-  if (sessionRewindPayload) {
-    activeConversationRewinds.push(sessionRewindPayload);
-  }
-  let activeMessages = applyRewindBranch(messages, messages, {
-    createdMessageId: sessionRewindPayload?.createdMessageId,
-    keptMessageIds: session?.revert?.keptMessageIDs,
-    targetMessageId: sessionRewindPayload?.targetMessageId,
-  });
-
-  for (const event of rewindEvents) {
-    const payload = parseActiveConversationRewindPayload(event);
-    if (!payload?.targetMessageId) {
-      continue;
-    }
-    activeConversationRewinds.push(payload);
-    activeMessages = applyRewindBranch(activeMessages, messages, payload);
-  }
-
-  return filterRewindCommandAckMessages(activeMessages, activeConversationRewinds);
-}
-
-type ActiveConversationRewindPayload = {
-  createdMessageId: MessageId;
-  targetMessageId: MessageId;
-};
-
-function activeConversationRewindPayloadFromSession(
-  session: SessionInfo | null | undefined,
-): ActiveConversationRewindPayload | null {
-  const createdMessageId = session?.revert?.createdMessageID;
-  const targetMessageId = session?.revert?.targetMessageID;
-  if (!createdMessageId || !targetMessageId) {
-    return null;
-  }
-  return { createdMessageId, targetMessageId };
-}
-
-function parseActiveConversationRewindPayload(
-  event: SessionEvent,
-): ActiveConversationRewindPayload | null {
-  try {
-    const payload = parseRewindTriggeredPayload(event.payload);
-    if (
-      payload.strategy !== RewindStrategy.ActiveChain ||
-      (payload.scope !== RewindScope.Conversation && payload.scope !== RewindScope.Both) ||
-      !payload.createdMessageId ||
-      !payload.targetMessageId
-    ) {
-      // core 会为不可用的 rewind 记录 unavailable event，但这类事件没有 createdMessageId。
-      // 它不是新的 active branch 起点，协议投影不能用它裁剪消息，否则连续编辑会把可见消息投空。
-      return null;
-    }
-    return {
-      createdMessageId: payload.createdMessageId,
-      targetMessageId: payload.targetMessageId,
-    };
-  } catch {
-    return null;
-  }
-}
-
-function filterRewindCommandAckMessages(
-  messages: MessageWithParts[],
-  activeConversationRewinds: readonly ActiveConversationRewindPayload[],
-): MessageWithParts[] {
-  if (activeConversationRewinds.length === 0) {
-    return messages;
-  }
-  const targetByNoticeMessageId = new Map<MessageId, MessageId>();
-  for (const rewind of activeConversationRewinds) {
-    targetByNoticeMessageId.set(rewind.createdMessageId, rewind.targetMessageId);
-  }
-  return messages.filter((message) => !isRewindCommandAckMessage(message, targetByNoticeMessageId));
-}
-
-function isRewindCommandAckMessage(
-  message: MessageWithParts,
-  targetByNoticeMessageId: ReadonlyMap<MessageId, MessageId>,
-): boolean {
-  if (message.info.role !== "assistant") {
-    return false;
-  }
-  const targetMessageId = targetByNoticeMessageId.get(message.info.parentID);
-  if (!targetMessageId) {
-    return false;
-  }
-  const text = message.parts
-    .filter((part) => part.type === "text")
-    .map((part) => part.text)
-    .join("")
-    .trim();
-  const ackText = `Rewound conversation to before message ${targetMessageId}.`;
-  // 内部 `/rewind conversation <messageId>` 的成功回执可能被旧事件投影落成
-  // assistant 文本。它只是编辑/重试的控制命令 ACK，刷新或恢复时不能再渲染给用户。
-  return text === ackText || text.endsWith(`\n${ackText}`);
-}
-
 function isUserVisibleSessionMessage(message: MessageWithParts): boolean {
   if (message.info.role !== "user") {
     return true;
   }
   const policy = getConversationMessageProjectionPolicy(message);
   return policy === "realUserInput" || policy === "timelineOnly";
-}
-
-function applyRewindBranch(
-  activeMessages: MessageWithParts[],
-  allMessages: MessageWithParts[],
-  options: {
-    createdMessageId?: MessageId;
-    keptMessageIds?: readonly MessageId[];
-    targetMessageId?: MessageId;
-  },
-): MessageWithParts[] {
-  if (!options.targetMessageId) {
-    return activeMessages;
-  }
-
-  if (options.keptMessageIds) {
-    // 连续 rewind 后，账本里的 target 前缀不等于 active branch 前缀。
-    // 优先使用 runtime 在 rewind 当时保存的 keptMessageIDs，避免旧分支在 snapshot/readMessages 中复活。
-    const messagesById = new Map(allMessages.map((message) => [message.info.id, message]));
-    const keptMessages = options.keptMessageIds
-      .map((messageId) => messagesById.get(messageId))
-      .filter((message): message is MessageWithParts => message !== undefined);
-    if (!options.createdMessageId) {
-      return keptMessages;
-    }
-
-    const createdIndex = allMessages.findIndex(
-      (message) => message.info.id === options.createdMessageId,
-    );
-    return createdIndex >= 0 ? [...keptMessages, ...allMessages.slice(createdIndex)] : keptMessages;
-  }
-
-  const targetIndex = activeMessages.findIndex(
-    (message) => message.info.id === options.targetMessageId,
-  );
-  if (targetIndex < 0) {
-    return activeMessages;
-  }
-  const keptMessages = activeMessages.slice(0, targetIndex);
-  if (!options.createdMessageId) {
-    return keptMessages;
-  }
-
-  const createdIndex = allMessages.findIndex(
-    (message) => message.info.id === options.createdMessageId,
-  );
-  if (createdIndex < 0) {
-    return keptMessages;
-  }
-
-  // conversation rewind 的持久化账本会保留被回滚的旧分支。
-  // UI snapshot/readMessages 必须投影 active branch，否则编辑重发后会同时看到错发原文和新消息。
-  return [...keptMessages, ...allMessages.slice(createdIndex)];
 }
 
 async function getPersistedSession(
@@ -4351,12 +4532,6 @@ export async function afterStateMutation(
   record: DroraProtocolSessionRecord,
   reason: string,
 ) {
-  if (!record.activeAbortController) {
-    // provider registry 可能在 turn 运行中删除当前模型。更新时不能改写在途请求；turn/compact/
-    // goal continuation 释放 active lock 后统一经过此安全边界，立即完成同一 Agent fallback，
-    // 无需等待用户下一次发送，也不把兜底职责重新交给 renderer。
-    await ensureSessionModelAvailable(context, record);
-  }
   record.stateRevision++;
   const configOnlyMutation = CONFIG_ONLY_MUTATION_REASONS.has(reason);
   if (!configOnlyMutation) {

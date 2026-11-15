@@ -59,6 +59,10 @@ export async function buildLiveWorkspaceConfigStateV4(
     ),
     env: context.deps.env,
     logger: context.logger,
+    pluginPreparation: context.deps?.pluginPreparation,
+    pluginDiscovery: context.deps?.pluginDiscovery,
+    workspaceIdentity: record.workspace.workspaceIdentity,
+    remoteSessionId: record.workspace.remoteSessionId,
     workingDirectory: record.workspace.workspacePath,
   });
   return toV4WorkspaceConfigState(settings, slashCommands);

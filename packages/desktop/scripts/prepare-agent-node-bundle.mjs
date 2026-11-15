@@ -363,6 +363,33 @@ const officialPluginPackages = [
     stagedNativeRuntimes: ["sharp", "koffi"],
     stagedPath: "packages/zcode-cua-plugin",
   },
+  {
+    // design（默认启用内容型插件，S3 随上游 v3.18.0 落位）：Electron 生产包靠这里 stage 的
+    // 目录做首启 seed，漏掉它生产桌面包就没有设计技能。必需文件与 official-plugin-definitions.ts
+    // 的 requiredSeedPaths 一致。
+    packageName: "@drora/design-plugin",
+    relativePath: "apps/drora-cli/packages/design-plugin",
+    requiresRuntime: false,
+    requiredSeedPaths: [
+      "skills/design/SKILL.md",
+      "skills/design/references/catalog.md",
+      "skills/design/references/check.md",
+      "skills/design/references/create.md",
+      "skills/design/references/design-system.md",
+      "skills/design/references/interact.md",
+      "skills/design/references/output.md",
+      "skills/design/references/redesign.md",
+      "skills/design/scripts/adapt-canvas.mjs",
+      "skills/design/scripts/design-lint.mjs",
+      "skills/design/scripts/design-tokens.mjs",
+      "skills/design/scripts/import-design-system.mjs",
+      "hooks/hooks.json",
+      "hooks/run-hook.cmd",
+      "hooks/design-rules",
+    ],
+    requiredRuntimePaths: [],
+    stagedPath: "packages/design-plugin",
+  },
 ];
 // 随 CLI 内置的技能包（不是插件）：bootstrap 的 resolveBundledSkillRoots 沿官方插件同款候选目录
 // 在 drora.cjs 旁找 packages/bundled-skills 并原地读取。漏 stage 它，桌面包的 /workflow 会展开成
@@ -477,10 +504,10 @@ function assertOfficialPluginRuntime(plugin) {
   }
 }
 
-function stageBundle() {
+async function stageBundle() {
   // 实现已抽到 stage-agent-bundle.mjs：dev 链（scripts/build-desktop-agent-cli.mjs）
   // 必须用同一份，否则 dev 会继续跑上一次打包留下的陈旧 agent。
-  stageAgentBundle({ repoRoot, platformKey });
+  await stageAgentBundle({ repoRoot, platformKey });
 }
 
 // P3（g7，specs/obsidian-vault-phase2-true-extraction.md §3/§6-g7）：obsidian 插件随包
@@ -727,7 +754,7 @@ async function stageCuaHelperRuntime() {
 // 必须先构建 CLI 依赖，再构建官方插件；开发机残留的 dist 曾掩盖这个顺序问题。
 buildCliBundle();
 buildOfficialPluginRuntimes();
-stageBundle();
+await stageBundle();
 stageOfficialPlugins();
 stageBundledSkillPack();
 await stageBundledNpmRuntime();

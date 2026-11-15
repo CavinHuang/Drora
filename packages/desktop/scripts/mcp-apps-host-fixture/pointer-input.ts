@@ -4,6 +4,12 @@ import { evaluateGuest } from "./guest-evaluation.js";
 
 /** 从宿主坐标发送鼠标事件，避免直接向 guest 注入点击绕过透明层命中测试。 */
 export async function clickHostPoint(win: BrowserWindow, point: { x: number; y: number }) {
+  // win32 焦点适配（ours-only，上游 fixture 无此两行、直接 attach）：CDP 的
+  // Input.dispatchMouseEvent 走合成器输入通道，不要求窗口前台；但本用例链在点击后
+  // 还依赖窗口持有真实键盘焦点——checkPagePointerInput 断言 guest 的
+  // document.activeElement 为 #input，并用 Input.insertText 注入文本。Windows 前台锁
+  // 在 e2e 无人交互授权的环境下会拒绝隐式前台切换，后台窗口收不到键盘焦点时
+  // insertText 会派发到错误目标或被丢弃，故先显式 show+focus 再走 CDP 输入。
   win.show();
   win.focus();
   win.webContents.debugger.attach("1.3");

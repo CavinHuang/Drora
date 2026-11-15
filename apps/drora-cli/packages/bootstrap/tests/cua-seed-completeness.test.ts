@@ -97,7 +97,12 @@ describe("Computer Use seed completeness", () => {
 
         let previousMarker: string | undefined;
         if (existingCache) {
-          resolveOfficialPluginRoots({ storageRoot });
+          // 修复（2026-11-14，v3.18.0 S4 段门复跑归因）：上游 v3.18.0 把
+          // resolveOfficialPluginRoots 改为 async（seed 全链异步化，bundled-plugins.ts
+          // 签名 -function +async function）。本用例仍按旧同步 API 调用——返回 Promise
+          // 未 await，种子尚未落盘就读缓存（ENOENT 假败）、warn 断言 0 调用。
+          // 两处调用补 await，语义不变（降级不抛错改为 resolves 不 reject）。
+          await resolveOfficialPluginRoots({ storageRoot });
           expect(await readFile(join(cacheRoot, SKILL_PATH), "utf8")).toBe(
             SEED_CONTENTS.get(SKILL_PATH),
           );
@@ -113,7 +118,7 @@ describe("Computer Use seed completeness", () => {
           child: vi.fn(() => logger),
         };
 
-        expect(() => resolveOfficialPluginRoots({ logger, storageRoot })).not.toThrow();
+        await expect(resolveOfficialPluginRoots({ logger, storageRoot })).resolves.not.toThrow();
         expect(logger.warn).toHaveBeenCalledWith(
           "Official plugin cache operation degraded",
           expect.objectContaining({

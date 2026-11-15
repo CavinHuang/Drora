@@ -62,7 +62,11 @@ test("extracts target tools into version and hash addressed cache directories", 
         ),
       );
       assert.deepEqual(await readFile(binaryPath), tool.bytes);
-      assert.notEqual((await stat(binaryPath)).mode & 0o111, 0);
+      // win32 宿主的 stat().mode 无可执行位语义（仅映射只读属性 + 按扩展名合成 x 位），
+      // 无扩展名二进制观察不到 0o111；chmod 调用本身保留（unix 宿主行为不变）。
+      if (process.platform !== "win32") {
+        assert.notEqual((await stat(binaryPath)).mode & 0o111, 0);
+      }
     }
   } finally {
     await rm(storageRoot, { force: true, recursive: true });
@@ -132,7 +136,11 @@ test("repairs caches with invalid size, hash, marker, or executable mode", async
 
     const repaired = await ensureSeaRuntimeTools(options);
 
-    assert.notEqual((await stat(assertPath(repaired.DRORA_BFS_BINARY))).mode & 0o111, 0);
+    // 同上：win32 宿主观察不到执行位，"执行位修复"面在 win32 上不可测（chmod 0o644 与
+    // 0o755 在 win32 stat 上同为 0o666），只保留 unix 宿主的断言。
+    if (process.platform !== "win32") {
+      assert.notEqual((await stat(assertPath(repaired.DRORA_BFS_BINARY))).mode & 0o111, 0);
+    }
     for (const tool of fixture.tools) {
       assert.deepEqual(await readFile(assertPath(repaired[envVarFor(tool.id)])), tool.bytes);
     }

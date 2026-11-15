@@ -16,6 +16,8 @@ import {
   sanitizeDroraRuntimeEnv,
   DRORA_CUA_OFFICIAL_PLUGIN_ID,
   DRORA_CUA_PLUGIN_AUTHORITY_ENV_KEY,
+  DRORA_CUA_BROKER_SOCKET_ENV_KEY,
+  DRORA_CUA_BROKER_TOKEN_ENV_KEY,
   DRORA_PLUGIN_ID_ENV_KEY,
 } from "@drora/shared";
 import {
@@ -82,10 +84,18 @@ function cuaActionReceipt(overrides: Record<string, unknown> = {}): string {
 
 // computeOfficialCuaServerNames 只信任本进程私有捕获的 authority；测试必须走与生产同一条
 // capture 路径（sanitize 时捕获完整凭据组）来播种，绝不能直接改写内部状态。
+// 修复（2026-11-14，v3.18.0 S4 段门复跑归因）：socket 键是还原区生产方
+// （packages/zcode-cua restore 面 + services cuaAgentEnvironment 的 BROKER_SOCKET_ENV）
+// 写出的冻结 wire 值「ZCODE_CUA_PERMISSION_BROKER_SOCKET」（rename 规则 0 豁免区，
+// zcode-cua/test/mac-launch-contract.mjs:304 逐字钉住），此前这里用 DRORA_ 前缀字面量
+// 播种——capture 读不到 socket、只剩 authority 半组凭据被 fail-closed 清空，
+// computeOfficialCuaServerNames 恒空、官方 CUA 投影（mcp__computer-use__ 主名）不生效
+// （canonical undefined 假败，HEAD 即同败）。改用 shared 导出的同名常量做单一出处，
+// token 键（DRORA_CUA_PERMISSION_BROKER_TOKEN，R10 后本仓自有面）同样走常量。
 function seedCapturedBrokerCredentials(): void {
   sanitizeDroraRuntimeEnv({
-    DRORA_CUA_PERMISSION_BROKER_SOCKET: "/tmp/drora-cua-test.sock",
-    DRORA_CUA_PERMISSION_BROKER_TOKEN: "test-broker-token",
+    [DRORA_CUA_BROKER_SOCKET_ENV_KEY]: "/tmp/drora-cua-test.sock",
+    [DRORA_CUA_BROKER_TOKEN_ENV_KEY]: "test-broker-token",
     [DRORA_CUA_PLUGIN_AUTHORITY_ENV_KEY]: TEST_PLUGIN_AUTHORITY,
   });
 }
@@ -482,6 +492,40 @@ describe("MCP tool bridge", () => {
 
     expect(callTool).toHaveBeenCalledWith(
       expect.objectContaining({ runtimeScope: "subagent" }),
+      expect.anything(),
+    );
+  });
+
+  it("uses the session workspace key instead of the working directory (managed worktree)", async () => {
+    const registry = createToolRegistry();
+    const callTool = vi.fn(async () => ({ content: [] }));
+    registerMcpTools(registry, createMockMcpPort({ callTool }), [
+      { serverName: "node_repl", toolName: "js", inputSchema: { type: "object" } },
+    ]);
+
+    // 受管 worktree 会话：工作目录是 worktree，会话 key 是项目（docs/git/worktree.md §9.3）。
+    await registry.get("mcp__node_repl__js")?.handler(
+      {},
+      createToolContext({
+        workingDirectory: "/data/.drora/worktrees/3f2a/repo",
+        workspaceKey: "/projects/repo",
+      }),
+    );
+    await registry
+      .get("mcp__node_repl__js")
+      ?.handler({}, createToolContext({ workingDirectory: "/projects/plain" }));
+
+    expect(callTool).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        workspaceKey: "/projects/repo",
+        workspacePath: "/data/.drora/worktrees/3f2a/repo",
+      }),
+      expect.anything(),
+    );
+    expect(callTool).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ workspaceKey: "/projects/plain" }),
       expect.anything(),
     );
   });
@@ -1575,7 +1619,10 @@ function createMockMcpPort(overrides: Partial<McpPort> = {}): McpPort {
 }
 function createToolContext(
   overrides: Partial<
-    Pick<ToolExecutionContext, "artifactStore" | "imageProcessorPort" | "runtimeScope">
+    Pick<
+      ToolExecutionContext,
+      "artifactStore" | "imageProcessorPort" | "runtimeScope" | "workingDirectory" | "workspaceKey"
+    >
   > = {},
 ): ToolExecutionContext {
   return {

@@ -169,7 +169,6 @@ describe("session facade shutdown", () => {
         },
         closeSessionStore: () => events.push("store_closed"),
         logger: { warn } as never,
-        timeoutMs: 50,
       }),
     ).rejects.toBeInstanceOf(AggregateError);
 

@@ -1,8 +1,12 @@
 /** macOS 系统工具绝对路径（Helper 校验与权限探测使用） */
 export declare const dn: Record<string, string>;
 /** Helper bundle id */
-export declare const HELPER_BUNDLE_ID_VALUE = "dev.drora.cua-helper";
-export declare const DEV_CUA_HELPER_BUNDLE_ID_VALUE = "dev.drora.cua-helper.dev";
+// 修复：本 d.ts 曾被误改成 Drora 化 bundle id（草稿区唯一 drora 化件，10-plugin-audit §四）。
+// 该常量属官方 0.6.5 冻结契约面——src/broker/server/region-constants.ts:28-29 与编译版
+// broker/server/region-constants.js 均为 "dev.zcode.cua-helper"（台账 15 Helper 身份常量单一出处），
+// 草稿不参与编译但为防误导改回与 src 一致。
+export declare const HELPER_BUNDLE_ID_VALUE = "dev.zcode.cua-helper";
+export declare const DEV_CUA_HELPER_BUNDLE_ID_VALUE = "dev.zcode.cua-helper.dev";
 /** dev 模式下的秒级阈值等杂项常量 */
 export declare const CUA_DEV_TIMEOUT_MS = 10000;
 /** Helper 安装形态枚举 */

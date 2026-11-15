@@ -78,6 +78,7 @@ export async function startProcessProviderRegistryRuntime(
                 appVersion: DRORA_VERSION,
                 platform: resolveDroraBuiltinClientPlatform(),
                 request: options.standalone?.request ?? globalThis.fetch,
+                resolveDroraJwtToken: () => credentialStore?.load("drorajwttoken"),
               }),
             onRefreshResult: options.standalone?.onBuiltinRefreshResult,
           },

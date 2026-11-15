@@ -27,6 +27,10 @@ const shouldPrepareMacosWindowBounds = target.os === "darwin";
 // 运行时由 app 的 Electron Node runtime 执行。Source Server 资源由独立 stage:remote-assets 入口负责。
 const localRuntimeScripts = [
   "prepare:agent-bundle",
+  // D3：windows-runtime-host.exe 构建挂 win32 目标（上游 v3.18.0 同款）。
+  // prepare:windows-cua-helper 保本仓 build 链单独调用（package.json build 序列），
+  // 不随本清单回加（ours 既定分流，避免双跑）。
+  ...(target.os === "win32" ? ["prepare:windows-runtime-host"] : []),
   ...(nativeSearchReleasePlan.enabled ? ["prepare:native-search"] : []),
   ...(shouldPrepareWindowsBrowserImportHelper ? ["prepare:browser-import-helper"] : []),
   ...(shouldPrepareMacosWindowBounds ? ["prepare:macos-window-bounds"] : []),

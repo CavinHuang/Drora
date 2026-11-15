@@ -405,5 +405,5 @@ function buildRemoteServerCommand(
       );
     }
   }
-  return `${envParts.join(" ")} ~/.drora/server/node ~/.drora/server/drora-server.cjs`;
+  return `${envParts.join(" ")} ~/.drora/server/node ~/.drora/server/drora-server.cjs --prepare-credentials`;
 }

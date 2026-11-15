@@ -1,4 +1,4 @@
-import type { Locale } from "@drora/shared";
+import { toZhOrEnLocale, type Locale } from "@drora/shared";
 
 /**
  * P2 桌宠当前态表达映射（specs/drora-persona-system.md §11、PM18/58）：
@@ -25,7 +25,7 @@ export interface DesktopPetPersonaExpression {
   readonly celebrates: false;
 }
 
-const LABELS: Record<Locale, Record<DesktopPetPersonaExpression["mode"], string>> = {
+const LABELS: Record<"zh-CN" | "en-US", Record<DesktopPetPersonaExpression["mode"], string>> = {
   "zh-CN": {
     idle: "待命",
     working: "专注处理中",
@@ -42,13 +42,14 @@ const LABELS: Record<Locale, Record<DesktopPetPersonaExpression["mode"], string>
   },
 };
 
-const OTHER_LOCALE: Locale = "en-US";
+// Locale 五语言化（S1）后：表达文案只内置中英，其余语言经 toZhOrEnLocale 回落英文。
+const OTHER_LOCALE = "en-US" as const;
 
 export function desktopPetPersonaExpression(input: {
   mode: DesktopPetPersonaExpression["mode"];
   locale: Locale;
 }): DesktopPetPersonaExpression {
-  const locale = LABELS[input.locale] ? input.locale : OTHER_LOCALE;
+  const locale = LABELS[toZhOrEnLocale(input.locale)] ? toZhOrEnLocale(input.locale) : OTHER_LOCALE;
   return {
     mode: input.mode,
     label: LABELS[locale][input.mode],

@@ -1,5 +1,5 @@
-import type { TraceContext, TurnId } from "@drora/contracts";
-import { createRootTraceContext } from "@drora/contracts";
+import type { CoreError, TraceContext, TurnId } from "@drora/contracts";
+import { CoreErrorType, createCoreError, createRootTraceContext } from "@drora/contracts";
 import { createDenyPermissionBroker } from "../../permission/broker.js";
 import type { ToolSchedule } from "../scheduler.js";
 import type {
@@ -60,13 +60,16 @@ export class ToolExecutorImpl implements ToolExecutor {
       coordinatorResponsePort: options.coordinatorResponsePort,
       workflowSubmitPort: options.workflowSubmitPort,
       workflowEscalatePort: options.workflowEscalatePort,
+      webSearchBudget: options.webSearchBudget,
       artifactStore: options.artifactStore,
+      sessionControl: options.sessionControl,
       automationPort: options.automationPort,
       // agent 内置文生图端口（specs/model-capabilities.md §6）：恒注入传递
       // （不做注册门）；漏拷会让 handler 永远拿到缺席端口。
       imageGenerationPort: options.imageGenerationPort,
       offPeakPort: options.offPeakPort,
       topicResourcePort: options.topicResourcePort,
+      pluginDiscoveryPort: options.pluginDiscoveryPort,
       sessionStore: options.sessionStore,
       sessionModePort: options.sessionModePort,
       workflowPort: options.workflowPort,
@@ -90,6 +93,7 @@ export class ToolExecutorImpl implements ToolExecutor {
           options.workingDirectory ??
           "."),
       workspaceIdentity: options.workspaceIdentity,
+      workspaceKey: options.workspaceKey,
       remoteSessionId: options.remoteSessionId,
       clientMode: options.clientMode,
       deliveryKind: options.deliveryKind,
@@ -114,8 +118,10 @@ export class ToolExecutorImpl implements ToolExecutor {
       this.deps.traceContext ??
       createRootTraceContext({ sessionId: this.deps.sessionId });
     const mode = this.deps.getMode();
+    // 失败一律抛带稳定 type 的 CoreError：宿主调用方（mcp/uiCallTool、plugins/mentionItems）按 type
+    // 区分「被拒绝」与其他失败，不读错误文本（00-tool-change-chain.md「MCP App 授权失败的错误类型」）。
     const invalid = validateInput(toolCall.input, entry);
-    if (invalid) throw new Error(invalid.message);
+    if (invalid) throw createAppToolAuthorizationError(CoreErrorType.InvalidInput, invalid.message);
     const hooks = await runPreToolUseHooks(
       this.deps,
       toolCall,
@@ -126,10 +132,14 @@ export class ToolExecutorImpl implements ToolExecutor {
       options?.signal,
     );
     if (hooks.preventContinuation || hooks.permissionBehavior === "deny")
-      throw new Error(hooks.stopReason ?? "Tool denied by host hook");
+      throw createAppToolAuthorizationError(
+        CoreErrorType.PermissionDenied,
+        hooks.stopReason ?? "Tool denied by host hook",
+      );
     const input = hooks.updatedInput ?? toolCall.input;
     const updatedInvalid = validateInput(input, entry);
-    if (updatedInvalid) throw new Error(updatedInvalid.message);
+    if (updatedInvalid)
+      throw createAppToolAuthorizationError(CoreErrorType.InvalidInput, updatedInvalid.message);
     const decision = await resolveToolPermission(
       this.deps,
       toolCall,
@@ -142,7 +152,10 @@ export class ToolExecutorImpl implements ToolExecutor {
     );
     options?.signal?.throwIfAborted();
     if (!decision.allowed)
-      throw new Error(decision.result.error?.message ?? "Tool denied by host policy");
+      throw createAppToolAuthorizationError(
+        toCoreErrorType(decision.result.error?.type),
+        decision.result.error?.message ?? "Tool denied by host policy",
+      );
     return decision.executionInput;
   }
 
@@ -202,4 +215,17 @@ export class ToolExecutorImpl implements ToolExecutor {
 
 export function createToolExecutor(options: ToolExecutorOptions): ToolExecutor {
   return new ToolExecutorImpl(options);
+}
+
+const CORE_ERROR_TYPES = new Set<string>(Object.values(CoreErrorType));
+
+/** 执行器的拒绝结果带 CoreErrorType 字符串；不认识的类型按拒绝处理（fail closed）。 */
+function toCoreErrorType(type: string | undefined): CoreErrorType {
+  return type !== undefined && CORE_ERROR_TYPES.has(type)
+    ? (type as CoreErrorType)
+    : CoreErrorType.PermissionDenied;
+}
+
+function createAppToolAuthorizationError(type: CoreErrorType, message: string): CoreError {
+  return createCoreError(type, message, { recoverable: true });
 }

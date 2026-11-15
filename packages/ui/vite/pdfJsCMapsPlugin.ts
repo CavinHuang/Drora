@@ -32,6 +32,13 @@ export function pdfJsCMapsPlugin(): Plugin {
   return {
     name: "drora:pdfjs-cmaps",
     async buildStart() {
+      // 修复：Vite 8 的 dev/scan 插件容器不支持 emitFile，serve 模式下每个 CMap 都会刷
+      // "context method emitFile() is not supported in serve mode" 告警（该容器 meta.watchMode
+      // 恒为 true，一次性构建才为 false）。开发态 CMap 已由下方 configureServer 中间件按需
+      // 返回，物化资产只在真正构建时进行。
+      if (this.meta.watchMode) {
+        return;
+      }
       for (const asset of await listPdfJsCMapAssets()) {
         this.emitFile({
           type: "asset",

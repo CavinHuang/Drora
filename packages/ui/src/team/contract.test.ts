@@ -21,7 +21,9 @@ describe("ui-team module contract", () => {
   it("declares the managed module identity", () => {
     expect(teamUiModule.id).toBe("ui-team");
     expect(teamUiModule.requires).toEqual(["ui", "shared", "services"]); // services：workspace-config-catalog-sync 订阅 Host 装配事实（v3.16.1 S6 登记）
-    expect(teamUiModule.publicEntrypoints).toEqual(["index.ts", "contract.ts"]);
+    // session-line.ts 为 58f3f595a 新增轻量公共入口（会话列表条目投影）；module.ts
+    // 已声明而本断言未跟（基线已知红）。对齐声明面，入口增删仍由 module.ts 单一出处。
+    expect(teamUiModule.publicEntrypoints).toEqual(["index.ts", "contract.ts", "session-line.ts"]);
     expect(TEAM_UI_MODULE_ID).toBe("ui-team");
   });
 

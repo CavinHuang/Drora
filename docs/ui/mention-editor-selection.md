@@ -4,7 +4,7 @@
 
 PromptMentionNode 原来在 TextNode DOM 首部插入 img/svg，同时 getTextContent 返回 canonical Markdown。Lexical 沿 firstChild 找不到实际文字，选区 offset 又与展示文字长度不一致，导致全选端点位于 mention 时内部选区与浏览器选区分叉。
 
-适用于主 Composer 和消息行内编辑共享的 LexicalChatInput，覆盖 files、skills、commands、subagents、sessions、whiteboards、plugins。
+适用于主 Composer（含编辑态）和消息行内编辑共享的 LexicalChatInput（行内编辑将并入 composer 编辑态，见 [Composer 编辑态](composer-edit-mode.md)），覆盖 files、skills、commands、subagents、sessions、whiteboards、plugins。
 
 ## 合同
 
@@ -15,7 +15,7 @@ Lexical state
   +-- 图标             -> CSS 装饰，不增加 DOM 文本节点
 ```
 
-- 保留 TextNode token 原子编辑语义；DOM 文本必须与 \_\_text 完全一致，图标异步失败不替换文字节点。
+- 保留 TextNode token 原子编辑语义；DOM 文本必须与 __text 完全一致，图标异步失败不替换文字节点。
 - getTextContent 返回展示文字；整篇与选区 Markdown 序列化显式读取 mention.markdown。
 - 普通文本按选区截取；与选区有实际交集的 mention 输出完整 canonical，剪切删除相同的原子范围。折叠选区与仅接触 token 边界不算交集。
 - 整篇输出保留既有段落双换行、LineBreak 单换行和空白语义；选区输出保留 Lexical RangeSelection 的段落分隔规则。对外 getText/getMarkdown、onChange 继续输出 canonical Markdown。
@@ -26,13 +26,13 @@ Lexical state
 
 ## 接受的用例
 
-| ID      | 设置/动作                                                | 必须断言                                               |
-| ------- | -------------------------------------------------------- | ------------------------------------------------------ |
-| MSEL-01 | 纯文字、首部/中部/尾部/唯一/相邻 mention，真实平台全选键 | DOM 选区非折叠且完整；全选后替换不残留 token           |
-| MSEL-02 | 全选后删除、撤销                                         | 编辑器清空；撤销恢复 canonical 和标签                  |
-| MSEL-03 | 正反向部分选区，复制与剪切                               | 普通文字截取准确，mention 原子输出，剪切范围与输出一致 |
-| MSEL-04 | 旧 JSON、多段落、Unicode、图标失败                       | 展示长度正确、canonical 不丢失、图标更新保留文字节点   |
-| MSEL-05 | 预填后输入与 Option+ArrowRight                           | 标签保留、正常追加正文                                 |
+| ID | 设置/动作 | 必须断言 |
+| --- | --- | --- |
+| MSEL-01 | 纯文字、首部/中部/尾部/唯一/相邻 mention，真实平台全选键 | DOM 选区非折叠且完整；全选后替换不残留 token |
+| MSEL-02 | 全选后删除、撤销 | 编辑器清空；撤销恢复 canonical 和标签 |
+| MSEL-03 | 正反向部分选区，复制与剪切 | 普通文字截取准确，mention 原子输出，剪切范围与输出一致 |
+| MSEL-04 | 旧 JSON、多段落、Unicode、图标失败 | 展示长度正确、canonical 不丢失、图标更新保留文字节点 |
+| MSEL-05 | 预填后输入与 Option+ArrowRight | 标签保留、正常追加正文 |
 
 优先扩展已有 chat-input-mention-navigation E2E。单测验证序列化与剪贴板命令，真实浏览器验证原生 selection 和编辑效果，不以仅 dispatchCommand 返回 true 作为通过。
 
@@ -53,7 +53,7 @@ Lexical state
 按 2026-09-04 用户授权由 agent 执行复核：将已有 MSEL-01/02/03 的 8 项原生交互回归迁移为独立 `conversation-session-mention-selection`，不增加产品行为。原顶层 spec 保留 MSEL-05 相邻导航用例，避免重复执行。
 
 - Pending：`packages/desktop/test/e2e/conversation-session/manual-review/pending/conversation-session-mention-selection.test.ts`。
-- Canonical target：`packages/desktop/test/e2e/conversation-session/conversation-session-mention-selection.test.ts`。
+- Canonical target：`packages/desktop/test/e2e/conversation-session/composer/conversation-session-mention-selection.test.ts`。
 - Provider 合同：`providerRequestPolicy: none`，case-local fixture 与 requests 均为空；在每项用例后断言 provider 请求计数未增加。
 - 验证顺序：pending 显式 replay + 截图复核 → fixture check → promotion dry run/apply → formal 显式 common+case replay → default replay。
 - 本次不进行 Docker 验证或 admission；跨平台未实测项继续保留。
@@ -62,7 +62,7 @@ Lexical state
 
 - 用户授权 agent 复核本次用例；对 pending 截图检查文件图标、文字和原生全选高亮正常。
 - Pending 显式 common+case replay：8/8 通过，artifact `desktop-e2e-20260904073617029-p6123-ff5d77593b0c1dc3`；provider/runtime capture 的 records 均为 0。
-- Fixture check、promotion dry run、apply 与事务内 coverage audit 通过。正式 spec：`packages/desktop/test/e2e/conversation-session/conversation-session-mention-selection.test.ts`。
+- Fixture check、promotion dry run、apply 与事务内 coverage audit 通过。正式 spec：`packages/desktop/test/e2e/conversation-session/composer/conversation-session-mention-selection.test.ts`。
 - Formal 显式 common+case replay：8/8 通过，artifact `desktop-e2e-20260904-073716-750`，证明不依赖 legacy provider fixture。
 - Default replay：两个 spec 共 10/10 通过，artifact `desktop-e2e-20260904-073755-068`，包含迁移后的 8 项与顶层保留的 2 项导航回归。
 - 本轮只迁移测试归属并增加无 provider 请求的硬断言，没有修改产品代码。未运行 Docker，也未做 Docker admission；不扩大此前跨平台覆盖结论。

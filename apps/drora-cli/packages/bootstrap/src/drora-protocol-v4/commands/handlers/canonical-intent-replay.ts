@@ -40,12 +40,16 @@ function buildCanonicalIntent(
   requireQueue: boolean,
   canRetainQueuedHighspeed: boolean,
 ) {
+  // composer 编辑态复用普通发送的工具栏：edit 携带的模型/模式/Plan 是本次重跑的提交配置，
+  // 与 sendText 同语义；缺省（旧客户端、retry）沿用原 canonical intent。
+  const editPayload =
+    envelope.type === "editUserQuery"
+      ? (envelope.payload as CommandPayloadMap["editUserQuery"])
+      : undefined;
   const intent = inputIntentMetadataFromCanonical(
     envelope,
     {
       kind: editTarget.intent.kind,
-      // P7（spec §1-C6）：evidenceRefs 不再随重建传递——带 refs 的 editTarget 在
-      // fork-edit-retry 边界已由 legacy 探测器拒绝，重建只承接空 refs 条目。
       conversationQuotes:
         envelope.type === "editUserQuery"
           ? ((envelope.payload as CommandPayloadMap["editUserQuery"]).conversationQuotes ??
@@ -59,17 +63,14 @@ function buildCanonicalIntent(
       requestedDelivery: editTarget.intent.requestedDelivery,
       admittedDelivery: editTarget.intent.admittedDelivery,
       fallbackReasonCode: editTarget.intent.fallbackReasonCode,
-      modelSelection: editTarget.intent.modelSelection,
-      mode: editTarget.intent.mode,
-      planEnabled: editTarget.intent.planEnabled,
+      modelSelection: editPayload?.modelSelection ?? editTarget.intent.modelSelection,
+      mode: editPayload?.mode ?? editTarget.intent.mode,
+      planEnabled: editPayload?.planEnabled ?? editTarget.intent.planEnabled,
       attachmentRefs,
       provenance: editTarget.intent.provenance,
     },
     text,
   );
-  // 证据复验与 guide 投递降级已前移：verifyEvidenceOrThrow 在 fork-edit-retry 的
-  // rewind/branch cut 之前执行，guide 降级由 session-flow 的 resolveEvidenceSafeDelivery
-  // 在原始发送时裁决；这里不再重复（theirs 架构，语义等价覆盖 ours 旧守卫）。
   const appliesHighspeed = highspeed !== undefined && (!requireQueue || canRetainQueuedHighspeed);
   if (appliesHighspeed && highspeed) {
     intent.highspeed = highspeed.card;

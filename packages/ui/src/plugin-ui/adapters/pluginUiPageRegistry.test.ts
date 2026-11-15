@@ -56,6 +56,12 @@ describe("g9 页面管理器定向投递", () => {
       running: () => false,
       suspend: async () => true,
       notifyOpenWith: notify,
+      // 上游 v3.18.0 为 MCP App 面板新增的工具代理面（S6 合并入 Page 契约）；
+      // 本测试只覆盖 openWith 路由，两个新成员给最小空实现以满足类型。
+      callPanelTool: async () => {
+        throw new Error("not implemented in stub");
+      },
+      notifyPanelToolResult: () => {},
       destroy: () => {},
     };
   }

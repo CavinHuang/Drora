@@ -226,7 +226,13 @@ it("MC-2：无旧键的全新安装 → 档案全默认 + 标记落盘，旧值�
   assert.equal(degraded.migratedFromLegacySettings, true);
 });
 
-it("MC-2 回归（合规修复）：迁移标记落盘失败 → 旧设置键与旧凭据键全部保留（删除以标记落盘成功为前提）", async () => {
+// Windows/NTFS 下 chmod(dir, 0o500) 只设目录 readonly 属性，不阻断目录内文件写入
+// （本机探针实证：writeFile/rename 均成功），「标记落盘失败」构造无效——persist 实际
+// 成功、清理照常执行，顺序不变式断言必然误报。该用例仅在 POSIX 语义下有意义，
+// 按 repo 先例（codeCommandRecorder 等）win32 跳过；不变式本体由其余 MC-2 用例覆盖。
+it.skipIf(process.platform === "win32")(
+  "MC-2 回归（合规修复）：迁移标记落盘失败 → 旧设置键与旧凭据键全部保留（删除以标记落盘成功为前提）",
+  async () => {
   const root = await makeRoot();
   const v2 = join(root, ".drora", "v2");
   await mkdir(v2, { recursive: true });
@@ -266,7 +272,8 @@ it("MC-2 回归（合规修复）：迁移标记落盘失败 → 旧设置键与
   } finally {
     await chmod(v2, 0o700);
   }
-});
+  },
+);
 
 it("MC-2 回归（合规修复）：voice 双写任一腿失败 → 旧 voice 键保留；已写腿保留同值（幂等重试）", async () => {
   await makeRoot();

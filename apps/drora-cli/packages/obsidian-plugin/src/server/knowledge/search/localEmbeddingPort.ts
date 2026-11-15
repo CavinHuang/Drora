@@ -3,9 +3,14 @@
 // 与 HEAD 的差异仅限：①本文件头注释；②services 内部件导入重指（descriptors/
 // serviceLogger/paths → server/platform/ 同义副本，值等价；obsidian-vault 相对路径 →
 // server/vault/；两者均为同深度镜像替换，模块内容零改动）；③若下方标注「P3/D8 改点」
-// 则另含凭据缺省 fail-closed 收窄。双轨期（P3-P7）本体原件仍在 packages/services 原位
-// 由旧 host 装配（P7 拆除），两实现共用数据库时写竞争由 DB 级 index_lease/fencing 仲裁
-// （§3/§6-g8，原样随迁不进程内化）。
+// 则另含凭据缺省 fail-closed 收窄；④2026-11-14 终验修复（spec obsidian-knowledge.md
+// §5b.9 同日修订）：ensureRuntime 失败后由「立即清 promise（下次使用重试）」改为
+// **失败冷却**——原语义在离线环境使 reconcile 逐文档嵌入/尾部回填/每次查询各自重试
+// 整轮镜像下载（2 镜像 × 2 文件 × 单镜像 120s 超时上限），job 爬行至分钟级且
+// vaultUiResources N1 用例 30s 轮询超时；现冷却期内 embed 快速失败不出站，ensureReady
+// （手动下载）显式重试不受冷却限制。本体原件已于 P7 拆除，本文件为唯一实现。
+// 双轨期（P3-P7）本体原件仍在 packages/services 原位由旧 host 装配（P7 拆除），两实现
+// 共用数据库时写竞争由 DB 级 index_lease/fencing 仲裁（§3/§6-g8，原样随迁不进程内化）。
 /**
  * 本地嵌入端口实现（spec §5b.9，route A：零出站语义召回）。
  *
@@ -59,6 +64,8 @@ interface OnnxTensor {
 }
 interface OnnxSession {
   run(feeds: Record<string, unknown>): Promise<Record<string, unknown>>;
+  /** 释放会话与底层原生资源（onnxruntime-common InferenceSession.release 契约）。 */
+  release(): Promise<void>;
   inputNames: string[];
   outputNames: string[];
 }
@@ -82,6 +89,11 @@ export interface LocalEmbeddingPortOptions {
   /** §13：settings.httpProxy 注入（hf 镜像直连被墙环境经代理下载）。 */
   httpProxy?: string;
   fetchImpl?: typeof fetch;
+  /**
+   * 下载/初始化失败冷却时长（毫秒；spec §5b.9 2026-11-14 修订）。缺省 10 分钟（对齐
+   * §5b.8 autoReconcile 陈旧 TTL）；测试注入收紧以覆盖冷却到期重试分支。
+   */
+  failureCooldownMs?: number;
 }
 
 /** BERT 基础切分：小写化后，CJK 逐字、ASCII 词串整体、空白分隔、标点逐个成词。 */
@@ -302,13 +314,33 @@ export function createLocalEmbeddingPort(
     return dispatcherPromise;
   };
   const modelDir = join(options.modelRoot, MODEL_DIR_NAME);
+  // 失败冷却时长（spec §5b.9 2026-11-14 修订）：缺省 10 分钟，对齐 §5b.8 autoReconcile
+  // 陈旧 TTL——后台重试节奏与索引自动 reconcile 同档；测试可注入收紧。
+  const failureCooldownMs = options.failureCooldownMs ?? 10 * 60_000;
   let runtimePromise: Promise<RuntimeState> | null = null;
   // 状态面（spec §5b.9）：model_missing（缺文件未下载）→ downloading → ready/failed。
   let portState: KnowledgeSemanticPortState = "model_missing";
   let portLastError: string | null = null;
+  // 上次 ensureRuntime 失败的时刻（spec §5b.9 2026-11-14 修订）：冷却期内背景路径
+  // （embed）快速失败不再出站——原「下次使用重试」在离线环境被 reconcile 逐文档
+  // 嵌入/尾部回填/每次查询反复触发整轮镜像重试（2 镜像 × 2 文件 × 单镜像 120s
+  // 超时上限），job 爬行至分钟级。手动 ensureReady（显式用户意图）不受此限。
+  let runtimeFailedAtMs: number | null = null;
 
-  function ensureRuntime(): Promise<RuntimeState> {
+  function ensureRuntime(forceRetry = false): Promise<RuntimeState> {
     if (runtimePromise === null) {
+      if (
+        !forceRetry &&
+        runtimeFailedAtMs !== null &&
+        Date.now() - runtimeFailedAtMs < failureCooldownMs
+      ) {
+        // 复用上次失败原因（如「模型文件下载失败（…last=fetch failed）」），调用方
+        // 诊断/日志口径不变；仅从「每次真实出站一轮」变为冷却期内快速失败。
+        return Promise.reject(
+          new Error(portLastError ?? "本地语义模型不可用（下载失败冷却中）"),
+        );
+      }
+      runtimeFailedAtMs = null;
       runtimePromise = (async () => {
         let filesReady = true;
         for (const bound of SIZE_BOUNDS) {
@@ -336,7 +368,10 @@ export function createLocalEmbeddingPort(
       runtimePromise.catch((error: unknown) => {
         portState = "failed";
         portLastError = error instanceof Error ? error.message : String(error);
-        // 允许下次重试（下载失败后环境可能恢复）；原始异常仍交给首次调用方。
+        // 失败进入冷却而非立即允许重试（spec §5b.9 2026-11-14 修订，原注释「允许下次
+        // 重试（下载失败后环境可能恢复）」语义由冷却期满承接）；原始异常仍交给首次
+        // 调用方。
+        runtimeFailedAtMs = Date.now();
         runtimePromise = null;
       });
     }
@@ -349,7 +384,9 @@ export function createLocalEmbeddingPort(
       return { state: portState, lastError: portLastError };
     },
     async ensureReady(): Promise<void> {
-      await ensureRuntime();
+      // 手动下载（knowledge_index_download_semantic_model）是显式用户意图：不受失败
+      // 冷却限制，立即重试（spec §5b.9 2026-11-14 修订）。
+      await ensureRuntime(true);
     },
     async embed(texts: string[]): Promise<number[][] | null> {
       if (texts.length === 0) return [];
@@ -391,6 +428,25 @@ export function createLocalEmbeddingPort(
       }
       if (embeddings.length !== texts.length) return null;
       return embeddings.map((vector) => Array.from(vector));
+    },
+    dispose(): void {
+      // 补 ONNX InferenceSession 显式释放（2026-11-15 审计 §四：原实现无 release，
+      // 会话句柄只随进程退出回收——常驻进程内端口被服务 dispose 或热切换替换后即
+      // 泄漏）。幂等安全：release（onnxruntime-common InferenceSession.release →
+      // 绑定层 handler.dispose）原生侧自带已释放守卫，本方法对 runtimePromise 的
+      // 单次快照也保证只触发一次；释放错误吞掉（dispose 链同步、不因释放失败阻塞，
+      // 与 db.close 同链纪律）。释放后清空运行时缓存态：后续 embed 重新走
+      // ensureRuntime 重建会话，绝不复用已释放句柄。
+      const pending = runtimePromise;
+      runtimePromise = null;
+      runtimeFailedAtMs = null;
+      portState = "model_missing";
+      portLastError = null;
+      if (pending === null) return;
+      void pending.then(
+        (state) => state.session.release(),
+        () => undefined,
+      ).catch(() => undefined);
     },
   };
 }

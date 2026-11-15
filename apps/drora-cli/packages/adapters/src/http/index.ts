@@ -28,7 +28,6 @@ import {
 import { readIncomingResponse } from "../network/incoming-response.js";
 import { readResponseBody, type ResponseLike } from "./response-body.js";
 
-// wire 名保持原版（z.ai 后端按 header 名读取，rename 规则 0；原版 @2712432 同名）。
 const TRACE_HEADER = "x-zcode-trace-id";
 const DEFAULT_TIMEOUT_MS = 180_000;
 const DEFAULT_MAX_RESPONSE_BYTES = 10 * 1024 * 1024;
@@ -178,7 +177,7 @@ function fetchHttpResponse(
 
   const headers = buildHeaders(request);
   const transport = url.protocol === "https:" ? https : http;
-  const agent = createRequestAgent(url, proxyUrl, tlsCaCertificates);
+  const agent = createRequestAgent(url, proxyUrl, tlsCaCertificates, signal);
   const lookup = publicDnsLookup
     ? createPublicEgressLookup(url.toString(), publicDnsLookup, { signal })
     : undefined;
@@ -244,10 +243,13 @@ function createRequestAgent(
   url: URL,
   proxyUrl: string | undefined,
   tlsCaCertificates: Buffer | undefined,
+  signal: AbortSignal,
 ): http.Agent | undefined {
   if (proxyUrl) {
     return new ProxyAgent({
       ca: tlsCaCertificates,
+      // CONNECT 返回前 ClientRequest.destroy 不持有 socket；让取消同时关闭代理连接。
+      signal,
       getProxyForUrl: () => proxyUrl,
       httpsAgent: tlsCaCertificates ? new https.Agent({ ca: tlsCaCertificates }) : undefined,
     }) as unknown as http.Agent;

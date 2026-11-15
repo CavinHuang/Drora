@@ -31,9 +31,19 @@ export interface CuaHelperVerifierDependencies {
   [key: string]: unknown;
 }
 
+// 公共调用方依赖上下文类型；unknown 曾使日志回调在开源类型检查中失去参数类型。
+// （对齐上游 v3.18.2 桩 d.ts；services 的 ServiceLogger 与 desktop 安装器适配器
+// 均为此形状，收紧仅恢复官方类型面，不改运行时。）
+export interface BrokerLogger {
+  debug: (traceId: string | undefined, ...args: unknown[]) => void;
+  info: (traceId: string | undefined, ...args: unknown[]) => void;
+  warn: (traceId: string | undefined, ...args: unknown[]) => void;
+  error: (traceId: string | undefined, ...args: unknown[]) => void;
+}
+
 export interface CuaHelperInstallerOptions {
   env?: NodeJS.ProcessEnv;
-  logger?: unknown;
+  logger?: BrokerLogger;
   bundledAppPath?: string;
   /** bundled .app Info.plist 的 ZCodeCUAHelperBuildId（桌面包装层注入，spec §六） */
   embeddedBuildId?: string;
@@ -263,6 +273,13 @@ export declare function requestHelperScreenRecordingPermissionViaLaunchServices(
 
 export type { CuaPermissionRestartOptions, CuaPermissionRestartResult };
 /** v3.15 公共位置契约；实际 SDK 与 Drora 品牌/数据根之间由装配适配转换。 */
-export function resolveHelperAppName(env?: NodeJS.ProcessEnv): string;
-export function resolveCuaHelperInstallRoot(env?: NodeJS.ProcessEnv): string | null;
-export function standaloneHelperCandidatePaths(env?: NodeJS.ProcessEnv): string[];
+export declare function resolveHelperAppName(env?: NodeJS.ProcessEnv): string;
+export declare function resolveCuaHelperInstallRoot(env?: NodeJS.ProcessEnv): string | null;
+export declare function standaloneHelperCandidatePaths(env?: NodeJS.ProcessEnv): string[];
+// agent MCP server 的权限 broker 配置注入；JS 实现经 broker-server.js 的
+// `export * from "./broker/server/index.js"` 转出（src/broker/server/index.ts:51），
+// 此前缺声明使 TS 消费方拿不到类型（对齐上游 v3.18.2 桩 d.ts）。
+export declare function injectPermissionBrokerAgentMcpServers<T>(
+  servers: T[] | undefined,
+  options: unknown,
+): T[] | undefined;

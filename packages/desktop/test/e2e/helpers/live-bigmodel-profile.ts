@@ -72,7 +72,9 @@ export async function importLiveBigModelCredentials(caseMarker: string): Promise
   setDataBaseDir(paths.homeDir);
   const targetCipher = createCredentialCipherProvider({
     env: {
-      DRORA_CREDENTIAL_SECRET: `drora-credential-fallback:${platform()}:${paths.homeDir}:${username}`,
+      DRORA_CREDENTIAL_SECRET:
+        process.env.DRORA_CREDENTIAL_SECRET ||
+        `drora-credential-fallback:${platform()}:${paths.homeDir}:${username}`,
     },
   });
   const service = createCredentialService({ cipherProvider: targetCipher });

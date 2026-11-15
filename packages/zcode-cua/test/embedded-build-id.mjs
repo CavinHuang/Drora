@@ -23,6 +23,14 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import process from "node:process";
 
+// 平台守卫：身份读取依赖 macOS 专有的 /usr/bin/plutil 与 .app bundle 结构，
+// 非 darwin（win/linux）上 plutil 必不可用、Info.plist 路径不存在——裸跑必挂。
+// 与 test/lazy-discovery-bridge.mjs 的 non-darwin SKIP 守卫同形态（10-plugin-audit §四处置）。
+if (process.platform !== "darwin") {
+  console.log("SKIP embedded-build-id: non-darwin platform");
+  process.exit(0);
+}
+
 const packageRoot = new URL("..", import.meta.url).pathname;
 const bundledApp =
   process.argv[2] ??

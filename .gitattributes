@@ -61,3 +61,15 @@ apps/drora-cli/packages/dynamic-workflow/tests/graphs/** text eol=lf
 # packages/desktop/src/main/pluginSandbox/CONTRACT.md 资源完整性一节）。autocrlf 检出成
 # CRLF 会让该等式在 Windows 上恒失败，与 *.baseline.sql / dynamic-workflows 同一先例，强制 LF。
 packages/desktop/src/renderer/src/plugin-sandbox/genUiTweakRuntime.js text eol=lf
+
+# design 内置插件：第三方设计资源保持上游原字节（许可登记按原文哈希校验）；
+# SessionStart hook 是 sh/cmd 双写法脚本，CRLF 会让 sh 解析失败，固定 LF。
+# 规则层 md（2026-11-14 补，v3.18.0 S4 段门复跑归因）：design-plugin 测试按 LF 字节
+# 断言——入口 frontmatter 正则 /^---\n/、catalog.md 与 build-catalog.mjs 生成物逐字节
+# 比对并断言无 \r、短语按 \n 匹配；win32 + autocrlf 检出成 CRLF 即全假败（上游 blob 为
+# LF、上游 CI 在 POSIX 不显形）。与 dynamic-workflows/genUiTweakRuntime 同一先例钉 LF。
+apps/drora-cli/packages/design-plugin/skills/design/design-resources/** -text -whitespace linguist-vendored=true
+apps/drora-cli/packages/design-plugin/skills/design/SKILL.md text eol=lf
+apps/drora-cli/packages/design-plugin/skills/design/references/*.md text eol=lf
+apps/drora-cli/packages/design-plugin/hooks/design-rules text eol=lf
+apps/drora-cli/packages/design-plugin/hooks/run-hook.cmd text eol=lf

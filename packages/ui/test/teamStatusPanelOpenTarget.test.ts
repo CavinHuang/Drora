@@ -117,6 +117,17 @@ vi.mock("@/hooks/useServices.js", () => {
     conversationShareService: {},
     highspeedCardService: {
       getSnapshot: async () => ({ card: null }),
+      // S6 对齐（specs/upstream-v3.18.0-migration.md §10）：上游 v3.18.0 新增高speed 卡主
+      // 属主 watch effect（SessionPane oauthService.onDidChangeSession + 刷新时
+      // getCurrentOwnerKey），mount 期即触达；补最小 stub。
+      getCurrentOwnerKey: async () => null,
+    },
+    oauthService: {
+      onDidChangeSession: () => ({ dispose: () => {} }),
+    },
+    droraAgentService: {
+      // S6 对齐：AgentRuntimeExitBanner（SessionPane 渲染树）mount 期订阅运行时退出事件。
+      onAgentRuntimeExited: () => ({ dispose: () => {} }),
     },
     modelSelectionService: {},
     usageStatsService: {},
@@ -137,6 +148,10 @@ vi.mock("@/hooks/useServices.js", () => {
 vi.mock("@/v4/composer/useDraftConfigControl.js", () => ({
   buildDraftCreateConfigPayload: () => ({}),
   useDraftConfigControl: () => ({
+    // S6 对齐（specs/upstream-v3.18.0-migration.md §10）：上游 v3.18.0 SessionPane 无条件读
+    // composerDraft.modelSelection（resolveSessionModelUnavailable 横幅派生），旧桩缺该成员
+    // 会渲染期崩溃；补最小 V4ComposerDraft 形态。
+    composerDraft: { text: "", updatedAt: 0 },
     modelSelectionRead: { state: { status: "loading" }, reload: vi.fn() },
     captureAcceptedModelSelection: () => vi.fn(),
     draftConfigRef: { current: {} },

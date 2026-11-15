@@ -60,6 +60,7 @@ const agent = {
       // 修复原因：S5 上游合并（40f36cc09，v3.16.1→v3.17.1）后 agentConversationTransport 的
       // 必选 Pick 面新增 getSessionLifecycle；stub 缺成员会让 managed 页在首次生命周期读取时
       // 抛 TypeError（phase idle→error），managed/interaction 模式自 S5 起即无法启动。
+      // v3.18.0 上游已同位补齐该成员，保留本仓取证注释。
       "getSessionLifecycle",
     ].map((method) => [method, (p: unknown) => harness.v4(method, p)]),
   ),
@@ -74,6 +75,7 @@ const agent = {
     }),
   onDynamicPluginUiToolResult: () => (handler: any) => subscribe("ui-result", handler),
   onDynamicConversationFrame: () => (handler: any) => subscribe("frame", handler),
+  onDynamicSessionLifecycle: () => (handler: any) => subscribe("session-lifecycle", handler),
   onDynamicLocalTtftFacts: () => (handler: any) => subscribe("ttft", handler),
   onAgentRuntimeRestarted: (handler: any) => subscribe("restart", handler),
   onAgentRuntimeLifecycle: (handler: any) => subscribe("lifecycle", handler),

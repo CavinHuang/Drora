@@ -133,6 +133,15 @@ export interface PluginUiHostController {
    * 后补发一次；页面须在启动期注册 onOpenWith 才能收到（错过由页面拉取自身状态兜底）。
    */
   notifyOpenWith(payload: unknown): void;
+  /**
+   * 宿主代表面板调用其 server 的工具一次（以面板实例的归属，经 mcp/uiCallTool）。
+   * 结果只返回给调用方，不自动投给页面；需要展示时由调用方转 notifyToolResult。
+   * 面板尚未 prepared / attached 前调用会抛错或结果不可达，调用方自行排序。
+   */
+  callPanelTool(
+    toolName: string,
+    args?: Record<string, unknown>,
+  ): Promise<import("@drora/services").PluginUiCallToolResult>;
   dispose(): Promise<void>;
   readonly phase: PluginUiHostPhase;
 }

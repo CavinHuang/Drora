@@ -2,17 +2,32 @@ import { recordArmsCustomEventForE2E } from "@drora/ui";
 import {
   DesktopCommandIds,
   buildLocalMediaPreviewUrl,
+  resolveLocaleFromLanguageTag,
   unwrapRemoteWorkspaceBindResult,
   type IPlatformService,
 } from "@drora/shared";
 
 import { desktopBrowserPlatformBridge } from "./desktopBrowserPlatformBridge.js";
+import { registerAppControlNavigationHandler } from "#src/app-control-navigation/renderer.js";
 import { createDesktopPluginSandboxPlatform } from "./plugin-sandbox/desktopPluginSandboxPlatform.js";
 
 export function createDesktopPlatform(options: {
   isLocalDevelopmentRuntime: boolean;
 }): IPlatformService {
   return {
+    onAppControlNavigation: (handler) =>
+      registerAppControlNavigationHandler(
+        {
+          subscribe: (listener) => window.drora.onAppControlNavigationMessage(listener),
+          register: (generation) =>
+            window.drora.sendAppControlNavigation({ type: "register", generation }),
+          unregister: (generation) =>
+            window.drora.sendAppControlNavigation({ type: "unregister", generation }),
+          reply: (message) => window.drora.sendAppControlNavigation({ type: "result", ...message }),
+        },
+        handler,
+        crypto.randomUUID(),
+      ),
     canSelectFilePath: true,
     canOpenLocalFiles: true,
     pluginSandbox: createDesktopPluginSandboxPlatform(),
@@ -111,6 +126,9 @@ export function createDesktopPlatform(options: {
     manageDesktopPets: window.drora.manageDesktopPets
       ? (request) => window.drora.manageDesktopPets(request)
       : undefined,
+    // 扩展的系统通知（§18.1 H8）：只有桌面实现；Web 与手机远控没有这两个方法，Renderer 按 unsupported 处理。
+    showExtensionNotification: (payload) => window.drora.showExtensionNotification(payload),
+    onExtensionNotificationClick: (handler) => window.drora.onExtensionNotificationClick(handler),
     syncWindowTabs: (paths) => window.drora.syncWindowTabs(paths),
     syncWebRemoteControlWorkspaces: (workspaces) =>
       window.drora.syncWebRemoteControlWorkspaces?.(workspaces),
@@ -234,7 +252,7 @@ export function createDesktopPlatform(options: {
     setApplicationLocale: (locale) => window.drora.setApplicationLocale(locale),
     getSystemLocale: () =>
       window.drora.getSystemLocale?.() ??
-      Promise.resolve(navigator.language.toLowerCase().startsWith("zh") ? "zh-CN" : "en-US"),
+      Promise.resolve(resolveLocaleFromLanguageTag(navigator.language)),
     setTitleBarTheme: (theme) => window.drora.setTitleBarTheme(theme),
     getDeviceId: () =>
       (window as Window & { __DRORA_DEVICE_ID__?: string }).__DRORA_DEVICE_ID__ ?? "",

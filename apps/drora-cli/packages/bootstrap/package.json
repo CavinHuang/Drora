@@ -34,6 +34,7 @@
     "@drora/i18n": "workspace:*",
     "@drora/provider": "link:../../../../packages/provider",
     "@drora/provider-node": "link:../../../../packages/provider-node",
+    "@drora/session-control": "link:../../../../packages/session-control",
     "@drora/shared": "link:../../../../packages/shared",
     "@drora/telemetry": "workspace:*",
     "diff": "^9.0.0",

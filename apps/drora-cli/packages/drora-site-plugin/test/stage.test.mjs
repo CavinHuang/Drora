@@ -60,8 +60,13 @@ test("pack writes the stage as a gzip tar and skips local-only files", async () 
   assert.equal(packed.result.files, 5);
   assert.equal(packed.result.linuxBinaries, 1);
 
-  const listing = execFileSync("tar", ["-tvzf", out], { encoding: "utf8" });
-  const names = execFileSync("tar", ["-tzf", out], { encoding: "utf8" }).trim().split("\n").sort();
+  // 修复：out 是绝对 Windows 路径（C:\...），GNU tar 会把 "C:" 当远程主机名解析而报错
+  //（win32 必红）；--force-local 强制按本地文件处理。产品代码 packStage 内部用相对路径 + cwd，不受影响。
+  const listing = execFileSync("tar", ["--force-local", "-tvzf", out], { encoding: "utf8" });
+  const names = execFileSync("tar", ["--force-local", "-tzf", out], { encoding: "utf8" })
+    .trim()
+    .split("\n")
+    .sort();
   assert.deepEqual(names, [
     "lib/addon.node",
     `public/${"a".repeat(120)}.html`,
@@ -70,7 +75,11 @@ test("pack writes the stage as a gzip tar and skips local-only files", async () 
     "start.sh",
   ]);
   assert.match(listing, /^-rwxr-xr-x.*lib\/addon\.node$/m);
-  assert.match(listing, /^-rwxr-xr-x.*server\.js$/m);
+  // win32 限制：Node chmod 只落读写位、不落执行位，packStage 扫描到的 server.js mode
+  // 无 x 位（归档存 644），「chmod 755 → 归档 755」断言只在能表达执行位的平台成立。
+  if (process.platform !== "win32") {
+    assert.match(listing, /^-rwxr-xr-x.*server\.js$/m);
+  }
   assert.match(listing, /^-rw-r--r--.*start\.sh$/m);
 });
 

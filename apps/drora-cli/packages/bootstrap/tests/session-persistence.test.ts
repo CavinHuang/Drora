@@ -32,7 +32,6 @@ import { ModelConfigRules, ProviderConfigMap, ProviderTemplateMap } from "@drora
 import { droraStorageStartupStateSchema } from "@drora/shared";
 import {
   LogLevel,
-  SESSION_ENTRY_BASH_SHELL_SELECTION,
   SESSION_ENTRY_MODEL_SELECTION,
   type LogContext,
   type Logger,
@@ -44,6 +43,7 @@ import {
   createSessionId,
   type EnvInfo,
   type ExecutionPort,
+  type ExecutionShellSelection,
   type TargetChangedPayload,
   type WorkflowRunSnapshot,
 } from "@drora/contracts";
@@ -54,6 +54,9 @@ import {
   createRegistryBackedTestApp as createDroraApp,
   createTestProviderRegistry,
 } from "./helpers/registry-backed-test-app.js";
+import { readLogEntries } from "./session-persistence-fixture.js";
+
+import { createRecordingLoggerFactory } from "./session-persistence-fixture.js";
 
 describe("session persistence", () => {
   // ZCT-2109847556412547072：deferred 会话首条消息前切模，真实 SQLite 外键拒绝 entry 写入；
@@ -167,6 +170,7 @@ describe("session persistence", () => {
       });
       const highspeed = {
         schemaVersion: 1 as const,
+        ownerKey: `v1:${"a".repeat(64)}`,
         cardId: "hsc-1",
         taskId: sessionId,
         provider: "zai",
@@ -191,7 +195,11 @@ describe("session persistence", () => {
       });
 
       const messages = await store.messages({ sessionID: sessionId });
-      const userMessage = messages.find((message) => message.info.role === "user");
+      // 首条 prompt 之前是内置 design 插件 SessionStart hook 的隐藏提醒，要找的是用户输入行。
+      const userMessage = messages.find(
+        (message) =>
+          message.info.role === "user" && message.info.semantics?.kind !== "system_reminder",
+      );
       expect(userMessage?.info.metadata?.highspeed).toEqual(highspeed);
     } finally {
       store.close();
@@ -891,24 +899,27 @@ describe("session persistence", () => {
   });
 
     // 修复（平台标注）：这些用例通过 createDroraApp 钉 POSIX shell 探测（PATH/SHELL 假环境
-  // 里找 zsh/bash 并注入快照与 resume 提醒）。bash-shell-provider 按真实平台分流，
-  // win32 走 Git Bash/legacy 探测分支，POSIX 假环境在 Windows 上不可达；POSIX 探测
-  // 逻辑由 adapters 侧单测覆盖，这里按平台跳过而不是伪造平台。
-  it.skipIf(process.platform === "win32")("initializes the Bash shell snapshot before a goal-only first input persists the session", async () => {
+    // 里找 zsh/bash 并注入快照与 resume 提醒）。bash-shell-provider 按真实平台分流，
+    // win32 走 Git Bash/legacy 探测分支，POSIX 假环境在 Windows 上不可达；POSIX 探测
+    // 逻辑由 adapters 侧单测覆盖，这里按平台跳过而不是伪造平台。
+    // v3.18.0 合并：采用上游重写后的用例名，保留 win32 平台跳过条件。
+    it.skipIf(process.platform === "win32")("reads the Bash shell setting when a goal-only first input starts the session", async () => {
     const tempRoot = await mkdtemp(join(tmpdir(), "drora-bootstrap-goal-shell-"));
-    const shellDir = join(tempRoot, "bin");
-    const zshPath = join(shellDir, "zsh");
     const dbPath = join(tempRoot, "session.sqlite");
     const store = await createSqliteSessionStore({ dbPath });
+    const hostSelection: ExecutionShellSelection = {
+      dialect: "posix",
+      display: { name: "bash" },
+      id: "user:/bin/bash",
+      label: "bash",
+      path: "/bin/bash",
+      source: "user-config",
+    };
+    const resolveInitialBashShellSelection = vi.fn(async () => hostSelection);
 
     try {
-      await mkdir(shellDir, { recursive: true });
-      await writeFile(zshPath, "#!/bin/sh\n");
-      await chmod(zshPath, 0o755);
       const app = await createDroraApp({
         env: {
-          PATH: shellDir,
-          SHELL: join(shellDir, "fish"),
           DRORA_STORAGE_DIR: tempRoot,
         },
         modelExecutor: {
@@ -924,6 +935,7 @@ describe("session persistence", () => {
             };
           },
         } as never,
+        resolveInitialBashShellSelection,
         runtimeConfig: {
           workingDirectory: tempRoot,
         },
@@ -934,15 +946,9 @@ describe("session persistence", () => {
 
       await app.setTarget({ objective: "goal-only first input" });
 
-      const entries = await store.sessionEntries({
-        sessionID: app.sessionId,
-        type: SESSION_ENTRY_BASH_SHELL_SELECTION,
-      });
-      expect(entries).toHaveLength(1);
-      expect(entries[0]?.data).toMatchObject({
-        display: { name: "zsh" },
-        path: zshPath,
-      });
+      // /goal 不走普通 prompt 提交，也必须经过统一用户执行边界读取 shell 设置。
+      expect(resolveInitialBashShellSelection).toHaveBeenCalledTimes(1);
+      expect(app.runtime.getSessionShellSelection()).toEqual(hostSelection);
     } finally {
       store.close();
       await rmTestTreeWithRetry(tempRoot);
@@ -1181,10 +1187,11 @@ describe("session persistence", () => {
   });
 
     // 修复（平台标注）：这些用例通过 createDroraApp 钉 POSIX shell 探测（PATH/SHELL 假环境
-  // 里找 zsh/bash 并注入快照与 resume 提醒）。bash-shell-provider 按真实平台分流，
-  // win32 走 Git Bash/legacy 探测分支，POSIX 假环境在 Windows 上不可达；POSIX 探测
-  // 逻辑由 adapters 侧单测覆盖，这里按平台跳过而不是伪造平台。
-  it.skipIf(process.platform === "win32")("initializes the Bash shell snapshot before direct expert workflow child sessions", async () => {
+    // 里找 zsh/bash 并注入快照与 resume 提醒）。bash-shell-provider 按真实平台分流，
+    // win32 走 Git Bash/legacy 探测分支，POSIX 假环境在 Windows 上不可达；POSIX 探测
+    // 逻辑由 adapters 侧单测覆盖，这里按平台跳过而不是伪造平台。
+    // v3.18.0 合并：采用上游重写后的用例名，保留 win32 平台跳过条件。
+    it.skipIf(process.platform === "win32")("initializes the Bash shell before direct expert workflow child sessions", async () => {
     const tempRoot = await mkdtemp(join(tmpdir(), "drora-bootstrap-workflow-shell-"));
     const configPath = join(tempRoot, "config.json");
     const shellDir = join(tempRoot, "bin");
@@ -2181,7 +2188,7 @@ describe("session persistence", () => {
     }
   });
 
-  it("initializes the Bash shell snapshot before direct app prompt submission", async () => {
+  it("initializes the Bash shell before direct app prompt submission", async () => {
     const tempRoot = await mkdtemp(join(tmpdir(), "drora-direct-shell-snapshot-"));
     const shellDir = join(tempRoot, "bin");
     const zshPath = join(shellDir, "zsh");
@@ -2233,10 +2240,11 @@ describe("session persistence", () => {
   });
 
     // 修复（平台标注）：这些用例通过 createDroraApp 钉 POSIX shell 探测（PATH/SHELL 假环境
-  // 里找 zsh/bash 并注入快照与 resume 提醒）。bash-shell-provider 按真实平台分流，
-  // win32 走 Git Bash/legacy 探测分支，POSIX 假环境在 Windows 上不可达；POSIX 探测
-  // 逻辑由 adapters 侧单测覆盖，这里按平台跳过而不是伪造平台。
-  it.skipIf(process.platform === "win32")("initializes a direct app resume fallback before explicit hydration", async () => {
+    // 里找 zsh/bash 并注入快照与 resume 提醒）。bash-shell-provider 按真实平台分流，
+    // win32 走 Git Bash/legacy 探测分支，POSIX 假环境在 Windows 上不可达；POSIX 探测
+    // 逻辑由 adapters 侧单测覆盖，这里按平台跳过而不是伪造平台。
+    // v3.18.0 合并：采用上游重写后的用例名，保留 win32 平台跳过条件。
+    it.skipIf(process.platform === "win32")("uses the latest Bash shell on a direct app resume and announces the change", async () => {
     const tempRoot = await mkdtemp(join(tmpdir(), "drora-direct-resume-shell-snapshot-"));
     const oldShellDir = join(tempRoot, "old-bin");
     const newShellDir = join(tempRoot, "new-bin");
@@ -2282,14 +2290,22 @@ describe("session persistence", () => {
       });
 
       await firstApp.submitPrompt("first prompt");
-      await rm(oldZshPath, { force: true });
 
+      // Host 返回的最新设置；环境变量仍指向旧 shell，自动解析会得到 zsh。
+      const hostSelection: ExecutionShellSelection = {
+        dialect: "posix",
+        display: { name: "bash" },
+        id: `user:${newBashPath}`,
+        label: "bash",
+        path: newBashPath,
+        source: "user-config",
+      };
       const secondApp = await createDroraApp({
         // 持久化测试不读取操作者配置，避免真实插件和 MCP 混入会话生命周期。
         skipUserConfig: true,
         env: {
-          PATH: newShellDir,
-          SHELL: newBashPath,
+          PATH: oldShellDir,
+          SHELL: join(oldShellDir, "fish"),
         },
         modelExecutor: {
           async generateText(request: { messages: Array<{ role: string; content: unknown }> }) {
@@ -2305,6 +2321,7 @@ describe("session persistence", () => {
             };
           },
         } as never,
+        resolveInitialBashShellSelection: async () => hostSelection,
         resume: true,
         runtimeConfig: {
           workingDirectory: tempRoot,
@@ -2316,10 +2333,11 @@ describe("session persistence", () => {
       await secondApp.resume();
       await secondApp.submitPrompt("second prompt");
 
+      // 旧 shell 仍可用，冷恢复也使用 Host 的最新设置执行，并以环境更新告诉模型。
+      expect(secondApp.runtime.getSessionShellSelection()).toEqual(hostSelection);
       const providerText = JSON.stringify(capturedMessages);
-      // 修复原因：shell 变化提醒已统一为 buildShellEnvironmentResumeNotice 的标准文案。
-      expect(providerText).toContain("The Bash tool shell is bash.");
-      expect(providerText).not.toContain("The Bash tool shell is fish.");
+      expect(providerText).toContain(" - Shell: bash (was zsh)");
+      expect(providerText).not.toContain("The Bash tool shell is");
     } finally {
       store.close();
       await rmTestTreeWithRetry(tempRoot);
@@ -2515,11 +2533,6 @@ describe("session persistence", () => {
   });
 });
 
-interface LogEntry {
-  event?: string;
-  context?: Record<string, unknown>;
-}
-
 interface AiSdkWarningGlobal {
   AI_SDK_LOG_WARNINGS?: false | ((options: Record<string, unknown>) => void);
 }
@@ -2561,20 +2574,6 @@ function readStorageStartupStates(output: string) {
     });
 }
 
-async function readLogEntries(logDir: string): Promise<LogEntry[]> {
-  const files = await readdir(logDir);
-  const entries: LogEntry[] = [];
-
-  for (const file of files) {
-    const content = await readFile(join(logDir, file), "utf8");
-    for (const line of content.trim().split("\n")) {
-      if (line) entries.push(JSON.parse(line) as LogEntry);
-    }
-  }
-
-  return entries;
-}
-
 function deferred(): { promise: Promise<void>; resolve(): void } {
   let resolveDeferred: () => void = () => {};
   const promise = new Promise<void>((resolve) => {
@@ -2605,54 +2604,6 @@ function testProjectIdFromDirectory(directory: string) {
       .replace(/^-+|-+$/g, "")
       .slice(0, 80) || "default",
   );
-}
-
-function createRecordingLoggerFactory(): LoggerFactory & {
-  events: string[];
-  scheduleCalls: number;
-  scheduleLogRetentionCleanup(options?: { logger?: Logger }): void;
-} {
-  const events: string[] = [];
-  let scheduleCalls = 0;
-
-  const loggerFor = (context: LogContext = {}): Logger => ({
-    child(childContext) {
-      return loggerFor({ ...context, ...childContext });
-    },
-    debug(_message, logContext) {
-      recordEvent(events, context, logContext);
-    },
-    error(_message, _error, logContext) {
-      recordEvent(events, context, logContext);
-    },
-    info(_message, logContext) {
-      recordEvent(events, context, logContext);
-    },
-    warn(_message, logContext) {
-      recordEvent(events, context, logContext);
-    },
-  });
-
-  return {
-    createLogger: () => loggerFor(),
-    events,
-    get scheduleCalls() {
-      return scheduleCalls;
-    },
-    scheduleLogRetentionCleanup() {
-      scheduleCalls += 1;
-      events.push("scheduleLogRetentionCleanup");
-    },
-    setLevel: () => {},
-    withContext: (context) => loggerFor(context),
-  };
-}
-
-function recordEvent(events: string[], baseContext: LogContext, context?: LogContext): void {
-  const event = context?.event ?? baseContext.event;
-  if (typeof event === "string") {
-    events.push(event);
-  }
 }
 
 function createMemoryWritable(): NodeJS.WritableStream & { output(): string } {

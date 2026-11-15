@@ -20,6 +20,7 @@ export interface OfficialPluginListingSeed {
 
 export const OFFICIAL_BROWSER_USE_PLUGIN_NAME = "browser-use";
 export const OFFICIAL_BROWSER_USE_PLUGIN_ID = `${OFFICIAL_BROWSER_USE_PLUGIN_NAME}@${DRORA_OFFICIAL_PLUGIN_MARKETPLACE}`;
+export const OFFICIAL_VISUALIZE_PLUGIN_ID = `visualize@${DRORA_OFFICIAL_PLUGIN_MARKETPLACE}`;
 /**
  * node_repl 宿主。它不是面向用户的插件：没有 skill、没有 listing、不进市场，唯一职责是
  * 携带 `dist/mcp/server.js` 这个 Browser Use 与 Computer Use 共用的运行时产物。
@@ -86,6 +87,11 @@ export interface OfficialPluginDefinition {
    * 声明，用于商店/设置页归属展示与装配条件化（B3 消费），不改变运行时 identity。
    */
   hostServices?: readonly string[];
+  /**
+   * 构建产物内嵌每次构建不同、但不改版本号的值时，指向构建脚本写出的身份文件。
+   * seed 把文件内容记入 marker，内容变化按版本变化处理。
+   */
+  buildIdentityPath?: string;
   name: string;
   /** filesystem/SEA seed 缺少任一项时拒绝生成残缺的官方插件缓存。 */
   requiredSeedPaths?: readonly string[];
@@ -108,6 +114,7 @@ const ZAI_AUTHOR = { name: "Z.ai", url: "https://z.ai" } as const;
 const OFFICIAL_PLUGIN_ASSETS_BASE_URL = "https://cdn-zcode.z.ai/zcode/official-plugin/assets";
 
 export const OFFICIAL_NODE_REPL_HOST_REQUIRED_SEED_PATHS = ["dist/mcp/server.js"] as const;
+const NODE_REPL_HOST_BUILD_IDENTITY_PATH = "dist/build-identity.json";
 
 /** 文档插件（documents / pdf / presentations / spreadsheets）查看面板的构建产物。 */
 export const OFFICIAL_OFFICE_VIEWER_RUNTIME_PATHS = [
@@ -148,9 +155,31 @@ export const OFFICIAL_DRORA_GUIDE_REQUIRED_SEED_PATHS = [
   "skills/drora-configuration-guide/SKILL.md",
 ] as const;
 
+// design 是纯内容型插件（技能 + 设计资源 + SessionStart hook，无 MCP），技能正文按需读取 references/
+// 与 scripts/；hook 只注入一句指针，正文缺失时 hook 静默退出，会话里就再也触发不到技能。
+// 所以这里钉住入口、7 份规则文件、三个随包脚本和 hook，seed 缺任一项都拒绝生成残缺缓存。
+export const OFFICIAL_DESIGN_REQUIRED_SEED_PATHS = [
+  "skills/design/SKILL.md",
+  "skills/design/references/catalog.md",
+  "skills/design/references/check.md",
+  "skills/design/references/create.md",
+  "skills/design/references/design-system.md",
+  "skills/design/references/interact.md",
+  "skills/design/references/output.md",
+  "skills/design/references/redesign.md",
+  "skills/design/scripts/adapt-canvas.mjs",
+  "skills/design/scripts/design-lint.mjs",
+  "skills/design/scripts/design-tokens.mjs",
+  "skills/design/scripts/import-design-system.mjs",
+  "hooks/hooks.json",
+  "hooks/run-hook.cmd",
+  "hooks/design-rules",
+] as const;
+
 export const OFFICIAL_PLUGIN_DEFINITIONS: readonly OfficialPluginDefinition[] = [
   {
-    defaultEnabled: true,
+    // 交互视图默认关闭，避免默认注入固定上下文；旧开关由配置迁移关闭一次。
+    defaultEnabled: false,
     listing: {
       author: ZAI_AUTHOR,
       category: "productivity",
@@ -191,7 +220,7 @@ export const OFFICIAL_PLUGIN_DEFINITIONS: readonly OfficialPluginDefinition[] = 
       "../../visualize-plugin",
       "../../../visualize-plugin",
     ],
-    version: "0.1.1",
+    version: "0.1.2",
   },
   {
     // 无 listing：宿主不进市场、不对用户露出。它必须始终可用，因为 node_repl 的注册门禁
@@ -201,6 +230,8 @@ export const OFFICIAL_PLUGIN_DEFINITIONS: readonly OfficialPluginDefinition[] = 
     // 约定要防的是「首启即注入整套工具集并拉起 Helper」，而 seed 宿主两件都不做——工具是否
     // 进模型工具池由两个能力插件的启停决定，Helper 由 SDK 首次调用时才拉起。
     defaultEnabled: true,
+    // server.js 内嵌 CUA Helper build id（每条 CI 流水线不同），由 scripts/build.mjs 同步写出。
+    buildIdentityPath: NODE_REPL_HOST_BUILD_IDENTITY_PATH,
     name: OFFICIAL_NODE_REPL_HOST_PLUGIN_NAME,
     requiredSeedPaths: OFFICIAL_NODE_REPL_HOST_REQUIRED_SEED_PATHS,
     rootCandidates: [
@@ -229,7 +260,7 @@ export const OFFICIAL_PLUGIN_DEFINITIONS: readonly OfficialPluginDefinition[] = 
       "../../android-emulator-plugin",
       "../../../android-emulator-plugin",
     ],
-    version: "0.1.0",
+    version: "0.1.1",
   },
   {
     // manifest 只声明 browser-use skill；宿主 node_repl MCP 独立注入，package 另外携带其 server/client
@@ -273,10 +304,10 @@ export const OFFICIAL_PLUGIN_DEFINITIONS: readonly OfficialPluginDefinition[] = 
     [
       // 版本按插件各自升，换新缓存目录：pdf 0.2.1 起面板带中日韩字体回退；0.2.1（pdf 0.2.2）起
       // server 由工作区内各 session 共享，旧缓存的 server 不区分 session，不能沿用。
-      ["documents", "docx", "Documents", "Word文档", "0.2.1"],
-      ["pdf", "pdf", "PDF", "PDF", "0.2.2"],
-      ["presentations", "pptx", "Presentations", "演示文档", "0.2.1"],
-      ["spreadsheets", "xlsx", "Spreadsheets", "电子表格", "0.2.1"],
+      ["documents", "docx", "Documents", "Word文档", "0.2.2"],
+      ["pdf", "pdf", "PDF", "PDF", "0.2.3"],
+      ["presentations", "pptx", "Presentations", "演示文档", "0.2.2"],
+      ["spreadsheets", "xlsx", "Spreadsheets", "电子表格", "0.2.2"],
     ] as const
   ).map(
     ([name, skill, displayName, chineseName, version]): OfficialPluginDefinition => ({
@@ -542,6 +573,33 @@ export const OFFICIAL_PLUGIN_DEFINITIONS: readonly OfficialPluginDefinition[] = 
     version: "0.3.0",
   },
   {
+    // 设计工作流（HTML 设计稿、交互原型、HTML 演示稿）。纯内容型，默认关闭；用户可启用、可停用、不可卸载。
+    // 版本与 package.json / 两份 plugin.json / sea-official-plugin-assets.mjs 同步 bump。
+    listing: {
+      author: ZAI_AUTHOR,
+      category: "productivity",
+      displayName: "Design",
+      // 英文名与描述回退到 manifest（displayName / description）；这里只放 zh-CN 覆盖。
+      displayName_i18n: { "zh-CN": "设计" },
+      description_i18n: {
+        "zh-CN": "做网页设计稿、原型和演示稿；桌面端本地工作区可在内置浏览器里点选修改。",
+      },
+      examplePrompts: ["Design a landing page for a budgeting app", "Build an 8-page HTML deck"],
+      examplePrompts_i18n: {
+        "zh-CN": ["给记账 App 设计一个落地页", "做一份 8 页的 HTML 演示稿"],
+      },
+    },
+    name: "design",
+    requiredSeedPaths: OFFICIAL_DESIGN_REQUIRED_SEED_PATHS,
+    rootCandidates: [
+      "packages/design-plugin",
+      "../design-plugin",
+      "../../design-plugin",
+      "../../../design-plugin",
+    ],
+    version: "0.7.2",
+  },
+  {
     // 产品决策：电脑控制回退为默认关闭，需用户在设置页显式开启。
     // 因此这里不声明 defaultEnabled——computer-use 携带 SDK 客户端与系统 Helper 依赖，
     // 默认开启意味着每个新用户首启即注入整套工具集并拉起 Helper。
@@ -614,6 +672,7 @@ export const OFFICIAL_PLUGIN_DEFINITIONS: readonly OfficialPluginDefinition[] = 
       "commands/site-deploy.md",
       "scripts/drora-site.mjs",
       "scripts/stage.mjs",
+      "scripts/errors.mjs",
       "skills/site-deploy/SKILL.md",
       "skills/site-deploy/templates/static.sh",
       "skills/site-deploy/templates/static-server.mjs",
@@ -623,14 +682,20 @@ export const OFFICIAL_PLUGIN_DEFINITIONS: readonly OfficialPluginDefinition[] = 
       "dist/server.mjs",
       "dist/ui/panel.html",
     ],
-    version: "0.4.2",
+    // 修复（2026-11-14，v3.18.0 S4 段门复跑归因）：合并落入了上游 zcode-site-plugin
+    // 0.5.1 的 package/manifest，但 definition 侧停留在上游同样滞后的 0.5.0——这正是本
+    // 条目上方注释警示的「升版遗漏官方 seed 版本会继续加载旧缓存目录」形态（上游
+    // v3.18.0 树自带 def=0.5.0 与 package=0.5.1 的漂移，本仓三处一致门
+    // plugins.test「keeps every bundled plugin package, manifest, and seed version
+    // aligned」如实拦下）。def 版本对齐实际包版本 0.5.1；上游下版修 def 后无需回退。
+    version: "0.5.1",
   },
 ];
 
 // 在 official plugin 定义里标了 defaultEnabled: true 的, 拼成 `<name>@<marketplace>` 形式,
 // 透传给 adapter 让它在用户没显式配置时默认开启 (内容型 plugin 才适用)。
 // 注意: 任何解析 plugin 的入口 (CLI 子命令 resolveDroraPlugins、应用启动 resolveStartupPlugins)
-// 都必须把这个集合传给 discoverNodePluginsSync, 否则 defaultEnabled 不生效。
+// 都必须把这个集合传给 discoverNodePlugins, 否则 defaultEnabled 不生效。
 export const DEFAULT_ENABLED_OFFICIAL_PLUGIN_IDS: ReadonlySet<string> = new Set(
   OFFICIAL_PLUGIN_DEFINITIONS.filter((definition) => definition.defaultEnabled).map(
     (definition) => `${definition.name}@${DRORA_OFFICIAL_PLUGIN_MARKETPLACE}`,

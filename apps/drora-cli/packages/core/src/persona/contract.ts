@@ -48,13 +48,22 @@ export interface PersonaProjectionDiagnostics {
   cacheControlIndex?: number;
 }
 
-/** Source entries remain canonical; an added request-only system message has no source. */
+/**
+ * Source entries remain canonical; an added request-only system message has no source.
+ *
+ * v3.18.0 合并追加（originEntries）：上游 ProviderRequestMessageProjectionResult 新增
+ * 必填 originEntries（逐消息来源组，折叠/合并诊断用）。persona 注入的 request-only
+ * system 消息无来源，对应组为空数组；该字段可选以兼容不含它的既有投影调用面，
+ * applyPersonaContribution 在字段在场时同步插入空组，保持逐组下标与 messages 对齐。
+ */
 export interface PersonaRequestProjection<
   Source,
   Diagnostics extends PersonaProjectionDiagnostics,
+  Origin = never,
 > {
   messages: ModelInputMessage[];
   sourceEntries: Array<Source | undefined>;
+  originEntries?: Array<readonly Origin[]>;
   diagnostics: Diagnostics;
 }
 

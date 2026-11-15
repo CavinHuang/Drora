@@ -104,7 +104,7 @@
   - 为 subagent prompt assembly 增加或更新 conversation E2E case 条目。
 - Modify: `docs/testing/conversation-session-e2e-coverage-matrix.md`
   - 将新增 case 的覆盖状态从 missing/undefined 更新到 covered。
-- Create or Modify: `packages/desktop/test/e2e/conversation-session/conversation-session-subagent-prompt-assembly.test.ts`
+- Create or Modify: `packages/desktop/test/e2e/conversation-session/subagents/conversation-session-subagent-prompt-assembly.test.ts`
   - 通过桌面前台窗口跑真实 conversation/session E2E，验证结果符合预期。
 - Modify: 历史差异审计文档（已删除）
   - 更新 prompt assembly 现状：本轮只完成 child prompt common context，不宣称 tool/schema/background 对齐。
@@ -116,12 +116,10 @@
 ### Task 1: Add Provider-Visible Prompt Assembly Tests
 
 **Files:**
-
 - Create: `apps/drora-cli/packages/core/tests/subagent-prompt-assembly.test.ts`
 - Modify: `apps/drora-cli/packages/core/tests/subagent-explore.test.ts`
 
 **Interfaces:**
-
 - Consumes:
   - `AgentRuntime` from `apps/drora-cli/packages/core/src/runtime.ts`
   - `createSessionId`, `ModelRole`, `ModelRefSource`, `modelMessageContentToText` from `@drora/contracts`
@@ -282,22 +280,16 @@ describe("subagent provider-visible prompt assembly", () => {
     expect(systems[2]).toContain("Notes:");
     expect(systems[2]).toContain("Agent threads always have their cwd reset between bash calls");
     expect(systems[2]).toContain("the parent agent reads your text output");
-    expect(systems[3]).toContain(
-      "Here is useful information about the environment you are running in:",
-    );
+    expect(systems[3]).toContain("Here is useful information about the environment you are running in:");
     expect(systems[3]).toContain("Working directory: /Users/dev/Desktop/Z/drora/apps/drora-cli");
     expect(systems[3]).toContain("Is directory a git repo: Yes");
     expect(systems[3]).toContain("Platform: darwin");
     expect(systems[3]).toContain("Shell: Git Bash");
     expect(systems[3]).toContain("OS Version: Darwin 24.3.0");
-    expect(systems[3]).toContain(
-      "You are powered by the model named anthropic/claude-haiku-4-5-20251001-cc.",
-    );
+    expect(systems[3]).toContain("You are powered by the model named anthropic/claude-haiku-4-5-20251001-cc.");
 
     const text = allMessageText(childRequests[0]);
-    expect(text).not.toContain(
-      "You help the user with software engineering work in the current workspace.",
-    );
+    expect(text).not.toContain("You help the user with software engineering work in the current workspace.");
     expect(text).not.toContain("# claudeMd");
     expect(text).not.toContain("# user_instructions");
     expect(text).not.toContain("Project context:");
@@ -310,90 +302,90 @@ describe("subagent provider-visible prompt assembly", () => {
 Add this test in the same `describe` block:
 
 ```ts
-it("adds common notes and environment context to general-purpose child prompts", async () => {
-  const sessionId = createSessionId("subagent-prompt-general-purpose");
-  const eventStore = createTestSessionEventStore();
-  const childRequests: any[] = [];
-  let parentCallCount = 0;
+  it("adds common notes and environment context to general-purpose child prompts", async () => {
+    const sessionId = createSessionId("subagent-prompt-general-purpose");
+    const eventStore = createTestSessionEventStore();
+    const childRequests: any[] = [];
+    let parentCallCount = 0;
 
-  const runtime = new AgentRuntime(
-    sessionId,
-    {
-      mode: "build",
-      modelRef: createMainModelRef(),
-      workingDirectory: "/repo",
-      currentDate: "2026-06-04",
-      envInfo: {
-        cwd: "/repo",
-        platform: "darwin",
-        shell: "zsh",
-        osVersion: "Darwin 24.3.0",
-        nodeVersion: "24.14.0",
-        isGitRepository: true,
-      },
-    },
-    {
-      eventStore,
-      modelAdapter: {
-        resolveConnection() {
-          return {
-            baseURL: "https://api.example.test/anthropic",
-            providerId: "anthropic",
-            providerKind: "anthropic",
-          };
+    const runtime = new AgentRuntime(
+      sessionId,
+      {
+        mode: "build",
+        modelRef: createMainModelRef(),
+        workingDirectory: "/repo",
+        currentDate: "2026-06-04",
+        envInfo: {
+          cwd: "/repo",
+          platform: "darwin",
+          shell: "zsh",
+          osVersion: "Darwin 24.3.0",
+          nodeVersion: "24.14.0",
+          isGitRepository: true,
         },
-        async generateText(request: any) {
-          const toolNames = (request.tools ?? []).map((tool: any) => tool.name);
-          if (toolNames.includes("Agent")) {
-            parentCallCount++;
-            if (parentCallCount === 1) {
-              return {
-                finishReason: "tool-calls",
-                model: request.model,
-                text: "",
-                toolCalls: [
-                  {
-                    id: "call_general",
-                    name: "Agent",
-                    input: {
-                      description: "Research runtime",
-                      prompt: "Research how child runtimes are created.",
+      },
+      {
+        eventStore,
+        modelAdapter: {
+          resolveConnection() {
+            return {
+              baseURL: "https://api.example.test/anthropic",
+              providerId: "anthropic",
+              providerKind: "anthropic",
+            };
+          },
+          async generateText(request: any) {
+            const toolNames = (request.tools ?? []).map((tool: any) => tool.name);
+            if (toolNames.includes("Agent")) {
+              parentCallCount++;
+              if (parentCallCount === 1) {
+                return {
+                  finishReason: "tool-calls",
+                  model: request.model,
+                  text: "",
+                  toolCalls: [
+                    {
+                      id: "call_general",
+                      name: "Agent",
+                      input: {
+                        description: "Research runtime",
+                        prompt: "Research how child runtimes are created.",
+                      },
                     },
-                  },
-                ],
-                usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+                  ],
+                  usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+                };
+              }
+              return {
+                finishReason: "stop",
+                model: request.model,
+                text: "parent used general result",
+                usage: { inputTokens: 2, outputTokens: 3, totalTokens: 5 },
               };
             }
+            childRequests.push(request);
             return {
               finishReason: "stop",
               model: request.model,
-              text: "parent used general result",
-              usage: { inputTokens: 2, outputTokens: 3, totalTokens: 5 },
+              text: "General-purpose agent found the runtime path.",
+              usage: { inputTokens: 3, outputTokens: 4, totalTokens: 7 },
             };
-          }
-          childRequests.push(request);
-          return {
-            finishReason: "stop",
-            model: request.model,
-            text: "General-purpose agent found the runtime path.",
-            usage: { inputTokens: 3, outputTokens: 4, totalTokens: 7 },
-          };
-        },
-      } as never,
-    },
-  );
+          },
+        } as never,
+      },
+    );
 
-  await runtime.executeTurn("Use a general-purpose agent for this question");
+    await runtime.executeTurn("Use a general-purpose agent for this question");
 
-  const systems = systemContents(childRequests[0]);
-  expect(systems).toHaveLength(4);
-  expect(systems[0]).toBe("You are Drora, an interactive coding agent");
-  expect(systems[1]).toContain("You are an agent for Drora");
-  expect(systems[1]).toContain("the caller will relay this to the user");
-  expect(systems[1]).not.toContain("Agent threads always have their cwd reset");
-  expect(systems[2]).toContain("Agent threads always have their cwd reset between bash calls");
-  expect(systems[3]).toContain("Working directory: /repo");
-});
+    const systems = systemContents(childRequests[0]);
+    expect(systems).toHaveLength(4);
+    expect(systems[0]).toBe("You are Drora, an interactive coding agent");
+    expect(systems[1]).toContain("You are an agent for Drora");
+    expect(systems[1]).toContain("the caller will relay this to the user");
+    expect(systems[1]).not.toContain("Agent threads always have their cwd reset");
+    expect(systems[2]).toContain("Agent threads always have their cwd reset between bash calls");
+    expect(systems[3]).toContain("Working directory: /repo");
+  });
 ```
 
 - [ ] **Step 5: Add custom profile prompt test**
@@ -401,101 +393,101 @@ it("adds common notes and environment context to general-purpose child prompts",
 Add this test:
 
 ```ts
-it("adds common notes and environment context to custom child prompts", async () => {
-  const sessionId = createSessionId("subagent-prompt-custom");
-  const eventStore = createTestSessionEventStore();
-  const childRequests: any[] = [];
-  let parentCallCount = 0;
+  it("adds common notes and environment context to custom child prompts", async () => {
+    const sessionId = createSessionId("subagent-prompt-custom");
+    const eventStore = createTestSessionEventStore();
+    const childRequests: any[] = [];
+    let parentCallCount = 0;
 
-  const runtime = new AgentRuntime(
-    sessionId,
-    {
-      mode: "build",
-      modelRef: createMainModelRef(),
-      workingDirectory: "/repo",
-      currentDate: "2026-06-04",
-      envInfo: {
-        cwd: "/repo",
-        platform: "darwin",
-        shell: "zsh",
-        osVersion: "Darwin 24.3.0",
-        nodeVersion: "24.14.0",
-        isGitRepository: false,
-      },
-      subagents: {
-        profiles: [
-          {
-            name: "code-researcher",
-            description: "Research code paths.",
-            color: "blue",
-            source: "user",
-            systemPrompt: "You are a focused code researcher. Return concise findings.",
-            tools: ["Read", "Grep", "Glob"],
-          },
-        ],
-      },
-    },
-    {
-      eventStore,
-      modelAdapter: {
-        resolveConnection() {
-          return {
-            baseURL: "https://api.example.test/anthropic",
-            providerId: "anthropic",
-            providerKind: "anthropic",
-          };
+    const runtime = new AgentRuntime(
+      sessionId,
+      {
+        mode: "build",
+        modelRef: createMainModelRef(),
+        workingDirectory: "/repo",
+        currentDate: "2026-06-04",
+        envInfo: {
+          cwd: "/repo",
+          platform: "darwin",
+          shell: "zsh",
+          osVersion: "Darwin 24.3.0",
+          nodeVersion: "24.14.0",
+          isGitRepository: false,
         },
-        async generateText(request: any) {
-          const toolNames = (request.tools ?? []).map((tool: any) => tool.name);
-          if (toolNames.includes("Agent")) {
-            parentCallCount++;
-            if (parentCallCount === 1) {
-              return {
-                finishReason: "tool-calls",
-                model: request.model,
-                text: "",
-                toolCalls: [
-                  {
-                    id: "call_custom",
-                    name: "Agent",
-                    input: {
-                      description: "Research custom",
-                      prompt: "Research the custom profile path.",
-                      subagent_type: "code-researcher",
+        subagents: {
+          profiles: [
+            {
+              name: "code-researcher",
+              description: "Research code paths.",
+              color: "blue",
+              source: "user",
+              systemPrompt: "You are a focused code researcher. Return concise findings.",
+              tools: ["Read", "Grep", "Glob"],
+            },
+          ],
+        },
+      },
+      {
+        eventStore,
+        modelAdapter: {
+          resolveConnection() {
+            return {
+              baseURL: "https://api.example.test/anthropic",
+              providerId: "anthropic",
+              providerKind: "anthropic",
+            };
+          },
+          async generateText(request: any) {
+            const toolNames = (request.tools ?? []).map((tool: any) => tool.name);
+            if (toolNames.includes("Agent")) {
+              parentCallCount++;
+              if (parentCallCount === 1) {
+                return {
+                  finishReason: "tool-calls",
+                  model: request.model,
+                  text: "",
+                  toolCalls: [
+                    {
+                      id: "call_custom",
+                      name: "Agent",
+                      input: {
+                        description: "Research custom",
+                        prompt: "Research the custom profile path.",
+                        subagent_type: "code-researcher",
+                      },
                     },
-                  },
-                ],
-                usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+                  ],
+                  usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+                };
+              }
+              return {
+                finishReason: "stop",
+                model: request.model,
+                text: "parent used custom result",
+                usage: { inputTokens: 2, outputTokens: 3, totalTokens: 5 },
               };
             }
+            childRequests.push(request);
             return {
               finishReason: "stop",
               model: request.model,
-              text: "parent used custom result",
-              usage: { inputTokens: 2, outputTokens: 3, totalTokens: 5 },
+              text: "Custom agent found the runtime path.",
+              usage: { inputTokens: 3, outputTokens: 4, totalTokens: 7 },
             };
-          }
-          childRequests.push(request);
-          return {
-            finishReason: "stop",
-            model: request.model,
-            text: "Custom agent found the runtime path.",
-            usage: { inputTokens: 3, outputTokens: 4, totalTokens: 7 },
-          };
-        },
-      } as never,
-    },
-  );
+          },
+        } as never,
+      },
+    );
 
-  await runtime.executeTurn("Use the custom researcher agent for this question");
+    await runtime.executeTurn("Use the custom researcher agent for this question");
 
-  const systems = systemContents(childRequests[0]);
-  expect(systems).toHaveLength(4);
-  expect(systems[0]).toBe("You are Drora, an interactive coding agent");
-  expect(systems[1]).toBe("You are a focused code researcher. Return concise findings.");
-  expect(systems[2]).toContain("Notes:");
-  expect(systems[3]).toContain("Is directory a git repo: No");
-});
+    const systems = systemContents(childRequests[0]);
+    expect(systems).toHaveLength(4);
+    expect(systems[0]).toBe("You are Drora, an interactive coding agent");
+    expect(systems[1]).toBe("You are a focused code researcher. Return concise findings.");
+    expect(systems[2]).toContain("Notes:");
+    expect(systems[3]).toContain("Is directory a git repo: No");
+  });
 ```
 
 - [ ] **Step 6: Update existing Explore test expectation**
@@ -535,7 +527,6 @@ Expected before implementation:
 ## Phase 2: Shared Subagent Prompt Pieces
 
 **Files:**
-
 - Modify: `apps/drora-cli/packages/core/src/context/sections/env-info.ts`
 - Create: `apps/drora-cli/packages/core/src/subagent/system-prompt.ts`
 - Modify: `apps/drora-cli/packages/core/src/subagent/explore.ts`
@@ -543,7 +534,6 @@ Expected before implementation:
 - Modify: `apps/drora-cli/packages/core/src/runtime/deps.ts`
 
 **Interfaces:**
-
 - Consumes:
   - `EnvInfo` from `@drora/contracts`
   - `isEnvInfoGitRepository(info: EnvInfo): boolean` from `apps/drora-cli/packages/core/src/context/sections/env-info.ts`
@@ -560,10 +550,8 @@ Replace the private helper:
 
 ```ts
 function isGitRepository(info: EnvInfo): boolean {
-  return (
-    info.isGitRepository ??
-    (info.gitStatus !== undefined ? info.gitStatus !== "not_repo" : Boolean(info.gitBranch))
-  );
+  return info.isGitRepository ??
+    (info.gitStatus !== undefined ? info.gitStatus !== "not_repo" : Boolean(info.gitBranch));
 }
 ```
 
@@ -571,10 +559,8 @@ with:
 
 ```ts
 export function isEnvInfoGitRepository(info: EnvInfo): boolean {
-  return (
-    info.isGitRepository ??
-    (info.gitStatus !== undefined ? info.gitStatus !== "not_repo" : Boolean(info.gitBranch))
-  );
+  return info.isGitRepository ??
+    (info.gitStatus !== undefined ? info.gitStatus !== "not_repo" : Boolean(info.gitBranch));
 }
 ```
 
@@ -618,9 +604,7 @@ export function buildSubagentCommonNotes(): string {
   ].join("\n");
 }
 
-export function buildSubagentEnvironmentContext(
-  options: SubagentEnvironmentContextOptions,
-): string {
+export function buildSubagentEnvironmentContext(options: SubagentEnvironmentContextOptions): string {
   const { envInfo } = options;
   const modelLine = envInfo.currentModel
     ? [`You are powered by the model named ${envInfo.currentModel}.`]
@@ -636,7 +620,8 @@ export function buildSubagentEnvironmentContext(
     `OS Version: ${envInfo.osVersion}`,
     "</env>",
     ...modelLine,
-  ].join("\n");
+  ]
+    .join("\n");
 }
 ```
 
@@ -651,7 +636,9 @@ Important boundary:
 In `apps/drora-cli/packages/core/src/subagent/explore.ts`, rename `buildExploreSystemPrompt` to `buildExploreAgentPrompt` or keep the exported name with updated semantics if broader call sites are easier. Preferred:
 
 ```ts
-export function buildExploreAgentPrompt(options: { embeddedSearchEnabled?: boolean }): string {
+export function buildExploreAgentPrompt(options: {
+  embeddedSearchEnabled?: boolean;
+}): string {
   const searchGuidelines = options.embeddedSearchEnabled
     ? [
         "- Use `find` via Bash for broad file pattern matching",
@@ -728,10 +715,7 @@ In `apps/drora-cli/packages/core/src/runtime/deps.ts`, export/import:
 
 ```ts
 export { buildExploreAgentPrompt, EXPLORE_AGENT_TYPE } from "../subagent/explore.js";
-export {
-  buildSubagentCommonNotes,
-  buildSubagentEnvironmentContext,
-} from "../subagent/system-prompt.js";
+export { buildSubagentCommonNotes, buildSubagentEnvironmentContext } from "../subagent/system-prompt.js";
 ```
 
 If `deps.ts` currently exports `buildExploreSystemPrompt`, replace that export only after all call sites have moved.
@@ -756,7 +740,6 @@ Expected after Task 2 only:
 ### Task 3: Let Child Runtime Select Its Own Context Builder
 
 **Files:**
-
 - Create: `apps/drora-cli/packages/core/src/subagent/context-builder.ts`
 - Modify: `apps/drora-cli/packages/core/src/runtime/types.ts`
 - Modify: `apps/drora-cli/packages/core/src/runtime/methods/context.ts`
@@ -764,7 +747,6 @@ Expected after Task 2 only:
 - Modify: `apps/drora-cli/packages/core/src/runtime/methods/subagent.ts`
 
 **Interfaces:**
-
 - Consumes:
   - `ContextBuildResult`, `ContextSection`, `ContextBuilderConfig` from context package
   - `buildSubagentCommonNotes(...)`
@@ -858,7 +840,7 @@ subagentContext: {
 Keep the existing `baseChildEnvInfo` source order:
 
 ```ts
-this.contextSourceSnapshot?.envInfo ?? this.config.envInfo ?? fallbackUnknownEnvInfo;
+this.contextSourceSnapshot?.envInfo ?? this.config.envInfo ?? fallbackUnknownEnvInfo
 ```
 
 Keep the existing shell override from `getSessionShellEnvironment(this)` before adding `currentModel`. This mirrors the main context path where `createContextBuilderFromSnapshot(...)` derives provider-visible env info from the current context snapshot and appends `currentModel: formatModelRef(this.defaultModelRef)`.
@@ -890,11 +872,9 @@ Expected:
 ### Task 4: Document The Narrow Prompt Assembly Alignment
 
 **Files:**
-
 - Modify: 历史差异审计文档（已删除）
 
 **Interfaces:**
-
 - Consumes:
   - Implementation result from Tasks 2-3.
 - Produces:
@@ -947,11 +927,9 @@ Expected:
 ### Task 5: Final Validation Checklist
 
 **Files:**
-
 - No code files; validation only.
 
 **Interfaces:**
-
 - Consumes:
   - All previous tasks.
 - Produces:
@@ -1024,13 +1002,11 @@ system[3] contains Working directory / git repo / Platform / Shell / OS Version 
 ### Task 6: Add And Run Foreground Desktop E2E
 
 **Files:**
-
 - Modify: `docs/conversation-session-case-catalog.md`
 - Modify: `docs/testing/conversation-session-e2e-coverage-matrix.md`
-- Create or Modify: `packages/desktop/test/e2e/conversation-session/conversation-session-subagent-prompt-assembly.test.ts`
+- Create or Modify: `packages/desktop/test/e2e/conversation-session/subagents/conversation-session-subagent-prompt-assembly.test.ts`
 
 **Interfaces:**
-
 - Consumes:
   - Prompt assembly implementation from Tasks 2-3.
   - Existing desktop WDIO helpers under `packages/desktop/test/e2e/helpers/`.
@@ -1053,14 +1029,14 @@ Use the next valid case id according to the current catalog conventions; do not 
 In `docs/testing/conversation-session-e2e-coverage-matrix.md`, add or update the matching row:
 
 ```md
-| <same-id> | Subagent prompt assembly | covered | `packages/desktop/test/e2e/conversation-session/conversation-session-subagent-prompt-assembly.test.ts` | Verifies foreground-window conversation path and child provider-visible prompt shape |
+| <same-id> | Subagent prompt assembly | covered | `packages/desktop/test/e2e/conversation-session/subagents/conversation-session-subagent-prompt-assembly.test.ts` | Verifies foreground-window conversation path and child provider-visible prompt shape |
 ```
 
 Keep the row format consistent with the current matrix. If the matrix separates source case id, state, and spec path into different columns, fill the equivalent columns rather than copying this row literally.
 
 - [ ] **Step 3: Write the desktop E2E spec**
 
-Create `packages/desktop/test/e2e/conversation-session/conversation-session-subagent-prompt-assembly.test.ts`.
+Create `packages/desktop/test/e2e/conversation-session/subagents/conversation-session-subagent-prompt-assembly.test.ts`.
 
 The spec must:
 
@@ -1084,8 +1060,8 @@ system[3] starts with "Here is useful information about the environment you are 
 Use existing helpers from nearby specs rather than creating a parallel E2E harness. Good reference files to inspect before writing the spec:
 
 ```text
-packages/desktop/test/e2e/conversation-session/conversation-session-subagent-provider-registry-cold-start.test.ts
-packages/desktop/test/e2e/conversation-session/conversation-session-built-in-subagent-model-overrides.test.ts
+packages/desktop/test/e2e/conversation-session/subagents/conversation-session-subagent-provider-registry-cold-start.test.ts
+packages/desktop/test/e2e/conversation-session/subagents/conversation-session-built-in-subagent-model-overrides.test.ts
 packages/desktop/test/e2e/helpers/conversation-session.ts
 packages/desktop/test/e2e/helpers/model-provider-replay.ts
 packages/desktop/test/e2e/helpers/conversation-session-network.ts
@@ -1096,7 +1072,7 @@ packages/desktop/test/e2e/helpers/conversation-session-network.ts
 Run the new spec with the local foreground Electron window, not only the container runner:
 
 ```bash
-DRORA_E2E_SPEC=./test/e2e/conversation-session/conversation-session-subagent-prompt-assembly.test.ts pnpm --filter @drora/desktop test:e2e
+DRORA_E2E_SPEC=./test/e2e/conversation-session/subagents/conversation-session-subagent-prompt-assembly.test.ts pnpm --filter @drora/desktop test:e2e
 ```
 
 Expected:
@@ -1125,7 +1101,7 @@ The final implementation report must include:
 
 ```text
 E2E command:
-DRORA_E2E_SPEC=./test/e2e/conversation-session/conversation-session-subagent-prompt-assembly.test.ts pnpm --filter @drora/desktop test:e2e
+DRORA_E2E_SPEC=./test/e2e/conversation-session/subagents/conversation-session-subagent-prompt-assembly.test.ts pnpm --filter @drora/desktop test:e2e
 
 E2E result:
 PASS
@@ -1163,7 +1139,7 @@ If the local machine cannot run foreground Electron E2E, do not mark the task co
 - Main thread prompt assembly is unchanged.
 - Focused prompt tests pass.
 - A conversation-session E2E spec covers this prompt assembly behavior.
-- The E2E spec has been run through the local foreground Electron window with `DRORA_E2E_SPEC=./test/e2e/conversation-session/conversation-session-subagent-prompt-assembly.test.ts pnpm --filter @drora/desktop test:e2e`, and the result is PASS.
+- The E2E spec has been run through the local foreground Electron window with `DRORA_E2E_SPEC=./test/e2e/conversation-session/subagents/conversation-session-subagent-prompt-assembly.test.ts pnpm --filter @drora/desktop test:e2e`, and the result is PASS.
 - `pnpm audit:conversation-session-coverage` passes after catalog/matrix updates.
 - `pnpm typecheck` and `pnpm lint` have been run, with any unrelated baseline failures explicitly reported.
 - No automatic commit is created. The final state remains reviewable in the working tree until the user explicitly asks to commit.

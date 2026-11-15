@@ -42,16 +42,16 @@ Command form scope
 
 ## Impact brief
 
-| Field         | Decision                                                                                                             |
-| ------------- | -------------------------------------------------------------------------------------------------------------------- |
-| Change layers | Presentation, option source, draft default, commit effect, persistence                                               |
-| UI surface    | `CommandsSection` and `CommandForm`                                                                                  |
-| Shared UI     | `PluginScopeMenu`                                                                                                    |
-| Draft owner   | Command form scope key                                                                                               |
-| Commit sink   | The selected Workspace Host's `commandsService`                                                                      |
-| Persistence   | User or Workspace command directory; no format migration                                                             |
-| Mode boundary | Local and remote Workspace tabs share scope semantics, but resolve different Host services                           |
-| Out of scope  | Command discovery order, slash-command runtime behavior, plugin command management, cross-window Workspace selection |
+| Field | Decision |
+| --- | --- |
+| Change layers | Presentation, option source, draft default, commit effect, persistence |
+| UI surface | `CommandsSection` and `CommandForm` |
+| Shared UI | `PluginScopeMenu` |
+| Draft owner | Command form scope key |
+| Commit sink | The selected Workspace Host's `commandsService` |
+| Persistence | User or Workspace command directory; no format migration |
+| Mode boundary | Local and remote Workspace tabs share scope semantics, but resolve different Host services |
+| Out of scope | Command discovery order, slash-command runtime behavior, plugin command management, cross-window Workspace selection |
 
 ## Accepted cases
 

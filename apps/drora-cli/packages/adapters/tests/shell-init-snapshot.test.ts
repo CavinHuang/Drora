@@ -62,8 +62,10 @@ describe("shell init snapshot", () => {
     expect(script).toContain('echo "# Snapshot file" >| "$SNAPSHOT_FILE"');
     expect(script).toContain('echo "shopt -s expand_aliases" >> "$SNAPSHOT_FILE"');
     expect(script).toContain("declare -F | cut -d' ' -f3 | grep -vE '^_[^_]'");
-    expect(script).toContain("encoded_func=$(declare -f \"$func\" | base64 )");
-    expect(script).toContain("base64 -d");
+    // Windows 性能修复（2026-11-13）：逐函数 base64 编解码已移除，函数定义原样写入快照，
+    // 创建与 source 两侧零每函数 fork；断言同步改为单管道原样追加形态（构建函数中文注释载因）。
+    expect(script).toContain('while read func; do declare -f "$func" >> "$SNAPSHOT_FILE"; done');
+    expect(script).not.toContain("base64");
     expect(script).toContain('shopt -p | head -n 1000');
     expect(script).toContain('set -o | grep "on"');
     expect(script).toContain("alias | grep -v \"='winpty \"");

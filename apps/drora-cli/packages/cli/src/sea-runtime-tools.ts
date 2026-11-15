@@ -234,7 +234,15 @@ async function isCacheCurrent(
     const binaryPath = join(cacheDirectory, expected.binaryName);
     const binaryStat = await stat(binaryPath);
     if (!binaryStat.isFile() || binaryStat.size !== expected.size) return false;
-    if (platform !== "win32" && (binaryStat.mode & 0o111) === 0) return false;
+    // win32 宿主的 stat().mode 没有可执行位语义：libuv 只把只读属性映射进 mode，x 位仅对
+    // .exe/.bat/.cmd/.com 扩展名合成，无扩展名文件 chmod(0o755) 后仍观察不到 0o111。该校验
+    // 的本意是发现缓存二进制丢失执行位（unix 文件系统属性），可观察性取决于宿主文件系统而
+    // 非 options.platform 声明的目标平台——win32 宿主上以 darwin/linux 目标运行时按目标平台
+    // 强校验会让缓存永远判 stale，每次都重装并 rename 覆盖既有目录，触发 win32 EPERM。生产
+    // 中 host==platform（该 option 仅测试注入），行为不变；此处只修正假 stale 判定。
+    if (process.platform !== "win32" && platform !== "win32" && (binaryStat.mode & 0o111) === 0) {
+      return false;
+    }
 
     const actualSha256 = createHash("sha256")
       .update(await readFile(binaryPath))
@@ -281,9 +289,17 @@ function getSeaModule(): SeaRuntimeModule | undefined {
 }
 
 function isDirectoryReplaceRace(error: unknown): boolean {
+  // win32 上 rename(目录, 已存在目录) 经 MoveFileExW(REPLACE_EXISTING) 对已存在目录稳定失败
+  // 为 ERROR_ACCESS_DENIED，Node 映射为 EPERM（unix 上同形操作才是 EEXIST/ENOTEMPTY）。
+  // 不把 EPERM 纳入竞态集时，并发首发或缓存修复会在第一次 rename 就抛出，连带测试
+  // finally 清理与仍在途的并发安装互踩出 ENOTEMPTY rmdir。纳入后沿用既有收敛序：先复查
+  // 目标缓存有效性（有效即直接复用），无效才清目录重试 rename。unix 上 EPERM 另有语义
+  // （粘滞位/不可变属性），维持原集合不动。
+  const replaceRaceCodes =
+    process.platform === "win32" ? ["EEXIST", "ENOTEMPTY", "EPERM"] : ["EEXIST", "ENOTEMPTY"];
   return (
     typeof error === "object" &&
     error !== null &&
-    ["EEXIST", "ENOTEMPTY"].includes(String((error as NodeJS.ErrnoException).code))
+    replaceRaceCodes.includes(String((error as NodeJS.ErrnoException).code))
   );
 }

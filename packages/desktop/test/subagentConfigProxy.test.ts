@@ -32,10 +32,7 @@ it.each([false, true])(
     });
   `,
     );
-    // 修复依据：--import 说明符在 Windows 上必须是合法 URL——裸盘符绝对路径会被 ESM
-    // 加载器按 URL 解析成 'd:' 协议，直接 ERR_UNSUPPORTED_ESM_URL_SCHEME（甄别台账
-    // 存量失败）。相对 import.meta.url 解析出的 URL 本身就是合法 file:// URL，直接用
-    // 其 href，无需再转回路径。
+    // 与 WDIO 注入方式一致：Windows 的 ESM loader 不接受裸绝对路径，预加载必须是 file:// URL。
     const proxy = new URL("./e2e/helpers/subagent-config-proxy.mjs", import.meta.url).href;
     const child = spawn(process.execPath, [entry, "app-server", "--stdio"], {
       env: {

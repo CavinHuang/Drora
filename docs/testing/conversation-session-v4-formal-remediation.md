@@ -32,22 +32,22 @@ E2E 不允许再次把旧调试 DOM、i18n 文案、隐藏 child 元素或旧 lo
 
 ## 失败分组与修复决策
 
-| Formal spec           | 直接失败                                     | 根因定性                                                                                                                                      | 修复合同                                                                                                                    |
-| --------------------- | -------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| `v4-edit`             | edited reply 未出现                          | E2E 仍把 newText 写入主 composer；当前产品要求行内 Edit → 行内输入 → 行内 Send                                                                | helper 精确解析 user rowId，使用 `v4-edit-input/submit-${rowId}`；保留 rewind/rerun 强断言                                  |
-| `v4-fork-edit-branch` | edited reply 未出现                          | 与 `v4-edit` 同源                                                                                                                             | 复用同一行内 edit helper，再证明 fork child 只有新分支                                                                      |
-| `v4-compact`          | 等待 `[compact]`                             | 旧 debug 文本 oracle；V4 实际 marker status 为 `success`                                                                                      | timeline row 暴露 marker type/status/origin；helper 断言结构化属性，不断言英文/中文文案                                     |
-| `v4-background-work`  | running item 永不出现                        | unified status panel 在窄 pane 为 mini，item 只在展开的“终端/智能体”对应区块挂载；cancelled 后 running item 应消失                            | 先读 panel shell typed running count，再展开对应区块；取消后断言 ACK 和 item 消失                                           |
-| `v4-goal`             | 旧 goal banner 永不出现                      | goal 已迁移到 unified status panel，旧 banner/TID 无生产引用                                                                                  | panel shell 在 mini/expanded 都暴露 goal objective/status；helper pane-scoped 读取                                          |
-| `v4-delete`           | delete TID 缺失                              | WIP header 精简误删冻结协议的 UI 入口和 SessionPane command 接线                                                                              | 恢复 touch-accessible delete action；accepted/noop 后才回 draft，failed 不回 draft                                          |
-| `v4-rename`           | rename input 缺失                            | 与 delete 同一 WIP 精简误删                                                                                                                   | 恢复 header rename input/submit 与 `renameSession` ACK 接线                                                                 |
-| `v4-sidebar`          | rename input 缺失                            | 与 rename 同源                                                                                                                                | 恢复入口后继续验证 sessions-index custom title 与 delete 后列表收口                                                         |
-| `v4-load-older`       | raw rows 期望 70，收到 unit count 1          | `data-row-count` 已从 raw projection rows 漂移成 turn render units；单 turn 70 blocks 又无法证明分页                                          | 分离 window/raw total/render unit/mounted unit；fixture 改为多 completed turns；anchor 以 turn unit 验证                    |
-| `v4-scroll`           | raw rows 期望 50，收到 unit count 1          | 与 load-older 同源；单 turn 无法形成稳定长列表                                                                                                | 多 turn 历史 + controlled-stream 新 turn；不同计数单位禁止互比                                                              |
-| `v4-split-persist`    | refresh 后 ratio 无法恢复                    | draft split promote 为 group 后仍保留 paneLayout shadow owner，divider 写错 store                                                             | promotion 成功即消费 source layout；group 自己持久化 ratio；remote compact 不启用 group                                     |
-| `v4-split`            | close 后 pane 复活                           | group GC 后 fallback 到未清理 shadow split                                                                                                    | 与 split-persist 同一 ownership transfer 根修；close 后只剩 single pane                                                     |
-| `v4-stop-queue` B08   | provider request failed                      | draft prewarm ACK pending 时立即首发，fallback 创建会话只读取尚未水合的 `draftConfigRef`，丢失 provider/model/thought 后误落 builtin/真实请求 | fallback 统一合并同步 initial config → 用户 draft config → app followupMode；pending-prewarm 单测和 B08 strict E2E 同时守门 |
-| `v4-turn-navigator`   | `Browser.getWindowForTarget` unknown command | WDIO/Electron window rect API 与当前 ChromeDriver 不兼容                                                                                      | 复用跨平台可工作的 viewport helper；不改产品 turn navigator 语义                                                            |
+| Formal spec | 直接失败 | 根因定性 | 修复合同 |
+| --- | --- | --- | --- |
+| `v4-edit` | edited reply 未出现 | E2E 仍把 newText 写入主 composer；当前产品要求行内 Edit → 行内输入 → 行内 Send | helper 精确解析 user rowId，使用 `v4-edit-input/submit-${rowId}`；保留 rewind/rerun 强断言 |
+| `v4-fork-edit-branch` | edited reply 未出现 | 与 `v4-edit` 同源 | 复用同一行内 edit helper，再证明 fork child 只有新分支 |
+| `v4-compact` | 等待 `[compact]` | 旧 debug 文本 oracle；V4 实际 marker status 为 `success` | timeline row 暴露 marker type/status/origin；helper 断言结构化属性，不断言英文/中文文案 |
+| `v4-background-work` | running item 永不出现 | unified status panel 在窄 pane 为 mini，item 只在展开的“终端/智能体”对应区块挂载；cancelled 后 running item 应消失 | 先读 panel shell typed running count，再展开对应区块；取消后断言 ACK 和 item 消失 |
+| `v4-goal` | 旧 goal banner 永不出现 | goal 已迁移到 unified status panel，旧 banner/TID 无生产引用 | panel shell 在 mini/expanded 都暴露 goal objective/status；helper pane-scoped 读取 |
+| `v4-delete` | delete TID 缺失 | WIP header 精简误删冻结协议的 UI 入口和 SessionPane command 接线 | 恢复 touch-accessible delete action；accepted/noop 后才回 draft，failed 不回 draft |
+| `v4-rename` | rename input 缺失 | 与 delete 同一 WIP 精简误删 | 恢复 header rename input/submit 与 `renameSession` ACK 接线 |
+| `v4-sidebar` | rename input 缺失 | 与 rename 同源 | 恢复入口后继续验证 sessions-index custom title 与 delete 后列表收口 |
+| `v4-load-older` | raw rows 期望 70，收到 unit count 1 | `data-row-count` 已从 raw projection rows 漂移成 turn render units；单 turn 70 blocks 又无法证明分页 | 分离 window/raw total/render unit/mounted unit；fixture 改为多 completed turns；anchor 以 turn unit 验证 |
+| `v4-scroll` | raw rows 期望 50，收到 unit count 1 | 与 load-older 同源；单 turn 无法形成稳定长列表 | 多 turn 历史 + controlled-stream 新 turn；不同计数单位禁止互比 |
+| `v4-split-persist` | refresh 后 ratio 无法恢复 | draft split promote 为 group 后仍保留 paneLayout shadow owner，divider 写错 store | promotion 成功即消费 source layout；group 自己持久化 ratio；remote compact 不启用 group |
+| `v4-split` | close 后 pane 复活 | group GC 后 fallback 到未清理 shadow split | 与 split-persist 同一 ownership transfer 根修；close 后只剩 single pane |
+| `v4-stop-queue` B08 | provider request failed | draft prewarm ACK pending 时立即首发，fallback 创建会话只读取尚未水合的 `draftConfigRef`，丢失 provider/model/thought 后误落 builtin/真实请求 | fallback 统一合并同步 initial config → 用户 draft config → app followupMode；pending-prewarm 单测和 B08 strict E2E 同时守门 |
+| `v4-turn-navigator` | `Browser.getWindowForTarget` unknown command | WDIO/Electron window rect API 与当前 ChromeDriver 不兼容 | 复用跨平台可工作的 viewport helper；不改产品 turn navigator 语义 |
 
 ## 可见投影与测试属性
 
@@ -77,7 +77,7 @@ multi-session workbench group
 
 ## 分页与 cold 边界
 
-provider 在一个 turn 内发送多个 text block 不是稳定的持久历史构造：live 可见多个 raw segment，cold transcript 可能合并为一个持久 text part。load-older/scroll fixture 必须用多个真实 completed turn 构造历史，确保 live/cold 都有相同 turn-unit 语义。
+provider 在一个 turn 内发送多个 text block：live 可见多个 raw segment。旧数据的 cold transcript 只有一个合并后的 text part；[Assistant 内容块顺序](../../apps/drora-cli/docs/design/v2/model/assistant-block-order.md) 之后写入的数据每个文字块一个 part，cold 与 live 行数相同。为了同时兼容旧数据，load-older/scroll fixture 仍用多个真实 completed turn 构造历史，确保 live/cold 都有相同 turn-unit 语义。
 
 另保留独立 bug-candidate：raw row tail 若切在巨大单 turn 中间，UI unit key、prepend anchor 和 viewport 不足时的自动 loadOlder 必须有小型单测；不能靠 E2E 手工假滚动掩盖。
 

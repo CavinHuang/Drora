@@ -24,6 +24,7 @@
     "@drora/provider": "workspace:*",
     "@drora/provider-node": "workspace:*",
     "@drora/rpc": "workspace:*",
+    "@drora/session-control": "workspace:*",
     "@drora/shared": "workspace:*",
     "@larksuiteoapi/node-sdk": "1.64.0",
     "chokidar": "4.0.3",

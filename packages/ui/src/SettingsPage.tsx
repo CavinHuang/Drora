@@ -1,3 +1,4 @@
+import { useSetInterfaceModeWithTelemetry } from "@/lib/appTelemetry.js";
 import { DataSyncSection } from "@/data-sync/index.js";
 import { getWorkspaceSourceServerId } from "@/conversation-workspace-target/sourceIdentity.js";
 /* oxlint-disable eslint(max-lines) */
@@ -12,6 +13,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ButtonHTMLAttributes,
   type ReactNode,
@@ -21,12 +23,11 @@ import type {
   DesktopCloseToTrayCapability,
   IntegratedTerminalShellOption,
   IntegratedTerminalShellSelection,
-  Locale,
   UsageEntitlementSnapshot,
   UserInfo,
   DroraInteractionBehavior,
 } from "@drora/shared";
-import { BUILTIN_MODEL_PROVIDER_IDS } from "@drora/shared";
+import { BUILTIN_MODEL_PROVIDER_IDS, isLocale } from "@drora/shared";
 import {
   TID_SETTINGS_BACK_BUTTON,
   TID_SETTINGS_PAGE,
@@ -75,6 +76,10 @@ import {
   useOptionalProjectDirectory,
 } from "@/project-sidebar/index.js";
 import { resolveRecentRemoteProjectPreference } from "@/project-sidebar/remote-project-connection.js";
+import {
+  SettingsShareManagement,
+  type SettingsShareTaskTarget,
+} from "@/conversation-share-interaction/SettingsShareManagement.js";
 import { ModelProviderSection } from "@/settings/ModelProviderSection.js";
 import { useCodingPlanUpgradeDialog } from "@/settings/CodingPlanUpgradeDialogProvider.js";
 import { useEnterpriseCodingPlanProducts } from "@/settings/model-provider-section/useEnterpriseCodingPlanProducts.js";
@@ -90,14 +95,22 @@ import { SegmentPill } from "@/settings/PluginStoreListView.js";
 import { PluginsSection } from "@/settings/PluginsSection.js";
 import { HooksSection } from "@/settings/HooksSection.js";
 import { WorkspaceFileSearchSection } from "@/settings/WorkspaceFileSearchSection.js";
-import { MemorySettingsSection } from "@/settings/MemorySettingsSection.js";
+// Drora 人格四分区（specs/upstream-v3.18.0-migration.md §1 例外 3）：persona 设置节与
+// 入口门控随本段保留；memory 节随上游 v3.18.0 换用自包含 MemorySettingsPage。
 import { PersonaSettingsSection } from "@/drora-persona/PersonaSettingsSection.js";
 import { usePersonaControlAvailability } from "@/drora-persona/usePersonaControlAvailability.js";
+import { MemorySettingsPage } from "@/settings/MemorySettingsSection.js";
 import { PersonalizationSection } from "@/settings/PersonalizationSection.js";
 import { BrowserSettingsSection } from "@/settings/BrowserSettingsSection.js";
 import { ComputerUseSection } from "@/settings/ComputerUseSection.js";
 import { VoiceSection } from "@/settings/VoiceSection.js";
 import { ShortcutSettingsSection } from "@/settings/ShortcutSettingsSection.js";
+import {
+  SettingsSearch,
+  SettingsSearchTargetContext,
+  type SettingsSearchId,
+} from "@/settings-search/index.js";
+import { resolveComputerUseAvailability } from "@/settings/computerUseAvailability.js";
 import { MigrationSection } from "@/settings/MigrationSection.js";
 import { SETTINGS_FRAME_CONTENT_CLASSNAME } from "@/settings/SettingsPageParts.js";
 import {
@@ -118,7 +131,7 @@ import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { cn } from "@/components/lib/utils.js";
 import { useSelectDirectory } from "@/hooks/usePlatform.js";
 import { ServiceProvider, useServices } from "@/hooks/useServices.js";
-import type { AppToolSearchMode } from "@drora/shared";
+import { DEFAULT_APP_TOOL_SEARCH_MODE, type AppToolSearchMode } from "@drora/shared";
 import { useSettings } from "@/hooks/useSettingService.js";
 import type { CreateTaskRequest, RemoteConnectionOpenPreference } from "@/app-shell/types.js";
 import { useBaseWorkspaceServices } from "@/hooks/useWorkspaceServices.js";
@@ -126,7 +139,7 @@ import { resolveModelProviderConnectivityWorkspacePath } from "@/lib/modelProvid
 import {
   createSettingsPageConfig,
   GeneralSectionContent,
-  GeneralSectionHeader,
+  AgentBehaviorSectionContent,
   TaskAutoArchiveSettings,
   isSettingsSectionAvailable,
   resolveSettingsSectionForPlatform,
@@ -281,6 +294,7 @@ function SettingsSidebarButton({
         className={cn(
           "flex h-8 w-full items-center gap-2 rounded-xl px-2.5 text-left transition-colors",
           "max-lg:mx-auto max-lg:size-10 max-lg:justify-center max-lg:px-0",
+          "compact-web:mx-0 compact-web:h-8 compact-web:w-auto compact-web:shrink-0 compact-web:px-2.5",
           active
             ? "bg-surface-hover text-foreground"
             : "text-remote-foreground-muted hover:bg-surface-hover hover:text-foreground",
@@ -290,7 +304,7 @@ function SettingsSidebarButton({
         <span className="flex size-4 shrink-0 items-center justify-center text-current">
           <Icon className="size-4 text-foreground" />
         </span>
-        <span className="min-w-0 flex-1 max-lg:sr-only">
+        <span className="min-w-0 flex-1 max-lg:sr-only compact-web:not-sr-only">
           {children ?? <span className="truncate text-ui-base text-foreground">{label}</span>}
         </span>
       </button>
@@ -306,6 +320,7 @@ export function SettingsPage({
   windowsWindowControlsRightPaddingPx: _windowsWindowControlsRightPaddingPx,
   captionWorkspacePath,
   onBack,
+  onOpenTask,
   onCreateTask,
   onOpenRemoteWorkspace,
   onLogin,
@@ -319,6 +334,8 @@ export function SettingsPage({
   windowsWindowControlsRightPaddingPx?: number;
   captionWorkspacePath?: string | null;
   onBack?: () => void;
+  /** 设置页内跳转到指定会话（分享管理「跳转对话」）；Root 注入。 */
+  onOpenTask?: (target: SettingsShareTaskTarget) => void;
   onCreateTask?: (request?: CreateTaskRequest) => void;
   onOpenWorkspace?: () => void;
   onOpenRemoteWorkspace?: (preference?: RemoteConnectionOpenPreference) => void;
@@ -369,10 +386,24 @@ export function SettingsPage({
   const [targetSourceServerId, setTargetSourceServerId] = useState(
     consumePendingSettingsSourceServerId,
   );
+  const [searchTarget, setSearchTarget] = useState<{ id: SettingsSearchId } | null>(null);
   const [targetSourceServerDetails, setTargetSourceServerDetails] = useState(
     consumePendingSettingsSourceServerDetails,
   );
   const [pluginTab, setPluginTab] = useState(() => consumePendingSettingsPluginTab());
+  const settingsNavRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const nav = settingsNavRef.current;
+    // 只有 compact-web 横向导航会横向溢出；从其他入口直达某个分区时，把当前项滚进可见区域。
+    // 桌面竖向导航没有横向溢出，不进入该分支。
+    if (!nav || nav.scrollWidth <= nav.clientWidth) {
+      return;
+    }
+    nav
+      .querySelector<HTMLElement>('[aria-current="page"]')
+      ?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }, [activeSection]);
+
   // Linux 关闭驻留托盘能力查询（spec：docs/desktop/linux-close-to-tray.md）：打开设置页时
   // 经 platform IPC 触发 main 侧探测（带 stale 缓存），用户装完 AppIndicator 扩展重开
   // 设置页即可解除置灰；Web/远控无桥不查询。
@@ -433,11 +464,13 @@ export function SettingsPage({
     readonly SettingsBreadcrumbItem[]
   >([]);
   const interfaceMode = useDroraStore((state) => state.interfaceMode);
-  const setInterfaceMode = useDroraStore((state) => state.setInterfaceMode);
+  const setInterfaceMode = useSetInterfaceModeWithTelemetry(platform, "app.setting");
   const theme = useDroraStore((state) => state.theme);
   const setTheme = useDroraStore((state) => state.setTheme);
   const codePreviewSettings = useDroraStore((state) => state.codePreviewSettings);
   const setCodePreviewSettings = useDroraStore((state) => state.setCodePreviewSettings);
+  const fontSmoothingEnabled = useDroraStore((state) => state.fontSmoothingEnabled);
+  const setFontSmoothingEnabled = useDroraStore((state) => state.setFontSmoothingEnabled);
   const uiFontSizePx = useDroraStore((state) => state.uiFontSizePx);
   const setUiFontSizePx = useDroraStore((state) => state.setUiFontSizePx);
   const hideProjectDeviceNames = useDroraStore((state) => state.hideProjectDeviceNames);
@@ -695,11 +728,19 @@ export function SettingsPage({
   const setActiveSettingsSection = useCallback(
     (section: SettingsSectionId, fallbackSection: SettingsSectionId = activeSection) => {
       const resolvedSection = resolveSettingsSection(section, fallbackSection);
+      setSearchTarget(null);
       setActiveSection(resolvedSection);
       writeLastSettingsSectionPreference(resolvedSection);
     },
     [activeSection],
   );
+  const navigateToSettingsSection = (section: SettingsSectionId, setting?: SettingsSearchId) => {
+    setPluginNavigationOrigin(undefined);
+    setTargetSourceServerId(undefined);
+    setSettingsSectionNavigationVersion((version) => version + 1);
+    setActiveSettingsSection(section);
+    if (setting) setSearchTarget({ id: setting });
+  };
   useEffect(() => {
     if (!isSettingsSectionAvailable(activeSection, Boolean(isDesktop))) {
       setActiveSettingsSection("general");
@@ -769,9 +810,10 @@ export function SettingsPage({
   );
   const selectDirectory = useSelectDirectory();
   const services = useServices();
-  const onboardingRecordService = services.onboardingRecordService;
-  // localHostServices 在组件顶部声明：Drora 人格入口门控与本页共享设置/模型配置
-  // 一样必须固定走本机 Host，不能随当前 ServiceProvider 的远端上下文漂移。
+  // localHostServices 已在组件顶部声明（persona 入口门控旁）：共享设置/模型配置一样
+  // 必须固定走本机 Host，不能随当前 ServiceProvider 的远端上下文漂移。
+  // memory 节随上游 v3.18.0 换用自包含 MemorySettingsPage，onboardingRecordService
+  // 的记忆开关回写逻辑已随 MemorySettingsSection 旧导出一并退役。
   const projectDirectory = useOptionalProjectDirectory();
   // SettingsPage 可能挂在远端 workspace 的 ServiceProvider 下；共享设置属于本机 Host，
   // 读写必须固定走本机 settingService，否则会写进远端 setting。
@@ -802,7 +844,6 @@ export function SettingsPage({
     }
     return [...names];
   }, [sharedSettings?.recentProjects, workspaceTabs]);
-  const memoryEnabled = sharedSettings?.memoryEnabled === true;
   const personaEnabled = sharedSettings?.personaEnabled === true;
   // 应用状态查询只面向本地 workspace 的 CLI（specs/drora-persona-system.md §10）：
   // 活动 workspace 是远端（identity/remoteSessionId/remoteTarget）或无 workspace 时不提供查询。
@@ -813,7 +854,7 @@ export function SettingsPage({
     !activeWorkspaceTab?.remoteTarget
       ? { workspacePath: activeWorkspacePath }
       : null;
-  const toolSearchMode = sharedSettings?.toolSearchMode ?? "off";
+  const toolSearchMode = sharedSettings?.toolSearchMode ?? DEFAULT_APP_TOOL_SEARCH_MODE;
   const nativeSearchEnhancementsEnabled = sharedSettings?.nativeSearchEnhancementsEnabled !== false;
   const askUserQuestionAutoResolutionEnabled =
     sharedSettings?.askUserQuestionAutoResolutionEnabled !== false;
@@ -842,10 +883,10 @@ export function SettingsPage({
   const [autoDownloadAndInstallUpdates, setAutoDownloadAndInstallUpdates] = useState(false);
   const [messageStreamShowReasoning, setMessageStreamShowReasoning] = useState(true);
   const [messageStreamShowTodos, setMessageStreamShowTodos] = useState(false);
-  const [toolGroupingExploreEnabled, setToolGroupingExploreEnabled] = useState(true);
+  // D9（specs/upstream-v3.18.0-migration.md §5）：上游 v3.18.0 删除「工具分组」三开关
+  // （探索/终端/改动聚合，键名以 shared 协议层删除记录为准）；
+  // agentsTeamEnabled 为 Drora 自研灰度开关（shared protocol 字段在库），整块保留。
   const [agentsTeamEnabled, setAgentsTeamEnabled] = useState(false);
-  const [toolGroupingTerminalEnabled, setToolGroupingTerminalEnabled] = useState(true);
-  const [toolGroupingChangesEnabled, setToolGroupingChangesEnabled] = useState(false);
   const [droraInteractionBehavior, setDroraInteractionBehavior] =
     useState<DroraInteractionBehavior>("queue");
   const [defaultHomeDir, setDefaultHomeDir] = useState("");
@@ -979,10 +1020,7 @@ export function SettingsPage({
     }
     setMessageStreamShowReasoning(sharedSettings.messageStreamShowReasoning ?? true);
     setMessageStreamShowTodos(sharedSettings.messageStreamShowTodos ?? false);
-    setToolGroupingExploreEnabled(sharedSettings.toolGroupingExploreEnabled ?? true);
     setAgentsTeamEnabled(sharedSettings.agentsTeamEnabled ?? false);
-    setToolGroupingTerminalEnabled(sharedSettings.toolGroupingTerminalEnabled ?? true);
-    setToolGroupingChangesEnabled(sharedSettings.toolGroupingChangesEnabled ?? false);
     setDroraInteractionBehavior(sharedSettings.droraInteractionBehavior ?? "queue");
     setReceivePreviewUpdates(sharedSettings.receivePreviewUpdates ?? false);
     setAutoDownloadAndInstallUpdates(sharedSettings.autoDownloadAndInstallUpdates ?? false);
@@ -1092,29 +1130,8 @@ export function SettingsPage({
     },
     [updateSharedSettings],
   );
-  const handleMemoryEnabledChange = useCallback(
-    async (enabled: boolean) => {
-      await runSettingsActionAsync({
-        featureId: "settings.memory",
-        action: "toggle_memory",
-        trigger: "switch",
-        operation: async () => {
-          await updateSharedSettings({ memoryEnabled: enabled });
-          // 手动修改反向回写 record，换号同步不会复活旧值；失败不阻塞开关。
-          await onboardingRecordService
-            ?.updateRecordPreferences({ memoryEnabled: enabled })
-            .catch((cause: unknown) => {
-              console.warn("[settings] 回写引导记录失败", String(cause));
-            });
-        },
-        completed: {
-          resultSource: "shared_settings",
-          stateAfter: enabled ? "enabled" : "disabled",
-        },
-      });
-    },
-    [updateSharedSettings],
-  );
+  // memory 开关随上游 v3.18.0 自包含 MemorySettingsPage 退役（回写引导记录逻辑由
+  // MemorySettingsPage 内部承接）；Drora persona 执行许可 E 处理器保留。
   // 执行许可 E（specs/drora-persona-system.md §5）：经原 Settings 保存通道（runtime
   // preferences）；E 冻结发生在 Runtime 新建/cold materialization，UI 不承诺影响当前会话。
   const handlePersonaEnabledChange = useCallback(
@@ -1278,6 +1295,22 @@ export function SettingsPage({
     },
     [updateSharedSettings],
   );
+  // 本机 offline push 开关：设置文件是唯一数据源，Main 每次上报前读取，不需要额外通知 Main。
+  const handleMobilePushEnabledChange = useCallback(
+    async (enabled: boolean) => {
+      await runSettingsActionAsync({
+        featureId: "settings.notification",
+        action: "toggle_mobile_push",
+        trigger: "switch",
+        operation: () => updateSharedSettings({ mobilePushEnabled: enabled }),
+        completed: {
+          resultSource: "shared_settings",
+          stateAfter: enabled ? "enabled" : "disabled",
+        },
+      });
+    },
+    [updateSharedSettings],
+  );
   const handleDesktopChromiumHardwareAccelerationChange = useCallback(
     async (enabled: boolean) => {
       await runSettingsActionAsync({
@@ -1393,22 +1426,7 @@ export function SettingsPage({
     },
     [updateSharedSettings],
   );
-  const handleToolGroupingExploreEnabledChange = useCallback(
-    async (enabled: boolean) => {
-      await runSettingsActionAsync({
-        featureId: "settings.tool_grouping",
-        action: "toggle_explore_grouping",
-        trigger: "switch",
-        operation: () => updateSharedSettings({ toolGroupingExploreEnabled: enabled }),
-        completed: {
-          resultSource: "shared_settings",
-          stateAfter: enabled ? "enabled" : "disabled",
-        },
-      });
-      setToolGroupingExploreEnabled(enabled);
-    },
-    [updateSharedSettings],
-  );
+  // D9：「工具分组」三处理函数随上游删除退役；agents-team 处理函数为 Drora 自研保留。
   const handleAgentsTeamEnabledChange = useCallback(
     async (enabled: boolean) => {
       await runSettingsActionAsync({
@@ -1422,38 +1440,6 @@ export function SettingsPage({
         },
       });
       setAgentsTeamEnabled(enabled);
-    },
-    [updateSharedSettings],
-  );
-  const handleToolGroupingTerminalEnabledChange = useCallback(
-    async (enabled: boolean) => {
-      await runSettingsActionAsync({
-        featureId: "settings.tool_grouping",
-        action: "toggle_terminal_grouping",
-        trigger: "switch",
-        operation: () => updateSharedSettings({ toolGroupingTerminalEnabled: enabled }),
-        completed: {
-          resultSource: "shared_settings",
-          stateAfter: enabled ? "enabled" : "disabled",
-        },
-      });
-      setToolGroupingTerminalEnabled(enabled);
-    },
-    [updateSharedSettings],
-  );
-  const handleToolGroupingChangesEnabledChange = useCallback(
-    async (enabled: boolean) => {
-      await runSettingsActionAsync({
-        featureId: "settings.tool_grouping",
-        action: "toggle_changes_grouping",
-        trigger: "switch",
-        operation: () => updateSharedSettings({ toolGroupingChangesEnabled: enabled }),
-        completed: {
-          resultSource: "shared_settings",
-          stateAfter: enabled ? "enabled" : "disabled",
-        },
-      });
-      setToolGroupingChangesEnabled(enabled);
     },
     [updateSharedSettings],
   );
@@ -1481,10 +1467,10 @@ export function SettingsPage({
         });
         return;
       }
-      if (value === "zh-CN" || value === "en-US") {
+      if (isLocale(value)) {
         runUserAction({
           input: { featureId: "settings.locale", action: "change_locale", trigger: "select" },
-          operation: () => setLocalePreference(value as Locale),
+          operation: () => setLocalePreference(value),
           completed: { resultSource: "local_commit", valueAfter: value },
           failureStage: "local_commit",
         });
@@ -1566,7 +1552,7 @@ export function SettingsPage({
     (activeSection === "plugin" && pluginNavigationOrigin === "plugin-store");
 
   return (
-    <>
+    <SettingsSearchTargetContext.Provider value={searchTarget}>
       <DesktopWindowFrame
         title={intl.formatMessage({ id: "settings.title" })}
         isDesktop={isDesktop}
@@ -1578,7 +1564,7 @@ export function SettingsPage({
           data-active-section={activeSection}
           // 隐式 auto 行会按 Memory viewer 的内容高度撑出窗口，随后被 DesktopWindowFrame 裁切且没有滚动条。
           // 固定为单个 minmax(0, 1fr) 行，让普通设置页和内部滚动 viewer 都以窗口剩余高度为边界。
-          className="relative grid h-screen min-h-full w-full grid-cols-[68px_minmax(0,1fr)] grid-rows-[minmax(0,1fr)] lg:grid-cols-[268px_minmax(0,1fr)]"
+          className="relative grid h-screen min-h-full w-full grid-cols-[68px_minmax(0,1fr)] grid-rows-[minmax(0,1fr)] lg:grid-cols-[268px_minmax(0,1fr)] compact-web:grid-cols-1 compact-web:grid-rows-[auto_minmax(0,1fr)]"
         >
           {isWindowsDesktop ? <WindowsTopLeftLogo /> : null}
 
@@ -1597,10 +1583,12 @@ export function SettingsPage({
               <DesktopWindowControls />
             </div>
           ) : null}
+          {/* 手机窄屏 Web 下 68px 图标栏会挤占内容宽度，compact-web 下改成顶部横向滚动导航条。
+              spec：docs/settings-narrow-layout.md */}
           <aside className="min-w-0">
-            <div className="flex h-full flex-col">
-              <div className="h-12 [app-region:drag]"></div>
-              <div className="px-2 pb-3 pt-3">
+            <div className="flex h-full flex-col compact-web:flex-row compact-web:items-center">
+              <div className="h-12 [app-region:drag] compact-web:hidden"></div>
+              <div className="px-2 pb-3 pt-3 compact-web:shrink-0 compact-web:py-1.5 compact-web:pr-0">
                 {onBack ? (
                   <ControlHintTooltip
                     title={intl.formatMessage({
@@ -1647,11 +1635,34 @@ export function SettingsPage({
                 ) : null}
               </div>
 
+              <div className="px-3 pb-3 max-lg:flex max-lg:justify-center compact-web:shrink-0 compact-web:px-1 compact-web:pb-0">
+                <SettingsSearch
+                  sections={settingsSections}
+                  availability={{
+                    desktop: Boolean(isDesktop),
+                    windowsHost: hostPlatform === "win32",
+                    tray: Boolean(isWindowsDesktop || isLinuxDesktop),
+                    notWindows: !isWindowsDesktop,
+                    macDesktop: Boolean(isDesktop && isMacDesktop),
+                    computerUse: resolveComputerUseAvailability({
+                      isDesktop: Boolean(isDesktop),
+                      isMacDesktop: Boolean(isMacDesktop),
+                      isWindowsDesktop: Boolean(isWindowsDesktop),
+                      remoteSessionId: activeWorkspaceTab?.remoteSessionId,
+                      remoteTarget: activeWorkspaceTab?.remoteTarget,
+                      workspaceIdentity: activeWorkspaceIdentity,
+                    }).supported,
+                  }}
+                  onSelect={({ section, setting }) => navigateToSettingsSection(section, setting)}
+                />
+              </div>
+
               <nav
+                ref={settingsNavRef}
                 aria-label={intl.formatMessage({ id: "settings.navLabel" })}
-                className="flex-1 overflow-y-auto px-2 pb-3"
+                className="flex-1 overflow-y-auto px-2 pb-3 compact-web:min-w-0 compact-web:overflow-x-auto compact-web:overflow-y-hidden compact-web:py-1.5"
               >
-                <div className="space-y-4">
+                <div className="space-y-4 compact-web:flex compact-web:items-center compact-web:gap-2 compact-web:space-y-0">
                   {settingsSectionGroups.map((group, groupIndex) => {
                     const groupLabel = intl.formatMessage({
                       id: group.titleId,
@@ -1664,8 +1675,9 @@ export function SettingsPage({
                         role="group"
                         aria-labelledby={groupLabelId}
                         className={cn(
-                          "space-y-1",
-                          groupIndex > 0 && "max-lg:border-t max-lg:border-border max-lg:pt-3",
+                          "space-y-1 compact-web:flex compact-web:shrink-0 compact-web:items-center compact-web:gap-1 compact-web:space-y-0",
+                          groupIndex > 0 &&
+                            "max-lg:border-t max-lg:border-border max-lg:pt-3 compact-web:border-t-0 compact-web:border-l compact-web:pt-0 compact-web:pl-2",
                         )}
                       >
                         <div
@@ -1696,12 +1708,7 @@ export function SettingsPage({
                                       action: "open_section",
                                       trigger: "button",
                                     },
-                                    operation: () => {
-                                      setPluginNavigationOrigin(undefined);
-                                      setTargetSourceServerId(undefined);
-                                      setSettingsSectionNavigationVersion((version) => version + 1);
-                                      setActiveSettingsSection(id);
-                                    },
+                                    operation: () => navigateToSettingsSection(id),
                                     completed: { resultSource: "local_commit", sectionId: id },
                                     failureStage: "navigation_commit",
                                   });
@@ -1846,9 +1853,6 @@ export function SettingsPage({
                                 ) : null}
                               </div>
                             </div>
-                            {activeSection === "general" ? (
-                              <GeneralSectionHeader localePreference={localePreference} />
-                            ) : null}
                             {activeSection === "projects" ? (
                               <p className="mt-2 max-w-2xl text-ui-base text-foreground-subtle">
                                 {intl.formatMessage({ id: "projectManagement.intro" })}
@@ -1871,6 +1875,8 @@ export function SettingsPage({
                               notificationSoundEnabled={notificationSoundEnabled}
                               closeToTrayOnWindows={closeToTrayOnWindows}
                               keepAwakeWhileRunning={sharedSettings?.keepAwakeWhileRunning ?? false}
+                              mobilePushEnabled={sharedSettings?.mobilePushEnabled ?? true}
+                              onMobilePushEnabledChange={handleMobilePushEnabledChange}
                               desktopChromiumHardwareAccelerationEnabled={
                                 desktopChromiumHardwareAccelerationEnabled
                               }
@@ -1881,9 +1887,6 @@ export function SettingsPage({
                               terminalFontFamily={terminalFontFamily}
                               integratedTerminalShell={integratedTerminalShell}
                               integratedTerminalShellOptions={integratedTerminalShellOptions}
-                              toolSearchMode={toolSearchMode}
-                              onToolSearchModeChange={handleToolSearchModeChange}
-                              nativeSearchEnhancementsEnabled={nativeSearchEnhancementsEnabled}
                               httpProxy={httpProxy}
                               httpProxyNoProxy={httpProxyNoProxy}
                               httpProxyCaCertPath={httpProxyCaCertPath}
@@ -1920,17 +1923,6 @@ export function SettingsPage({
                                   failureStage: "local_commit",
                                 })
                               }
-                              messageStreamShowReasoning={messageStreamShowReasoning}
-                              messageStreamShowTodos={messageStreamShowTodos}
-                              toolGroupingExploreEnabled={toolGroupingExploreEnabled}
-                              agentsTeamEnabled={agentsTeamEnabled}
-                              toolGroupingTerminalEnabled={toolGroupingTerminalEnabled}
-                              toolGroupingChangesEnabled={toolGroupingChangesEnabled}
-                              droraInteractionBehavior={droraInteractionBehavior}
-                              askUserQuestionAutoResolutionEnabled={
-                                askUserQuestionAutoResolutionEnabled
-                              }
-                              modelIoFullRetentionEnabled={modelIoFullRetentionEnabled}
                               onDataBaseDirChange={handleDataBaseDirChange}
                               onSelectDataBaseDir={selectDirectory}
                               onTerminalInheritSystemProfileChange={
@@ -1938,12 +1930,6 @@ export function SettingsPage({
                               }
                               onTerminalFontFamilyChange={handleTerminalFontFamilyChange}
                               onIntegratedTerminalShellChange={handleIntegratedTerminalShellChange}
-                              onNativeSearchEnhancementsEnabledChange={
-                                handleNativeSearchEnhancementsEnabledChange
-                              }
-                              onModelIoFullRetentionEnabledChange={
-                                handleModelIoFullRetentionEnabledChange
-                              }
                               onHttpProxyChange={handleHttpProxyChange}
                               onHttpProxyNoProxyChange={handleHttpProxyNoProxyChange}
                               onHttpProxyCaCertPathChange={handleHttpProxyCaCertPathChange}
@@ -1955,26 +1941,6 @@ export function SettingsPage({
                               onReceivePreviewUpdatesChange={handleReceivePreviewUpdatesChange}
                               onAutoDownloadAndInstallUpdatesChange={
                                 handleAutoDownloadAndInstallUpdatesChange
-                              }
-                              onMessageStreamShowReasoningChange={
-                                handleMessageStreamShowReasoningChange
-                              }
-                              onMessageStreamShowTodosChange={handleMessageStreamShowTodosChange}
-                              onToolGroupingExploreEnabledChange={
-                                handleToolGroupingExploreEnabledChange
-                              }
-                              onAgentsTeamEnabledChange={handleAgentsTeamEnabledChange}
-                              onToolGroupingTerminalEnabledChange={
-                                handleToolGroupingTerminalEnabledChange
-                              }
-                              onToolGroupingChangesEnabledChange={
-                                handleToolGroupingChangesEnabledChange
-                              }
-                              onDroraInteractionBehaviorChange={
-                                handleDroraInteractionBehaviorChange
-                              }
-                              onAskUserQuestionAutoResolutionEnabledChange={
-                                handleAskUserQuestionAutoResolutionEnabledChange
                               }
                               onOpenOnboardingDialog={() =>
                                 runUserAction({
@@ -1989,15 +1955,42 @@ export function SettingsPage({
                                 })
                               }
                             />
+                          ) : activeSection === "agentBehavior" ? (
+                            <AgentBehaviorSectionContent
+                              toolSearchMode={toolSearchMode}
+                              onToolSearchModeChange={handleToolSearchModeChange}
+                              nativeSearchEnhancementsEnabled={nativeSearchEnhancementsEnabled}
+                              onNativeSearchEnhancementsEnabledChange={
+                                handleNativeSearchEnhancementsEnabledChange
+                              }
+                              messageStreamShowReasoning={messageStreamShowReasoning}
+                              messageStreamShowTodos={messageStreamShowTodos}
+                              agentsTeamEnabled={agentsTeamEnabled}
+                              droraInteractionBehavior={droraInteractionBehavior}
+                              askUserQuestionAutoResolutionEnabled={
+                                askUserQuestionAutoResolutionEnabled
+                              }
+                              modelIoFullRetentionEnabled={modelIoFullRetentionEnabled}
+                              onMessageStreamShowReasoningChange={
+                                handleMessageStreamShowReasoningChange
+                              }
+                              onMessageStreamShowTodosChange={handleMessageStreamShowTodosChange}
+                              onAgentsTeamEnabledChange={handleAgentsTeamEnabledChange}
+                              onDroraInteractionBehaviorChange={
+                                handleDroraInteractionBehaviorChange
+                              }
+                              onAskUserQuestionAutoResolutionEnabledChange={
+                                handleAskUserQuestionAutoResolutionEnabledChange
+                              }
+                              onModelIoFullRetentionEnabledChange={
+                                handleModelIoFullRetentionEnabledChange
+                              }
+                            />
                           ) : activeSection === "dataSync" ? (
                             isDesktop ? (
                               <DataSyncSection
                                 snapshot={sourceManagementSnapshot}
-                                sourceServices={localHostServices}
                                 deviceSyncStateService={localHostServices.deviceSyncStateService}
-                                requestSourceSettingsAttachment={
-                                  platform?.requestSourceSettingsAttachment
-                                }
                                 onOpenRemoteConnection={onOpenRemoteWorkspace}
                                 onOpenMigration={requestMigrationDialog}
                               />
@@ -2121,6 +2114,9 @@ export function SettingsPage({
                             )
                           ) : activeSection === "appearance" ? (
                             <AppearanceSectionContent
+                              isMacDesktop={Boolean(isDesktop && isMacDesktop)}
+                              fontSmoothingEnabled={fontSmoothingEnabled}
+                              setFontSmoothingEnabled={setFontSmoothingEnabled}
                               codePreviewSettings={codePreviewSettings}
                               setCodePreviewSettings={handleCodePreviewSettingsChange}
                               theme={theme}
@@ -2169,16 +2165,12 @@ export function SettingsPage({
                               isDesktop={Boolean(isDesktop)}
                             />
                           ) : activeSection === "memory" ? (
-                            <ServiceProvider services={localHostServices}>
-                              {/* Memory catalog 始终使用本地 Host，避免远程 workspace 误读本机数据。 */}
-                              <MemorySettingsSection
-                                memoryEnabled={memoryEnabled}
-                                memoryService={localHostServices.memoryService}
-                                onMemoryEnabledChange={handleMemoryEnabledChange}
-                                projectMemoryViewerAvailable={Boolean(isDesktop)}
-                                workspaceDisplayNames={memoryWorkspaceDisplayNames}
-                              />
-                            </ServiceProvider>
+                            <MemorySettingsPage
+                              workspacePath={activeWorkspacePath}
+                              workspaceIdentity={activeWorkspaceIdentity}
+                              isDesktop={Boolean(isDesktop)}
+                              workspaceDisplayNames={memoryWorkspaceDisplayNames}
+                            />
                           ) : activeSection === "drora" ? (
                             <ServiceProvider services={localHostServices}>
                               {/* Drora 资料管理只经本机 Host；入口已按 hello
@@ -2258,6 +2250,12 @@ export function SettingsPage({
                               />
                               <ArchiveManagement />
                             </div>
+                          ) : activeSection === "shares" ? (
+                            <SettingsShareManagement
+                              signedIn={Boolean(user)}
+                              onLogin={onLogin}
+                              onOpenTask={onOpenTask}
+                            />
                           ) : activeSection === "usage" ? (
                             <UsageStatsSection
                               activeTab={usageActiveTab}
@@ -2405,6 +2403,6 @@ export function SettingsPage({
           </section>
         </div>
       </DesktopWindowFrame>
-    </>
+    </SettingsSearchTargetContext.Provider>
   );
 }

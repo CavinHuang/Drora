@@ -99,6 +99,24 @@ const explicit = norm([
   "scripts/assert-safe-cua-helper-zip.test.mjs",
   "scripts/ci/ci-telemetry-keyword-guard.test.mjs",
   "scripts/test/upstream-apply-ledger.test.mjs",
+  // 修复依据（v3.18.0 S7 收敛）：以下 15 件为 HEAD 清单的人工增补面——glob 盲区
+  // （apps/ 域与 ui/src 内嵌测试不在 packages/*/test、voice、contract.test.ts 通配内），
+  // 上游目录重组后重跑本脚本曾被洗掉；显式登记防再孤儿化（baseline-gap#3 同族）。
+  "apps/drora-cli/packages/obsidian-plugin/test/knowledgeJevAdapter.test.ts",
+  "apps/drora-cli/packages/obsidian-plugin/test/knowledgeJevAssembly.test.ts",
+  "apps/drora-cli/packages/obsidian-plugin/test/knowledgeJevConnection.test.ts",
+  "apps/drora-cli/packages/obsidian-plugin/test/knowledgeJevHotReload.test.ts",
+  "apps/drora-cli/packages/obsidian-plugin/test/knowledgeSystemOneTransport.test.ts",
+  "packages/shared/src/mcp-apps/hostActionSchemas.test.ts",
+  "packages/ui/src/drora-persona/personaPreferencesExportI18n.test.tsx",
+  "packages/ui/src/drora-persona/personaSettingsEntryGate.test.tsx",
+  "packages/ui/src/drora-persona/usePersonaPresets.test.tsx",
+  "packages/ui/src/plugin-ui/adapters/pluginUiPageRegistry.test.ts",
+  "packages/ui/src/plugin-ui/app/pluginUiHostActions.test.ts",
+  "packages/ui/src/plugin-ui/domain/pluginUiP2HostExtensions.test.ts",
+  "packages/ui/src/settings/model-capabilities/ModelCapabilityDetail.test.tsx",
+  "packages/ui/src/settings/model-capabilities/capabilityNav.test.tsx",
+  "packages/ui/src/settings/model-capabilities/voiceVendorRegistry.test.ts",
 ]).filter((f) => existsSync(resolve(root, f)));
 
 const globbed = norm([

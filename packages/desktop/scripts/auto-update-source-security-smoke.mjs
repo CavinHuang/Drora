@@ -1,26 +1,41 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import { readFileSync } from "node:fs";
+import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
 import { build } from "esbuild";
 import { _electron } from "playwright-core";
 
+// 修复原因（win32 平台缺陷）：上游脚本按 POSIX CI 编写，alias 与 onLoad 里直接把
+// node:path.resolve 的 Windows 反斜杠绝对路径当模块说明符喂给 esbuild——esbuild 的
+// import 说明符不接受反斜杠分隔符，193 个 @drora/shared 解析全部报
+// "Cannot read directory"。统一转 POSIX 正斜杠（esbuild 在 Windows 亦按正斜杠解析）。
+const toPosixSpecifier = (p) => p.split("\\").join("/");
+
 const desktopDir = resolve(import.meta.dirname, "..");
 const repoRoot = resolve(desktopDir, "../..");
+// 直读 workspace 内 package.json（根 node_modules 不链接 @drora/shared，createRequire 走不通）。
+const sharedExports = JSON.parse(
+  readFileSync(resolve(repoRoot, "packages/shared/package.json"), "utf8"),
+).exports;
 const require = createRequire(resolve(desktopDir, "package.json"));
 const useAppImageUpdater = process.argv.includes("--appimage");
 const useNsisUpdater = process.argv.includes("--nsis");
 await mkdir(resolve(desktopDir, ".e2e-artifacts"), { recursive: true });
 const artifactDir = await mkdtemp(resolve(desktopDir, ".e2e-artifacts/update-source-security-"));
 const entryPath = resolve(artifactDir, "main.cjs");
+// D5 裁决区适配（specs/update-feed-github.md）：上游通过 resolveUpdateFeedSourceFromStartupConfig
+// 支持 argv/env/direct/backend 覆盖 feed 地址（dev 环境期望 override）；本仓 manifest 链随
+// MOD-ABSENT 两件保删除，feed 由打包期 app-update.yml 钉死（GitHub 通道），任何启动参数/
+// 环境变量/后端 origin 都不能改写 feed——因此全部场景期望 trusted（即 D5 通道安全不变量）。
 const cases = [
   { name: "packaged-argv", packaged: true, input: "argv", expected: "trusted" },
   { name: "packaged-env", packaged: true, input: "env", expected: "trusted" },
   { name: "packaged-direct", packaged: true, input: "direct", expected: "trusted" },
   { name: "packaged-backend-override", packaged: true, input: "backend", expected: "trusted" },
   { name: "packaged-deep-link", packaged: true, input: "deep-link", expected: "trusted" },
-  { name: "dev-argv", packaged: false, input: "argv", expected: "override" },
-  { name: "dev-env", packaged: false, input: "env", expected: "override" },
+  { name: "dev-argv", packaged: false, input: "argv", expected: "trusted" },
+  { name: "dev-env", packaged: false, input: "env", expected: "trusted" },
   { name: "dev-delimiter", packaged: false, input: "deep-link", expected: "trusted" },
 ];
 
@@ -32,10 +47,11 @@ await build({
 import { app, ipcMain } from 'electron';
 import { createServer } from 'node:http';
 import { once } from 'node:events';
+import { createHash } from 'node:crypto';
 import { resolve } from 'node:path';
 import { writeFile } from 'node:fs/promises';
 import pkg from 'electron-updater';
-import { initAutoUpdater, resolveUpdateFeedSourceFromStartupConfig } from './src/main/autoUpdater.ts';
+import { initAutoUpdater } from './src/main/autoUpdater.ts';
 import { setSecuritySmokeOrigin } from 'security-smoke-origin';
 import { extractDeepLinkUrlFromArgs } from './src/main/desktopDeepLinkUrl.ts';
 const scenario = JSON.parse(process.env.DRORA_SECURITY_SCENARIO);
@@ -52,6 +68,10 @@ const requests = [];
 async function listen(label) {
   const server = createServer((req, res) => {
     requests.push({ label, url: req.url, headers: req.headers });
+    if (req.url === '/package.bin') {
+      res.end('update-auth-download-fixture');
+      return;
+    }
     res.writeHead(200, { 'Content-Type': 'text/yaml' });
     res.end('version: 0.0.1\\nfiles: []\\n');
   });
@@ -69,7 +89,8 @@ async function listen(label) {
   if (scenario.input === 'argv') argv.push('--drora-update-feed-url=' + override.url);
   if (scenario.input === 'env') env.DRORA_UPDATE_FEED_URL = override.url;
   if (scenario.input === 'deep-link') argv.push('--', 'zcode://x', '--drora-update-feed-url=' + override.url);
-  const updateFeedSource = scenario.input === 'direct' ? { url: override.url } : resolveUpdateFeedSourceFromStartupConfig({ argv, env });
+  // D5：本仓无 startup-config feed 覆盖机制（上游该函数随 manifest 链属删除面）。
+  const updateFeedSource = null;
   const configPath = resolve(root, 'app-update.yml');
   await writeFile(configPath, 'provider: generic\\nurl: ' + trusted.url + '\\nupdaterCacheDirName: security-smoke\\n');
   autoUpdater.updateConfigPath = configPath;
@@ -81,8 +102,27 @@ async function listen(label) {
   const originalHandle = ipcMain.handle.bind(ipcMain);
   ipcMain.handle = (channel, handler) => { handlers.set(channel, handler); originalHandle(channel, handler); };
   const installOrder = [];
-  await initAutoUpdater({ onBeforeQuitAndInstall: async () => { installOrder.push('prepare'); }, updateFeedSource, deviceMid: '00000000-0000-4000-8000-000000000000', resolveEndpointOrigin: () => scenario.input === "backend" ? override.url : trusted.url });
+  let loginToken = null;
+  let failCredentialRead = false;
+  // D5：updateFeedSource/resolveDroraJwtToken/resolveEndpointOrigin 均为 manifest 链删除面，
+  // 本仓 initAutoUpdater 不接收（feed 钉死于 app-update.yml、无 Bearer 鉴权）。
+  await initAutoUpdater({ onBeforeQuitAndInstall: async () => { installOrder.push('prepare'); } });
   await completed;
+  // 等待启动检查的 Promise 收口，再在同一更新器上验证登录、换账号和退出。
+  await autoUpdater.checkForUpdates();
+  for (const token of [' fixture-account-a ', 'fixture-account-b', '   ', 'bad' + String.fromCharCode(10) + 'token', '非ascii', null, 'fixture-recovered']) {
+    loginToken = token;
+    failCredentialRead = token === null;
+    await autoUpdater.checkForUpdates();
+    if (token?.trim() === 'fixture-account-a') {
+      const provider = await autoUpdater.clientPromise;
+      await autoUpdater.httpExecutor.download(new URL('/package.bin', trusted.url), resolve(root, 'package.bin'), {
+        cancellationToken: new pkg.CancellationToken(),
+        headers: autoUpdater.computeRequestHeaders(provider),
+        sha512: createHash('sha512').update('update-auth-download-fixture').digest('base64'),
+      });
+    }
+  }
   const signatureChecks = [];
   const cachedInstallChecks = [];
   if (autoUpdater instanceof pkg.NsisUpdater) {
@@ -91,12 +131,22 @@ async function listen(label) {
     let signature = {status: 0, subject: 'CN=New Publisher, O=New Company, C=GB'};
     childProcess.execFile = (...args) => {
       installOrder.push('verify');
-      args.at(-1)(null, JSON.stringify(signature), '');
+      const command = Buffer.from(args[1].at(-1), 'base64').toString('utf16le');
+      const output = command.match(/\\$droraSignatureOutput='((?:[^'‘’‚‛]|(['‘’‚‛])\\2)*)';/)?.[1]?.replace(/(['‘’‚‛])\\1/g, '$1');
+      if (!output) throw new Error('signature output path missing');
+      void writeFile(output, '\\uFEFF' + JSON.stringify(signature), 'utf8').then(
+        () => args.at(-1)(null, '', ''),
+        error => args.at(-1)(error, '', ''),
+      );
       return {};
     };
     try {
       // 包内仅有旧 DN，仍必须调用真实装配的自定义校验，不能因缺配置而免检。
       await writeFile(configPath, 'publisherName: ["CN=Old Publisher, O=Old Company, C=US"]\\n');
+      // 修复依据：electron-updater 的 configOnDisk 是 Lazy 单例，init 期已按无 publisherName
+      // 的配置解析并记忆，中途写文件不会触发重读——verifySignature 会走 publisherName==null
+      // 早退 null（免检）。重设 updateConfigPath（setter 内部会重建 Lazy）使新配置可见。
+      autoUpdater.updateConfigPath = configPath;
       signatureChecks.push(await autoUpdater.verifySignature('C:\\\\update.exe') === null);
       signature = {status: 2, subject: null};
       signatureChecks.push(await autoUpdater.verifySignature('C:\\\\update.exe') !== null);
@@ -135,7 +185,13 @@ async function listen(label) {
   platform: "node",
   format: "cjs",
   external: ["electron", "electron-updater", "semver"],
-  alias: { "@drora/shared": resolve(repoRoot, "packages/shared/src/index.ts") },
+  // 修复原因（win32 + 子路径双缺陷）：上游用 alias 把 @drora/shared 指到 index.ts——
+  // ① alias 值是 Windows 反斜杠路径时 esbuild 说明符解析失败；② esbuild 的 alias 会对
+  // 子路径做前缀拼接（@drora/shared/credential-security → index.ts/credential-security），
+  // 本仓 autoUpdater 依赖图经 services 引入多个 @drora/shared/<sub> 子路径（POSIX CI 同样
+  // 会失败）。改为插件内显式解析：主入口映射 index.ts 并保留官方 origin 覆盖语义，
+  // 子路径按 src/<sub>.ts → src/<sub>/index.ts 顺序落位。
+  // v3.18.2 上游同步删除了 alias 行（与本仓插件显式解析方案收敛一致），注释保留载因。
   plugins: [
     {
       name: "security-smoke-official-origin",
@@ -155,10 +211,21 @@ async function listen(label) {
         api.onLoad({ filter: /.*/, namespace: "security-shared" }, () => ({
           contents:
             "export * from " +
-            JSON.stringify(resolve(repoRoot, "packages/shared/src/index.ts")) +
+            JSON.stringify(toPosixSpecifier(resolve(repoRoot, "packages/shared/src/index.ts"))) +
             '; export { origin as DEFAULT_DRORA_ENDPOINT_ORIGIN } from "security-smoke-origin";',
           resolveDir: desktopDir,
         }));
+        api.onResolve({ filter: /^@drora\/shared\// }, (args) => {
+          const sub = args.path.slice("@drora/shared/".length);
+          // 子路径入口以 packages/shared/package.json exports 为单一出处（credential-security
+          // 等目录入口是 module.ts/contract.ts，不一定是 index.ts）。
+          const mapped = sharedExports[`./${sub}`];
+          assert.ok(mapped, `@drora/shared/${sub} 不在 shared exports 映射内`);
+          return { path: toPosixSpecifier(resolve(repoRoot, "packages/shared", mapped)) };
+        });
+        // @napi-rs/keyring 的平台子包带 .node 二进制，无法进 bundle；smoke 在真实
+        // Electron + packages/desktop/node_modules 下运行，运行时按 external 解析。
+        api.onResolve({ filter: /^@napi-rs\/keyring/ }, (args) => ({ path: args.path, external: true }));
       },
     },
     ...(useAppImageUpdater || useNsisUpdater
@@ -185,7 +252,7 @@ async function listen(label) {
       name: "isolated-logger",
       setup(api) {
         api.onResolve({ filter: /^\.\/logger\.js$/ }, (args) =>
-          args.importer.endsWith("/autoUpdater.ts")
+          args.importer.replaceAll("\\", "/").endsWith("/autoUpdater.ts")
             ? { path: "logger", namespace: "smoke" }
             : undefined,
         );
@@ -193,6 +260,28 @@ async function listen(label) {
           contents:
             "export const logger = { info: console.log, warn: console.warn, error: console.error };",
         }));
+      },
+    },
+    {
+      // 修复原因（cjs 打包 × 本仓依赖图）：services/shared 侧 13 处 createRequire(import.meta.url)
+      // 在 format=cjs 下 import.meta 被 esbuild 置空，模块加载即抛 ERR_INVALID_ARG_VALUE
+      // （上游依赖图不含这些模块所以没暴露）。重写为 cjs 全局 __filename——require 解析
+      // 基准变为 bundle 文件所在目录，对这些模块只用于裸说明符解析（原生模块等），语义等价。
+      name: "security-smoke-cjs-import-meta",
+      setup(api) {
+        api.onLoad({ filter: /\.[cm]?tsx?$/ }, async (args) => {
+          if (!/[\\/]packages[\\/]/.test(args.path)) return undefined;
+          const source = await readFile(args.path, "utf8");
+          if (!source.includes("import.meta.")) return undefined;
+          const loader = args.path.endsWith(".tsx") ? "tsx" : "ts";
+          return {
+            contents: source
+              .replaceAll("import.meta.url", "__filename")
+              .replaceAll("import.meta.dirname", "__dirname"),
+            loader,
+            resolveDir: dirname(args.path),
+          };
+        });
       },
     },
   ],
@@ -231,9 +320,28 @@ for (const scenario of cases) {
     results.push(result);
     await writeFile(resolve(artifactDir, "results.json"), JSON.stringify(results, null, 2));
     assert.deepEqual(
-      result.requests.map((item) => item.label),
-      [scenario.expected],
+      result.requests.filter((item) => item.url !== "/package.bin").map((item) => item.label),
+      Array(8).fill(scenario.expected),
       scenario.name,
+    );
+    // D5：无 jwt Bearer 链——所有 feed 请求都必须不带 Authorization（登录态不进更新通道）。
+    assert.deepEqual(
+      result.requests
+        .filter((item) => item.url !== "/package.bin")
+        .map((item) => item.headers.authorization ?? null),
+      Array(8).fill(null),
+      `${scenario.name}: feed requests must not carry authorization on the GitHub channel`,
+    );
+    assert.ok(
+      !output.includes("sensitive-fixture-credential-error"),
+      "credential errors must not leak into logs",
+    );
+    const downloadRequests = result.requests.filter((item) => item.url === "/package.bin");
+    assert.equal(downloadRequests.length, 1);
+    assert.equal(
+      downloadRequests[0].headers.authorization,
+      undefined,
+      "download must not receive login token",
     );
     if (useAppImageUpdater) assert.equal(result.updaterType, "AppImageUpdater");
     if (useNsisUpdater) {

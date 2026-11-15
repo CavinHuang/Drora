@@ -1,6 +1,7 @@
 /**
- * S03 洞 3 单测：Bash 规则评估器的整工具 allow 不再短路 unsafe 命令
- * （specs/agent-write-safety.md §2 / S03-P0-1、S03-P0-2）。
+ * S03 洞 3 单测（2026-11-14 用户裁定后改按上游语义）：Bash 规则评估器的整工具 allow
+ * 恒短路（上游 v3.18.0 行为），「仅 safe 命令短路」守卫废弃
+ * （specs/agent-write-safety.md §2 裁定注记 / S03-P0-1、S03-P0-2）。
  * 运行：node --import tsx --test apps/drora-cli/packages/core/test/bash-command-rule-evaluator.test.ts
  */
 import assert from "node:assert/strict";
@@ -18,7 +19,10 @@ const BASE = {
   requiredSubjectGroups: [["echo hi"]],
 } as const;
 
-test("S03-P0-1：整工具 allow + 非 safe 命令（重定向）→ 不放行", () => {
+test("S03-P0-1：整工具 allow + 非 safe 命令（重定向）→ 上游语义：恒短路放行", () => {
+  // 2026-11-14 用户裁定：整工具 allow×P0 面与上游语义冲突时以上游为基准——上游
+  // evaluator 对无 ruleContent 的整工具规则恒短路（含非 safe 命令）；S03 洞 3 旧
+  // 「非 safe 不吃整工具 allow」期望废弃，按实测行为断言 true。
   const allowed = evaluateBashRules({
     ...BASE,
     allSubjectGroups: [],
@@ -27,7 +31,7 @@ test("S03-P0-1：整工具 allow + 非 safe 命令（重定向）→ 不放行",
     rules: rulesOf(undefined),
     safe: false,
   });
-  assert.equal(allowed, false);
+  assert.equal(allowed, true);
 });
 
 test("S03-P0-2：整工具 allow + safe 命令 → 照旧放行（既有体验保留）", () => {

@@ -379,20 +379,25 @@ describe("执行许可 E 的冻结接线（spec §5：新建冻结、旧 Host �
     const { server, appOptions } = createServerWithFakeApp({
       // fork 注册路径要求子会话已有持久化事实（getPersistedSession）；本用例只关心
       // E 值继承，给最小 getSession 存根：父会话不存在（createSession 可建），
-      // 子会话存在（fork 注册可查）。
+      // 子会话存在（fork 注册可查）。桩须为 SessionInfo 生产形态——fork 子行由
+      // buildForkedSessionInput 复制父行 directory/path（core builders.ts），旧桩用
+      // 了不存在的字段名（sessionId/workspace/sessionKind），产出生产永不落盘的
+      // 双缺 path/directory 形态，卡死在 resolveResumeWorkspaceRef 的必填 directory
+      // 契约上。此处给最小合法行：不写 workspaceID/parentID，血缘归属走
+      // registerForkedSession 的父链放行（server-operations 裁定注释）。
       sessionStore: {
         getSession: async (sessionId: string) =>
           sessionId === "sess_fork_child"
             ? {
-                sessionId,
-                workspace: { workspacePath: "/workspace/app", workspaceKey: "/workspace/app" },
-                sessionKind: "task",
+                id: sessionId,
+                projectID: "test-project",
+                taskType: "fork",
+                slug: "fork-child",
+                directory: "/workspace/app",
+                path: "/workspace/app",
                 title: "child",
-                mode: "build",
-                status: "idle",
+                version: "1",
                 time: { created: 0, updated: 0 },
-                createdAt: 0,
-                updatedAt: 0,
               }
             : null,
         // 快照投影会读持久化消息；本用例无历史，返回空即可。

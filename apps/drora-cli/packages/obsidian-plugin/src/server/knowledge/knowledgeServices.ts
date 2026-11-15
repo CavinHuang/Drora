@@ -296,7 +296,16 @@ export function createKnowledgeServices(options: KnowledgeServicesOptions = {}):
       const refreshed = jevDynamic !== null;
       jevDynamic?.refresh();
       if (options.knowledgeSemanticSource) {
-        semantic.setPort((await options.knowledgeSemanticSource()) ?? null);
+        const next = (await options.knowledgeSemanticSource()) ?? null;
+        // 热切换换端口时释放旧端口的本地资源（ONNX InferenceSession）：本地端口惰性
+        // 建会话，替换后旧端口不释放则常驻进程内泄漏（2026-11-15 审计 §四）。仅在
+        // 端口实例实际变化时释放——源返回同实例（配置未变）时误释放会打断在用会话；
+        // dispose 幂等吞错，无 dispose 的出站端口为 no-op。
+        const previous = semantic.port;
+        if (previous !== next) {
+          previous?.dispose?.();
+          semantic.setPort(next);
+        }
       }
       return Promise.resolve({ refreshed });
     },
@@ -471,6 +480,10 @@ export function createKnowledgeServices(options: KnowledgeServicesOptions = {}):
       // 自动索引的延迟定时器一并清理（§5b.8）；in-flight job 由 coordinator 自身
       // 的 finally/异常路径收尾，不在此等待（dispose 链同步）。
       autoReconcile.dispose();
+      // 语义端口持有的本地原生资源（ONNX InferenceSession）随服务关闭显式释放
+      // （2026-11-15 审计 §四：原只随进程退出回收，server shutdown 链漏释放）；
+      // dispose 幂等吞错、同步返回，与 dispose 链纪律一致。
+      semantic.port?.dispose?.();
       db.close();
     },
   };

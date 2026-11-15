@@ -82,6 +82,11 @@ jobs:
         # 全集 25 个 node 面文件仅 11 个登记、14 个只靠保留集自动发现（无 CI 通道）；
         # 此处补齐至全集，并把上方 vitest 行移出的 knowledgeAskModel /
         # knowledgeEvidenceVerification 与同面的 knowledgeInsightsModel 一并登记。
+        # 2026-11-15 审计补齐（docs/upstream-v3.18.0-diff-2026-11-11/10-plugin-audit.md
+        # §二 HIGH）：phase2 核心 5 件（knowledgeMcpServer / knowledgeMigration /
+        # knowledgeAgentTools / vaultPanelModel / vaultUiResources，29 用例）此前不在
+        # 任何 CI 通道——与 4c9be763b「全通道失执行」事故同型（纯登记缺位，本地全绿）。
+        # 本工作流无按路径触发 filters（push main + pull_request 全量），无需他处同步。
         run: >-
           node --import tsx --test
           apps/drora-cli/packages/obsidian-plugin/test/knowledgeE2EFullChain.test.ts
@@ -109,6 +114,11 @@ jobs:
           apps/drora-cli/packages/obsidian-plugin/test/knowledgeSemanticAccuracy.test.ts
           apps/drora-cli/packages/obsidian-plugin/test/knowledgeVaultSearchProtocol.test.ts
           apps/drora-cli/packages/obsidian-plugin/test/knowledgeVectorRecall.test.ts
+          apps/drora-cli/packages/obsidian-plugin/test/knowledgeMcpServer.test.ts
+          apps/drora-cli/packages/obsidian-plugin/test/knowledgeMigration.test.ts
+          apps/drora-cli/packages/obsidian-plugin/test/knowledgeAgentTools.test.ts
+          apps/drora-cli/packages/obsidian-plugin/test/vaultPanelModel.test.ts
+          apps/drora-cli/packages/obsidian-plugin/test/vaultUiResources.test.ts
       - name: Gen UI asset checkout integrity (autocrlf)
         run: node --test scripts/test/gen-ui-asset-checkout.test.mjs
       - name: Architecture boundaries (changed)

@@ -32,6 +32,8 @@ export async function startAgent(
   const events = new Events<any>();
   const approvals = new Events<any>();
   const notifications = new Events<any>();
+  const runtimePreferences = new Events<any>();
+  const runtimePreferenceGates = new Map<string, Promise<void>>();
   const sockets = new Map<string, Socket>();
   const socketSources = new Map<Socket, string>();
   const control = createServer((socket) => {
@@ -62,6 +64,14 @@ export async function startAgent(
     cwd: data,
     env: {
       PATH: process.env.PATH,
+      SystemRoot: process.env.SystemRoot,
+      COMSPEC: process.env.COMSPEC,
+      TEMP: process.env.TEMP,
+      TMP: process.env.TMP,
+      // 正式回归隔离用户配置，不能读取本机 MCP、认证或把日志写入真实用户目录。
+      HOME: data,
+      USERPROFILE: data,
+      DRORA_LOG_DIR: join(data, "logs"),
       DRORA_DATA_BASE_DIR: data,
       DRORA_SESSION_DB: join(data, "session.sqlite"),
       DRORA_STORAGE_DIR: data,
@@ -79,12 +89,16 @@ export async function startAgent(
   });
   client.onNotification((event) => notifications.emit(event));
   client.onRequest((request) => {
-    if (request.method === "session/requestRuntimePreferences")
-      void client.respond(request.id, {
-        nativeSearchEnhancementsEnabled: false,
-        memoryEnabled: false,
-      });
-    else if (request.method === "interaction/requestPermission") approvals.emit(request);
+    if (request.method === "session/requestRuntimePreferences") {
+      runtimePreferences.emit(request);
+      void (async () => {
+        await runtimePreferenceGates.get((request.params as { sessionId: string }).sessionId);
+        await client.respond(request.id, {
+          nativeSearchEnhancementsEnabled: false,
+          memoryEnabled: false,
+        });
+      })();
+    } else if (request.method === "interaction/requestPermission") approvals.emit(request);
     else
       void client.respondError(request.id, -32601, `Unexpected fixture request: ${request.method}`);
   });
@@ -96,12 +110,34 @@ export async function startAgent(
       undefined,
       method === "mcp/uiCallTool" ? { timeoutMs: 180_000 } : undefined,
     );
+  // demo 类型补 protocolVersion（session() 的 demo 形参同款）：helper 内按本仓演进读取。
+  const mcpServers = (
+    source: string,
+    serverName = "fixture",
+    demo?: { serverScript: string; protocolVersion?: string },
+  ) => [
+    {
+      name: serverName,
+      command: node,
+      args: demo
+        ? [demo.serverScript]
+        : [join(root, "mcp-server.mjs"), String(port), join(root, "widget.html"), source],
+      env: [],
+      // 本仓演进：demo 夹具可指定 protocolVersion（多协议变体用例），未指定回落 legacy；
+      // 上游 helper 固定 legacy，随 v3.18.0 重构并回时保留该能力。
+      protocolVersion: demo?.protocolVersion ?? "legacy",
+      isolation: "session",
+    },
+  ];
   return {
+    mcpServers,
     call,
     client,
     events,
     approvals,
     notifications,
+    runtimePreferences,
+    runtimePreferenceGates,
     respond: (request: any, decision: "allow" | "deny") => client.respond(request.id, { decision }),
     release: (source: string, key: string) =>
       sockets.get(source)!.write(JSON.stringify({ type: "release", key }) + "\n"),
@@ -136,18 +172,7 @@ export async function startAgent(
         mode: "build",
         persistence: "deferred",
         titleGenerationEnabled: false,
-        mcpServers: [
-          {
-            name: serverName,
-            command: node,
-            args: demo
-              ? [demo.serverScript]
-              : [join(root, "mcp-server.mjs"), String(port), join(root, "widget.html"), source],
-            env: [],
-            protocolVersion: demo?.protocolVersion ?? "legacy",
-            isolation: "session",
-          },
-        ],
+        mcpServers: mcpServers(source, serverName, demo),
       });
       return {
         workspace,

@@ -33,10 +33,9 @@ function createSharedDefines() {
 }
 
 export const SERVER_HTTP_EXTERNAL_DEPENDENCIES = [
-  // 知识语义检索的可选本机 native 端口，由 Node 加载并由服务负责不可用降级。
-  "onnxruntime-node",
   "ssh2",
   "node-pty",
+  "@napi-rs/keyring",
   "undici",
   "axios",
   "form-data",

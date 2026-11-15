@@ -44,9 +44,11 @@ describe("voice contract constants", () => {
         "announcementRate",
         "announcementVoice",
         "composerEntryHidden",
+        // §5.6（22038fc10 批一）：+globalDictationEnabled（系统级听写总开关）。
         "dictationHoldKey",
         "dictationHybridPreview",
         "dictationLang",
+        "globalDictationEnabled",
         "personaId",
         "privacyDisclosureAcknowledged",
         "toolBriefEnabled",

@@ -1,9 +1,13 @@
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+// 修复（2026-11-14，v3.18.0 S4 段门复跑归因）：/team 灰度门用例（本文件内）使用
+// vi.stubEnv/unstubAllEnvs，但 vitest import 列表自始缺 vi（bootstrap 未开 globals，
+// ReferenceError: vi is not defined）——HEAD 即同败（既有缺口），随本轮一并补上。
+import { describe, expect, it, vi } from "vitest";
 import { resolveDroraBuiltinPromptCommand } from "../src/builtin-prompt-command.js";
 import { resolveDroraCustomCommandPrompt } from "../src/custom-command-prompt.js";
+import { listProtocolSlashCommands } from "../src/drora-protocol/slash-commands.js";
 
 describe("protocol slash command surface", () => {
   it("returns app-supported builtins plus agent-discovered custom commands", async () => {
@@ -29,8 +33,14 @@ describe("protocol slash command surface", () => {
       // 同名自定义命令不得顶替内置 `/workflow`（保留名）：目录里只剩内置那一行。
       await writeCommand(userCommands, "workflow", "Shadowing workflow", "Should be hidden.");
 
+      // homeDirectory 只隔离自定义命令；插件存储也必须隔离，避免读取本机已安装插件。
+      // 修复（2026-11-14，v3.18.0 S4 段门复跑归因）：这里原先合并进来的 pluginDiscovery
+      // 空桩把 bundled 官方插件（drora-site 的 /site-* 七命令）一并清空，与下方期望清单
+      // （含 site-*，v3.17.1 S2 起在列）自相矛盾。隔离目标由 DRORA_STORAGE_DIR 指向
+      // 临时目录即可达成；插件发现走默认链（bundled 官方插件随包发现，不读本机安装面），
+      // 期望清单维持不变。
       const commands = await listProtocolSlashCommands({
-        env: { DRORA_ENV: "test" },
+        env: { DRORA_ENV: "test", DRORA_STORAGE_DIR: join(tempRoot, "storage") },
         homeDirectory: home,
         skipUserConfig: true,
         workingDirectory: workspace,
@@ -54,7 +64,10 @@ describe("protocol slash command surface", () => {
         { name: "review", source: "custom" },
         { name: "ship", source: "custom" },
         // 修复（断言随实现更新）：v3.17.1 S2 合并并入 drora-site-plugin 子包，其
-        // site-* 七个命令经插件目录发现，来源为 custom，列在用户自定义命令之后。
+        // site-* 命令经插件目录发现，来源为 custom，列在用户自定义命令之后。
+        // 修复（2026-11-14，v3.18.0 S4 段门复跑归因）：随 v3.18.0 zcode-site-plugin
+        // 0.5.1 并入新增 site-analytics 命令（commands/site-analytics.md），七个变八个。
+        { name: "site-analytics", source: "custom" },
         { name: "site-badge", source: "custom" },
         { name: "site-deploy", source: "custom" },
         { name: "site-logs", source: "custom" },
@@ -90,7 +103,7 @@ describe("protocol slash command surface", () => {
       await writeCommand(userCommands, "plan", "Reserved Plan action", "Should not expand.");
 
       const options = {
-        env: { DRORA_ENV: "test" },
+        env: { DRORA_ENV: "test", DRORA_STORAGE_DIR: join(tempRoot, "storage") },
         homeDirectory: home,
         skipUserConfig: true,
         workingDirectory: workspace,
@@ -172,7 +185,7 @@ describe("protocol slash command surface", () => {
       await mkdir(userCommands, { recursive: true });
       await writeCommand(userCommands, "workflow", "Shadowing workflow", "Should not expand.");
       const options = {
-        env: { DRORA_ENV: "test" },
+        env: { DRORA_ENV: "test", DRORA_STORAGE_DIR: join(tempRoot, "storage") },
         homeDirectory: home,
         skipUserConfig: true,
         workingDirectory: workspace,
@@ -275,7 +288,7 @@ describe("protocol slash command surface", () => {
       // 项目配置会剥离 plugins.dirs（工作区不能引入插件根目录），测试插件只能经用户配置加载；
       // homeDirectory 指向临时目录，不读本机用户命令。
       const prompt = await resolveDroraCustomCommandPrompt("/ralph-loop build demo", {
-        env: { DRORA_ENV: "test" },
+        env: { DRORA_ENV: "test", DRORA_STORAGE_DIR: join(tempRoot, "storage") },
         homeDirectory: join(tempRoot, "home"),
         userConfigPath: configPath,
         workingDirectory: workspace,
@@ -290,6 +303,36 @@ describe("protocol slash command surface", () => {
       );
     } finally {
       await rm(tempRoot, { force: true, recursive: true });
+    }
+  });
+
+  it("hands session variables to Bash and reports missing skill context without execution", async () => {
+    const tempRoot = await mkdtemp(join(tmpdir(), "drora-command-runtime-context-"));
+    const home = join(tempRoot, "home");
+    const commands = join(home, ".drora", "commands");
+    try {
+      await mkdir(commands, { recursive: true });
+      for (const variable of ["CLAUDE_SESSION_ID", "CLAUDE_SKILL_DIR"]) {
+        await writeCommand(commands, "runtime-context", "Runtime context", [
+          "```!", `echo \"$${variable}\"`, "```",
+        ].join("\n"));
+        const prompt = await resolveDroraCustomCommandPrompt("/runtime-context", {
+          env: { DRORA_ENV: "test", DRORA_STORAGE_DIR: join(tempRoot, "storage") },
+          homeDirectory: home,
+          skipUserConfig: true,
+          workingDirectory: tempRoot,
+        });
+        if (variable === "CLAUDE_SESSION_ID") {
+          expect(prompt).toContain(`echo \"$${variable}\"`);
+          expect(prompt).toContain("```bash");
+        } else {
+          expect(prompt).toContain("was not run");
+          expect(prompt).toContain("$CLAUDE_SKILL_DIR, which cannot be resolved here");
+        }
+        expect(prompt).not.toContain("```!");
+      }
+    } finally {
+      await rm(tempRoot, { recursive: true, force: true });
     }
   });
 });

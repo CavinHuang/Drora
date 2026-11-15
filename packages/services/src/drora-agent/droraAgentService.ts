@@ -1,4 +1,13 @@
+import {
+  v4SessionDeletionPreviewSchema,
+  v4SessionDeletionResultSchema,
+} from "@drora/shared/drora-protocol-v4";
 import { sessionLifecycleSnapshotSchema, type SessionLifecycleSnapshot } from "@drora/shared";
+import { credentialCipherRequestSchema } from "@drora/shared";
+import {
+  executeCredentialCipherRequest,
+  type CredentialCipher,
+} from "@drora/shared/credential-security";
 import {
   getNetworkErrorCodes,
   isNetworkFailure,
@@ -14,11 +23,20 @@ import {
 } from "@drora/shared/conversation-telemetry";
 import { resolveWorkspaceTelemetryDetail } from "@drora/shared";
 import { isAuxiliarySessionKind } from "@drora/shared";
+import { createAppControlReverseRpc } from "#src/app-control/index.js";
+import type { AppControlService } from "#src/app-control/contract.js";
+import { SessionControlError } from "@drora/session-control/contracts";
 import {
   pluginUiToolResultNotificationSchema,
   type PluginUiToolResultNotification,
 } from "@drora/shared/mcp-apps";
-import { supportsHistoryFirst, ensureGenUiContextSupport } from "./independentPlanSupport.js";
+import {
+  supportsHistoryFirst,
+  supportsPluginDiscoveryUi,
+  supportsPluginExtensionSummary,
+  ensureGenUiContextSupport,
+  supportsHighspeedCardOwner,
+} from "./independentPlanSupport.js";
 import { supportsResidentRowsRange } from "./resident-rows-range/contract.js";
 import {
   offPeakControlParamsSchema,
@@ -170,6 +188,7 @@ import {
   droraToolExecResourceSchema,
   droraProcessResourceSampleSchema,
   droraSessionCloseResultSchema,
+  droraSessionReleaseUnderDirectoryResultSchema,
   droraSessionCompactResultSchema,
   droraSessionEventsResultSchema,
   droraSessionGoalResultSchema,
@@ -229,6 +248,11 @@ import {
   mergeOffPeakMutationToolDenylist,
 } from "#src/drora-agent/automationToolPolicy.js";
 import { DRORA_AGENT_RUNTIME_UNAVAILABLE_CODE } from "./droraAgent.js";
+import { createContextCompositionClient } from "#src/drora-agent/contextCompositionClient.js";
+import {
+  createPluginHostQueriesClient,
+  type PluginUserOptionsReader,
+} from "#src/drora-agent/pluginHostQueriesClient.js";
 import type {
   DroraProtocolRequestId,
   ModelSelection,
@@ -246,6 +270,7 @@ import type {
   IDroraAgentService,
   DroraAgentBackgroundBashOutputParams,
   DroraAgentAppRuntimePreferences,
+  DroraAgentRuntimeExitedEvent,
   DroraAgentRuntimeLifecycleEvent,
   DroraAgentAddPluginMarketplaceParams,
   DroraAgentAppUsageParams,
@@ -347,6 +372,7 @@ import type {
   DroraAgentSessionsIndexSubscribeParams,
   DroraAgentWorkspaceConfigSubscribeParams,
 } from "./droraAgent.js";
+import { HOST_WORKTREE_COMMAND } from "./droraAgent.js";
 import {
   backgroundBashOutputResultSchema,
   v4BackgroundBashOutputParamsSchema,
@@ -425,7 +451,10 @@ import { createBackgroundSessionEventCoalescer } from "#src/drora-agent/droraSes
 import { AutomationService } from "#src/session/automationService.js";
 import { AutomationRepo } from "#src/session/automationRepo.js";
 import { TaskIndexRepo } from "#src/session/taskIndexRepo.js";
-import { DroraAgentMcpStatusModeUnsupportedError } from "#src/drora-agent/droraAgentErrors.js";
+import {
+  DroraAgentModelSelectionBasisUnsupportedError,
+  DroraAgentMcpStatusModeUnsupportedError,
+} from "#src/drora-agent/droraAgentErrors.js";
 import { DroraAgentProcessManager } from "./droraAgentProcessManager.js";
 import type { DroraAgentProcessManagerOptions } from "./droraAgentProcessManager.js";
 import type { IOffPeakTaskService } from "#src/session/offPeakTask.js";
@@ -590,6 +619,21 @@ function buildWorkspaceRef(params: DroraAgentWorkspaceTarget): DroraWorkspaceRef
     remoteSessionId: params.remoteSessionId,
     workspaceKey: resolveWorkspaceKey(params),
   };
+}
+
+/**
+ * 会触发冷恢复的 V4 查询与命令信封带上当前 attachment 的 workspace（docs/git/worktree.md §9.3）。
+ * 修复原因：只有 subscribe 带它；runtime 卸载后先到的计划目录、行分页、附件等查询让 CLI 按存储的
+ * cwd 重建身份，受管 worktree 会话的 key 变成 worktree 路径，之后的反向请求被判为"不属于本 CLI"，
+ * 任务打不开也不能发送。只对本地 workspace 注入：远程 Source Server 可能是不认识该字段的旧版本
+ * （部分 schema 是 strict），worktree 也只支持本地。
+ */
+function coldResumeWorkspace(params: DroraAgentWorkspaceTarget): {
+  workspace?: DroraWorkspaceRef;
+} {
+  return params.workspaceIdentity?.trim() || params.remoteSessionId
+    ? {}
+    : { workspace: buildWorkspaceRef(params) };
 }
 
 // 已保存工作流的 target 是否带 workspace：项目档、以及
@@ -884,6 +928,7 @@ function buildSessionSendParams(
     sessionId: params.sessionId,
     // 执行身份/约束不是可忽略的兼容字段；旧 Worker 不支持时必须失败，不能静默剥掉。
     ...(params.modelSelection ? { modelSelection: params.modelSelection } : {}),
+    ...(params.modelSelectionBasis ? { modelSelectionBasis: params.modelSelectionBasis } : {}),
     ...(params.modelExecution ? { modelExecution: params.modelExecution } : {}),
     inputId: params.inputId,
     queryId: params.queryId,
@@ -1169,6 +1214,14 @@ interface CreateDroraAgentServiceBaseOptions extends Omit<
     target: DroraAgentSessionTarget & { parentSessionId: string },
   ) => Promise<void>;
   resolveSessionDirectories?: (target: DroraAgentSessionTarget) => Promise<string[]>;
+  /**
+   * 会话操作闸门（受管 worktree 删除租约，docs/git/worktree.md §8.3）：会话命令与冷订阅经它执行，
+   * 会话 cwd 位于删除中的 worktree 时被拒绝。由受管 worktree 服务提供。
+   */
+  runSessionOperation?: <T>(
+    target: DroraAgentSessionTarget,
+    operation: () => Promise<T>,
+  ) => Promise<T>;
   resolveSessionRuntimePreferences?: (
     scope: DroraSessionRuntimePreferencesScope,
   ) => Promise<DroraSessionRuntimePreferencesResult>;
@@ -1206,6 +1259,9 @@ interface CreateDroraAgentServiceBaseOptions extends Omit<
    * browser 命令返回 backend_unavailable，不影响其它功能。
    */
   browserControlExecutor?: BrowserAmbientContextExecutor;
+  /** App 工具只在受信 Host 装配；handler 不接受模型自报权限。 */
+  resolveAppControlService?: () => AppControlService | undefined;
+  appControlSourceServerId?: string;
   channelReplyExecutor?: (request: ChannelReplyHostRequest) => Promise<ChannelReplyResult>;
   topicResourceExecutor?: (
     request: DroraTopicResourceReadParams &
@@ -1254,6 +1310,8 @@ interface CreateDroraAgentServiceBaseOptions extends Omit<
       trusted: boolean;
     }>;
   };
+  /** 已连接的内置 CLI 复用宿主加解密，不直接访问桌面系统钥匙串。 */
+  credentialCipherProvider?: CredentialCipher;
   /** desktop-local Host 注入；只消费已校验、已去重的 live session event。 */
   cuaOperationStateReporter?: CuaOperationStateReporter;
   onCuaPipSessionLifecycle?: (
@@ -1373,6 +1431,19 @@ export function resolveOffPeakToolSelection(
     ? selection
     : { ...selection, options: { reasoningLevel: thoughtLevel } };
 }
+function isHostWorktreeCommand(params: DroraAgentConversationCommandParams): boolean {
+  return (params as { [HOST_WORKTREE_COMMAND]?: unknown })[HOST_WORKTREE_COMMAND] === true;
+}
+
+function assertNoHostOnlyWorktreeFields(envelope: CommandEnvelope): void {
+  const payload = (envelope.payload ?? {}) as Record<string, unknown>;
+  const forbidden =
+    envelope.type === "createSession"
+      ? payload.cwd !== undefined || payload.worktreeCreation !== undefined
+      : envelope.type === "forkAssistant" && payload.targetCwd !== undefined;
+  if (forbidden) throw new Error("worktree.host-only-field");
+}
+
 export function createDroraAgentService(
   options?: CreateDroraAgentServiceOptions,
 ): IDroraAgentService & { disposeAllAndWait(): Promise<void> } {
@@ -1454,6 +1525,10 @@ export function createDroraAgentService(
   const sessionRuntimePreferencesRequestEmitter =
     new Emitter<DroraAgentSessionRuntimePreferencesRequest>();
   const processResourceSampleEmitter = new Emitter<AgentLaneResourceSample>();
+  const pluginStartupDegradedEmitter = new Emitter<{
+    workspaceKey: string;
+    client: DroraProtocolClient;
+  }>();
   const toolExecResourceEmitter = new Emitter<DroraToolExecResource>();
   const mcpResourceSamplesEmitter = new Emitter<DroraMcpResourceSample[]>();
   const mcpTelemetryEmitter = new Emitter<DroraMcpTelemetryEvent>();
@@ -1469,6 +1544,20 @@ export function createDroraAgentService(
   const conversationFrameEmitters = new Map<string, Emitter<ConversationTopicWireCandidate>>();
   const localTtftFactsEmitter = new Emitter<{ workspaceKey: string; facts: LocalTtftFacts }>();
   const conversationTelemetryFactEmitters = new Map<string, Emitter<ConversationTelemetryFact>>();
+  const contextComposition = createContextCompositionClient({
+    getExistingClient: (target) => getReadOnlyClient(target, "existing-only"),
+    isRuntimeUnavailableError: (error) =>
+      error instanceof Error &&
+      "code" in error &&
+      error.code === DRORA_AGENT_RUNTIME_UNAVAILABLE_CODE,
+    resolveWorkspaceKey,
+    logger,
+  });
+  // 插件宿主查询：user 层设置走插件管理面进程；`@` 候选项走持有会话的工作区 CLI（existing-only）。
+  const pluginHostQueries = createPluginHostQueriesClient({
+    getPluginManagementClient: () => getPluginManagementClient(),
+    getExistingClient: (target) => getReadOnlyClient(target, "existing-only"),
+  });
   const remoteConversationTelemetryEmitter = new Emitter<RemoteConversationTelemetryEvent>();
   const remoteConversationTelemetry = new Map<string, RemoteConversationTelemetry>();
   function collectRemoteConversationFact(
@@ -1563,8 +1652,16 @@ export function createDroraAgentService(
     const data = value && typeof value === "object" ? (value as Record<string, unknown>) : {};
     let key: string | undefined;
     if (data.workspace && typeof data.workspace === "object") {
-      const ref = data.workspace as { workspacePath?: unknown; workspaceIdentity?: unknown };
-      if (typeof ref.workspacePath === "string")
+      const ref = data.workspace as {
+        workspaceKey?: unknown;
+        workspacePath?: unknown;
+        workspaceIdentity?: unknown;
+      };
+      // Bug 根因：worktree 任务的 ref 中 workspacePath 是会话 cwd（worktree），workspaceKey 才是
+      // 所属 workspace（项目，docs/git/worktree.md §1.1）。按 identity || path 重新计算会得到
+      // worktree 路径，把项目 CLI 的反向请求误拒为"不属于本 CLI"。ref 自带的 workspaceKey 是唯一身份。
+      if (typeof ref.workspaceKey === "string" && ref.workspaceKey.trim()) key = ref.workspaceKey;
+      else if (typeof ref.workspacePath === "string")
         key =
           (typeof ref.workspaceIdentity === "string" && ref.workspaceIdentity.trim()) ||
           ref.workspacePath;
@@ -1631,6 +1728,15 @@ export function createDroraAgentService(
   /** 每个物理 CLI 的策略同步链：后入队的步骤在前一步落地后才读取生效模式并发送。 */
   const dynamicWorkflowPolicySyncByClient = new WeakMap<DroraProtocolClient, Promise<void>>();
   const waitingWorkspaceStartups = new Map<string, WaitingWorkspaceStartup>();
+  /** 在 runtime/capabilities 中声明 worktreeCwd 的 CLI 连接（docs/git/worktree.md §9.3）。 */
+  const worktreeCwdClients = new WeakSet<DroraProtocolClient>();
+  /**
+   * 在 runtime/capabilities 中声明 extensionInputSource 的 CLI 连接
+   * （apps/drora-cli/docs/design/v2/conversation-input-source.md §7）。
+   */
+  const extensionInputSourceClients = new WeakSet<DroraProtocolClient>();
+  /** 在 runtime/capabilities 中声明 conversationQuoteComment 的 CLI 连接（选区批注）。 */
+  const conversationQuoteCommentClients = new WeakSet<DroraProtocolClient>();
   function cancelWaitingWorkspaceStartup(workspaceKey: string): void {
     const waiting = waitingWorkspaceStartups.get(workspaceKey);
     if (waiting) {
@@ -2541,6 +2647,65 @@ export function createDroraAgentService(
       topicResources.set(key, bridge);
       return bridge;
     };
+    const appControlConnectionId = `app-control:${randomUUID()}`;
+    const appControl = createAppControlReverseRpc({
+      client,
+      service: () => options?.resolveAppControlService?.(),
+      onResponseError: (error) =>
+        // 这条是唯一记录包装前原因的地方；debug 在生产构建里是 no-op，排查冷会话读取失败时
+        // 完全看不到原因（2026-11-03 现场）。失败是可恢复的单次调用，用 warn 保留原因。
+        logger.warn(undefined, "App control response failed", { error: String(error) }),
+      bind: async ({ callerSessionId, callId, turnId, trace, signal }) => {
+        // 共享 CLI 会承载多个 workspace，首次连接目录不再代表调用者。
+        // 只按 Host 已登记的 session→workspace 归属路由，随后仍用持久会话事实复核。
+        const callerWorkspace = routeClientMessage(client, { sessionId: callerSessionId });
+        if (!callerWorkspace)
+          throw new SessionControlError(
+            "forbidden",
+            "App caller workspace is not owned by this CLI",
+          );
+        const callerWorkspaceKey = resolveWorkspaceKey(callerWorkspace);
+        const assertCurrent = () => {
+          const active = activeClientsByWorkspaceKey.get(callerWorkspaceKey);
+          if (active?.client !== client || client.isDisposed || signal.aborted)
+            throw new SessionControlError("forbidden", "App caller connection is no longer active");
+        };
+        assertCurrent();
+        const currentWorkspace = activeClientsByWorkspaceKey.get(callerWorkspaceKey)!.workspace;
+        // callerSessionId 来自 CLI 工具运行上下文，但仍须由同一个实际连接的持久事实核对。
+        // 不能信任模型参数或把未知 root 降级为当前路径中的任意会话。
+        const { sessions } = await client.request(
+          droraProtocolMethods.sessionList,
+          { workspace: buildWorkspaceRef(currentWorkspace), sessionIds: [callerSessionId] },
+          droraSessionListResultSchema,
+        );
+        const session = sessions.find((item) => item.sessionId === callerSessionId);
+        if (
+          !session ||
+          isAuxiliarySessionKind(session.sessionKind) ||
+          session.workspace.workspacePath !== currentWorkspace.workspacePath ||
+          resolveWorkspaceKey(session.workspace) !== resolveWorkspaceKey(currentWorkspace)
+        )
+          throw new SessionControlError(
+            "forbidden",
+            "App caller is not a bound product root session",
+          );
+        assertCurrent();
+        return {
+          workspacePath: currentWorkspace.workspacePath,
+          workspaceIdentity: currentWorkspace.workspaceIdentity,
+          remoteSessionId: currentWorkspace.remoteSessionId,
+          callerSessionId,
+          callId,
+          turnId,
+          trace,
+          signal,
+          assertCurrent,
+          sourceServerId: options?.appControlSourceServerId ?? "local",
+          connectionId: appControlConnectionId,
+        };
+      },
+    });
     const disposables = [
       {
         dispose() {
@@ -2548,6 +2713,7 @@ export function createDroraAgentService(
           topicResources.clear();
         },
       },
+      appControl,
       client.onNotification((message) => {
         const routed = routeClientMessage(client, message.params);
         const data = message.params as {
@@ -2566,6 +2732,14 @@ export function createDroraAgentService(
             sessionLifecycleEmitter.fire({
               workspaceKey: resolveWorkspaceKey(workspace),
               snapshot: parsed.data,
+            });
+          return;
+        }
+        if (message.method === droraProtocolNotifications.pluginStartupDegraded) {
+          if (client.pluginStartupDegraded && !client.isDisposed)
+            pluginStartupDegradedEmitter.fire({
+              workspaceKey: resolveWorkspaceKey(workspace),
+              client,
             });
           return;
         }
@@ -2707,6 +2881,7 @@ export function createDroraAgentService(
             });
           return;
         }
+        if (contextComposition.handleNotification(workspace, message)) return;
         if (message.method === V4_NOTIFICATIONS.conversationTelemetryFact) {
           const parsed = conversationTelemetryFactSchema.safeParse(message.params);
           if (parsed.success) {
@@ -2836,6 +3011,26 @@ export function createDroraAgentService(
         }
       }),
       client.onRequest((request) => {
+        if (request.method === droraProtocolMethods.interactionRequestCredentialCipher) {
+          const parsed = credentialCipherRequestSchema.safeParse(request.params);
+          if (!parsed.success || !options?.credentialCipherProvider) {
+            void client
+              .respondError(request.id, {
+                code: -32602,
+                message: "Credential cipher is unavailable",
+              })
+              .catch(() => {});
+            return;
+          }
+          // 该私有能力属于已建立的 stdio 进程连接，不转发至 UI，也不记录载荷。
+          void executeCredentialCipherRequest(options.credentialCipherProvider, parsed.data)
+            .then((reply) => client.respond(request.id, reply))
+            .catch(() => {});
+          return;
+        }
+        // App 控制反向请求不带 sessionId/workspace 顶层字段；共享 CLI 的路由守卫会误拒它。
+        // 它在 bind 中按调用者 session 单独路由，因此必须先于守卫处理。
+        if (appControl.handle(request)) return;
         const mcpStatusAuth =
           lane === "mcp-status" &&
           request.method === droraProtocolMethods.interactionRequestOfficialMcpAuthHeaders
@@ -3005,6 +3200,7 @@ export function createDroraAgentService(
                 preferences.subagentRuntimeConfigEnabled = Boolean(
                   options?.readSubagentRuntimeConfig,
                 );
+                preferences.appControlEnabled = Boolean(options?.resolveAppControlService?.());
               } catch (error) {
                 await client.respondError(request.id, {
                   code: -32603,
@@ -4009,6 +4205,16 @@ export function createDroraAgentService(
           },
           droraRuntimeCapabilitiesSchema,
         );
+        // worktree 任务只在 CLI 声明该能力时启用：旧 CLI 会静默丢弃 cwd / targetCwd，
+        // 把会话建在 workspace 目录（docs/git/worktree.md §9.3），所以 Host 不能盲发。
+        if (capabilities.worktreeCwd === true) worktreeCwdClients.add(client);
+        // 扩展来源只发给声明该能力的 CLI：旧 CLI 对 sendText 整条拒绝，对 createSession.firstInput
+        // 静默剥掉来源，消息会被当成用户亲自输入。
+        if (capabilities.extensionInputSource === true) extensionInputSourceClients.add(client);
+        // 旧 CLI 会静默剥掉引用上的 comment / agent：用户看到批注而模型收不到，入口只对声明者开放。
+        if (capabilities.conversationQuoteComment === true) {
+          conversationQuoteCommentClients.add(client);
+        }
         if (capabilities.sessionWorkspaceRouting) {
           await client.request(
             droraProtocolMethods.runtimeCapabilities,
@@ -4274,6 +4480,7 @@ export function createDroraAgentService(
     mcpTelemetryEmitter.dispose();
     toolExecResourceEmitter.dispose();
     mcpResourceSamplesEmitter.dispose();
+    pluginStartupDegradedEmitter.dispose();
     for (const emitter of pluginOperationProgressEmitters.values()) {
       emitter.dispose();
     }
@@ -4287,6 +4494,7 @@ export function createDroraAgentService(
       emitter.dispose();
     }
     conversationTelemetryFactEmitters.clear();
+    contextComposition.dispose();
     for (const collector of remoteConversationTelemetry.values()) collector.dispose();
     remoteConversationTelemetry.clear();
     remoteConversationTelemetryEmitter.dispose();
@@ -4437,6 +4645,9 @@ export function createDroraAgentService(
     params: DroraAgentConversationCommandParams,
   ): Promise<CommandEnvelope> {
     const envelope = params.envelope;
+    // cwd / worktreeCreation / targetCwd 只允许 Host 的 worktree 服务设置（docs/git/worktree.md §5.1）：
+    // 渲染进程与手机经 RPC 传来的 JSON 无法携带 Symbol 键，因此不能伪造。
+    if (!isHostWorktreeCommand(params)) assertNoHostOnlyWorktreeFields(envelope);
     if (envelope.type === "createSession") {
       const { dynamicWorkflowEnabled, dynamicWorkflowMode } =
         await resolveDynamicWorkflowSessionFlags();
@@ -4496,7 +4707,7 @@ export function createDroraAgentService(
     return envelope;
   }
 
-  return {
+  const service: IDroraAgentService & { disposeAllAndWait(): Promise<void> } = {
     async prepareStorage(params) {
       const client = await processManager.getClient(params);
       wireClient(client, params, "chat");
@@ -4567,17 +4778,25 @@ export function createDroraAgentService(
       // desktop-attached remote Host 没有本机设置，推来的值就是选择。
       pushedDynamicWorkflowUserMode = normalizeDynamicWorkflowMode(params.mode);
       options?.forwardDynamicWorkflowUserMode?.(await resolveDynamicWorkflowUserMode());
-      await Promise.all(
-        [...activeClientsByWorkspaceKey.values()].map((entry) =>
-          enqueueDynamicWorkflowPolicySync(entry),
-        ),
-      );
+      // 修复原因：这里原先 await 每个在线 CLI 的策略应答。CLI 正忙（如在途的 readPresentation）
+      // 或还在启动时，调用迟迟不返回，renderer 的可用性快照就一直停在旧模式——用户选「关闭」后
+      // 自动化页仍显示「工作流」标签（DWG-23）。快照只由 Host 的服务端提供与用户选择算出，与 CLI
+      // 无关，所以选择记下即返回；CLI 重发仍走各自的串行链，不等它。
+      for (const entry of activeClientsByWorkspaceKey.values()) {
+        enqueueDynamicWorkflowPolicySync(entry).catch((error: unknown) => {
+          logger.warn(undefined, "动态工作流策略重发失败", {
+            workspaceKey: resolveWorkspaceKey(entry.workspace),
+            errorMessage: error instanceof Error ? error.message : String(error),
+          });
+        });
+      }
     },
 
     async syncAppRuntimePreferences(preferences: DroraAgentAppRuntimePreferences): Promise<void> {
       const normalizedPreferences: DroraAgentAppRuntimePreferences = {
         ...preferences,
         modelIoFullRetentionEnabled: preferences.modelIoFullRetentionEnabled === true,
+        pluginAutoRecommendationEnabled: preferences.pluginAutoRecommendationEnabled === true,
       };
       latestAppRuntimePreferences = normalizedPreferences;
       const activeClients = [...activeClientsByWorkspaceKey.values()];
@@ -4859,6 +5078,31 @@ export function createDroraAgentService(
       );
     },
 
+    async previewSessionDeletion(params) {
+      const client = isLocalActiveWorkspaceClient(params.workspace)
+        ? await getReadOnlyClient(params.workspace, "existing-only").catch(() =>
+            getPluginManagementClient(),
+          )
+        : await getReadOnlyClient(params.workspace, "existing-only");
+      return client.request(
+        V4_METHODS.sessionDeletionPreview,
+        params,
+        v4SessionDeletionPreviewSchema,
+      );
+    },
+    async executeSessionDeletion(params) {
+      const client = isLocalActiveWorkspaceClient(params.workspace)
+        ? await getReadOnlyClient(params.workspace, "existing-only").catch(() =>
+            getPluginManagementClient(),
+          )
+        : await getReadOnlyClient(params.workspace, "existing-only");
+      return client.request(
+        V4_METHODS.sessionDeletionExecute,
+        params,
+        v4SessionDeletionResultSchema,
+      );
+    },
+
     async measureSessionData(params) {
       // 只读测量：和全局工作流同一载体选择（本机已活跃 runtime，否则管理面进程）。
       const { client } = await resolveGlobalSavedWorkflowCarrier();
@@ -4925,6 +5169,7 @@ export function createDroraAgentService(
           sessionId: params.sessionId,
           afterMessageId: params.afterMessageId,
           limit: params.limit,
+          direction: params.direction,
         },
         droraSessionMessagesResultSchema,
       );
@@ -4941,7 +5186,7 @@ export function createDroraAgentService(
     },
 
     async readSessionEvents(params: DroraAgentReadSessionEventsParams) {
-      const client = await getReadOnlyClient(params);
+      const client = await getReadOnlyClient(params, params.runtimePolicy);
       const result = await client.request(
         droraProtocolMethods.sessionEvents,
         {
@@ -5635,11 +5880,15 @@ export function createDroraAgentService(
 
     async getPluginsOverview(params: DroraAgentPluginViewParams) {
       const client = await getPluginManagementClient();
+      // 扩展摘要只向声明了能力位的 CLI 要（docs/plugins/plugin-publishing.md §4.3）：参数与结果都是
+      // strict，旧 CLI 收到新参数整条拒绝；不要时 CLI 也不带，旧 services 不会解析到新键。
+      const includeExtensionSummary = await supportsPluginExtensionSummary(client);
       return client.request(
         droraProtocolMethods.pluginsOverview,
         {
           workspace: buildWorkspaceRef(params),
           ...(params.configScope ? { configScope: params.configScope } : {}),
+          ...(includeExtensionSummary ? { includeExtensionSummary: true } : {}),
         },
         droraPluginsOverviewResultSchema,
         { timeoutMs: PLUGIN_MANAGEMENT_REQUEST_TIMEOUT_MS },
@@ -6264,6 +6513,14 @@ export function createDroraAgentService(
         });
         return result;
       } catch (error) {
+        // 旧 CLI 拒绝 basis 时，剥离重试会重新接纳异步解析前的旧模型。
+        // 必须先于可选字段兼容处理明确失败；首次 schema 拒绝尚未接纳输入。
+        if (
+          protocolParams.modelSelectionBasis &&
+          getUnrecognizedTopLevelKeys(error).includes("modelSelectionBasis")
+        ) {
+          throw new DroraAgentModelSelectionBasisUnsupportedError(error);
+        }
         const compatFields = getSessionSendCompatFields(error);
         if (compatFields.length > 0) {
           logger.warn(logTraceId, "Drora Agent session/send 命中新旧协议兼容重试", {
@@ -6403,6 +6660,28 @@ export function createDroraAgentService(
       return result.closed ?? true;
     },
 
+    async releaseSessionsUnderDirectory(params) {
+      // 绝不为卸载拉起 CLI：没有进程时没有驻留会话。
+      const client = processManager.getExistingClient(params);
+      if (!client || client.isDisposed) return { released: [], busy: [] };
+      return await client.request(
+        droraProtocolMethods.sessionReleaseUnderDirectory,
+        { directory: params.directory },
+        droraSessionReleaseUnderDirectoryResultSchema,
+      );
+    },
+
+    async queryCommandResult(params) {
+      // 命令结果是 CLI 的事实；进程已退出时以只读方式拉起，读取持久化的命令记录。
+      const client = await getReadOnlyClient(params);
+      const result = await client.request(
+        V4_METHODS.commandsQuery,
+        commandsQueryParamsSchema.parse({ commands: [params.key] }),
+        commandsQueryResultSchema,
+      );
+      return result.results[0]?.result ?? "unknown";
+    },
+
     async setModel(params: DroraAgentSetModelParams) {
       const startedAt = Date.now();
       const client = await getClient(params);
@@ -6511,6 +6790,8 @@ export function createDroraAgentService(
         preferences = droraSessionRuntimePreferencesResultSchema.parse(
           params.resolution.preferences,
         );
+        // App 控制能力属于当前 Host 装配，不能由外部设置应答方声明。
+        preferences.appControlEnabled = Boolean(options?.resolveAppControlService?.());
         // 远端组织态由远端 Host 读取；客户端设置回包不能覆盖本机目录事实。
         if (
           pending.request.scope === "runtime-materialization" &&
@@ -6959,6 +7240,9 @@ export function createDroraAgentService(
           // 缺席即 CLI 按旧消费者发整键 patch，并先裁到旧界——重订阅、recovery、手机
           // relay attachment 都走这一条 subscribe，所以这一处写全即可。
           ...(connection.workflowRunDeltas === true ? { workflowRunDeltas: true } : {}),
+          ...(connection.pluginDiscoveryUi && (await supportsPluginDiscoveryUi(client))
+            ? { pluginDiscoveryUi: true }
+            : {}),
           ...(historyFirst
             ? {
                 historyFirst: true,
@@ -7091,6 +7375,37 @@ export function createDroraAgentService(
             ? ("mobile" as const)
             : ("desktop" as const),
       };
+      // 来自 UI 的同名字段永远不是授权；relay 透传的是下游握手。旧 CLI 严格校验，缺席比发送 false 安全。
+      delete envelope.pluginDiscoveryUi;
+      if (
+        envelope.type === "createSession" &&
+        envelope.payload &&
+        typeof envelope.payload === "object"
+      ) {
+        const { pluginDiscoveryToolEnabled: _untrusted, ...payload } = envelope.payload as Record<
+          string,
+          unknown
+        >;
+        envelope.payload = payload;
+      }
+      if (
+        readTrustedDroraAgentV4Connection(params)?.pluginDiscoveryUi &&
+        (await supportsPluginDiscoveryUi(client))
+      ) {
+        // 偏好控制下一次输入的工具面；已展示的确认卡片仍可完成或跳过，避免关开关后卡住旧轮。
+        if (
+          latestAppRuntimePreferences?.pluginAutoRecommendationEnabled === true ||
+          envelope.type === "resolveInteraction"
+        ) {
+          envelope.pluginDiscoveryUi = true;
+        }
+      }
+      const highspeedPayload = envelope.payload as { highspeedMeta?: { ownerKey?: string } };
+      if (highspeedPayload.highspeedMeta?.ownerKey && !(await supportsHighspeedCardOwner(client))) {
+        // 旧执行端strict schema会拒绝新字段；只剥离归属，不改变本轮发送和加速材料。
+        const { ownerKey: _ownerKey, ...legacyMeta } = highspeedPayload.highspeedMeta;
+        envelope = { ...envelope, payload: { ...highspeedPayload, highspeedMeta: legacyMeta } };
+      }
       if (requiresProviderRegistryRefresh(envelope.type)) {
         await measure("host.provider_sync", () =>
           ensureAccountProviderConfigSynced({
@@ -7140,6 +7455,7 @@ export function createDroraAgentService(
         const payload = commandPayloadSchemas.createSession.parse(envelope.payload);
         if (payload.sessionId) rememberClientTarget(client, params, payload.sessionId);
       }
+      envelope = { ...envelope, ...coldResumeWorkspace(params) };
       // ACK 往返可与执行重叠，诊断单列，不能与六个 TTFT 主阶段相加。
       const ack: CommandAck = await measure("host.cli_ack", () =>
         client.request(V4_METHODS.command, envelope, commandAckSchema),
@@ -7147,6 +7463,8 @@ export function createDroraAgentService(
       if (
         envelope.type === "forkAssistant" &&
         envelope.sessionId &&
+        // fork 到新 worktree 已由 Host 在发送前预留目标 cwd；ACK 不能再按父目录继承并覆盖它。
+        !commandPayloadSchemas.forkAssistant.parse(envelope.payload).targetCwd &&
         (ack.status === "accepted" || ack.status === "duplicate") &&
         ack.result?.type === "forkAssistant"
       ) {
@@ -7182,6 +7500,7 @@ export function createDroraAgentService(
       if (!trusted) throw new Error("fault.attachment.connectionUntrusted");
       const client = await getClient(params);
       const wireParams = {
+        ...coldResumeWorkspace(params),
         connectionId: trusted.connectionId,
         uploadId: params.uploadId,
         sessionId: params.sessionId,
@@ -7245,6 +7564,7 @@ export function createDroraAgentService(
         throw new Error("fault.attachment.readConnectionUntrusted");
       }
       const wireParams = v4AttachmentReadParamsSchema.parse({
+        ...coldResumeWorkspace(params),
         sessionId: params.sessionId,
         ref: params.ref,
         ...(params.target ? { target: params.target } : {}),
@@ -7265,6 +7585,7 @@ export function createDroraAgentService(
         );
       }
       const wireParams = v4ConversationAttachmentReadParamsSchema.parse({
+        ...coldResumeWorkspace(params),
         sessionId: params.sessionId,
         ref: params.ref,
         target: params.target,
@@ -7287,6 +7608,7 @@ export function createDroraAgentService(
         );
       }
       const wireParams = v4ConversationAttachmentStatParamsSchema.parse({
+        ...coldResumeWorkspace(params),
         sessionId: params.sessionId,
         ref: params.ref,
         target: params.target,
@@ -7307,6 +7629,7 @@ export function createDroraAgentService(
         return { kind: "chunked" } as const;
       }
       const wireParams = v4AttachmentPreviewSourceParamsSchema.parse({
+        ...coldResumeWorkspace(params),
         sessionId: params.sessionId,
         ref: params.ref,
         ...(params.target ? { target: params.target } : {}),
@@ -7342,6 +7665,7 @@ export function createDroraAgentService(
       return client.request(
         V4_METHODS.conversationRowsRange,
         {
+          ...coldResumeWorkspace(params),
           sessionId: params.sessionId,
           clientMode: trusted.clientMode,
           ...(params.beforeRowId !== undefined ? { beforeRowId: params.beforeRowId } : {}),
@@ -7357,7 +7681,7 @@ export function createDroraAgentService(
       const client = await getReadOnlyClient(params);
       return client.request(
         V4_METHODS.conversationPlans,
-        { sessionId: params.sessionId },
+        { ...coldResumeWorkspace(params), sessionId: params.sessionId },
         v4ConversationPlansResultSchema,
       );
     },
@@ -7393,6 +7717,7 @@ export function createDroraAgentService(
       return client.request(
         V4_METHODS.conversationWorkflowRunEvents,
         {
+          ...coldResumeWorkspace(params),
           sessionId: params.sessionId,
           runId: params.runId,
           ...(params.afterSequence !== undefined ? { afterSequence: params.afterSequence } : {}),
@@ -7408,6 +7733,7 @@ export function createDroraAgentService(
       return client.request(
         V4_METHODS.conversationWorkflowRuns,
         {
+          ...coldResumeWorkspace(params),
           sessionId: params.sessionId,
           ...(params.limit !== undefined ? { limit: params.limit } : {}),
         },
@@ -7424,7 +7750,7 @@ export function createDroraAgentService(
       const client = await getReadOnlyClient(params);
       return client.request(
         V4_METHODS.conversationWorkflowRunArtifacts,
-        { sessionId: params.sessionId, runId: params.runId },
+        { ...coldResumeWorkspace(params), sessionId: params.sessionId, runId: params.runId },
         v4ConversationWorkflowRunArtifactsResultSchema,
       );
     },
@@ -7438,6 +7764,7 @@ export function createDroraAgentService(
       return client.request(
         V4_METHODS.conversationWorkflowRunArtifactData,
         {
+          ...coldResumeWorkspace(params),
           sessionId: params.sessionId,
           runId: params.runId,
           artifactId: params.artifactId,
@@ -7457,6 +7784,7 @@ export function createDroraAgentService(
       return client.request(
         V4_METHODS.conversationWorkflowRunArtifactRead,
         {
+          ...coldResumeWorkspace(params),
           sessionId: params.sessionId,
           runId: params.runId,
           artifactId: params.artifactId,
@@ -7476,7 +7804,7 @@ export function createDroraAgentService(
       const client = await getReadOnlyClient(params);
       return client.request(
         V4_METHODS.conversationWorkflowRunWorkspace,
-        { sessionId: params.sessionId, runId: params.runId },
+        { ...coldResumeWorkspace(params), sessionId: params.sessionId, runId: params.runId },
         v4ConversationWorkflowRunWorkspaceResultSchema,
       );
     },
@@ -7488,6 +7816,7 @@ export function createDroraAgentService(
       return client.request(
         V4_METHODS.conversationWorkflowRunNodeResult,
         {
+          ...coldResumeWorkspace(params),
           sessionId: params.sessionId,
           runId: params.runId,
           siteId: params.siteId,
@@ -7531,6 +7860,7 @@ export function createDroraAgentService(
       return client.request(
         V4_METHODS.conversationFileChanges,
         {
+          ...coldResumeWorkspace(params),
           sessionId: params.sessionId,
           target: params.target,
           baseRevision: params.baseRevision,
@@ -7545,6 +7875,7 @@ export function createDroraAgentService(
       return client.request(
         V4_METHODS.conversationFileRewindPreview,
         {
+          ...coldResumeWorkspace(params),
           sessionId: params.sessionId,
           target: params.target,
           baseRevision: params.baseRevision,
@@ -7604,6 +7935,10 @@ export function createDroraAgentService(
     onDynamicConversationTelemetryFact(params: DroraAgentWorkspaceTarget) {
       return getConversationTelemetryFactEmitter(params).event;
     },
+    getContextComposition: (params) => contextComposition.getContextComposition(params),
+    getPluginMentionItems: (params) => pluginHostQueries.getPluginMentionItems(params),
+    onDynamicContextCompositionChanged: (target) => contextComposition.onDidChange(target),
+    onDynamicModelRequestMetrics: (target) => contextComposition.onModelRequestMetrics(target),
     onDynamicOffPeakLifecycle(params: DroraAgentWorkspaceTarget) {
       return getOffPeakLifecycleEmitter(params).event;
     },
@@ -7666,6 +8001,32 @@ export function createDroraAgentService(
           });
         }
       }
+      // 本地 worktree 任务的 cwd 不是 workspace 目录，CLI 按 directory 冷扫描看不到它们；
+      // 从 tasks-index 精确提供 id（docs/git/worktree.md §6.6.2）。读取失败只影响这些任务的摘要。
+      let worktreeSessionIds: string[] = [];
+      if (!params.workspaceIdentity?.trim()) {
+        try {
+          worktreeSessionIds = (
+            await automationTaskIndexRepo.listTaskMetas({
+              workspacePath: params.workspacePath,
+              provider: "glm",
+            })
+          )
+            .filter((task) => Boolean(task.worktreeRoot))
+            .slice(0, MAX_LEGACY_TASK_IDS_PER_SUBSCRIBE)
+            .map((task) => task.taskId);
+        } catch (error) {
+          logger.warn(
+            undefined,
+            "读取 worktree 任务列表失败，sessions-index 不含这些任务的冷摘要",
+            {
+              error: error instanceof Error ? error.message : String(error),
+              event: "sessions_index.worktree_task_ids_read_failed",
+              workspacePath: params.workspacePath,
+            },
+          );
+        }
+      }
       const result = await client.request(
         V4_METHODS.conversationSubscribe,
         {
@@ -7673,6 +8034,7 @@ export function createDroraAgentService(
           connectionId: connection.connectionId,
           clientMode: connection.clientMode,
           ...(legacyTaskIds.length > 0 ? { legacyTaskIds } : {}),
+          ...(worktreeSessionIds.length > 0 ? { worktreeSessionIds } : {}),
           ...(params.base ? { base: params.base } : {}),
           ...(params.visibility ? { visibility: params.visibility } : {}),
         },
@@ -7752,6 +8114,25 @@ export function createDroraAgentService(
     onDynamicMcpTelemetry() {
       return mcpTelemetryEmitter.event;
     },
+    onDynamicPluginStartupDegraded(params: DroraAgentWorkspaceTarget) {
+      return (listener) => {
+        const key = resolveWorkspaceKey(params);
+        let seen: DroraProtocolClient | undefined;
+        const accept = (client: DroraProtocolClient) => {
+          if (client.isDisposed || !client.pluginStartupDegraded || seen === client) return;
+          seen = client;
+          listener();
+        };
+        const disposable = pluginStartupDegradedEmitter.event((event) => {
+          if (event.workspaceKey === key) accept(event.client);
+        });
+        // 先订阅再回放，覆盖预热早于 UI 挂载和手机晚接入；只读取当前工作区进程。
+        for (const runtime of processManager.listManagedProcesses()) {
+          if (resolveWorkspaceKey(runtime) === key) accept(runtime.client);
+        }
+        return disposable;
+      };
+    },
 
     // （CLI 重连重订）：进程换代直通 process manager；v4 订阅方（task-index
     // syncer 等）据此重发 subscribe——订阅活在 CLI 进程内存，换代即静默失活。
@@ -7761,6 +8142,10 @@ export function createDroraAgentService(
 
     onAgentRuntimeLifecycle(listener: (event: DroraAgentRuntimeLifecycleEvent) => void) {
       return processManager.onRuntimeLifecycle(listener);
+    },
+
+    onAgentRuntimeExited(listener: (event: DroraAgentRuntimeExitedEvent) => void) {
+      return processManager.onRuntimeExited(listener);
     },
 
     async disposeWorkspace(params): Promise<void> {
@@ -7801,6 +8186,24 @@ export function createDroraAgentService(
       await processManager.disposeWorkspace(params);
     },
 
+    async supportsWorktreeCwd(target) {
+      // 能力集合在 getClient 的启动屏障内写入，这里读到的是本次连接协商后的结果。
+      const client = await getClient(target);
+      return worktreeCwdClients.has(client);
+    },
+
+    async supportsExtensionInputSource(target) {
+      // 与 supportsWorktreeCwd 同一启动屏障；CLI 换代后 getClient 返回新连接，结果随之重算。
+      const client = await getClient(target);
+      return extensionInputSourceClients.has(client);
+    },
+
+    async supportsConversationQuoteComment(target) {
+      // 与 worktreeCwd 相同：能力集合在 getClient 的启动屏障内写入。
+      const client = await getClient(target);
+      return conversationQuoteCommentClients.has(client);
+    },
+
     disposeAll(): void {
       processManager.disposeAll();
       pluginProcessManager.disposeAll();
@@ -7822,5 +8225,53 @@ export function createDroraAgentService(
       automationTaskIndexRepo.close();
       disposeLocalState();
     },
+  };
+
+  // 删除 worktree 期间拒绝其中会话的新命令与冷订阅，避免在正被删除的目录里启动 turn 或恢复会话（§8.3）。
+  const runSessionOperation = options?.runSessionOperation;
+  if (runSessionOperation) {
+    const send = service.sendConversationCommandV4.bind(service);
+    service.sendConversationCommandV4 = (params) => {
+      const sessionId = params.envelope.sessionId;
+      return sessionId
+        ? runSessionOperation(sessionTargetOf(params, sessionId), () => send(params))
+        : send(params);
+    };
+    const subscribe = service.subscribeConversationV4.bind(service);
+    service.subscribeConversationV4 = (params) =>
+      runSessionOperation(sessionTargetOf(params, params.sessionId), () => subscribe(params));
+  }
+  // 敏感设置读取不挂在 service 对象上：service 会整体登记进 ServiceCollection 并经 RPC 暴露，
+  // ProxyChannel 按属性名分派，所以只放进侧表，由 Window Host 进程内取用。
+  inProcessPluginUserOptionsReaders.set(service, {
+    readPluginUserOptions: (params) => pluginHostQueries.readPluginUserOptions(params),
+  });
+  return service;
+}
+
+/**
+ * Window Host 进程内的插件 user 层设置读取（含敏感值），键是 createDroraAgentService 返回的对象。
+ * WeakMap 条目不是任何对象的属性，RPC 的 ProxyChannel 无法按名字触达。
+ */
+const inProcessPluginUserOptionsReaders = new WeakMap<
+  IDroraAgentService,
+  PluginUserOptionsReader
+>();
+
+/** 只由 node.ts 的 Local Host 装配调用；远端或测试替身的 agent 服务没有条目，返回 undefined。 */
+export function getInProcessPluginUserOptionsReader(
+  service: IDroraAgentService,
+): PluginUserOptionsReader | undefined {
+  return inProcessPluginUserOptionsReaders.get(service);
+}
+
+function sessionTargetOf(
+  workspace: { workspacePath: string; workspaceIdentity?: string },
+  sessionId: string,
+): DroraAgentSessionTarget {
+  return {
+    workspacePath: workspace.workspacePath,
+    ...(workspace.workspaceIdentity ? { workspaceIdentity: workspace.workspaceIdentity } : {}),
+    sessionId,
   };
 }

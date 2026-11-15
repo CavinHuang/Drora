@@ -104,6 +104,7 @@ export const runTuiCommand = async (
         listWorkflowRuns: promptHandler.listWorkflowRuns,
         replayWorkflowRuns: promptHandler.replayWorkflowRuns,
         getMainSessionId: promptHandler.getMainSessionId,
+        registerPermissionRequester: promptHandler.registerPermissionRequester,
         writeClipboardText:
           deps.writeClipboardText ?? createNodeClipboardTextWriter({ stdout: ctx.stdout }),
         stderr: ctx.stderr,

@@ -1,16 +1,27 @@
 import { verifySamplingDatabase } from "./mcp-apps-host-fixture/sampling-database.mjs";
 import { build } from "esbuild";
-import { access, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { access, copyFile, mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawn } from "node:child_process";
 import { createRequire } from "node:module";
 import { DatabaseSync } from "node:sqlite";
+import { parseMcpAppsHostOptions, resolveMcpAppsHostLaunch } from "./mcp-apps-host-options.mjs";
+import {
+  quoteArgsForWindowsShell,
+  resolveSpawnRuntimeOptions,
+} from "../../../scripts/spawn-command.mjs";
 const require = createRequire(import.meta.url);
 const desktop = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const root = resolve(desktop, "../..");
-const output = await mkdtemp(join(tmpdir(), "drora-mcp-host-e2e-"));
+const options = parseMcpAppsHostOptions(process.argv.slice(2));
+const { modes } = options;
+const output = options.outputDir
+  ? resolve(options.outputDir)
+  : await mkdtemp(join(tmpdir(), "drora-mcp-host-e2e-"));
+await mkdir(output, { recursive: true });
+process.stdout.write(`[mcp-apps-host-e2e] artifacts: ${output}\n`);
 const fixture = join(desktop, "scripts/mcp-apps-host-fixture");
 const showcaseServer = process.env.DRORA_SHOWCASE_SERVER;
 // P5（specs/obsidian-vault-phase2-true-extraction.md §10-P5 沙箱页面 e2e）：
@@ -38,7 +49,7 @@ await writeFile(join(output, "plugin-sentinel.txt"), "preserve-plugin-files\n");
 if (
   !process.argv.includes("--retention-only") &&
   !process.argv.includes("--storage-only") &&
-  !process.argv.includes("--reuse-agent-build")
+  !options.reuseAgentBuild
 ) {
   // 新工作树没有预先生成的声明文件，先构建 Agent 的基础包。
   for (const name of [
@@ -54,17 +65,18 @@ if (
     "cli",
   ]) {
     await new Promise((accept, reject) => {
-      const child = spawn(
-        "pnpm",
-        [
-          "--dir",
-          join(root, "apps/drora-cli"),
-          "--filter",
-          `@drora/${name}`,
-          name === "cli" ? "build:desktop-agent" : "build",
-        ],
-        { stdio: "inherit" },
-      );
+      const runtimeOptions = resolveSpawnRuntimeOptions("pnpm");
+      const args = [
+        "--dir",
+        join(root, "apps/drora-cli"),
+        "--filter",
+        `@drora/${name}`,
+        name === "cli" ? "build:desktop-agent" : "build",
+      ];
+      const child = spawn("pnpm", runtimeOptions.shell ? quoteArgsForWindowsShell(args) : args, {
+        stdio: "inherit",
+        ...runtimeOptions,
+      });
       child.on("error", reject);
       child.on("exit", (code) =>
         code === 0 ? accept() : reject(new Error(`Agent fixture build failed: ${name} (${code})`)),
@@ -139,6 +151,7 @@ await Promise.all([
   bundle(join(fixture, "sampling-main.ts"), "sampling-main.cjs", "node"),
   bundle(join(fixture, "managed-empty-main.ts"), "managed-empty-main.cjs", "node"),
   bundle(join(fixture, "managed-main.ts"), "managed-main.cjs", "node"),
+  bundle(join(fixture, "session-ready-main.ts"), "session-ready-main.cjs", "node"),
   bundle(join(fixture, "background-main.ts"), "background-main.cjs", "node"),
   bundle(join(fixture, "interaction-main.ts"), "interaction-main.cjs", "node"),
   bundle(join(fixture, "rows-main.ts"), "rows-main.cjs", "node"),
@@ -167,10 +180,13 @@ await Promise.all([
       "</script></body></html>",
   ),
 ]);
-const { mkdir, copyFile } = await import("node:fs/promises");
 await mkdir(join(output, "assets"));
 await copyFile(join(output, "shell.js"), join(output, "assets/shell.js"));
 await copyFile(join(fixture, "mcp-server.mjs"), join(output, "mcp-server.mjs"));
+await copyFile(
+  join(desktop, "test/e2e/fixtures/upstream/plugin-management/plugin-ui-session-ready.json"),
+  join(output, "session-ready-provider.json"),
+);
 await writeFile(
   join(output, "retention.html"),
   '<!doctype html><body><script src="retention.js"></script>',
@@ -180,39 +196,6 @@ await writeFile(
   '<!doctype html><meta charset="utf-8"><style>.contents{display:contents}.h-full{height:100%}.w-full{width:100%}.flex{display:flex}.flex-col{flex-direction:column}.flex-1{flex:1}.min-h-0{min-height:0}.overflow-y-auto{overflow-y:auto}.relative{position:relative}</style><body><div id="root"></div><script src="managed.js"></script>',
 );
 const electron = require("electron");
-const modes =
-  process.argv.includes("--background-only") ||
-  process.argv.includes("--photocraft-background-only")
-    ? ["background"]
-    : process.argv.includes("--showcase-only")
-      ? ["showcase"]
-      : process.argv.includes("--obsidian-only")
-        ? ["obsidian"]
-        : process.argv.includes("--sampling-only")
-        ? ["sampling"]
-        : process.argv.includes("--rows-only")
-          ? ["rows"]
-          : process.argv.includes("--managed-only")
-            ? ["interaction", "managed", "managed-empty"]
-            : process.argv.includes("--chain-only")
-              ? ["chain"]
-              : process.argv.includes("--retention-only")
-                ? ["retention"]
-                : process.argv.includes("--storage-only")
-                  ? ["write", "read", "empty"]
-                  : [
-                      "write",
-                      "read",
-                      "empty",
-                      "chain",
-                      "interaction",
-                      "managed",
-                      "managed-empty",
-                      "retention",
-                      "rows",
-                      "sampling",
-                      "background",
-                    ];
 for (const mode of modes) {
   await new Promise((accept, reject) => {
     const env = { ...process.env };
@@ -222,10 +205,12 @@ for (const mode of modes) {
       env.DRORA_PHOTOCRAFT_ONLY = "1";
     }
     delete env.ELECTRON_RUN_AS_NODE;
-    const child = spawn(
+    const launch = resolveMcpAppsHostLaunch(
       electron,
       [
-        ...(mode === "background" ||
+        // session-ready 为上游 v3.18.0 新模式（session-ready-main.ts 夹具随 new 桶落位）。
+        ...(mode === "session-ready" ||
+        mode === "background" ||
         mode === "chain" ||
         mode === "interaction" ||
         mode === "managed" ||
@@ -249,8 +234,12 @@ for (const mode of modes) {
               : [join(output, "main.cjs"), output, join(output, "profile"), mode]),
         ...(process.env.DRORA_E2E_NO_SANDBOX === "1" ? ["--no-sandbox"] : []),
       ],
-      { env, stdio: "inherit" },
+      // v3.18.0 新签名：第三参是 env 对象（容器 --no-sandbox 由模块内处理），
+      // 本仓 DRORA_E2E_NO_SANDBOX 开关保留在 args 末尾（旧开关兼容）。
+      env,
     );
+    const child = spawn(launch.command, launch.args, { env, stdio: "inherit" });
+    // managed 组新增真实冷恢复；这里只限制整组总耗时，ready 顺序仍由事件闸门断言。
     const watchdog = setTimeout(
       () => {
         child.kill("SIGKILL");
@@ -258,14 +247,16 @@ for (const mode of modes) {
       },
       // P5 obsidian：真实 knowledge server 冷索引（FTS 建库 + lookup 轮询）放宽到 8 分钟；
       // P8（spec §10-P8 E2E 重写）追加 R1/R2/R3/R7/G28 等价场景（含 receipt 三态链）后
-      // 上调到 12 分钟。
+      // 上调到 12 分钟。managed 180s 为上游 v3.18.0 新增（真实冷恢复整组耗时上限）。
       mode === "obsidian"
         ? 720_000
         : mode === "background"
           ? process.env.DRORA_PHOTOCRAFT_SERVER
             ? 300_000
             : 180_000
-          : 90_000,
+          : mode === "managed"
+            ? 180_000
+            : 90_000,
     );
     child.on("error", reject);
     child.on("exit", (code) => {
@@ -297,6 +288,9 @@ process.stdout.write(
         : undefined,
       managed: modes.includes("managed")
         ? JSON.parse(await readFile(join(output, "managed-results.json"), "utf8"))
+        : undefined,
+      sessionReady: modes.includes("session-ready")
+        ? JSON.parse(await readFile(join(output, "session-ready-results.json"), "utf8"))
         : undefined,
       managedStorage: modes.includes("managed-empty")
         ? JSON.parse(await readFile(join(output, "managed-storage-empty.json"), "utf8"))

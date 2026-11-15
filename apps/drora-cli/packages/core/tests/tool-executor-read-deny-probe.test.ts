@@ -202,9 +202,14 @@ describe("compaction restore under a Read deny rule written as a relative path",
       expect(texts).toHaveLength(1);
       expect(texts[0]).toContain("export const plain = 1;");
       expect(texts.join("\n")).not.toContain("TOKEN=1");
-      expect(restore.readFileStateEntries.map((entry) => entry.path)).toEqual([
-        `${workspace}/plain.ts`,
-      ]);
+      // win32 适配（2026-11-14，v3.18.0 S4 段门复跑归因）：恢复读态的 path 是 resolve 后
+      // 的绝对路径（win32 为盘符前缀 + 反斜杠形态，resolve 会给 /tmp 夹具补当前盘符），
+      // 两侧统一到「去盘符 + 正斜杠」的规范形态后比对（POSIX 侧变换为恒等）。
+      expect(
+        restore.readFileStateEntries.map((entry) =>
+          entry.path.replaceAll("\\", "/").replace(/^[A-Za-z]:/, ""),
+        ),
+      ).toEqual([`${workspace}/plain.ts`]);
       // 写回的记录保留原始写法，下一次 compaction 仍按它判定。
       expect(restore.readFileStateEntries.map((entry) => entry.requestedPath)).toEqual([
         "plain.ts",

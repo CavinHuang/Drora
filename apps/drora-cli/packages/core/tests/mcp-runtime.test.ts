@@ -306,7 +306,8 @@ describe("AgentRuntime MCP integration", () => {
           {
             serverName: "local",
             toolName: "lookup",
-            annotations: { readOnlyHint: true },
+            // 台账 33（2026-11-14 总裁定）回退 theirs 原文：非 readOnly MCP 走 mode.plan.mcp
+            // ask、readOnly 过闸原模式判定。旧 deny 门时代加的 readOnlyHint 自报分歧随之移除。
             inputSchema: {
               type: "object",
               properties: {
@@ -369,15 +370,13 @@ describe("AgentRuntime MCP integration", () => {
               };
             }
 
-            // 分歧语义：plan 模式对自报 readOnlyHint 的 MCP 给出结构化拒绝文案，
-            // 模型在第二次请求里能看到拒绝原因（tool 角色错误消息），而不是工具结果。
+            // 台账 33（2026-11-14 总裁定）回退 theirs 原文断言：deny 门废弃后 plan 对
+            // 非 readOnly MCP 走 mode.plan.mcp ask，broker 放行即真实执行，
+            // 第二次请求里看到的是工具结果（lookup:plan context），不再是拒绝文案。
             expect(
               request.messages.some((message: any) => {
                 return (
-                  message.role === "tool" &&
-                  String(message.content).includes(
-                    "Plan mode only allows read-only, non-destructive tools",
-                  )
+                  message.role === "tool" && String(message.content).includes("lookup:plan context")
                 );
               }),
             ).toBe(true);
@@ -413,6 +412,88 @@ describe("AgentRuntime MCP integration", () => {
     expect(admissionRefreshes).toBe(2);
   });
 
+  // EnterPlanMode 免确认；进入 Plan 后调用 MCP 仍须用户确认，模型不能借进入 Plan 绕过审批。
+  it("does not let EnterPlanMode unlock MCP tools without approval", async () => {
+    let modelCallCount = 0;
+    let mcpCallCount = 0;
+    const permissionRequests: PermissionBrokerRequest[] = [];
+    const runtime = createTestAgentRuntime(
+      createSessionId("runtime-mcp-enter-plan"),
+      {
+        mode: "build",
+        mcp: { enabled: true, servers: { local: { type: "stdio", command: "node" } } },
+      },
+      {
+        eventStore: createTestSessionEventStore(),
+        permissionBroker: {
+          async requestPermission(request) {
+            permissionRequests.push(request);
+            return { decision: "deny", reason: "denied in test" };
+          },
+        },
+        mcpPort: createMockMcpPort({
+          connectConfiguredServers: async () => ({
+            statuses: {},
+            tools: [{ serverName: "local", toolName: "js", inputSchema: { type: "object" } }],
+          }),
+          callTool: async () => {
+            mcpCallCount++;
+            return { content: [{ type: "text", text: "executed" }] };
+          },
+        }),
+        modelFactory: createTestModelFactory({
+          generateText: async () => {
+            modelCallCount++;
+            const usage = { inputTokens: 1, outputTokens: 1, totalTokens: 2 };
+            if (modelCallCount === 1)
+              return {
+                finishReason: "tool-calls",
+                text: "",
+                toolCalls: [{ id: "enter-plan", name: "EnterPlanMode", input: {} }],
+                usage,
+              };
+            if (modelCallCount === 2)
+              return {
+                finishReason: "tool-calls",
+                text: "",
+                toolCalls: [{ id: "mcp-js", name: "mcp__local__js", input: { code: "x" } }],
+                usage,
+              };
+            return { finishReason: "stop", text: "done", usage };
+          },
+        }),
+      },
+    );
+
+    await runtime.executeTurn("plan then run");
+
+    expect(permissionRequests).toHaveLength(1);
+    expect(permissionRequests[0]).toMatchObject({
+      ruleId: "mode.plan.mcp",
+      toolName: "mcp__local__js",
+    });
+    expect(mcpCallCount).toBe(0);
+  });
+
+  // 修复原因（07 §5 项①，06 §3.2 漏网项）：b3e44cb2a 合并 v3.17.2 时丢失了上方
+  // EnterPlanMode 安全用例与下方 it.each 的头部（参数表、用例名、async 回调签名及
+  // toolStarted 等 4 个局部变量声明），残留的回调体悬在 describe 顶层，
+  // `await toolStarted.promise` 因此落在非 async 作用域成为语法死件
+  // （TS parseDiagnostics :633 与 vitest :466:8 报错同源）。按 theirs v3.18.2 变换树
+  // （与官方原始树 refs/upstream-trees/v3.18.2 该块逐字一致）补回；补回后暴露的
+  // 3 处旧裁定残留已按台账 33（2026-11-14 总裁定）就近回退 theirs 原文，见各处注释。
+  it.each([
+    ["user_steer", false],
+    ["user_steer", true],
+    ["coordinator_steer", false],
+    ["coordinator_steer", true],
+  ] as const)(
+    "refreshes admission only for user guide: %s, attachment: %s",
+    async (inputPresentation, withAttachment) => {
+      const toolStarted = deferred<void>();
+      const releaseTool = deferred<void>();
+      let refreshes = 0;
+      let modelSteps = 0;
       const runtime = createTestAgentRuntime(
         createSessionId(`mcp-admission-${inputPresentation}`),
         {
@@ -423,7 +504,8 @@ describe("AgentRuntime MCP integration", () => {
         },
         {
           eventStore: createTestSessionEventStore(),
-          permissionBroker,
+          // 台账 33：bff94f4bd 的 build+放行 broker 适配（洞 1a/S03-P1-8）随 2026-11-14
+          // 裁定废弃，上游 v3.17.2 已自改 yolo 免审批；b3e44cb2a 合并残留的死引用一并移除。
           mcpPort: createMockMcpPort({
             refreshWorkspaceTrustAdmission: async () => {
               refreshes++;

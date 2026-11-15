@@ -10,6 +10,7 @@
 
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -93,6 +94,9 @@ const APPID_RE = /(?<![A-Za-z])appId\s*([:=])\s*(["']?)zcode\2/g;
 // —— 豁免区（内容逐字不动；upstream 命名空间下的路径前缀）。
 export const VERBATIM_PREFIXES = [
   "apps/zcode-cli/packages/zcode-cua-plugin/", // 0.5.13 逐字 seed（producer 脚本一并豁免）
+  // 官方设计资产逐字 seed（361 件 sha256 溯源；specs/drora-rename.md 豁免区 6，
+  // v3.18.0 S3 段登记——改写即虚假溯源+hash 失配）。
+  "apps/zcode-cli/packages/design-plugin/skills/design/design-resources/",
   "third-party/", // provenance
   "pnpm-lock.yaml",
   "package-lock.json",
@@ -209,14 +213,27 @@ const isTransformableText = (buf, filename) => {
   return true;
 };
 
-export function transformTree(ref, outDir) {
-  const tmpExtract = fs.mkdtempSync("/tmp/upstream-extract-");
-  const tarPath = path.join(tmpExtract, "tree.tar");
-  execFileSync("sh", ["-c", `git archive '${ref}' > '${tarPath}'`], {
+export function transformTree(ref, outDir, subtree) {
+  // Windows 兼容修复：Node(fs) 与 MSYS sh/tar 的临时路径语义不一致——
+  // fs.mkdtempSync("/tmp/...") 落到当前盘 \tmp\，MSYS GNU tar 又把 "C:/..." 当远程主机语法。
+  // 改为全程 MSYS 语义：mktemp/git archive/tar 管线都在 sh 内完成（POSIX 路径），
+  // Node 侧仅通过 cygpath -w 换回 Windows 路径做后续文件遍历。
+  // subtree（可选，仓库相对 zcode 命名空间路径）：只提取并转换该子树，
+  // 供豁免区补登后的局部重放（rel 路径仍以仓库根为基准，zoneOf 判定不受影响）。
+  const tmpExtractPosix = execFileSync("sh", ["-c", "mktemp -d /tmp/upstream-extract-XXXXXX"], {
     maxBuffer: 64 * 1024 * 1024,
-  });
-  execFileSync("tar", ["-x", "-f", tarPath, "-C", tmpExtract]);
-  fs.rmSync(tarPath);
+  })
+    .toString()
+    .trim();
+  const pathspec = subtree ? ` '${subtree}'` : "";
+  execFileSync(
+    "sh",
+    ["-c", `git archive '${ref}'${pathspec} | tar -x -C '${tmpExtractPosix}'`],
+    {
+      maxBuffer: 64 * 1024 * 1024,
+    },
+  );
+  const tmpExtract = execFileSync("cygpath", ["-w", tmpExtractPosix]).toString().trim();
 
   const stats = { total: 0, content: 0, verbatim: 0, cuaLimited: 0, binary: 0, pathRenamed: 0 };
   const walk = (dir, relPrefix) => {
@@ -266,15 +283,16 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   };
   const ref = getArg("ref") ?? "upstream/main";
   const outDir = getArg("out");
+  const subtree = getArg("subtree");
   const quiet = args.includes("--quiet");
   if (!outDir) {
-    console.error("用法: transform-upstream-tree.mjs --ref <git-ref> --out <dir>");
+    console.error("用法: transform-upstream-tree.mjs --ref <git-ref> --out <dir> [--subtree <rel>]");
     process.exit(1);
   }
-  const stats = transformTree(ref, outDir);
+  const stats = transformTree(ref, outDir, subtree);
   if (!quiet) {
     console.error(
-      `[transform] ref=${ref} -> ${outDir}: total=${stats.total} content=${stats.content} ` +
+      `[transform] ref=${ref} -> ${outDir}${subtree ? ` subtree=${subtree}` : ""}: total=${stats.total} content=${stats.content} ` +
         `cuaLimited=${stats.cuaLimited} verbatim=${stats.verbatim} binary=${stats.binary} pathRenamed=${stats.pathRenamed}`,
     );
   }

@@ -14,7 +14,6 @@ import {
   type DroraProtocolAgentServerContext,
   type DroraProtocolSessionRecord,
 } from "./server-types.js";
-import { runSessionModelConfigMutation } from "../drora-protocol-v4/model-config-mutation.js";
 import { createProviderRuntimeHeadersPort } from "./provider-runtime-headers.js";
 import { offPeakLifecycleNotificationSchema } from "@drora/shared";
 import { V4_NOTIFICATIONS } from "@drora/shared/drora-protocol-v4";
@@ -38,6 +37,10 @@ export async function readWorkspacePresentation(
       ),
       env: context.deps.env,
       logger: context.logger,
+      pluginPreparation: context.deps?.pluginPreparation,
+      pluginDiscovery: context.deps?.pluginDiscovery,
+      workspaceIdentity: params.workspace.workspaceIdentity,
+      remoteSessionId: params.workspace.remoteSessionId,
       workingDirectory: params.workspace.workspacePath,
     }),
   };
@@ -84,6 +87,8 @@ export async function createWorkspaceDroraApp(
     options.providerRuntimeHeadersPort ?? createProviderRuntimeHeadersPort(context, workspace);
   return context.deps.createDroraApp({
     ...options,
+    // Hook Trust 等对外字段用会话所属 workspace 的 key；受管 worktree 会话 = 项目 key。
+    workspaceKey: workspace.workspaceKey,
     onOffPeakLifecycleEvent: (event) =>
       context.notify({
         method: V4_NOTIFICATIONS.offPeakLifecycle,
@@ -122,27 +127,6 @@ export function hasSessionModelProvider(
   providerId: string,
 ): boolean {
   return record.app.listModels().some((model) => model.ref.providerId === providerId);
-}
-
-async function ensureSessionModelAvailableUnlocked(
-  context: DroraProtocolAgentServerContext,
-  record: DroraProtocolSessionRecord,
-): Promise<boolean> {
-  // 存量模型失效时不能静默改成 Registry 第一项覆盖用户选择；失效选择保持未绑定，
-  // 由恢复/Composer 的选择校验和首发门禁处理；这里不能再写入另一份默认模型事实。
-  // 保留该过渡入口是为了让旧协议调用方平稳退场。
-  void context;
-  void record;
-  return false;
-}
-
-export async function ensureSessionModelAvailable(
-  context: DroraProtocolAgentServerContext,
-  record: DroraProtocolSessionRecord,
-): Promise<boolean> {
-  return runSessionModelConfigMutation(record.app, () =>
-    ensureSessionModelAvailableUnlocked(context, record),
-  );
 }
 
 export function resolveSessionModelContextWindow(

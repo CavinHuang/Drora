@@ -352,3 +352,7 @@ test("persona worker bundle boots a store worker from the exact source injected 
     }
   }
 });
+
+test("CLI leaves system keyring native loading to the runtime", () => {
+  assert.ok(resolveBuildExternal().includes("@napi-rs/keyring"));
+});

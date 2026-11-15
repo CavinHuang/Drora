@@ -1,4 +1,4 @@
-import type { TurnInputIntentMetadata } from "@drora/contracts";
+import { PLUGIN_DISCOVERY_INPUT, type TurnInputIntentMetadata } from "@drora/contracts";
 import type { ModelSelection } from "@drora/shared";
 import type {
   AttachmentRef,
@@ -48,7 +48,7 @@ export function inputIntentMetadata(
     genUiContext?: TurnInputIntentMetadata["genUiContext"];
     sharedContextRefs?: TurnInputIntentMetadata["sharedContextRefs"];
     source?: TurnInputIntentMetadata["source"];
-    },
+  },
 ): TurnInputIntentMetadata {
   const admission = commandAdmissionOf(envelope);
   const highspeed =
@@ -56,6 +56,7 @@ export function inputIntentMetadata(
       ? (envelope.payload as CommandPayloadMap["sendText"]).highspeedMeta
       : undefined;
   return {
+    ...(envelope.pluginDiscoveryUi === true ? { [PLUGIN_DISCOVERY_INPUT]: true as const } : {}),
     ...((envelope.inputOrigin ?? options.inputOrigin)
       ? { inputOrigin: envelope.inputOrigin ?? options.inputOrigin }
       : {}),
@@ -92,9 +93,6 @@ export function inputIntentMetadata(
     ...(options.sharedContextRefs ? { sharedContextRefs: [...options.sharedContextRefs] } : {}),
     ...(highspeed ? { highspeed } : {}),
     ...(options.source ? { source: options.source } : {}),
-    // P7 本体清除（spec §1-C6）：evidenceRefs 写入路径删除——新 canonical intent 不再
-    // 携带证据引用（wire 字段 deprecated；旧账本 refs 条目由 evidence-admission
-    // legacy 探测器在 admission/提升边界拒绝）。
   };
 }
 
@@ -108,12 +106,11 @@ export function inputIntentMetadataFromCanonical(
   const originalSourceCommandId =
     canonical.provenance?.sourceCommandId ?? canonical.sourceCommandId;
   return {
+    ...(envelope.pluginDiscoveryUi === true ? { [PLUGIN_DISCOVERY_INPUT]: true as const } : {}),
     ...((envelope.inputOrigin ?? canonical.inputOrigin)
       ? { inputOrigin: envelope.inputOrigin ?? canonical.inputOrigin }
       : {}),
     ...(canonical.conversationQuotes ? { conversationQuotes: canonical.conversationQuotes } : {}),
-    // P7（spec §1-C6）：edit/retry 重建不再继承 evidenceRefs——重建仅在 legacy 探测器
-    // 通过（原 intent refs 为空）后发生，旧带 refs 条目在 fork-edit-retry 边界即被拒。
     ...(canonical.botGroupSource ? { botGroupSource: canonical.botGroupSource } : {}),
     sourceCommandId: envelope.commandId,
     queueItemId: admission.queueItemId,
@@ -174,8 +171,6 @@ export function inputIntentMetadataFromQueueItem(
     ...(item.sharedContextRefs ? { sharedContextRefs: [...item.sharedContextRefs] } : {}),
     ...(item.highspeed ? { highspeed: item.highspeed } : {}),
     ...(item.source ? { source: item.source } : {}),
-    // P7（spec §1-C6）：提升不再复制 evidenceRefs——带 refs 的旧队列项在
-    // sendQueuedNow reserve 前已被 legacy 探测器拒绝，本重建只会承接空 refs 条目。
     // 提升只改变调度状态；重试／编辑原始输入的来源关联不能在此丢失。
     ...(item.provenance ? { provenance: { ...item.provenance } } : {}),
   };

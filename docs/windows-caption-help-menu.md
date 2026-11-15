@@ -22,25 +22,25 @@ Windows/Linux 桌面端曾在右上角自绘标题栏放一个箭头合并菜单
 ## 测试
 
 - 单测：`packages/ui/test/workspaceHelpMenuButton.test.ts`——`isDesktop` 为真时渲染资源管理器项并调用 `OpenResourceManager`，为假时不渲染。
-- E2E：`packages/desktop/test/e2e/resource-manager.test.ts`——从问号菜单打开资源管理器窗口。
+- E2E：`packages/desktop/test/e2e/resource-manager/processes/resource-manager.test.ts`——从问号菜单打开资源管理器窗口。
 
-- 关于入口正式 E2E：`packages/desktop/test/e2e/help-menu-about.test.ts`——真实点击问号菜单，验证关于窗口可见且包含应用名称和版本；检查更新项按产品身份显示，production 下验证点击转发既有 IPC 命令，不下载或安装。无需模型请求；已由用户确认转正，加入默认 desktop E2E 收集。
+- 关于入口正式 E2E：`packages/desktop/test/e2e/feedback/help/help-menu-about.test.ts`——真实点击问号菜单，验证关于窗口可见且包含应用名称和版本；检查更新项按产品身份显示，production 下验证点击转发既有 IPC 命令，不下载或安装。无需模型请求；已由用户确认转正，加入默认 desktop E2E 收集。
 
 ### 未推送改动的 E2E 补充
 
-| 场景                           | 验收                                                                                                                                               |
-| ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 英文草稿态、中文设置页         | 关于菜单文案及顺序正确，真实点击打开带版本的关于窗口                                                                                               |
-| 英文草稿态、中文设置页导出日志 | 桌面组首项为导出日志，真实点击后生成 ZIP、请求系统定位并结束导出提示；复用原有导出实现                                                             |
-| production 初始状态            | 显示检查更新，真实点击经现有命令收到开发包 `dev-skipped` 回执                                                                                      |
-| production 状态事件            | checking 禁用；可用版本、下载进度显示对应文案；下载完成分别断言动作文案和版本 pill（不依赖括号及子节点空白拼接）；关闭重开后版本 pill 保持最新状态 |
-| Preview                        | 草稿态和设置页都无更新项，注入更新事件也不出现                                                                                                     |
+| 场景 | 验收 |
+| --- | --- |
+| 英文草稿态、中文设置页 | 关于菜单文案及顺序正确，真实点击打开带版本的关于窗口 |
+| 英文草稿态、中文设置页导出日志 | 桌面组首项为导出日志，真实点击后生成 ZIP、请求系统定位并结束导出提示；复用原有导出实现 |
+| production 初始状态 | 显示检查更新，真实点击经现有命令收到开发包 `dev-skipped` 回执 |
+| production 状态事件 | checking 禁用；可用版本、下载进度显示对应文案；下载完成分别断言动作文案和版本 pill（不依赖括号及子节点空白拼接）；关闭重开后版本 pill 保持最新状态 |
+| Preview | 草稿态和设置页都无更新项，注入更新事件也不出现 |
 
 状态事件使用 case 内合成 `UpdateStatePayload`，只验证 main→preload→菜单展示，不修改真实 updater，也不下载或安装。测试不再依赖 Node 侧 `DRORA_PRODUCT_FLAVOR`（未编译 define 时固定回退为 preview）；默认期望 Preview；production 必须显式传入期望身份，并对真实菜单断言。
 
 ```bash
-DRORA_ENV=production DRORA_PREVIEW_IDENTITY=0 DRORA_E2E_HELP_MENU_FLAVOR=production pnpm --filter @drora/desktop test:e2e -- --spec ./test/e2e/help-menu-about.test.ts
-DRORA_ENV=test DRORA_PREVIEW_IDENTITY=1 DRORA_E2E_HELP_MENU_FLAVOR=preview pnpm --filter @drora/desktop test:e2e -- --spec ./test/e2e/help-menu-about.test.ts
+DRORA_ENV=production DRORA_PREVIEW_IDENTITY=0 DRORA_E2E_HELP_MENU_FLAVOR=production pnpm --filter @drora/desktop test:e2e -- --spec ./test/e2e/feedback/help/help-menu-about.test.ts
+DRORA_ENV=test DRORA_PREVIEW_IDENTITY=1 DRORA_E2E_HELP_MENU_FLAVOR=preview pnpm --filter @drora/desktop test:e2e -- --spec ./test/e2e/feedback/help/help-menu-about.test.ts
 ```
 
 两次身份切换必须重新构建；不设置 skip build。手机 Web 的入口隐藏仍由现有组件单测覆盖，本轮不声称新增手机浏览器 E2E。

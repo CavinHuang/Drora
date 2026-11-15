@@ -14,12 +14,7 @@
     "noUncheckedIndexedAccess": false,
     "types": [
       "node"
-    ],
-    "target": "es2022",
-    "lib": [
-      "es2023"
-    ],
-    "sourceMap": false
+    ]
   },
   "include": [
     "src/**/*.ts"

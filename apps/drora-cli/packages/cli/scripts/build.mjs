@@ -14,7 +14,12 @@ const executableFileMode = 0o755;
 const packageJsonFile = "package.json";
 const rootPackageVersionError = "Root package.json must define a non-empty string version.";
 const desktopAgentBuildFlag = "--desktop-agent";
-export const resolveBuildExternal = () => ["@drora/tui", "playwright-core", "koffi"];
+export const resolveBuildExternal = () => [
+  "@drora/tui",
+  "playwright-core",
+  "koffi",
+  "@napi-rs/keyring",
+];
 // persona 独立库的异步 worker 入口。drora.cjs 是单文件 bundle（desktop-agent 只内置这一份），
 // 旁挂文件不会随包发布；worker 入口的 esbuild 打包由 @drora/adapters 的 build 脚本完成
 // （dist/storage/persona/persona-store-worker-main.bundle.cjs），这里把它作为 define 字符串

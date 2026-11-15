@@ -1,8 +1,22 @@
 import { describe, expect, it, vi } from "vitest";
 import type { Logger } from "@drora/contracts";
+import type { SharedDroraCredentialStore } from "@drora/adapters/auth";
 import { resolveProcessProviderEndpointRoutingPort } from "../src/provider-endpoint-routing.js";
 
 describe("resolveProcessProviderEndpointRoutingPort", () => {
+  it("keeps injected credential owners separate while reusing one owner's port", () => {
+    const firstStore = { load: vi.fn(async () => null) } as unknown as SharedDroraCredentialStore;
+    const secondStore = { load: vi.fn(async () => null) } as unknown as SharedDroraCredentialStore;
+    const create = (credentialStore: SharedDroraCredentialStore) =>
+      resolveProcessProviderEndpointRoutingPort({
+        env: { DRORA_ENV: "production", DRORA_BASE_URL: "https://credential-owner.example.test" },
+        logger,
+        network: {},
+        credentialStore,
+      });
+    expect(create(firstStore)).toBe(create(firstStore));
+    expect(create(firstStore)).not.toBe(create(secondStore));
+  });
   it("shares one process snapshot owner for the same endpoint and network policy", () => {
     const env = {
       DRORA_ENV: "test",

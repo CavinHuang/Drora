@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "revision": 43,
+  "revision": 44,
   "config": {
     "providerConfigRules": {
       "templateRules": [
@@ -644,6 +644,7 @@
               "gpt-6-astra",
               "gpt-5.6-terra",
               "gpt-6.1-sol",
+              "gpt-6.1-terra",
               "gpt-6-luna",
               "gpt-5.6-sol",
               "gpt-5.6-luna",
@@ -4414,7 +4415,7 @@
         },
         {
           "modelMatch": ".*",
-          "baseUrlMatch": "https://zcode\\.z\\.ai/api/v1/zcode-plan/anthropic/?",
+          "baseUrlMatch": "https://drora\\.z\\.ai/api/v1/zcode-plan/anthropic/?",
           "config": {
             "properties": {
               "inputFormat": {
@@ -4426,7 +4427,7 @@
         },
         {
           "modelMatch": ".*",
-          "baseUrlMatch": "https://zcode\\.z\\.ai/api/v1/zcode-plan/anthropic/?",
+          "baseUrlMatch": "https://drora\\.z\\.ai/api/v1/zcode-plan/anthropic/?",
           "config": {
             "properties": {
               "inputFormat": {
@@ -4438,7 +4439,7 @@
         },
         {
           "modelMatch": ".*",
-          "baseUrlMatch": "https://zcode\\.z\\.ai/api/v1/highspeed/anthropic/?",
+          "baseUrlMatch": "https://drora\\.z\\.ai/api/v1/highspeed/anthropic/?",
           "config": {
             "properties": {
               "inputFormat": {
@@ -4450,7 +4451,7 @@
         },
         {
           "modelMatch": ".*",
-          "baseUrlMatch": "https://zcode\\.z\\.ai/api/v1/highspeed/anthropic/?",
+          "baseUrlMatch": "https://drora\\.z\\.ai/api/v1/highspeed/anthropic/?",
           "config": {
             "properties": {
               "inputFormat": {
@@ -4622,7 +4623,7 @@
         {
           "modelMatch": ".*",
           "apiTypeMatch": "anthropic-messages",
-          "baseUrlMatch": "https://zcode\\.z\\.ai/api/v1/zcode-plan/anthropic/?",
+          "baseUrlMatch": "https://drora\\.z\\.ai/api/v1/zcode-plan/anthropic/?",
           "config": {
             "properties": {
               "supportsNativeWebSearch": true,
@@ -4633,7 +4634,7 @@
         {
           "modelMatch": ".*",
           "apiTypeMatch": "anthropic-messages",
-          "baseUrlMatch": "https://zcode\\.z\\.ai/api/v1/zcode-plan/anthropic/?",
+          "baseUrlMatch": "https://drora\\.z\\.ai/api/v1/zcode-plan/anthropic/?",
           "config": {
             "properties": {
               "supportsNativeWebSearch": true,
@@ -4644,7 +4645,7 @@
         {
           "modelMatch": ".*",
           "apiTypeMatch": "anthropic-messages",
-          "baseUrlMatch": "https://zcode\\.z\\.ai/api/v1/off-peak/anthropic/?",
+          "baseUrlMatch": "https://drora\\.z\\.ai/api/v1/off-peak/anthropic/?",
           "config": {
             "properties": {
               "supportsNativeWebSearch": false,
@@ -4655,7 +4656,7 @@
         {
           "modelMatch": ".*",
           "apiTypeMatch": "anthropic-messages",
-          "baseUrlMatch": "https://zcode\\.z\\.ai/api/v1/off-peak/anthropic/?",
+          "baseUrlMatch": "https://drora\\.z\\.ai/api/v1/off-peak/anthropic/?",
           "config": {
             "properties": {
               "supportsNativeWebSearch": false,
@@ -4666,7 +4667,7 @@
         {
           "modelMatch": ".*",
           "apiTypeMatch": "anthropic-messages",
-          "baseUrlMatch": "https://zcode\\.z\\.ai/api/v1/highspeed/anthropic/?",
+          "baseUrlMatch": "https://drora\\.z\\.ai/api/v1/highspeed/anthropic/?",
           "config": {
             "properties": {
               "supportsNativeWebSearch": true,
@@ -4677,7 +4678,7 @@
         {
           "modelMatch": ".*",
           "apiTypeMatch": "anthropic-messages",
-          "baseUrlMatch": "https://zcode\\.z\\.ai/api/v1/highspeed/anthropic/?",
+          "baseUrlMatch": "https://drora\\.z\\.ai/api/v1/highspeed/anthropic/?",
           "config": {
             "properties": {
               "supportsNativeWebSearch": true,
@@ -6614,6 +6615,31 @@
               },
               "maxOutputTokens": {
                 "map": "{\"max_output_tokens\": maxOutputTokens}"
+              }
+            }
+          }
+        },
+        {
+          "templateId": "openai",
+          "modelId": "gpt-6.1-terra",
+          "config": {
+            "enabled": true,
+            "properties": {
+              "contextWindow": 1050000,
+              "inputFormat": {
+                "supportsImage": true,
+                "supportsPdf": true
+              },
+              "supportsJsonSchemaOutput": true
+            },
+            "optionSpecs": {
+              "reasoningLevel": {
+                "values": ["none", "low", "medium", "high", "xhigh", "max"],
+                "map": "{\n  \"reasoning\": {\n    \"effort\": reasoningLevel\n  }\n}"
+              },
+              "maxOutputTokens": {
+                "map": "{\"max_output_tokens\": maxOutputTokens}",
+                "max": 128000
               }
             }
           }

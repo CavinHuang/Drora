@@ -6,6 +6,8 @@ import type { TurnInputIntentMetadata } from "@drora/contracts";
  * 据此配对可信引用），但 Receipt ID 是 opaque 服务端凭据，绝不能进入模型 prompt
  * （安全不变量「来源原文不作为模型可见 Receipt ID」）。此处按白名单挑选字段，
  * 非白名单键（含 evidenceReceiptId）一律不出模型边界。
+ * v3.18.0 合并追加：上游为选区批注新增 comment/agent 字段（capability
+ * conversationQuoteComment），两者是模型应消费的用户语义，加入白名单；evidenceReceiptId 仍排除。
  */
 const MODEL_VISIBLE_QUOTE_KEYS = [
   "text",
@@ -14,6 +16,8 @@ const MODEL_VISIBLE_QUOTE_KEYS = [
   "senderId",
   "messageId",
   "sentAt",
+  "comment",
+  "agent",
 ] as const;
 
 function toModelVisibleQuote(
@@ -27,6 +31,9 @@ function toModelVisibleQuote(
   return visible;
 }
 
+const QUOTE_COMMENT_GUIDANCE =
+  "Each conversation_quote item with a `comment` field is a user annotation on that exact quoted text: treat the comment as the user's question or instruction about that passage. An `agent` field names the subagent that produced the quoted text.";
+
 /** 引用只在模型边界转为材料，不能混入 canonical 用户正文或解析成控制命令。 */
 export function withConversationQuotes(
   text: string,
@@ -38,6 +45,9 @@ export function withConversationQuotes(
     parts.push(
       `<conversation_quote>\n${JSON.stringify(quotes.map(toModelVisibleQuote))}\n</conversation_quote>`,
     );
+  // 批注只是 JSON 字段时，模型容易把它当成引用原文的一部分；单独说明它是用户针对该段的要求。
+  if (quotes?.some((quote) => quote.comment?.trim()))
+    parts.push(QUOTE_COMMENT_GUIDANCE);
   // 机器人来源过去仅存在于投影，模型误把正常回答当成需要调用飞书发送的任务。
   if (botSource)
     parts.push(

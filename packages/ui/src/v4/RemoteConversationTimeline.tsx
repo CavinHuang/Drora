@@ -56,13 +56,11 @@ export interface RemoteConversationTimelineProps {
   onFeedbackChange?: AssistantFeedbackHandler;
   /** 从 assistant 消息分叉（v4 forkAssistant；缺省不渲染 fork 按钮）。 */
   onFork?: (target: ConversationRowTarget) => void;
-  /** user 行行内编辑（v4 editUserQuery；缺省不渲染编辑入口。§33.18.13）。 */
-  onEdit?: (
-    target: ConversationRowTarget,
-    newText: string,
-    attachments?: readonly import("@drora/shared/drora-protocol-v4").AttachmentRef[],
-    workspaceMode?: "preserve" | "rewind",
-  ) => Promise<CommandAck | boolean | void> | CommandAck | boolean | void;
+  /** user 行「进入编辑」入口（缺省不渲染编辑入口。§33.18.13）。
+   *  修复原因：上游 v3.18.0 把行内编辑迁入 composer-edit-mode——ConversationRowView 的
+   *  onEdit 回调只携带 target（begin-edit 语义），newText/attachments/rewind 由编辑会话
+   *  承接，不再经行级回调透传；本远端回放组件对齐该契约，旧的多参签名无人能再触达。 */
+  onEdit?: (target: ConversationRowTarget) => Promise<void> | void;
   /** 撤销预览（v4 conversationFileRewindPreviewV4；缺省=撤销钮不渲染。§33.18.13）。 */
   previewFileRewind?: (
     target: ConversationRowTarget,

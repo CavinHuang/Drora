@@ -3,6 +3,11 @@
 日期：2026-06-02
 分支：feat/new-agent
 
+> 2026-11-06 更新：本文记录迁移时的历史设计。原 30 天自动清理策略已取消，三张用量表永久保留；
+> 7 天 / 30 天只作为查询范围。当前数据保留与展示约定以
+> [应用用量规格](../../usage-stats-app-coding-plan-split.md) 和
+> [CLI 用量契约](../../../apps/drora-cli/docs/design/v2/usage-observability.md) 为准。
+
 ## 背景与目标
 
 「应用用量」（App Usage）面板当前的数据全部来自**本地 session JSON 文件**
@@ -58,17 +63,17 @@ Drora Protocol（stdio JSON-RPC）请求数据（现有 `session/list`、`sessio
 
 固定 8 张卡。映射如下：
 
-| 旧卡片                    | 处理             | 新卡片                                        | 数据来源                                             |
-| ------------------------- | ---------------- | --------------------------------------------- | ---------------------------------------------------- |
-| Token 用量（字符/3 估算） | 换真实           | **真实 Token**（总量，副标拆 输入/输出/缓存） | `model_usage.computed_total_tokens` 等               |
-| 消息数                    | 删，替换         | **对话轮次**                                  | `turn_usage` 行数                                    |
-| 会话数                    | 保留             | 会话数                                        | distinct `session_id`                                |
-| 活跃天数                  | 保留             | 活跃天数                                      | distinct day(`started_at`)                           |
-| 当前/最长连续             | 合并             | **连续活跃天数**（30 天内）                   | day(`started_at`)                                    |
-| 峰值时段                  | 删（移到热力图） | **缓存命中率**                                | `cache_read / (input + cache_creation + cache_read)` |
-| 最常用模型                | 保留             | 最常用模型（按真实 token）                    | `model_usage` GROUP BY model                         |
-| —                         | 新增             | **工具调用**（总数 + 错误率）                 | `tool_usage`                                         |
-| —                         | 新增             | **可靠性**（模型错误率 / 平均 TTFT）          | `model_usage.status`、`time_to_first_token_ms`       |
+| 旧卡片 | 处理 | 新卡片 | 数据来源 |
+|---|---|---|---|
+| Token 用量（字符/3 估算） | 换真实 | **真实 Token**（总量，副标拆 输入/输出/缓存） | `model_usage.computed_total_tokens` 等 |
+| 消息数 | 删，替换 | **对话轮次** | `turn_usage` 行数 |
+| 会话数 | 保留 | 会话数 | distinct `session_id` |
+| 活跃天数 | 保留 | 活跃天数 | distinct day(`started_at`) |
+| 当前/最长连续 | 合并 | **连续活跃天数**（30 天内） | day(`started_at`) |
+| 峰值时段 | 删（移到热力图） | **缓存命中率** | `cache_read / (input + cache_creation + cache_read)` |
+| 最常用模型 | 保留 | 最常用模型（按真实 token） | `model_usage` GROUP BY model |
+| — | 新增 | **工具调用**（总数 + 错误率） | `tool_usage` |
+| — | 新增 | **可靠性**（模型错误率 / 平均 TTFT） | `model_usage.status`、`time_to_first_token_ms` |
 
 > 候选 9 项取 8。默认取舍：保留「连续活跃天数」与「可靠性」，因「工具调用」已在第 4 区块
 > 充分展开，概要中可省其一以控制在 8 张；实现时可微调，不影响架构。

@@ -14,6 +14,8 @@ const buildReadyMarkers = [
   { name: "main", path: resolve(root, "out/.main-build-ready") },
   { name: "host", path: resolve(root, "out/.host-build-ready") },
   { name: "preload", path: resolve(root, "out/.preload-build-ready") },
+  // 扩展进程是 Main 按需拉起的独立产物；未就绪就启动 Electron 会让首个 Window Host 拉起失败。
+  { name: "extension-host", path: resolve(root, "out/.extension-host-build-ready") },
 ];
 const waitLogIntervalMs = 3_000;
 const require = createRequire(import.meta.url);
@@ -96,7 +98,7 @@ let electronCommand = electronBinary;
 
 if (process.platform === "darwin" && existsSync(electronBinary)) {
   // macOS 命令行启动的 raw Electron 没有 CFBundleURLTypes，LaunchServices 会把
-  // drora:// 交给一个没有项目入口的 Electron 默认壳。给本地启动副本补齐产品
+  // zcode:// 交给一个没有项目入口的 Electron 默认壳。给本地启动副本补齐产品
   // Info.plist 后，线上 Share 页面无需感知 Dev，仍可把链接投递给已运行的 Dev 实例。
   const electronPackageJsonPath = require.resolve("electron/package.json");
   const electronPackage = JSON.parse(await readFile(electronPackageJsonPath, "utf8"));

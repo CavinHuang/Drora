@@ -21,9 +21,11 @@ export function resolveDesktopProductionCleanPaths(cwd) {
     // 构建代残留时会被 out/**/* 打进 app.asar（重新暴露未压缩 JS 与 sourcemap）。
     resolve(cwd, "out/scheduler"),
     resolve(cwd, "out/plugin-sandbox"),
+    resolve(cwd, "out/extension-host"),
     resolve(cwd, "out/.main-build-ready"),
     resolve(cwd, "out/.host-build-ready"),
     resolve(cwd, "out/.preload-build-ready"),
+    resolve(cwd, "out/.extension-host-build-ready"),
   ];
 }
 

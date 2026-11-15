@@ -3,6 +3,22 @@ import { teamMessagesEn } from "@/i18n/teamMessages.js";
 /** English translations */
 const enUS: Record<string, string> = {
   ...teamMessagesEn,
+  "plugin.discovery.installAndEnable": "Install and enable in this workspace",
+  "plugin.discovery.enableInWorkspace": "Enable in this workspace",
+  "plugin.discovery.workspaceInstall":
+    "Install the plugin and enable it in this workspace. Other workspace settings stay unchanged; configuration or authorization may still be required.",
+  "plugins.startupTimeout":
+    "Plugin loading timed out. Plugin skills, commands, MCP servers and hooks are unavailable for this run. Restart the app to try again.",
+  "imageEditor.addedToChat": "Added. You can remove it before sending.",
+  "imageEditor.unsavedTitle": "Your drawing has not been added",
+  "imageEditor.unsavedDescription": "Add the edited image to chat?",
+  "imageEditor.keepEditing": "Keep editing",
+  "imageEditor.discard": "Discard changes",
+  "preview.image.saveAndOpen": "Save and open",
+  "preview.image.saveAndChooseApp": "Save a copy and choose an app",
+  "preview.image.annotate": "Draw",
+  "preview.image.resetZoom": "Reset zoom",
+  "preview.image.actionFailed": "Could not complete the image action. Please try again.",
   "preview.image.copy": "Copy image",
   "preview.image.actions": "Image actions",
   "preview.image.added": "Added to chat",
@@ -11,8 +27,85 @@ const enUS: Record<string, string> = {
   "preview.image.copied": "Image copied",
   "preview.image.copyFailed": "Could not copy image. Check clipboard access and try again.",
   "archives.nav": "Archive management",
+  "conversationShare.manage.nav": "Shares",
+  "conversationShare.manage.loginTitle": "Sign in to manage your shares",
+  "conversationShare.manage.loginDescription":
+    "Sign in with the account you used to create the shares.",
+  "conversationShare.manage.login": "Sign in",
+  "conversationShare.manage.loading": "Loading…",
+  "conversationShare.manage.loadFailed": "Unable to load your shares.",
+  "conversationShare.manage.retry": "Retry",
+  "conversationShare.manage.emptyTitle": "No active shares",
+  "conversationShare.manage.emptyDescription":
+    "Conversations you share appear here. Expired shares are not shown.",
+  "conversationShare.manage.statusActive": "Active",
+  "conversationShare.manage.statusRevoked": "Stopped",
+  "conversationShare.manage.visibilityPrivate": "Only me",
+  "conversationShare.manage.visibilityLink": "Anyone with the link",
+  "conversationShare.manage.importReadonly": "View only",
+  "conversationShare.manage.importImportable": "Import & continue",
+  "conversationShare.manage.remainingDay": "1 day left",
+  "conversationShare.manage.remainingDays": "{count} days left",
+  "conversationShare.manage.remainingHour": "1 hour left",
+  "conversationShare.manage.remainingHours": "{count} hours left",
+  "conversationShare.manage.remainingLessThanHour": "Less than 1 hour left",
+  "conversationShare.manage.createdAt": "Created {time}",
+  "conversationShare.manage.expiresAt": "Expires {time}",
+  "conversationShare.manage.openConversation": "Go to conversation",
+  "conversationShare.manage.copyLink": "Copy link",
+  "conversationShare.manage.copied": "Copied",
+  "conversationShare.manage.open": "Open share page",
+  "conversationShare.manage.more": "More actions",
+  "conversationShare.manage.revoke": "Stop sharing",
+  "conversationShare.manage.restore": "Resume sharing",
+  "conversationShare.manage.remove": "Delete",
+  "conversationShare.manage.loadMore": "Load more",
+  "conversationShare.manage.loadingMore": "Loading…",
+  "conversationShare.manage.loadMoreFailed": "Unable to load more. Try again.",
+  "conversationShare.manage.cancel": "Cancel",
+  "conversationShare.manage.revokeTitle": "Stop this share?",
+  "conversationShare.manage.revokeDescription":
+    "The link stops working now. You can resume it later. Download links in pages that are already open expire shortly; imported copies are not affected.",
+  "conversationShare.manage.removeTitle": "Delete this share?",
+  "conversationShare.manage.removeDescription":
+    "The link stops working permanently and the shared content is removed. You cannot undo this.",
+  "conversationShare.manage.rowFailed": "The action failed. Try again.",
+  "conversationShare.manage.rowRateLimited": "Too many requests. Try again later.",
+  "conversationShare.manage.rowRemovedNotice":
+    "A share is no longer available and was removed from the list.",
+  "archives.checking": "Checking…",
+  "archives.checkingProgress": "Checking sessions: {completed}/{total}…",
+  "archives.checkingDescription":
+    "Nothing is deleted during this check. Cancel at any time to stop further checks.",
+  "archives.deleteCount": "Permanently delete {count} sessions",
+  "archives.willDelete": "Will be deleted",
+  "archives.willKeep": "Will be kept",
+  "archives.cannotDelete": "Cannot be deleted now",
+  "archives.none": "None",
+  "archives.deleteItem":
+    "“{title}”: conversation, {children} owned child sessions, input history and indexes, {files} private attachment or execution record files",
+  "archives.keepFork": "Independent fork: “{title}” (may contain original conversation content)",
+  "archives.keepAttachment": "Attachment {name}: referenced by {referrers}; file will be kept",
+  "archives.previousReference": "previously confirmed conversations",
+  "archives.keepShares": "Published share links and shared copies remain unchanged and accessible.",
+  "archives.keepExternal":
+    "Workspace files, Git/worktrees, directory-level memory and checkpoints, exports, backups and application logs are outside this deletion.",
+  "archives.resumeDeletion": "“{title}”: finish the previous permanent deletion",
+  "archives.incomplete":
+    "Deletion has not been confirmed complete. Retry; removed content cannot be restored.",
+  "archives.reason.running":
+    "Work or queued input is pending. Stop the task and resolve its queue first.",
+  "archives.reason.in-use": "Another process is using this session. Close it there and retry.",
+  "archives.reason.not-found": "Original session data was not found. Nothing was deleted.",
+  "archives.reason.not-archived": "The session is no longer archived. Nothing was deleted.",
+  "archives.reason.changed": "The deletion scope changed. Review and confirm again.",
+  "archives.reason.unavailable":
+    "Cannot safely inspect or delete: the host is unavailable, its version is unsupported, or reading failed. Resolve the issue and retry.",
+  "archives.deleteFiltered": "Permanently delete filtered results",
+  "archives.deletedResult": "“{title}” permanently deleted; {count} referenced attachments kept.",
+  "archives.localDevice": "This device",
   "archives.title": "Archived sessions",
-  "archives.deleteAll": "Delete all",
+  "archives.deleteAll": "Permanently delete all",
   "archives.search": "Search archived sessions",
   "archives.clearSearch": "Clear search",
   "archives.sortLabel": "Sort by",
@@ -25,22 +118,22 @@ const enUS: Record<string, string> = {
   "archives.removed": "Removed",
   "archives.count": "{count} sessions",
   "archives.groupActions": "Archive actions for {name}",
-  "archives.delete": "Delete",
-  "archives.deleteTask": "Delete “{title}”",
+  "archives.delete": "Permanently delete",
+  "archives.deleteTask": "Permanently delete “{title}”",
   "archives.unarchive": "Unarchive",
   "archives.unarchiveAll": "Unarchive all",
   "archives.showMore": "Show more",
-  "archives.deleteTitle": "Delete {count} archived sessions?",
+  "archives.deleteTitle": "Permanently delete {count} archived sessions?",
   "archives.deleteDescription":
-    "Only the sessions in this confirmed selection will be deleted. You cannot restore them in the app.",
+    "Session records will be permanently removed from this device or their remote host. You cannot restore them in the app. Review the scope below.",
   "archives.working": "Processing…",
-  "archives.result": "Succeeded: {succeeded}; failed: {failed}; skipped after changes: {skipped}",
+  "archives.result": "Succeeded: {succeeded}; failed: {failed}; skipped: {skipped}",
   "archives.loadFailed": "Could not load archived sessions",
   "archives.retry": "Retry",
   "archives.loading": "Loading archived sessions…",
   "archives.empty": "No archived sessions",
   "archives.noResults": "No matching archived sessions",
-  "projectManagement.nav": "Projects",
+  "projectManagement.nav": "Project Management",
   "projectManagement.intro":
     "Removing a project takes it out of the sidebar and the project picker. Its sessions stay in Recent and search, and nothing on disk is touched.",
   "projectManagement.manage": "Manage projects…",
@@ -93,6 +186,8 @@ const enUS: Record<string, string> = {
   "projectManagement.confirm.titleOne": "Remove 1 project?",
   "projectManagement.confirm.description":
     "They leave the sidebar and the project picker. Their sessions ({sessions}) stay in Recent and search. Folders on disk are not touched.",
+  "projectManagement.confirm.descriptionOne":
+    "It leaves the sidebar and the project picker. Its sessions ({sessions}) stay in Recent and search. The folder on disk is not touched.",
   "projectManagement.confirm.remoteNote":
     "Removed from this computer only. They stay on {device} for its other clients.",
   "projectManagement.confirm.remoteNoteOne":
@@ -272,6 +367,93 @@ const enUS: Record<string, string> = {
   "project.createTask": "New task",
   "project.showMore": "Show more",
   "project.restore": "Restore project",
+  "project.worktrees": "Worktrees",
+  "git.managedWorktree.name": "{repo} · {bucket}",
+  "git.managedWorktree.error.not-repository": "The project folder isn't a Git repository",
+  "git.managedWorktree.error.invalid-start-ref": "The selected starting point doesn't exist",
+  "git.managedWorktree.error.start-ref-missing-subdir":
+    "The selected starting point doesn't contain the project folder",
+  "git.managedWorktree.error.bucket-exhausted": "Couldn't allocate a worktree folder",
+  "git.managedWorktree.error.worktree-dirty": "The worktree has uncommitted changes",
+  "git.managedWorktree.error.worktree-in-use": "A task is using this worktree",
+  "git.managedWorktree.error.not-managed": "This folder isn't a worktree managed by Drora",
+  "git.managedWorktree.error.local-only": "Worktrees are available only for local projects",
+  "git.managedWorktree.error.git-failed": "The Git operation failed",
+  "git.managedWorktree.error.task-immovable": "Worktree tasks can't be moved to another project",
+  "git.managedWorktree.error.generic": "The worktree operation failed",
+  "git.managedWorktree.toggle.label": "worktree",
+  "git.managedWorktree.toggle.tooltip":
+    "Run in a new worktree: an isolated copy that works in parallel with your local checkout",
+  "git.managedWorktree.ref.title": "Create the new worktree from",
+  "git.managedWorktree.ref.currentHead": "Current HEAD ({ref})",
+  "git.managedWorktree.ref.detached": "detached · {sha}",
+  "git.managedWorktree.ref.localBranches": "Local branches",
+  "git.managedWorktree.ref.remoteBranches": "Remote branches",
+  "git.managedWorktree.ref.note":
+    "The new worktree is created from the selected branch. Your local branch does not change. Uncommitted changes are not included.",
+  "git.managedWorktree.creation.creating": "Creating worktree",
+  "git.managedWorktree.creation.startingSession": "Starting task",
+  "git.managedWorktree.creation.failed": "Worktree setup failed",
+  "git.managedWorktree.creation.forkTitle": "Fork in a new worktree",
+  "git.managedWorktree.creation.retry": "Retry",
+  "git.managedWorktree.creation.continueLocal": "Don't use worktree",
+  "git.managedWorktree.creation.dismiss": "Dismiss",
+  "git.managedWorktree.creation.showOutput": "Show output",
+  "git.managedWorktree.creation.hideOutput": "Hide output",
+  "git.managedWorktree.creation.sidebarRow": "Creating worktree…",
+  "git.managedWorktree.created.title": "Worktree created",
+  "git.managedWorktree.error.slash-unsupported":
+    "The first message of a worktree task can't be a command",
+  "git.managedWorktree.error.copy-failed": "Couldn't copy files listed in .worktreeinclude",
+  "git.managedWorktree.error.session-failed":
+    "The worktree was created, but the task failed to start",
+  "git.managedWorktree.error.unsupported-agent": "This Agent version doesn't support worktrees",
+  "git.managedWorktree.error.carry-failed":
+    "Couldn't carry uncommitted changes into the new worktree",
+  "git.managedWorktree.error.session-close-failed":
+    "Couldn't unload the tasks using this worktree. The worktree was kept.",
+  "git.managedWorktree.error.command-unconfirmed":
+    "Couldn't confirm whether the task started. Nothing was deleted. Try again later.",
+  "git.managedWorktree.error.removing": "This worktree is being deleted. Try again later.",
+  "git.managedWorktree.dialog.title": "Worktrees",
+  "git.managedWorktree.dialog.description": "Worktrees that Drora manages for {project}",
+  "git.managedWorktree.dialog.loadFailed": "Couldn't load worktrees",
+  "git.managedWorktree.dialog.empty": "No worktrees yet",
+  "git.managedWorktree.dialog.detached": "detached · {sha}",
+  "git.managedWorktree.dialog.dirty": "Modified",
+  "git.managedWorktree.dialog.missing": "Directory missing",
+  "git.managedWorktree.dialog.noTasks": "No tasks",
+  "git.managedWorktree.dialog.openTask": "Open task",
+  "git.managedWorktree.dialog.untitledTask": "Untitled task",
+  "git.managedWorktree.dialog.archived": "Archived",
+  "git.managedWorktree.dialog.delete": "Delete worktree",
+  "git.managedWorktree.dialog.prune": "Remove record",
+  "git.managedWorktree.dialog.pruneFailed": "Couldn't remove the record",
+  "git.managedWorktree.dialog.openInEditorFailed": "Couldn't open in {editor}",
+  "git.managedWorktree.dialog.confirm.title": "Delete worktree {name}?",
+  "git.managedWorktree.dialog.confirm.directory": "The worktree directory will be deleted.",
+  "git.managedWorktree.dialog.confirm.ignored":
+    "Ignored files, such as dependencies and build output, are also deleted.",
+  "git.managedWorktree.dialog.confirm.tasks":
+    "Tasks that use it are kept, but they become read-only.",
+  "git.managedWorktree.dialog.error.dirty": "The worktree has uncommitted changes",
+  "git.managedWorktree.dialog.error.running": "A task is running",
+  "git.managedWorktree.dialog.error.terminal":
+    "Close the terminals running in this directory first",
+  "git.managedWorktree.dialog.confirm.discardChanges":
+    "This worktree has uncommitted changes. They will be discarded.",
+  "git.managedWorktree.dialog.error.creating": "This worktree is still being created",
+  "git.managedWorktree.dialog.error.generic": "Couldn't delete the worktree",
+  "git.managedWorktree.dialog.error.tasks": "A task is using this worktree",
+  "git.managedWorktree.dialog.error.removing": "This worktree is being deleted",
+  "git.managedWorktree.dialog.error.sessionClose":
+    "Couldn't unload the tasks using this worktree. The worktree was kept.",
+  "chat.message.fork.here": "Fork in the current folder",
+  "chat.message.fork.hereWorktree": "Fork in the current worktree",
+  "chat.message.fork.toWorktree": "Fork into a new worktree",
+  "chat.message.fork.toWorktreeHint": "Includes uncommitted changes",
+  "chat.message.fork.worktreeUnsupported": "Not supported by this Agent version",
+  "taskList.managedWorktreeLabel": "Worktree task",
   "project.edit": "Edit project",
   "project.deviceSettings": "Remote device settings",
   "project.description":
@@ -422,6 +604,8 @@ const enUS: Record<string, string> = {
     "View details, follow the instructions, and retry.",
   "remote.error.sourceServerDowngradeUnconfirmed.reason":
     "Reconnect to read the latest version of the remote device.",
+  "remote.error.sourceServerUpdateInProgress.reason":
+    "This connection was not started. Retry after the update finishes.",
   "remote.error.workspaceTaskIdentityConflict.reason":
     "View details, follow the instructions, and retry.",
   "remote.error.workspaceConfigConflict.reason":
@@ -536,6 +720,15 @@ const enUS: Record<string, string> = {
   "occupationOnboarding.suggestionsDescription":
     "Show suggestions in new conversations. Click to fill the composer.",
   "occupationOnboarding.close": "Exit onboarding",
+  "plugin.discovery.confirmTitle": "Official plugin recommendation",
+  "plugin.discovery.official": "Drora official marketplace",
+  "plugin.discovery.workspaceEnable": "Enable this plugin in the current workspace.",
+  "plugin.discovery.userInstall":
+    "Installed plugins are saved for this user. Configuration or authorization may still be required.",
+  "plugin.discovery.responseFailed": "Could not submit your choice. Please try again.",
+  "plugin.discovery.skip": "Skip",
+  "plugin.discovery.install": "Install",
+  "plugin.discovery.enable": "Enable",
   "startup.global.silent": "Starting Drora",
   "startup.global.upgrading": "Upgrading local data",
   "startup.global.initializing": "Initializing local data",
@@ -554,6 +747,10 @@ const enUS: Record<string, string> = {
     "Drora will open when preparation finishes. Large histories may take longer. Please keep the app running.",
   "startup.global.diagnostic": "Diagnostic ID",
   "startup.global.copy": "Copy diagnostics",
+  "startup.global.exportLogs": "Export logs",
+  "startup.global.exportingLogs": "Exporting logs...",
+  "startup.global.exportedLogs": "Logs exported. Opened in the file manager.",
+  "startup.global.exportLogsFailed": "Failed to export logs. Please try again.",
   "startup.global.exit": "Exit",
   "startup.global.copied": "Copied",
   "startup.global.copyFailed": "Copy failed. Please note the diagnostic ID.",
@@ -628,7 +825,6 @@ const enUS: Record<string, string> = {
   "chat.composer.skillShortcut": "Choose skills",
   "chat.composer.addSection": "Add",
   "chat.composer.addWorkflow": "Workflow",
-  "chat.composer.addTeam": "Build team",
   "chat.composer.attachment": "Attachments",
   "chat.permission.feedback.ariaLabel": "Optional feedback for the model when denying",
   "chat.permission.feedback.placeholder": "Tell the model what to do instead...",
@@ -792,14 +988,12 @@ const enUS: Record<string, string> = {
   "conversationShare.workflowUnavailable": "Workflow snapshot unavailable",
   "conversationShare.workflowPartial": "Some workflow data is unavailable in this snapshot",
   "conversationShare.capturedSnapshot": "Snapshot at sharing",
-  "conversationShare.readonly.history": "Reasoning",
   "conversationShare.readonly.computerUse": "Computer use",
   "conversationShare.readonly.explore": "Explore",
   "conversationShare.readonly.execute": "Execute",
   "conversationShare.readonly.changes": "Changes",
   "conversationShare.readonly.artifactPreview": "Download file",
-  "conversationShare.readonly.markerCompact": "Context compacted",
-  "conversationShare.readonly.markerModelChange": "Model switched",
+  "conversation.row.unreadable": "This message requires a newer version of Drora",
   "conversationShare.readonly.unsupportedRows": "Some content requires a newer version of Drora",
   "conversationShare.workflowSnapshot": "Snapshot at tool execution; does not update live",
   "conversationShare.shareTitle": "Share title",
@@ -810,6 +1004,12 @@ const enUS: Record<string, string> = {
   "conversationShare.permission.linkEditor": "Link: import & continue",
   "conversationShare.permission.linkEditorSummary": "Link: import & continue",
   "conversationShare.permission.privateSummary": "Only me",
+  "conversationShare.ttlLabel": "Expires after",
+  "conversationShare.ttl.hour": "1 hour",
+  "conversationShare.ttl.hours": "{count} hours",
+  "conversationShare.ttl.day": "1 day",
+  "conversationShare.ttl.days": "{count} days",
+  "conversationShare.error.shareRevoked": "This share was revoked. Generate a new link.",
   "conversationShare.openLink": "Open share page",
   "conversationShare.result.title": "Share created",
   "conversationShare.result.openInBrowser": "View in browser",
@@ -1055,6 +1255,7 @@ const enUS: Record<string, string> = {
   "conversationShare.import.notFound":
     "Share not found or access denied. Check the link and your account.",
   "conversationShare.import.expired": "The share expired. Ask the author to create a new one",
+  "conversationShare.import.revoked": "This share was revoked. Ask the author to share it again",
   "conversationShare.import.integrityFailed":
     "Share verification failed. Ask the author to create a new link.",
   "conversationShare.import.failed":
@@ -1132,6 +1333,114 @@ const enUS: Record<string, string> = {
   "quickPick.command.myTickets": "My feedback",
   "quickPick.command.community": "Community",
   "quickPick.command.productDocs": "Product docs",
+  "quickPick.command.reloadExtensions": "Reload extensions",
+  "quickPick.command.openExtensionLogs": "Open extension logs",
+  "extensions.logs.title": "Extension logs",
+  "extensions.logs.launcherDescription": "View live logs from extensions and the extension host.",
+  "extensions.logs.sourceFilter": "Filter by source",
+  "extensions.logs.levelFilter": "Filter by level",
+  "extensions.logs.source.all": "All sources",
+  "extensions.logs.source.host": "Extension host",
+  "extensions.logs.level.all": "All levels",
+  "extensions.logs.level.warn": "Warnings and errors",
+  "extensions.logs.level.error": "Errors only",
+  "extensions.logs.autoScroll": "Auto-scroll to the end",
+  "extensions.logs.copy": "Copy logs",
+  "extensions.logs.copied": "Copied {count, plural, one {# log line} other {# log lines}}",
+  "extensions.logs.copyFailed": "Copy failed: {error}",
+  "extensions.logs.clear": "Clear view",
+  "extensions.logs.loading": "Loading logs…",
+  "extensions.logs.empty": "No logs yet",
+  "extensions.logs.noMatch": "No logs match the filters",
+  "extensions.launcher.title": "Extensions",
+  "extensions.launcher.stopped": "Extensions stopped",
+  "extensions.launcher.stoppedDescription": "Stopped restarting after repeated crashes or hangs.",
+  "extensions.launcher.reload": "Reload",
+  "extensions.nav.stopped": "Stopped",
+  "extensions.nav.badge.count": "{count} unread",
+  "extensions.nav.badge.dot": "New activity",
+  "extensions.notifications.title": "{plugin}: {title}",
+  "extensions.state.failed": "Activation failed",
+  "extensions.state.invalid": "Invalid manifest",
+  "extensions.state.incompatible": "Incompatible version",
+  "extensions.state.reasonWithPath": "{path}: {reason}",
+  "extensions.mention.denied": "The plugin tool call was denied",
+  "extensions.mention.failed": "Couldn't load suggestions",
+  "extensions.view.title": "Extension view",
+  "extensions.view.loading": "Loading the extension view…",
+  "extensions.view.hostNotRunning":
+    "Extensions are not running. The view reopens when they recover.",
+  "extensions.view.unavailable": "This extension view is not available right now.",
+  "extensions.view.unsupported": "Extension views are not supported here.",
+  "extensions.view.failed": "The extension view failed to load: {reason}",
+  // Extension permissions (docs/plugins/extension-host.md 17.7). The dialog body follows the spec text.
+  "extensions.grants.needsConsent": "Needs permission",
+  "extensions.grants.grant": "Grant",
+  "extensions.grants.tier.sessions.read": "Read sessions",
+  "extensions.grants.tier.sessions.write": "Read and change sessions",
+  "extensions.grants.tier.sessions.fullAccess": "Read and change sessions, with full access",
+  "extensions.grants.tier.notifications": "Send system notifications",
+  "extensions.grants.dialog.titleRead": "Allow “{plugin}” to read sessions?",
+  "extensions.grants.dialog.titleWrite": "Allow “{plugin}” to read and change sessions?",
+  "extensions.grants.dialog.titleNotifications": "Allow “{plugin}” to send system notifications?",
+  "extensions.grants.dialog.notificationsBody":
+    "System notifications: the plugin can show system notifications while the window is in the background, with the plugin name before the title. At most 1 per minute and 20 per day. You can turn them off on the plugin details page; nothing is shown while system notifications are off in Settings.",
+  "extensions.grants.dialog.body":
+    "Extension code runs in the same process as other extensions, with no isolation between them. Any enabled extension can technically use the permissions granted here. Only enable plugins you trust.\n\nRead: the titles, status and full conversations of all sessions, including tool output. Write: create, fork, send messages to, interrupt, rename, open, archive and pin any session on this computer. If the target session runs in full access mode, a message from the plugin makes the Agent run tools directly.\n\nSessions in the plugin's project: the plugin can also approve or deny tool calls for you, answer the Agent's questions and switch the permission mode.\n\nActions started by a plugin show their source and are written to the audit log.",
+  "extensions.grants.dialog.fullAccessBody":
+    "Full access: the plugin can switch sessions in its project to full access, so the Agent reads and writes files, runs commands and uses the network without asking. Only grant this to plugins you trust.",
+  "extensions.grants.grantedToast": "Granted “{plugin}”",
+  "extensions.grants.revokedToast": "Revoked the permissions of “{plugin}”",
+  "extensions.grants.failedToast": "Couldn't update the extension permission",
+  "extensions.grants.holder": "“{plugin}” ({tiers})",
+  "extensions.grants.enable.title": "Enable “{plugin}”?",
+  "extensions.grants.enable.body":
+    "Extensions already hold session permissions: {holders}.\n\nExtension code runs in the same process as other extensions, with no isolation between them. Once “{plugin}” is enabled, its code can use these permissions too. Only enable plugins you trust.",
+  "extensions.grants.enable.bodyUnknown":
+    "The granted session permissions could not be checked.\n\nExtension code runs in the same process as other extensions, with no isolation between them. Once “{plugin}” is enabled, its code can use any permission granted to any extension. Only enable plugins you trust.",
+  "extensions.grants.enable.confirm": "Enable",
+  // Confirmation after installing from the plugin store, before activation (§17.7).
+  "extensions.activation.needsConfirmation": "Needs confirmation",
+  "extensions.activation.description": "Newly installed extension code, not running yet",
+  "extensions.activation.review": "Review",
+  "extensions.activation.dialog.title": "Activate the extension code of “{plugin}”?",
+  "extensions.activation.dialog.body":
+    "Extensions already hold session permissions: {holders}.\n\n“{plugin}” was just installed from the plugin store. It contains extension code, which is not running yet. Extension code runs in the same process as other extensions, with no isolation between them. Once activated, its code can use these permissions too. Only activate plugins you trust.\n\nIf you keep it inactive, the plugin's skills and MCP still work.",
+  "extensions.activation.dialog.bodyUnknown":
+    "The granted session permissions could not be checked.\n\n“{plugin}” was just installed from the plugin store. It contains extension code, which is not running yet. Extension code runs in the same process as other extensions, with no isolation between them. Once activated, its code can use any permission granted to any extension. Only activate plugins you trust.\n\nIf you keep it inactive, the plugin's skills and MCP still work.",
+  "extensions.activation.allow": "Activate",
+  "extensions.activation.decline": "Keep inactive",
+  "extensions.activation.allowedToast": "Activated “{plugin}”",
+  "extensions.activation.declinedToast":
+    "The extension code of “{plugin}” will not run. To activate it, disable and then enable the plugin in Settings.",
+  "extensions.activation.failedToast": "Could not update the extension",
+  "extensions.permissions.title": "Permissions",
+  "extensions.permissions.status.granted": "Granted",
+  "extensions.permissions.status.inactive": "Granted (plugin disabled)",
+  "extensions.permissions.revoke": "Revoke",
+  "extensions.permissions.note": "Any enabled extension can technically use these permissions.",
+  "extensions.permissions.recent": "Recent actions",
+  "extensions.permissions.recentEmpty": "No actions yet",
+  "extensions.permissions.recentLoading": "Loading actions…",
+  "extensions.permissions.action.grant": "Granted: {tiers}",
+  "extensions.permissions.action.revoke": "Revoked: {tiers}",
+  "extensions.permissions.action.notificationsOn": "Turned system notifications on",
+  "extensions.permissions.action.notificationsOff": "Turned system notifications off",
+  "extensions.permissions.notifications": "System notifications",
+  "extensions.permissions.notificationsNote":
+    "When system notifications are off in Settings, nothing is shown even if this is on.",
+  "extensions.permissions.action.other": "{capability}",
+  "extensions.permissions.action.createSession": "Created a session",
+  "extensions.permissions.action.forkSession": "Forked a session",
+  "extensions.permissions.action.sendToSession": "Sent a message",
+  "extensions.permissions.action.interruptSession": "Interrupted a session",
+  "extensions.permissions.action.renameSession": "Renamed a session",
+  "extensions.permissions.action.openSession": "Opened a session",
+  "extensions.permissions.action.setSessionArchived": "Changed session archiving",
+  "extensions.permissions.action.setSessionPinned": "Changed session pinning",
+  "extensions.permissions.action.resolveInteraction": "Answered an approval or a question",
+  "extensions.permissions.action.setPermissionMode": "Changed the permission mode",
+  "extensions.permissions.action.failed": "{action} (failed)",
   "quickPick.command.login": "Connect",
   "quickPick.command.logout": "Disconnect",
   "commandCenter.placeholder": "Search actions, tasks, or files",
@@ -1161,7 +1470,6 @@ const enUS: Record<string, string> = {
   "confirmDialog.archivedTaskDeleteDescription":
     "Tasks will be removed from the task list and Archive.",
   "taskList.deleteAllArchived": "Delete all archived tasks",
-  "taskList.noArchivedTasks": "No archived tasks",
   "taskList.archivedActions": "Archive actions",
   "taskList.archivedTaskCount": "{count} archived tasks",
   "taskList.deleteAllArchivedMenu": "Delete all archived tasks…",
@@ -1172,9 +1480,7 @@ const enUS: Record<string, string> = {
   "taskList.deleteAllArchivedResult": "Deleted {deleted}, skipped {skipped}, failed {failed}.",
   "taskList.deleteAllArchivedError":
     "The operation or list refresh failed. Refresh to check the remaining tasks.",
-  "confirmDialog.taskArchiveTitle": "Archive this task?",
-  "confirmDialog.taskArchiveDescription":
-    "Task “{taskTitle}” will move to the archive list and can still be restored later.",
+  "taskList.noArchivedTasks": "No archived tasks",
   "bots.title": "Bots",
   "bots.description": "Connect external chats and webhooks to Drora bots.",
   "bots.listTitle": "Bots",
@@ -1489,9 +1795,32 @@ const enUS: Record<string, string> = {
   "welcome.loggingIn": "Logging in...",
   "welcome.loginFailed": "Login failed",
   "login.title": "Welcome to Drora",
-  "login.description": "Connect your account to start using Drora",
+  "login.description": "Log in to Z.AI to start using Drora",
+  "login.copyright": "© 2026 Drora All rights reserved.",
+  "login.agreement.prefix": "By signing in, you agree to our",
+  "login.agreement.conjunction": "and",
+  "login.agreement.terms": "Terms of Service",
+  "login.agreement.privacy": "Privacy Policy",
+  "login.singleLogin.browserButton": "Login with Browser",
+  // 切换链接使用目标区域语言，和当前界面语言相反：给目标区域用户看的入口。
+  "login.singleLogin.switchToGlobal": "Switch to Global",
+  "login.singleLogin.switchToDomestic": "切换到中国",
+  "login.singleLogin.waiting": "Waiting for browser authentication...",
   "login.oauth.activeProviderHint":
     "Current active provider: {provider}. Signing in again replaces the current identity.",
+  "login.credentialStore.title": "Credential storage needs recovery",
+  "login.credentialStore.description":
+    "The credential file is damaged. You can back it up and create an empty credential store.",
+  "login.credentialStore.restore": "Back up and reset credentials",
+  "login.credentialStore.confirm":
+    "This resets all stored credentials. You will need to sign in again and reconfigure API keys, bots, MCP services and remote access. The original file will be preserved in a verified backup. Cancel to keep the original file unchanged.",
+  "login.credentialStore.done":
+    "The original file was backed up and the empty credential store is ready. Reload to sign in again.",
+  "login.credentialStore.changed":
+    "The credential file has changed. Nothing was reset. Reload to use its current state.",
+  "login.credentialStore.failed":
+    "Recovery could not be completed or confirmed. Check the connection, available disk space and file permissions, then try again.",
+  "login.credentialStore.reload": "Reload",
   "login.oauth.loadingProviders": "Loading account providers...",
   "login.oauth.noProviders":
     "No account providers are available right now. Please try again later.",
@@ -1569,7 +1898,7 @@ const enUS: Record<string, string> = {
   "browser.permission.allowOnce": "Allow once",
   "browser.permission.allowAlways": "Allow on this site",
   "browser.permission.blockAlways": "Block",
-  "browser.permission.denyThisTime": "Deny this time",
+  "browser.permission.denyThisTime": "Don't allow",
   "browser.permission.cancel": "Cancel",
   "browser.permission.share": "Share",
   "browser.permission.media": "camera and microphone",
@@ -1615,8 +1944,87 @@ const enUS: Record<string, string> = {
   "browser.responsive.width": "Browser viewport width",
   "browser.responsive.height": "Browser viewport height",
   "browser.responsive.zoom": "Browser preview zoom",
+  "browser.responsive.preset": "Device preset",
+  "browser.responsive.preset.phone": "Phone",
+  "browser.responsive.preset.tablet": "Tablet",
+  "browser.responsive.preset.desktop": "Desktop",
+  "browser.responsive.preset.slide": "Slide",
+  "browser.responsive.preset.custom": "Custom",
+  "browser.export.png": "Export as PNG",
+  "browser.export.pdf": "Export as PDF",
+  "browser.export.success": "Exported to {path}",
+  "browser.export.failed": "Export failed. Try again.",
   "browser.responsive.fitToWindow": "Fit to window",
   "browser.responsive.dimensionRangeError": "Enter an integer between {min} and {max}",
+  "browser.design.pluginRequired.title": "Design plugin required",
+  "browser.design.pluginRequired.description":
+    "Selecting elements requires the Design plugin to be installed and enabled. Open its plugin page to set it up.",
+  "browser.design.pluginRequired.action": "Open plugin page",
+  "browser.design.pluginCheckFailed": "Could not load the Design plugin status. Please try again.",
+  "browser.design.toolbar": "Design tools",
+  "browser.design.contextUnavailable":
+    "No composer can receive this. Open an editable conversation first.",
+  "browser.design.panel": "Adjust panel",
+  "browser.design.variant": "Version",
+  "browser.design.variant.all": "All versions",
+  "browser.design.slidePrev": "Previous slide",
+  "browser.design.slideNext": "Next slide",
+  "browser.design.inspector.title": "Adjust panel",
+  "browser.design.inspector.layout": "Layout",
+  "browser.design.inspector.empty":
+    "Click an element on the page to inspect and edit it. Shift-click to select more.",
+  "browser.design.inspector.selectedCount": "{count} selected",
+  "browser.design.inspector.close": "Close adjust panel",
+  "browser.design.inspector.width": "W",
+  "browser.design.inspector.height": "H",
+  "browser.design.edit.typography": "Text",
+  "browser.design.edit.content": "Text",
+  "browser.design.edit.fontSize": "Font size",
+  "browser.design.edit.fontWeight": "Weight",
+  "browser.design.edit.weight.300": "Light",
+  "browser.design.edit.weight.400": "Regular",
+  "browser.design.edit.weight.500": "Medium",
+  "browser.design.edit.weight.600": "Semibold",
+  "browser.design.edit.weight.700": "Bold",
+  "browser.design.edit.weight.800": "Extra bold",
+  "browser.design.edit.textAlign": "Alignment",
+  "browser.design.edit.align.left": "Align left",
+  "browser.design.edit.align.center": "Center",
+  "browser.design.edit.align.right": "Align right",
+  "browser.design.edit.color": "Text color",
+  "browser.design.edit.appearance": "Appearance",
+  "browser.design.edit.borderRadius": "Corner radius",
+  "browser.design.edit.opacity": "Opacity",
+  "browser.design.edit.fill": "Fill",
+  "browser.design.edit.background": "Background",
+  "browser.design.edit.padding": "Padding",
+  "browser.design.edit.paddingTop": "Top",
+  "browser.design.edit.paddingRight": "Right",
+  "browser.design.edit.paddingBottom": "Bottom",
+  "browser.design.edit.paddingLeft": "Left",
+  "browser.design.edit.parent": "Select parent",
+  "browser.design.edit.kind.button": "Button",
+  "browser.design.edit.kind.heading": "Heading",
+  "browser.design.edit.kind.text": "Text",
+  "browser.design.edit.kind.link": "Link",
+  "browser.design.edit.kind.image": "Image",
+  "browser.design.edit.kind.container": "Box",
+  "browser.design.edit.pageColors": "Page colors",
+  "browser.design.edit.customColor": "Custom",
+  "browser.design.variables": "Variables",
+  "browser.design.variables.empty": "This page has no adjustable variables",
+  "browser.design.source.pageUnavailable":
+    "View only here. To change it, tell the agent in the composer.",
+  "browser.design.source.notMatched":
+    "This element is generated by the page, so it's view only here. To change it, tell the agent in the composer.",
+  "browser.design.source.notFound": "This element wasn't found in the source. Nothing was written.",
+  "browser.design.source.changed":
+    "The file was just changed by someone else. Nothing was written.",
+  "browser.design.source.undoUnavailable": "The file has changed since. Undo is unavailable.",
+  "browser.design.source.writeFailed":
+    "Couldn't read or write the source file. Nothing was written.",
+  "browser.design.source.unreadable":
+    "To keep this file safe, it's view only here. To change it, tell the agent in the composer.",
   "browser.elementPicker.start": "Select page element for chat",
   "browser.elementPicker.cancel": "Cancel element selection",
   "browser.elementPickerFailed": "Failed to select page element: {message}",
@@ -1629,6 +2037,8 @@ const enUS: Record<string, string> = {
   "browser.close": "Close browser pane",
   "browser.desktopOnly": "Browser pane is available on desktop only",
   "browser.empty": "Paste or type a URL to open a page.",
+  "browser.recentVisits.title": "Recently visited",
+  "browser.recentVisits.remove": "Remove from recent visits",
   "browser.guestFailed.title": "The built-in browser failed to start",
   "browser.guestFailed.description":
     "The browser process exited before it could display the page. You can retry after checking the system environment.",
@@ -1674,181 +2084,6 @@ const enUS: Record<string, string> = {
   "sidePane.workflowActor": "Workflow subagent",
   "sidePane.workflowScript": "Script steps",
   "sidePane.workflowArtifact": "Artifact",
-  "sidePane.team": "Team",
-  // Team panel (specs/agents-team.md §10): empty state and member drill-down placeholders.
-  // Copy states what is true and what happens next, never color alone (DESIGN.md).
-  "team.panel.empty.title": "No team yet",
-  "team.panel.empty.body":
-    "This conversation has no team projection. Assemble one with /team and its status will show up here.",
-  "team.memberPane.back": "Back to team",
-  "team.memberPane.notStarted.title": "Member has not started",
-  "team.memberPane.notStarted.body":
-    "{name}'s session has not appeared yet; the transcript will attach automatically once it does.",
-  "team.memberPane.memberAbsent.title": "Member session not found",
-  "team.memberPane.memberAbsent.body":
-    "{name} is no longer on the team roster and has no transcript to review.",
-  "team.memberPane.teamAbsent.title": "Team projection unavailable",
-  "team.memberPane.teamAbsent.body":
-    "This conversation has no team projection, so the member session cannot be located.",
-  "team.memberPane.inputPlaceholder": "Message {name} (delivered via the lead's team mailbox)",
-  "team.memberPane.send": "Send",
-  "team.memberPane.inputPending": "Message sending is not wired up yet; coming soon",
-  "team.memberPane.inputReady": "Press Enter to send; delivered via the lead's team mailbox",
-  // §19 contract 5 (2026-10-23): in-flight send + failure surfacing — the draft is never
-  // lost (kept verbatim on rejection or transport error).
-  "team.memberPane.sendFailed.line": "Message not delivered: {reason}",
-  "team.memberPane.sendFailed.transport":
-    "The connection is unavailable and the message was not sent. Your input is kept — resend once reconnected",
-  "team.memberPane.sendFailed.fallback":
-    "The request was rejected (unknown reason). Your input is kept — try again later",
-  // PR-2.4c: member card entries (drill-down + message), tab status dot, and status badge
-  // copy (color paired with text, never color alone).
-  "team.panel.memberOpen": "Open {name}'s session",
-  "team.panel.memberMessage": "Message {name}",
-  "team.ui.managerBadge": "Manager",
-  "team.tab.statusDot": "Team status: {status}",
-  "team.status.staged": "Pending approval",
-  "team.status.active": "Active",
-  "team.status.idle": "Idle",
-  "team.status.completed": "Completed",
-  "team.status.halted": "Halted",
-  "team.status.escalated": "Needs attention",
-  "team.status.cancelled": "Cancelled",
-  "team.status.archived": "Archived",
-  // M2.5: TeamPanel header/action area/board/member-card copy and the TeamStagedEditor
-  // copy moved into the dictionary (previously inline zh constants TEAM_PANEL_COPY /
-  // TEAM_STAGED_EDITOR_COPY; design 01 §4: all copy lives in the locales dictionaries,
-  // zh-CN/en-US complete, including status labels, dynamic summaries, and a11y copy).
-  "team.panel.aria": "Agents Team {teamId}",
-  "team.panel.permission": "Permission {mode}",
-  "team.panel.memberProgress": "{members} members · {done}/{total} tasks",
-  "team.panel.stagedReadonlySummary":
-    "Team plan draft: {members} members / {tasks} tasks, awaiting approval",
-  "team.panel.stagedReadonlyFeedback": "(revision requested)",
-  "team.panel.membersAria": "Team members",
-  "team.panel.taskAttempt": "attempt {attempt}",
-  "team.task.status.failed": "failed",
-  "team.task.status.cancelled": "cancelled",
-  "team.panel.leadAssignee": "lead",
-  "team.panel.mailboxTitle": "Recent team messages",
-  "team.panel.mailboxNoSummary": "(no summary)",
-  "team.panel.halt": "Halt team",
-  "team.panel.haltHint":
-    "Interrupts all members and freezes scheduling; the team is kept and can be resumed with a reason",
-  "team.panel.haltConfirmTitle": "Halt this team?",
-  "team.panel.haltConfirmBody":
-    "This cancels the lead's current turn, interrupts every member and freezes task scheduling; the team is not deleted and can be resumed explicitly afterwards.",
-  "team.panel.haltConfirmLabel": "Confirm halt",
-  "team.panel.resume": "Resume team",
-  "team.panel.resumeReasonLabel": "Resume reason (required)",
-  "team.panel.resumeReasonPlaceholder":
-    "Why resume now? The reason is recorded in the team journal",
-  "team.panel.resumeHint":
-    "The team is halted; scheduling continues only after an explicit resume with a reason.",
-  "team.panel.escalationTitle": "The team escalated and needs you",
-  "team.panel.escalationBody":
-    "The team hit a situation that needs a human decision and is paused: resume it with a reason, or halt the team.",
-  "team.board.pending": "Pending",
-  "team.board.inProgress": "In progress",
-  "team.board.completed": "Completed",
-  "team.member.state.spawning": "Starting",
-  "team.member.state.working": "Working",
-  "team.member.state.terminal": "Idle",
-  "team.member.state.removed": "Removed",
-  "team.stagedEditor.title": "Team plan draft",
-  // 2026-10-22 question header (spec §10 presentation rule 1): stagedSummary moved to the
-  // header counter ("N members · N tasks"); the confirmation semantics live in the question line.
-  "team.stagedEditor.stagedSummary": "{members} members · {tasks} tasks",
-  "team.stagedEditor.question": "Launch this team?",
-  "team.stagedEditor.awaitingFeedback":
-    "Revision requested: describe the adjustments in the conversation and the model will update this draft",
-  "team.stagedEditor.membersHeading": "Members",
-  "team.stagedEditor.tasksHeading": "Tasks",
-  "team.stagedEditor.roleNone": "No role",
-  "team.stagedEditor.routingLabel": "Routing",
-  "team.stagedEditor.routingNone": "No routing",
-  "team.stagedEditor.assigneeNone": "Unassigned",
-  "team.stagedEditor.dependsOnLabel": "Depends on",
-  "team.stagedEditor.dependsOnNone": "No dependencies",
-  "team.stagedEditor.dependsOnSeparator": ", ",
-  "team.stagedEditor.noteLabel": "Revision notes (optional)",
-  "team.stagedEditor.notePlaceholder": "Describe how this team should change…",
-  // 2026-10-23 three-surface prefill channel (spec §15 item 4): mounts that cannot reach
-  // the composer hide the note input and show this hint — silent note drops are forbidden
-  // (a typed note would only go on the wire, which the hub v1 does not consume).
-  "team.stagedEditor.noteSuppressedHint":
-    "Revision notes can't be attached here: state the direction in the conversation",
-  "team.stagedEditor.approve": "Allow",
-  "team.stagedEditor.approveDescription": "Just this once",
-  "team.stagedEditor.approveSession": "Always allow for this session",
-  "team.stagedEditor.approveSessionDescription": "Launching teams won't ask again this session",
-  "team.stagedEditor.revise": "Suggest changes",
-  // §19 contract 6 (2026-10-23): in-flight waiting copy (buttons disabled until the outcome settles).
-  "team.stagedEditor.pendingApprove": "Starting members…",
-  "team.stagedEditor.pendingApproveSession": "Allowing and launching members…",
-  "team.stagedEditor.pendingRevise": "Sending…",
-  "team.stagedEditor.pendingAbandon": "Archiving…",
-  "team.stagedEditor.confirm": "Confirm",
-  // §10 增补三: member permission selector row in the approval panel.
-  "team.permission.mode.build": "Ask before changes",
-  "team.permission.mode.edit": "Edit automatically",
-  "team.permission.mode.yolo": "Full access",
-  "team.permission.mode.guarded": "Autonomous",
-  "team.permission.mode.auto": "Auto",
-  "team.stagedEditor.optionsAria": "Approval actions",
-  // Action label for rename failures (line template "{action} failed: {reason}").
-  "team.stagedEditor.rename": "Rename",
-  "team.stagedDock.title": "Team plan pending approval",
-  "team.stagedEditor.abandon": "Abandon",
-  // Inline failure for the three staged actions (spec §10 presentation rule 4): "line" is the
-  // shell (action label + reason); the reason maps from ack.reasonCode via
-  // TEAM_STAGED_FAILURE_REASON_I18N_KEYS in TeamStagedEditor; unknown codes fall back,
-  // transport errors (ack absent) use "transport".
-  "team.stagedEditor.failure.line": "{action} failed: {reason}",
-  "team.stagedEditor.failure.transport":
-    "The command could not be sent: the connection is unavailable. Reconnect and try again",
-  "team.stagedEditor.failure.fallback":
-    "The action did not complete (unknown reason). Try again, or check the team status in the conversation",
-  "team.stagedEditor.failure.teamNotPresent":
-    "The draft is gone: it may already be approved or abandoned. Refresh and try again",
-  "team.stagedEditor.failure.teamLeadOnly":
-    "This action can only be run in the session that planned the team",
-  "team.stagedEditor.failure.memberSpawnFailed":
-    "Spawning members failed: the draft is intact with zero members. Fix the cause and approve again",
-  "team.stagedEditor.failure.draftInvalid":
-    "Draft validation failed: fix member names, task ids, or dependencies and retry",
-  "team.stagedEditor.failure.hubUnavailable":
-    "The team runtime is not ready: it may be disabled or restarting. Try again shortly",
-  "team.stagedEditor.abandonConfirmTitle": "Abandon this team draft?",
-  "team.stagedEditor.abandonConfirmBody":
-    "The draft will be archived and cannot be recovered, and the model will not rebuild it automatically; forming a team again requires a new /team.",
-  "team.stagedEditor.abandonConfirmLabel": "Confirm abandon",
-  // §19 contract 5 expansion (2026-10-23): hub rejection copy for the five user commands
-  // (shared by the composer and the panel action area via TEAM_STAGED_FAILURE_REASON_I18N_KEYS;
-  // the three staged actions never reach these codes in the normal flow).
-  "team.commandFailure.teamHalted": "The team is halted; resume it before delivering messages",
-  "team.commandFailure.targetRetired":
-    "The target member was removed; the message cannot be delivered",
-  "team.commandFailure.nameRedirect": "The member was renamed; retry with the new name",
-  "team.commandFailure.persistFailed": "Mailbox persistence failed; the message was not delivered",
-  // Panel action-area command failures (halt/resume/stop; role=alert at the top of TeamPanel's action area).
-  "team.panel.commandFailure.line": '"{action}" did not complete: {reason}',
-  "team.panel.commandFailure.transport":
-    "The command could not be sent: the connection is unavailable. Reconnect and try again",
-  "team.panel.commandFailure.fallback": "The action did not complete (unknown reason). Try again",
-  "team.panel.action.halt": "Stop team",
-  "team.panel.action.resume": "Resume team",
-  "team.panel.action.stop": "Remove member",
-  // §21 A1 (2026-10-24): history label for the new message_dropped journal fact
-  // (dynamic key family team.history.kind.*, allowed by prefix in the i18n guard).
-  "team.history.kind.message_dropped": "Message dropped (sender no longer on the team)",
-  // §22 contract 3 (2026-10-27 review M13): history labels for the two final-report
-  // journal facts (same dynamic key family; visible in the process panel once the shared
-  // teamHistoryEntrySchema admits the two kinds).
-  "team.history.kind.final_report_dispatched": "Final report dispatched to the manager",
-  "team.history.kind.final_report_delivered": "Final report delivered to the lead session",
-  // Prefill follow-up for "Revise in conversation" (design 01 §3.1); composition rules in team/revise-prefill.ts
-  "team.revise.prefillPrompt": "What would you like to adjust?",
   "subagentDirectory.title": "Subagents",
   "subagentDirectory.running": "Running",
   "subagentDirectory.runningEmpty": "No running subagents",
@@ -1875,40 +2110,33 @@ const enUS: Record<string, string> = {
   "workflowDirectory.unavailable": "Workflow runs can't be listed for this conversation",
   "chat.selections.addToTask": "Add to chat",
   "chat.selections.askInSideChat": "Add in side chat",
+  "chat.selections.comment": "Annotate",
+  "chat.selections.commentPlaceholder":
+    "Add a comment (optional); it's sent to the model with this text",
+  "chat.selections.commentHint": "Can be left empty · Shift + ↵ for new line",
+  "chat.selections.commentSave": "Add annotation",
+  "chat.selections.commentAddTitle": "Add annotation · comment optional",
+  "chat.selections.commentEditTitle": "Edit annotation",
+  "chat.selections.commentEditHint": "Leave empty to keep only the quoted text",
+  "chat.selections.commentEditSave": "Save",
+  "chat.selections.commentDelete": "Delete annotation",
+  "chat.selections.commentAdd": "Add comment",
+  "chat.selections.commentDeleted": "Annotation deleted",
+  "chat.selections.commentUndo": "Undo",
+  "chat.selections.listHeader": "{count} annotations will be sent with your next message",
+  "chat.selections.listHint": "Numbers match the reply",
+  "chat.selections.removeAll": "Remove all annotations",
   "chat.selections.sideBlocked":
     "Resolve the side conversation request before adding another selection.",
-  "chat.selections.count": "{count} conversation selections",
-  "chat.selections.remove": "Remove conversation selection",
-  "chat.selections.evidenceRecheckOnSend": "Evidence receipt · rechecked on send",
-  "chat.selections.evidenceSourceMismatch":
-    "The source list no longer matches your trusted references. Restore the sources or prepare the question again from Knowledge Search.",
-  "chat.knowledgeTurn.sources": "Sources for this answer",
-  "chat.knowledgeTurn.disclaimer":
-    "Bound to receipts submitted with this turn; each click revalidates the source. Model citations are not fact-checking.",
-  "chat.knowledgeTurn.mentioned": "Mentioned",
-  "chat.knowledgeTurn.gaps":
-    "{missing} of {total} answer prose blocks lack a known source number. Review manually; this is not a factual accuracy verdict.",
-  "chat.knowledgeTurn.unknown":
-    "The answer cites unknown source numbers: {numbers}. Check the original notes.",
-  "chat.selections.openVerifiedSource": "Verify and open source",
-  "chat.selections.evidenceOpen.unavailable":
-    "Open VaultView for this session to access the Obsidian source.",
-  "chat.selections.evidenceOpen.vaultClosed":
-    "The Vault panel is turned off. Re-enable it in plugin settings and restart.",
-  "chat.selections.evidenceOpen.stale": "The note has changed. Search again for a fresh citation.",
-  "chat.selections.evidenceOpen.missing": "The source note no longer exists.",
-  "chat.selections.evidenceOpen.forbidden":
-    "The session or Vault has changed. Opening this citation was denied.",
-  "chat.selections.evidenceOpen.failed":
-    "Citation verification failed. Check the Vault connection and retry.",
+  "chat.selections.count": "{count} annotations",
+  "chat.selections.remove": "Delete annotation",
   "chat.selections.type.user": "User message",
   "chat.selections.type.assistant": "Assistant message",
   "chat.selections.type.reasoning": "Reasoning",
   "chat.selections.type.tool": "Tool result",
-  "chat.selections.limit.single": "A selection can contain at most 8,000 characters.",
-  "chat.selections.limit.count": "You can attach at most 8 conversation selections.",
-  "chat.selections.limit.total":
-    "Conversation selections can contain at most 16,000 characters in total.",
+  "chat.selections.limit.single": "An annotation can quote at most 8,000 characters.",
+  "chat.selections.limit.count": "You can add at most 8 annotations.",
+  "chat.selections.limit.total": "Annotations can quote at most 16,000 characters in total.",
   "sidePane.launcher.selection-side-conversation": "Continue a conversation in the side pane.",
   "sidePane.launcher.sites": "View sites, deployments, and usage.",
   "sidePane.launcher.review": "Review code changes and diffs.",
@@ -1953,6 +2181,8 @@ const enUS: Record<string, string> = {
   "genUi.reset": "Reset",
   "genUi.original": "Preview original",
   "genUi.submit": "Submit design changes",
+  "conversation.fromSession": "From session {name}",
+  "conversation.fromSession.open": "Open this session",
   "genUi.from": "From interactive view {name}",
   "pluginUi.fromPlugin": "From plugin {name}",
   "pluginUi.followUp.title": "A plugin wants to send a message as you",
@@ -2420,7 +2650,7 @@ const enUS: Record<string, string> = {
     "The presentation has changed. Slide {pageNumber} was opened, but its content may differ.",
   "chat.pptxElements.previewScopeUnavailable":
     "This presentation reference is not available in the current workspace.",
-  "chat.webElements.many": "{count} web elements",
+  "chat.webElements.many": "{count} selected",
   "chat.webElements.remove": "Remove web element context",
   "appHeader.openInFinder": "Open in Finder",
   "appHeader.openInFileExplorer": "Open in File Explorer",
@@ -2530,6 +2760,7 @@ const enUS: Record<string, string> = {
   "updateDialog.downloadProgress": "Download progress",
   "updateDialog.restartToUpdate": "Restart to update",
   "updateDialog.skipVersion": "Skip this version",
+  "updateDialog.backgroundDownload": "Download in background",
   "updateDialog.later": "Later",
   "update.toast.upToDate": "You're on the latest version (v{version})",
   "update.toast.available": "New version v{version} is available",
@@ -2633,6 +2864,7 @@ const enUS: Record<string, string> = {
     "remote device still has running tasks. Wait for them to finish or confirm a forced update.",
   "remote.error.sourceServerDowngradeUnconfirmed":
     "The remote device was updated to a newer version. This operation did not downgrade it.",
+  "remote.error.sourceServerUpdateInProgress": "The remote device is updating its remote service",
   "remote.error.workspaceTaskIdentityConflict":
     "This remote directory contains task identity conflicts that cannot be merged automatically.",
   "remote.error.workspaceConfigConflict":
@@ -2895,20 +3127,6 @@ const enUS: Record<string, string> = {
   "webRemoteControl.botChannel.telegram.description": "Open this workspace from Telegram.",
   "webRemoteControl.botChannel.configure": "Configure in bot channels",
   "webRemoteControl.botChannel.manageBots": "Manage bots",
-  "webRemoteControl.relaySource.title": "Relay service",
-  "webRemoteControl.relaySource.official": "Official",
-  "webRemoteControl.relaySource.officialDescription":
-    "Use the official relay service. No extra configuration needed.",
-  "webRemoteControl.relaySource.custom": "Self-hosted",
-  "webRemoteControl.relaySource.customDescription":
-    "Point to your self-hosted relay origin. Only affects the mobile remote control connection.",
-  "webRemoteControl.relaySource.originPlaceholder": "https://relay.example.com",
-  "webRemoteControl.relaySource.originRequired": "Enter your self-hosted relay origin.",
-  "webRemoteControl.relaySource.originInvalid":
-    "Invalid origin. Use a full URL starting with http(s)://.",
-  "webRemoteControl.relaySource.apply": "Save and reconnect",
-  "webRemoteControl.relaySource.applied": "Relay source switched. Reconnecting.",
-  "webRemoteControl.relaySource.applyFailed": "Failed to switch relay source: {error}",
   "webRemoteControl.linkLabel": "Remote control link",
   "webRemoteControl.linkPending": "The remote control link will appear here once ready.",
   "webRemoteControl.singlePageNote":
@@ -3306,6 +3524,11 @@ const enUS: Record<string, string> = {
     "An input submitted before the CLI restarted did not reach the conversation. Confirm whether to send it again.",
   "chat.pendingCommand.resend": "Send again",
   "chat.pendingCommand.dismiss": "Later",
+  "chat.runtimeExit.outOfMemory":
+    "The background runtime exited unexpectedly because the system ran out of memory. Another program may be using a lot of memory. Running tasks and subagents were interrupted.",
+  "chat.runtimeExit.generic":
+    "The background runtime exited unexpectedly. Running tasks and subagents were interrupted.",
+  "chat.runtimeExit.dismiss": "Dismiss",
   // 软门禁（D4）：工作区 Hook 待审核时 composer 图标与浮层
   "chat.workspaceHookPending.label": "Workspace hooks pending review",
   "chat.workspaceHookPending.message":
@@ -3334,6 +3557,7 @@ const enUS: Record<string, string> = {
   "taskList.rename": "Rename task",
   "taskList.archive": "Archive task",
   "taskList.archiveFailed": "Could not archive task",
+  "taskList.archiveBlockedWhileRunning": "Stop the task before archiving it",
   "taskList.unarchive": "Unarchive task",
   "taskList.renamePlaceholder": "Task name",
   "taskList.renameFailed": "Could not rename task",
@@ -3398,6 +3622,8 @@ const enUS: Record<string, string> = {
   "chat.changeSummary.review": "Review",
   "chat.changeSummary.openInEditor": "Open in editor",
   "chat.changeSummary.rewind": "Undo",
+  "chat.changeSummary.rewindLocked":
+    "The session is running or has a pending request. You can undo after it finishes.",
   "chat.changeSummary.reapply": "Reapply",
   "chat.changeSummary.reverted": "Undone",
   "chat.changeSummary.rewindDialog.title": "Undo file changes",
@@ -3430,7 +3656,7 @@ const enUS: Record<string, string> = {
   "chat.edit.resetConversationAndFiles.reverted": "This turn's file changes are already undone",
   "chat.edit.resetConversationAndFiles.running": "Wait for the current work to stop",
   "chat.edit.resetConversationAndFiles.unavailable":
-    "File reset is unavailable while compacting or an interaction is pending",
+    "The session is running or has a pending request. You can undo after it finishes.",
   "chat.edit.workspaceConflict.title": "Files could not be safely reset",
   "chat.edit.workspaceConflict.description":
     "No conversation history was changed. Review the conflicting or ignored files, then reset only the conversation or cancel.",
@@ -3571,9 +3797,13 @@ const enUS: Record<string, string> = {
   "settings.appearance.codeTitle": "Code settings",
   "settings.appearance.codeDescription":
     "Choose code themes, font size, and display options independently from the interface font size.",
+  "settings.fontSmoothing": "Font smoothing",
+  "settings.fontSmoothingDescription":
+    "Use grayscale smoothing. Text may look thinner; results vary by display.",
   "settings.uiFontSize": "UI font size",
   "settings.uiFontSizeDescription":
     "Adjust interface text without changing icons or layout dimensions.",
+  "settings.agentBehavior.title": "Behavior and tools",
   "settings.systemTitle": "General",
   "settings.systemDescription": "These preferences affect the current window experience.",
   "settings.locale": "Language",
@@ -3587,7 +3817,7 @@ const enUS: Record<string, string> = {
   "settings.terminalFontFamilyPlaceholder": "Leave blank to inherit, e.g. MesloLGS NF, monospace",
   "settings.integratedTerminalShell": "Integrated terminal shell",
   "settings.integratedTerminalShellDescription":
-    "Applies to new sessions only. On Windows, Bash uses this shell; Auto tries Git Bash, then cmd.exe.",
+    "Used in new sessions and sessions restored after an app restart. Active sessions keep their current shell. On Windows, Bash uses this shell; Auto tries Git Bash, then cmd.exe.",
   "settings.integratedTerminalShell.auto": "Auto",
   "settings.toolSearch": "Tool search",
   "settings.toolSearchDescription":
@@ -3616,256 +3846,11 @@ const enUS: Record<string, string> = {
   "settings.personalization.sizeOverLimit":
     "Content exceeds the 100 KB limit the Agent reads; anything beyond it is ignored. Trim before saving.",
   "settings.memory.workspaceMemory": "Workspace Memory",
-  // Drora persona section (specs/drora-persona-system.md §10): saved / applied /
-  // unavailable are three different facts; copy must not conflate them. The E switch
-  // must say "applies to new or truly reloaded sessions".
-  "settings.drora.title": "Drora Persona",
-  // Persona presets (spec §13 batch 15): overwrite semantics and timing must stay honest
-  // (effective on the next turn, not instantly).
-  "settings.drora.presets.title": "Persona presets",
-  "settings.drora.presets.description":
-    "Six built-in persona starting points, one click to switch; keep customizing below after applying",
-  "settings.drora.presets.active": "Active",
-  "settings.drora.presets.confirmTitle": "Switch persona preset",
-  "settings.drora.presets.confirmDescription":
-    "This replaces the five persona core fields with “{name}” and explicitly overwrites all four communication preferences (auto-learning stops for overwritten keys; change them below anytime).",
-  "settings.drora.presets.confirmAction": "Switch",
-  "settings.drora.presets.overwriteHint":
-    "Applying overwrites the persona core and the four communication preferences; takes effect on the next turn (no restart needed).",
-  "settings.drora.presets.result.applied": "Applied “{name}”; effective on the next turn.",
-  "settings.drora.presets.result.partial":
-    "Partially applied: persona core updated; failed preference keys: {keys} (retry below)",
-  "settings.drora.presets.result.failed":
-    "Apply failed: please retry later; unfinished steps are safe to retry.",
-  "settings.drora.presets.result.failedWithCode":
-    "Apply failed ({code}). Please retry later; unfinished steps are safe to retry.",
-  "settings.drora.loading": "Loading Drora persona…",
-  "settings.drora.unavailable": "Persona management is not supported on this connection.",
-  "settings.drora.retry": "Retry",
-  "settings.drora.refresh": "Reload",
-  "settings.drora.advanced.title": "Advanced",
-  "settings.drora.advanced.hint": "Preview · Application · Export · Restore defaults",
-  "settings.drora.revert": "Revert to the saved value",
-  "settings.drora.reset.title": "Restore product defaults",
-  "settings.drora.reset.description":
-    "Resets the five identity fields to the product defaults and creates a new revision. This does not change the execution permission, communication defaults or other settings.",
-  "settings.drora.preferences.preferredAddressInvalid":
-    "The address cannot be empty. Use Forget to clear it.",
-  "settings.drora.execution.label": "Enable Drora persona in sessions",
-  "settings.drora.execution.description":
-    "Applies to new or truly reloaded sessions. Sessions already open keep the permission they were started with and are not changed by this switch.",
-  "settings.drora.execution.privacy":
-    "When enabled, Drora's personalized content is sent to the currently selected model and may be retained with the original diagnostics.",
-  "settings.drora.identity.title": "Who Drora is",
-  "settings.drora.identity.description":
-    "Name, self-description and three expression options, saved automatically: selects commit on change, text commits on blur. Identity, principles and boundaries come from the product template and can be reviewed under Advanced; free-form prompt editing is not available.",
-  "settings.drora.identity.savedRevision": "Saved version: revision {revision}",
-  "settings.drora.identity.uninitialized":
-    "Not initialized yet; the built-in product persona is in use",
-  "settings.drora.identity.initialize": "Initialize persona",
-  "settings.drora.identity.initializing": "Initializing…",
-  "settings.drora.identity.initializeHint":
-    "Custom fields can be saved after initialization. Opening this page alone neither initializes nor enables execution.",
-  "settings.drora.identity.displayName": "Name",
-  "settings.drora.identity.displayNameDescription":
-    "The name Drora uses for itself in conversations.",
-  "settings.drora.identity.selfDescription": "Self description",
-  "settings.drora.identity.selfDescriptionDescription":
-    "Used as material, not instructions: describe how you want Drora to position itself. Leave empty to use the template's self positioning.",
-  "settings.drora.identity.warmth": "Warmth",
-  "settings.drora.identity.warmthDescription": "How close the conversation feels.",
-  "settings.drora.identity.warmth.restrained": "Restrained",
-  "settings.drora.identity.warmth.balanced": "Balanced",
-  "settings.drora.identity.warmth.warm": "Warm",
-  "settings.drora.identity.directness": "Directness",
-  "settings.drora.identity.directnessDescription":
-    "How directly conclusions and disagreements are stated.",
-  "settings.drora.identity.directness.gentle": "Gentle",
-  "settings.drora.identity.directness.balanced": "Balanced",
-  "settings.drora.identity.directness.direct": "Direct",
-  "settings.drora.identity.humor": "Humor",
-  "settings.drora.identity.humorDescription": "How much light-hearted expression is allowed.",
-  "settings.drora.identity.humor.off": "Off",
-  "settings.drora.identity.humor.light": "Light",
-  "settings.drora.identity.counter": "{count}/{max}",
-  "settings.drora.identity.save": "Save",
-  "settings.drora.identity.saving": "Saving…",
-  "settings.drora.identity.cancel": "Discard changes",
-  "settings.drora.identity.resetDefaults": "Restore product defaults",
-  "settings.drora.identity.resetting": "Restoring…",
-  "settings.drora.notice.saved":
-    "Saved. Takes effect on the next new turn; turns already in progress are not rewritten.",
-  "settings.drora.notice.unchanged": "Content unchanged; no new revision was created.",
-  "settings.drora.notice.initialized": "Persona initialized.",
-  "settings.drora.notice.conflict":
-    "Save conflict: the service already has a newer version. Your draft was kept; compare and choose to keep or discard it.",
-  "settings.drora.notice.uninitialized":
-    "The persona is not initialized yet. Initialize it before saving.",
-  "settings.drora.notice.code": "Operation failed ({code}).",
-  "settings.drora.notice.rpc": "Operation failed: {message}",
-  "settings.drora.notice.outcomeUnknown":
-    "Save outcome is unknown (outcome_unknown): the result was not confirmed. Saving again reuses the same mutation id for an idempotent replay instead of writing twice; edit the content first if you want to abandon it.",
-  "settings.drora.divergence.title": "The service has a newer version",
-  "settings.drora.divergence.description":
-    "The saved version is revision {latest}; your draft is based on revision {base}. Keep editing the draft, or discard it and load the latest.",
-  "settings.drora.divergence.savedValue": "Saved",
-  "settings.drora.divergence.draftValue": "Draft",
-  "settings.drora.divergence.keepDraft": "Keep draft and continue editing",
-  "settings.drora.divergence.discardDraft": "Discard draft and load latest",
-  "settings.drora.reset.confirmTitle": "Restore product defaults?",
-  "settings.drora.reset.confirmDescription":
-    "The five fields will be reset to the product defaults and a new revision is created. This does not change the execution permission, communication defaults or other settings.",
-  "settings.drora.reset.confirmAction": "Restore defaults",
-  "settings.drora.preview.title": "Preview",
-  "settings.drora.preview.disclaimer":
-    "Deterministic compilation of the local template; no model requests. The preview is not a guarantee of actual output.",
-  "settings.drora.preview.empty": "Generating preview…",
-  "settings.drora.preview.failed": "Preview failed ({code}).",
-  "settings.drora.application.title": "Application status",
-  "settings.drora.application.savedVersion":
-    "Saved version: revision {revision} (template v{template})",
-  "settings.drora.application.savedVersionHint":
-    "Saving only updates the material; sessions apply it when a new turn is captured. Turns already frozen stay unchanged.",
-  "settings.drora.application.uninitialized":
-    "Not initialized yet; sessions use the built-in product persona while executing.",
-  "settings.drora.application.turnTitle": "Application status of a specific session/turn",
-  "settings.drora.application.turnDescription":
-    "Check whether the specified session and turn applied the Drora persona while executing. Execution records exist only at runtime and show as not applied after a restart.",
-  "settings.drora.application.sessionPlaceholder": "Session ID",
-  "settings.drora.application.turnPlaceholder": "Turn ID",
-  "settings.drora.application.query": "Check",
-  "settings.drora.application.applied": "Applied",
-  "settings.drora.application.omittedWithReason": "Omitted: {reason}",
-  "settings.drora.application.notApplied": "Not applied (no available execution record)",
-  "settings.drora.application.omittedReasonPermission": "Execution permission not granted",
-  "settings.drora.application.omittedReasonUninitialized": "Persona not initialized",
-  "settings.drora.application.omittedReasonCompileFailed":
-    "Stored persona failed to compile (this turn used the built-in product persona)",
-  "settings.drora.application.omittedReasonUnknown": "Unknown reason",
-  "settings.drora.application.queryFailed": "Query failed: {message}",
-  "settings.drora.application.noWorkspace":
-    "Open a local workspace to check session application status.",
-  // P1a communication defaults and export (specs/drora-persona-system.md §9/§10): forgetting
-  // is a logical undo and copy must state its exact scope ("erase everywhere"/"forget
-  // completely" is forbidden); U has no global query method, so status text only describes
-  // this session's latest operation and never claims "the current session is now off";
-  // export shows "no data yet" and never initializes the persona for exporting.
-  "settings.drora.preferences.title": "How it talks",
-  "settings.drora.preferences.description":
-    "Four communication defaults saved automatically: selects commit on change, the address commits on blur; forgetting stays explicit. They take effect on the next new turn, and turns already frozen stay unchanged. The concrete request at hand always takes precedence over these defaults.",
-  "settings.drora.preferences.uninitializedHint":
-    "The persona is not initialized yet; initialize it before saving or forgetting communication defaults, or changing the usage permission.",
-  "settings.drora.preferences.loadFailed": "Failed to load communication defaults ({code}).",
-  "settings.drora.preferences.currentValue": "Current value: {value}",
-  "settings.drora.preferences.notSet": "Not set",
-  "settings.drora.preferences.forgottenValue": "Forgotten (can be set again)",
-  "settings.drora.preferences.replyLanguage": "Reply language",
-  "settings.drora.preferences.replyLanguageDescription": "The language Drora replies in.",
-  "settings.drora.preferences.replyLanguage.follow_user": "Follow the user's message",
-  "settings.drora.preferences.replyLanguage.zh-CN": "中文",
-  "settings.drora.preferences.replyLanguage.en-US": "English",
-  "settings.drora.preferences.explanationDetail": "Explanation detail",
-  "settings.drora.preferences.explanationDetailDescription": "How detailed explanations are.",
-  "settings.drora.preferences.explanationDetail.concise": "Concise",
-  "settings.drora.preferences.explanationDetail.balanced": "Balanced",
-  "settings.drora.preferences.explanationDetail.detailed": "Detailed",
-  "settings.drora.preferences.preferredAddress": "Preferred address",
-  "settings.drora.preferences.preferredAddressDescription":
-    "How Drora addresses you; 1–40 characters (Unicode code points).",
-  "settings.drora.preferences.preferredAddressPlaceholder": "Not set",
-  "settings.drora.preferences.collaborationStyle": "Collaboration style",
-  "settings.drora.preferences.collaborationStyleDescription": "How answers are organized.",
-  "settings.drora.preferences.collaborationStyle.direct_answer": "Answer first",
-  "settings.drora.preferences.collaborationStyle.explain_tradeoffs": "Explain trade-offs",
-  "settings.drora.preferences.collaborationStyle.step_by_step": "Step by step",
-  "settings.drora.preferences.save": "Save",
-  "settings.drora.preferences.saving": "Saving…",
-  "settings.drora.preferences.forget": "Forget",
-  "settings.drora.preferences.forgetting": "Forgetting…",
-  "settings.drora.preferences.notice.forgotten":
-    "Preference forgotten (a logical undo). Only later turns are affected; turns already frozen, chat history and project memory stay unchanged.",
-  // P1b source status (contract §1.2/§8): provenance category, epistemic status, dispute and
-  // suppression are separate facts shown on separate lines; disputes are resolved only via
-  // save/forget; suppression is lifted via "allow learning" (generation++, new opportunities only).
-  "settings.drora.preferences.provenance.settings": "Source: saved in settings",
-  "settings.drora.preferences.provenance.extraction": "Source: automatic extraction",
-  "settings.drora.preferences.epistemic.explicit": "Explicit",
-  "settings.drora.preferences.epistemic.inferred": "Inferred",
-  "settings.drora.preferences.disputedBadge":
-    "Conflicting inferred values; injection paused for this key",
-  "settings.drora.preferences.disputedHint":
-    'Resolve the conflict via "Save" or "Forget": both clear the dispute and advance the revision; the automatic value itself is not kept.',
-  "settings.drora.preferences.suppressedBadge": "Automatic learning suppressed for this key",
-  "settings.drora.preferences.allowLearning": "Allow learning",
-  "settings.drora.preferences.allowing": "Allowing…",
-  "settings.drora.preferences.pendingCandidate":
-    "One suggestion awaits confirmation: {value} (resolve via Save or Forget; automatic content is only kept after your confirmation)",
-  "settings.drora.forget.confirmTitle": 'Forget "{key}"?',
-  "settings.drora.forget.confirmDescription":
-    "This is a logical undo: it clears the app-accessible saved value and candidates for this key. It does not delete chat history, project memory, or diagnostics, and it is not a media-level erase; turns already frozen stay unchanged.",
-  "settings.drora.policy.title": "Preference injection",
-  "settings.drora.policy.description":
-    "Communication defaults are only injected into new turns while this permission is on. A switch takes effect on the next new turn; turns already frozen stay unchanged. The current value is read from the service; changes made in other windows appear after a refresh.",
-  "settings.drora.policy.enable": "Turn on",
-  "settings.drora.policy.disable": "Turn off",
-  "settings.drora.policy.enabling": "Turning on…",
-  "settings.drora.policy.disabling": "Turning off…",
-  "settings.drora.policy.state.unknown":
-    "Current effective value unknown (read failed; the service is authoritative)",
-  "settings.drora.policy.state.on": "Currently on (read from the service)",
-  "settings.drora.policy.state.off": "Currently off (read from the service)",
-  "settings.drora.policy.state.savedOn": "Submitted in this session: on (applies to new turns)",
-  "settings.drora.policy.state.savedOff": "Submitted in this session: off (applies to new turns)",
-  "settings.drora.policy.state.unchangedOn":
-    "The service is already on (this submission had no content change)",
-  "settings.drora.policy.state.unchangedOff":
-    "The service is already off (this submission had no content change)",
-  "settings.drora.policy.notice.saved":
-    "Submitted. The switch takes effect on the next new turn; turns already frozen stay unchanged.",
-  "settings.drora.policy.notice.unchanged":
-    "The service already has this state; no new revision was created.",
-  "settings.drora.policy.notice.conflict":
-    "The usage permission was changed in another window: the revision has been re-read; click again to apply your choice.",
-  "settings.drora.policy.notice.uninitialized":
-    "The persona is not initialized yet. Initialize it before changing the usage permission.",
-  // Turning U off cascades in the same transaction (contract §4.2): L off, leases revoked,
-  // uncommitted candidates/workloads cleared; turning U back on does not restore L.
-  "settings.drora.policy.cascade.title": "Turn off usage permission?",
-  "settings.drora.policy.cascade.description":
-    "Turning off the usage permission also turns off automatic learning in the same transaction: new learning intake and submission stop immediately, all learning leases are revoked, and uncommitted learning candidates and workloads are cleared. Explicitly saved communication defaults are kept; turns already frozen stay unchanged. Turning the permission back on does not restore automatic learning.",
-  "settings.drora.policy.cascade.action": "Turn off usage permission",
-  // P1b automatic learning (spec §5/§8): independent authorization, off by default; covers
-  // only the four communication defaults; no fabricated-experience page; budget caps are
-  // frozen service constants; counters describe this process only, not a global fact.
-  "settings.drora.learning.title": "Automatic learning",
-  "settings.drora.learning.description":
-    "When on, Drora gets bounded learning opportunities from ordinary successful turns and only infers the four communication defaults above. It creates no experiences or memory pages and never changes the core identity, tool permissions, or execution scope. Learning has a daily budget cap; turning it off stops new intake and submission and revokes unfinished learning work.",
-  "settings.drora.learning.enable": "Turn on",
-  "settings.drora.learning.disable": "Turn off",
-  "settings.drora.learning.enabling": "Turning on…",
-  "settings.drora.learning.disabling": "Turning off…",
-  "settings.drora.learning.budget":
-    "Today's learning budget (UTC): {attempts}/{attemptsMax} model attempts · input {input}/{inputMax} · output {output}/{outputMax} tokens",
-  "settings.drora.learning.counters":
-    "Learning activity in this process: received {received} · dropped (queue full) {dropped} · applied {applied} · no change {noChange} · rejected {rejected}",
-  "settings.drora.learning.sourcesCount": "Merged sources: {count}",
-  "settings.drora.export.title": "Export persona",
-  "settings.drora.export.description":
-    "Creates a read-only JSON snapshot (current core, communication defaults, format version and omission counts) without chat transcripts, learning evidence or credentials; saved through the system save dialog, 256 KiB max. Importing is not supported.",
-  "settings.drora.export.action": "Export JSON",
-  "settings.drora.export.pending": "Exporting…",
-  "settings.drora.export.saved": "Saved.",
-  "settings.drora.export.savedPath": "Saved: {path}",
-  "settings.drora.export.canceled": "Canceled; no file was saved.",
-  "settings.drora.export.failed": "Saving the file failed: {message}",
-  "settings.drora.export.failedPlain": "Saving the file failed.",
-  "settings.drora.export.noData":
-    "No data yet: the persona is not initialized, so no export was created. Exporting never initializes the persona.",
-  "settings.drora.export.code": "Export failed ({code}).",
-  "settings.drora.export.unsupported": "This platform cannot save files, so export is unavailable.",
   "settings.memoryDescription":
     "Save and reuse long-term context in workspaces. Applies to new sessions and may increase model requests and token costs.",
   "settings.memory.viewer.disabled": "Enable Workspace Memory to view saved memories.",
+  "settings.memory.viewer.remoteUnavailable":
+    "Memory details for remote devices are not available yet.",
   "settings.memory.viewer.localOnly":
     "Memory details are available only in the local desktop app. Open Memory settings there to view them.",
   "settings.memory.viewer.title": "Saved workspace memories",
@@ -3907,7 +3892,7 @@ const enUS: Record<string, string> = {
   "settings.memory.viewer.noSelection": "Select a memory file to preview it.",
   "settings.httpProxy": "HTTP Proxy",
   "settings.httpProxyDescription":
-    "Route model, MCP, command-tool, and app renderer egress traffic through this proxy; system environment variables are not read. Leave blank and that traffic connects directly, while the embedded browser follows your system proxy settings. Restart the app to take effect.",
+    'Route model, MCP, command-tool, extension, and app renderer egress traffic through this proxy; system environment variables are not read. Leave blank and that traffic connects directly, while the embedded browser follows your system proxy settings. Restart the app to take effect; for extensions you can also run "Reload extensions" from the command center.',
   "settings.httpProxyPlaceholder":
     "Blank means the embedded browser follows the system proxy, e.g. http://127.0.0.1:7890",
   "settings.httpProxyNoProxy": "No proxy",
@@ -3916,7 +3901,7 @@ const enUS: Record<string, string> = {
   "settings.httpProxyNoProxyPlaceholder": "e.g. localhost,127.0.0.1,::1,.example.com,*.corp.com",
   "settings.httpProxyCaCertPath": "Custom certificate",
   "settings.httpProxyCaCertPathDescription":
-    "Optional. Set a PEM root certificate path to inject it as NODE_EXTRA_CA_CERTS for models, MCP, and command tools, and to trust it in renderer certificate verification. Restart the app to take effect.",
+    "Optional. Set a PEM root certificate path to inject it as NODE_EXTRA_CA_CERTS for models, MCP, command tools, and extensions, and to trust it in renderer certificate verification. Restart the app to take effect.",
   "settings.httpProxyCaCertPathPlaceholder": "e.g. /Users/name/certs/root-ca.pem",
   "settings.httpProxySavedHint": "Network proxy settings saved. Restart the app to take effect.",
   "settings.desktopChromiumHardwareAcceleration": "Chrome hardware acceleration",
@@ -3936,6 +3921,9 @@ const enUS: Record<string, string> = {
   "settings.notificationSound": "Notification sound",
   "settings.notificationSoundDescription":
     "When notifications are enabled, you can mute the task notification sound separately.",
+  "settings.mobilePush": "Mobile push notifications",
+  "settings.mobilePushDescription":
+    "When you are away from this desktop, completed, failed, or waiting tasks are pushed to the signed-in Drora App.",
   "notification.taskWithTitle": "Task: {title}",
   "notification.taskWaiting": "Task waiting for your confirmation",
   "notification.completed": "Task completed",
@@ -3962,23 +3950,15 @@ const enUS: Record<string, string> = {
     "Show full reasoning inside the message stream. When off, the first reasoning item in each turn remains visible.",
   "settings.messageStreamShowTodos": "Show todos",
   "settings.messageStreamShowTodosDescription": "Show Todo tool cards inside the message stream. ",
-  "settings.toolGroupingExplore": "Group exploration tools",
-  "settings.agentsTeamEnabled": "Agents Team (experimental)",
-  "settings.agentsTeamEnabledDescription":
-    "Enable /team multi-agent collaboration and the team panel (off by default). The gate is snapshotted when an agent process is created: new sessions inside already-open windows stay disabled — restart the app or open a new window; an explicit CLI agentsTeam.enabled value still takes precedence.",
-  "settings.toolGroupingExploreDescription":
-    "Group consecutive reads and searches into an Explore section.",
-  "settings.toolGroupingTerminal": "Group terminal commands",
-  "settings.toolGroupingTerminalDescription":
-    "Group consecutive non-read-only shell commands into a Terminal section.",
-  "settings.toolGroupingChanges": "Group file changes",
-  "settings.toolGroupingChangesDescription":
-    "Group consecutive Write, Edit, and ApplyPatch calls into a Changes section.",
   "settings.droraInteractionBehavior": "Interaction behavior",
   "settings.droraInteractionBehaviorDescription":
     "While Drora is running, add follow-up actions to the queue or guide them to run after the next tool call.",
   "settings.droraInteractionBehavior.option.queue": "Queue",
   "settings.droraInteractionBehavior.option.guide": "Guide",
+  "settings.pluginAutoRecommendation": "Automatic plugin recommendations",
+  "settings.pluginAutoRecommendationDescription":
+    "Let the agent find and recommend plugins in conversations. When off, you can still install plugins in Settings. Applies from your next message. Installation requires confirmation.",
+  "settings.pluginAutoRecommendationSaveError": "Could not save. Try again.",
   "settings.askUserQuestionAutoResolution": "Automatically continue questions",
   "settings.askUserQuestionAutoResolutionDescription":
     "When enabled, Agent questions automatically continue after 5 minutes without an answer. When disabled, current and future questions wait for your response.",
@@ -4158,6 +4138,11 @@ const enUS: Record<string, string> = {
     "Enable the official Browser Use plugin so new sessions can access and control web pages in the built-in browser.",
   "settings.browser.control.enabledToast": "Built-in browser control enabled",
   "settings.browser.control.disabledToast": "Built-in browser control disabled",
+  "settings.browser.open.section": "Opening files",
+  "settings.browser.htmlClickOpensBrowser": "Open HTML files in the built-in browser on click",
+  "settings.browser.htmlClickOpensBrowserDescription":
+    "When on, clicking a local .html file in the file tree opens it in the built-in browser. When off, it opens the source preview. Open in the context menu always opens the source preview.",
+  "settings.browser.htmlClickOpensBrowserSaveError": "Couldn't save the setting. Try again.",
   "settings.browser.security.section": "Security",
   "settings.embeddedBrowserAllowInsecureCertificates": "Ignore certificate errors",
   "settings.embeddedBrowserAllowInsecureCertificatesDescription":
@@ -4212,18 +4197,18 @@ const enUS: Record<string, string> = {
     "Imported {cookies} cookies, but some LocalStorage data was not imported. Closing Chrome before retrying may improve the result.",
   "settings.browser.clearCache.title": "Clear built-in browser cache",
   "settings.browser.clearCache.description":
-    "Clear HTTP cache, Cache Storage, and service workers while keeping cookies and local site data.",
+    "Clear HTTP cache, Cache Storage, and service workers while keeping cookies, local site data, and recent visits.",
   "settings.browser.clearCache.action": "Clear cache",
   "settings.browser.clearCache.success": "Built-in browser cache cleared",
   "settings.browser.clearAll.title": "Clear all browser data",
   "settings.browser.clearAll.description":
-    "Delete cookies, site data, and cache from the built-in browser. This cannot be undone.",
+    "Delete cookies, site data, cache, and recent visits from the built-in browser. This cannot be undone.",
   "settings.browser.clearAll.action": "Clear all",
   "settings.browser.clearAll.success": "All built-in browser data cleared",
   "settings.browser.clear.failed": "Failed to clear built-in browser data.",
   "settings.browser.clearAll.confirmTitle": "Clear all built-in browser data?",
   "settings.browser.clearAll.confirmDescription":
-    "This signs you out of sites in the built-in browser and deletes cookies, site data, and cache. This cannot be undone.",
+    "This signs you out of sites in the built-in browser and deletes cookies, site data, cache, and recent visits. This cannot be undone.",
   "settings.browser.clearAll.confirmAction": "Clear data",
   "settings.lightTheme": "Light code theme",
   "settings.lightThemeDescription":
@@ -4282,9 +4267,6 @@ const enUS: Record<string, string> = {
   "settings.mcp.plugin.disconnected": "Disconnected",
   "settings.mcp.plugin.disconnectedDescription":
     "This plugin MCP server is loaded but not currently connected.",
-  "settings.mcp.host.active": "Host built-in",
-  "settings.mcp.host.activeDescription":
-    "Drora provides this MCP server for the {pluginName} plugin. Its runtime identity is managed by the host.",
   "settings.mcp.plugin.disabled": "Plugin disabled",
   "settings.mcp.plugin.disabledDescription":
     "This MCP server is built into a plugin. Enable the plugin to load it.",
@@ -4457,7 +4439,6 @@ const enUS: Record<string, string> = {
     "Changes here affect only this workspace and override the User default.",
   "settings.plugins.toggle.enable": "Enable {plugin}",
   "settings.plugins.toggle.disable": "Disable {plugin}",
-  "settings.plugins.toggle.pending": "Updating {plugin}...",
   "settings.plugins.toggle.enabled": "Enabled {plugin}",
   "settings.plugins.toggle.disabled": "Disabled {plugin}",
   "settings.plugins.toggle.workspaceEnabled":
@@ -4788,7 +4769,7 @@ const enUS: Record<string, string> = {
   "settings.modelProvider.codingPlan.paymentTimeout":
     "Payment is still pending. Recheck your Coding Plan status after the payment page finishes.",
   "settings.modelProvider.codingPlan.zaiOverseasPaymentRequired":
-    "Z.ai overseas plans must be paid through PayPal or the official Z.ai payment page, not the Alipay signing flow.",
+    "Z.ai global plans must be paid through PayPal or the official Z.ai payment page, not the Alipay signing flow.",
   "settings.modelProvider.codingPlan.paypalSetupRequired":
     "Authorize PayPal before continuing the payment.",
   "settings.modelProvider.codingPlan.paypalApproveUrlMissing":
@@ -4935,7 +4916,7 @@ const enUS: Record<string, string> = {
   "settings.modelProvider.codingPlan.enterprise.pendingOrderContinue": "Continue payment",
   "settings.modelProvider.codingPlan.enterprise.pendingOrderProductMissing":
     "The plan for this unpaid order was not found. Refresh plans and try again.",
-  "settings.modelProvider.codingPlan.overseasPayment.title": "{product} overseas payment",
+  "settings.modelProvider.codingPlan.overseasPayment.title": "{product} global payment",
   "settings.modelProvider.codingPlan.overseasPayment.description":
     "Amount due: {price}. Choose PayPal or continue on the official Z.ai payment page.",
   "settings.modelProvider.codingPlan.overseasPayment.paypal": "PayPal",
@@ -5238,6 +5219,9 @@ const enUS: Record<string, string> = {
   "codingPlan.quotaReset.dialog.expiresIn": "Expires in {time}",
   "codingPlan.quotaReset.dialog.expiresInSoonest": "Soonest expires in {time}",
   "codingPlan.quotaReset.dialog.itemCount": "×{count}",
+  "codingPlan.quotaReset.dialog.back": "Back",
+  "codingPlan.quotaReset.dialog.confirmHint":
+    "This uses 1 reset (expires {date}) and can't be undone.",
   "codingPlan.quotaReset.opportunity": "{count} reset available",
   "codingPlan.quotaReset.expiresIn": "Expires in {time}",
   "codingPlan.quotaReset.contextReminder.available": "{count} reset available",
@@ -5246,6 +5230,11 @@ const enUS: Record<string, string> = {
   "codingPlan.quotaReset.reset": "Reset",
   "codingPlan.quotaReset.resetAria": "Reset 5-hour quota",
   "codingPlan.quotaReset.resetAriaWeek": "Reset weekly quota",
+  "codingPlan.quotaReset.confirm": "Reset",
+  "codingPlan.quotaReset.confirmTitle": "Reset your 5-hour quota?",
+  "codingPlan.quotaReset.confirmTitleWeek": "Reset this week's quota?",
+  "codingPlan.quotaReset.confirmAria": "Confirm 5-hour quota reset",
+  "codingPlan.quotaReset.confirmAriaWeek": "Confirm weekly quota reset",
   "codingPlan.quotaReset.success": "Reset successful",
   "codingPlan.quotaReset.failed": "Reset failed. Please try again.",
   "codingPlan.quotaReset.processing": "Resetting 5-hour quota…",
@@ -5445,116 +5434,6 @@ const enUS: Record<string, string> = {
     "Built-in Z.ai and BigModel providers with OAuth-assisted configuration.",
   "settings.modelProvider.presetEmpty": "Not synced yet. Complete OAuth login first.",
   "settings.modelProvider.customTitle": "Custom providers",
-  // 模型能力档案（specs/model-capabilities.md §5.1；导航分组 + 五条目表单）。
-  "settings.modelCapabilities.groupTitle": "Model capabilities",
-  "settings.modelCapability.nav.embedding": "Semantic embedding",
-  "settings.modelCapability.provider.createFirst": "Create an API Key provider card",
-  "settings.modelCapability.provider.unselected": "No provider selected",
-  // §15 voice vendor template row (shared by asr/tts; specs/model-capabilities.md §15.3).
-  "settings.modelCapability.vendor.title": "Voice provider",
-  "settings.modelCapability.vendor.description":
-    "Pick a built-in voice provider or a custom endpoint card; the API key is stored once on the selected provider card and reusable by other capabilities.",
-  "settings.modelCapability.vendor.optionState": "{name} ({state})",
-  "settings.modelCapability.vendor.connected": "connected",
-  "settings.modelCapability.vendor.needsKey": "no API key",
-  "settings.modelCapability.vendor.customGroup": "Custom endpoints",
-  "settings.modelCapability.vendor.apiKey.label": "API Key",
-  "settings.modelCapability.vendor.keepCurrentGroup": "Kept current value",
-  "settings.modelCapability.vendor.createFailed":
-    "Failed to create the voice provider card. Try again later.",
-  "settings.modelCapability.vendor.credentialHint.volcano":
-    "Volcano Engine: new speech console (console.volcengine.com/speech/new) takes a single API key (outbound via the desktop proxy in-app).",
-  "settings.modelCapability.vendor.credentialHint.siliconflow":
-    "SiliconFlow API key (starts with sk-), shared with chat models.",
-  "settings.modelCapability.vendor.credentialHint.openai": "OpenAI API key (starts with sk-).",
-  "settings.modelCapability.vendor.credentialHint.groq":
-    "Groq API key (starts with gsk_); TTS is English/Arabic only, ASR Whisper is multilingual.",
-  "settings.modelCapability.vendor.credentialHint.elevenlabs":
-    "ElevenLabs API key; enter a Voice ID from the console Voice Library (official default voice IDs are being retired).",
-  "settings.modelCapability.vendor.credentialHint.custom":
-    "The API key of the selected provider card; saving empty deletes it.",
-  "settings.modelCapability.provider.incomplete":
-    "{name} (missing API key / Base URL; selected card cannot send requests)",
-  "settings.modelCapability.saveFailed": "Save failed. Please try again.",
-  "settings.modelCapability.asr.baseUrlOverride.title": "Base URL override (optional)",
-  "settings.modelCapability.tts.baseUrlOverride.title": "Base URL override (optional)",
-  "settings.modelCapability.imageGeneration.provider.title": "Provider",
-  "settings.modelCapability.imageGeneration.provider.description":
-    "Image generation connection (Base URL and API Key) comes from the selected provider card, managed under Settings → Model providers.",
-  "settings.modelCapability.imageGeneration.baseUrlOverride.title": "Base URL override (optional)",
-  "settings.modelCapability.nav.asr": "Speech recognition",
-  "settings.modelCapability.nav.tts": "Speech synthesis",
-  "settings.modelCapability.nav.imageGeneration": "Image generation",
-  "settings.modelCapability.detail.asr.title": "Speech recognition",
-  "settings.modelCapability.detail.tts.title": "Speech synthesis",
-  "settings.modelCapability.detail.imageGeneration.title": "Image generation",
-  "settings.modelCapability.saved": "Saved",
-  "settings.modelCapability.knowledgeServiceUnavailable": "Knowledge services unavailable",
-  "settings.modelCapability.unavailable":
-    "Model capabilities are managed by the local desktop host and unavailable in this context.",
-  "settings.modelCapability.loadFailed": "Failed to load model capabilities",
-  "settings.modelCapability.baseUrl.insecureWarning":
-    "Plain HTTP to a remote address is blocked; use https or a loopback address.",
-  "settings.modelCapability.baseUrl.unparseableWarning":
-    "This is not a parseable URL; check the endpoint address.",
-  "settings.modelCapability.apiKey.titleSuffix": " API Key",
-  "settings.modelCapability.apiKey.placeholder": "Enter API Key",
-  "settings.modelCapability.apiKey.save": "Save",
-  "settings.modelCapability.apiKey.saved": "API Key saved",
-  "settings.modelCapability.apiKey.saveFailed": "Failed to save API Key",
-  "settings.modelCapability.apiKey.configured": "Configured",
-  "settings.modelCapability.apiKey.notConfigured": "Not configured",
-  "settings.modelCapability.apiKey.toggleVisibility": "Toggle API Key visibility",
-  // P7 本体清除（specs/obsidian-vault-phase2-true-extraction.md §1-C9/C11）：Jev 决策
-  // 与语义嵌入两表单拆除，对应 i18n 键同步删除（键集配齐由 ModelCapabilityDetail
-  // 测试锁定）；Jev/检索配置面归插件 userConfig（D8 终裁后补批接线）。
-  "settings.modelCapability.asr.engine.label": "Speech recognition engine",
-  "settings.modelCapability.asr.engine.description":
-    "Cloud engine is used only when its endpoint config is complete; otherwise dictation falls back to the built-in engine.",
-  "settings.modelCapability.asr.engine.webSpeech": "Built-in (Web Speech)",
-  "settings.modelCapability.asr.engine.remote": "Cloud engine",
-  "settings.modelCapability.asr.baseUrl.title": "Vendor API base URL",
-  "settings.modelCapability.asr.baseUrl.placeholder": "e.g. https://api.siliconflow.cn/v1",
-  "settings.modelCapability.asr.model.title": "ASR model",
-  "settings.modelCapability.asr.model.placeholder": "e.g. FunAudioLLM/SenseVoiceSmall",
-  "settings.modelCapability.asr.apiKey.title": "Speech recognition API key",
-  "settings.modelCapability.asr.apiKey.description":
-    "Stored encrypted; effective on the next dictation. Clearing and saving removes the key.",
-  "settings.modelCapability.tts.engine.label": "Announcement engine",
-  "settings.modelCapability.tts.engine.description":
-    "Cloud engine is used only when its endpoint config is complete; otherwise announcements use system speech.",
-  "settings.modelCapability.tts.engine.system": "System speech",
-  "settings.modelCapability.tts.engine.cloud": "Cloud engine",
-  "settings.modelCapability.tts.baseUrl.title": "Vendor API base URL",
-  "settings.modelCapability.tts.baseUrl.placeholder": "e.g. https://api.siliconflow.cn/v1",
-  "settings.modelCapability.tts.model.title": "Announcement model",
-  "settings.modelCapability.tts.model.placeholder": "e.g. fnlp/MOSS-TTSD-v0.5",
-  "settings.modelCapability.tts.voice.title": "Cloud engine voice",
-  "settings.modelCapability.tts.voice.placeholder": "Vendor voice id (empty = vendor default)",
-  "settings.modelCapability.tts.voice.volcano.title": "Voice",
-  "settings.modelCapability.tts.voice.volcano.description":
-    "Volcano synthesizes per voice (voice_type): pick a built-in voice; a manually entered voice id is preserved.",
-  "settings.modelCapability.tts.voice.volcano.placeholder": "Pick a voice (required)",
-  "settings.modelCapability.tts.preview.action": "Preview",
-  "settings.modelCapability.tts.preview.description":
-    "Synthesizes a fixed sentence with the current configuration and plays it; failures show the specific reason.",
-  "settings.modelCapability.tts.preview.loading": "Synthesizing…",
-  "settings.modelCapability.tts.preview.ok": "Preview playback started",
-  "settings.modelCapability.tts.preview.failed": "Preview failed: {message}",
-  "settings.modelCapability.tts.apiKey.title": "Speech synthesis API key",
-  "settings.modelCapability.tts.apiKey.description":
-    "Stored encrypted; effective on the next announcement. Clearing and saving removes the key.",
-  "settings.modelCapability.imageGeneration.enabled.label": "Image generation",
-  "settings.modelCapability.imageGeneration.enabled.description":
-    "Enables the built-in generate_image tool for agents. Effective on the next tool call; incomplete config fails closed.",
-  "settings.modelCapability.imageGeneration.baseUrl.title": "Endpoint base URL",
-  "settings.modelCapability.imageGeneration.baseUrl.placeholder":
-    "e.g. https://open.bigmodel.cn/api/paas/v4",
-  "settings.modelCapability.imageGeneration.model.title": "Model",
-  "settings.modelCapability.imageGeneration.model.placeholder": "e.g. cogview-4-flash / dall-e-3",
-  "settings.modelCapability.imageGeneration.apiKey.title": "Image generation API key",
-  "settings.modelCapability.imageGeneration.apiKey.description":
-    "Stored encrypted; credentials never leave the host process.",
   "settings.modelProvider.refresh": "Refresh",
   "settings.modelProvider.reorderProvider": "Drag to reorder provider",
   "settings.modelProvider.reorderModel": "Drag to reorder model",
@@ -5807,6 +5686,11 @@ const enUS: Record<string, string> = {
   "settings.plugin.tab.mcps": "MCP",
   "settings.plugin.tab.skills": "Skills",
   "settings.plugin.tab.commands": "Commands",
+  "settings.search.title": "Search settings",
+  "settings.search.description": "Find a setting and jump to it",
+  "settings.search.results": "Search results",
+  "settings.search.empty": "No matching settings",
+  "settings.search.section": "Settings section",
   "settings.search.clear": "Clear search",
   "settings.plugin.plugins.installed": "Installed",
   "settings.plugin.plugins.builtIn": "Built-in",
@@ -5880,6 +5764,16 @@ const enUS: Record<string, string> = {
   "settings.plugins.store.viewMoreFew": "See {names}",
   "settings.plugins.store.showLess": "Show less",
   "settings.plugins.store.install": "Install",
+  "settings.plugins.store.extension.requiresUpdate": "Requires newer Drora",
+  "settings.plugins.store.extension.incompatibleHint":
+    "This plugin needs a newer version of Drora. Update Drora, then install it.",
+  "settings.plugins.store.extension.title": "Includes resident code",
+  "settings.plugins.store.extension.description":
+    "When enabled, the plugin's extension code keeps running inside Drora.",
+  "settings.plugins.store.extension.grantsTitle": "Requested permissions",
+  "settings.plugins.store.extension.noGrants": "No permissions requested",
+  "settings.plugins.store.extension.consentNote":
+    "For information only. After you install, the plugin can use these permissions only after you grant them in the permission dialog.",
   "settings.plugins.store.paidPlanBadge": "Coding Plan",
   "settings.plugins.store.requiresPaidPlan": "This plugin works better with a Coding Plan",
   "settings.plugins.store.tryNow": "Try now",
@@ -5982,10 +5876,6 @@ const enUS: Record<string, string> = {
   "settings.plugins.uninstall.confirmTitle": "Uninstall {name}?",
   "settings.plugins.uninstall.confirmDescription":
     "This removes the plugin's cached files, its data directory, and any saved configuration. This cannot be undone.",
-  // §11-D6: plugins that force data retention on uninstall (obsidian — data dir holds the
-  // knowledge index and embedding models); wording mirrors the CLI-side forced keepData.
-  "settings.plugins.uninstall.confirmDescriptionKeepData":
-    "This removes the plugin along with its cache and saved configuration; its data directory (including the knowledge index and embedding models) is kept and resumes after reinstalling. This cannot be undone.",
   "settings.plugins.uninstall.confirm": "Uninstall",
   "settings.plugins.detail.empty": "Select a plugin to view details.",
   "settings.plugins.detail.enabled": "Enabled",
@@ -6533,9 +6423,39 @@ const enUS: Record<string, string> = {
   "chat.queue.sendNow": "Steer",
   "chat.queue.runNow": "Run now",
   "chat.queue.edit": "Edit",
-  "chat.queue.editDraftConflict":
-    "Send or clear the current draft before editing a queued message.",
-  "chat.queue.editRestoreFailed": "Couldn't return the queued message to the composer. Try again.",
+  "chat.composerEdit.editingUserQuery": "Editing your last message",
+  "chat.composerEdit.editingQueueItem": "Editing a queued message",
+  "chat.composerEdit.invalid.notLatest":
+    "This is no longer the last message. Sending will create a new message.",
+  "chat.composerEdit.invalid.queueItemRemoved":
+    "The queued message is no longer in the queue. Sending will create a new message.",
+  "chat.composerEdit.invalid.editLockLost":
+    "Editing was released from another device. Sending will create a new message.",
+  "chat.composerEdit.inComposerHint": "Editing below",
+  "chat.composerEdit.busy": "Wait for the current send or upload to finish before editing.",
+  "chat.composerEdit.switchTitle": "Discard current edits?",
+  "chat.composerEdit.switchDescription":
+    "Switching to another message discards your current edits.",
+  "chat.composerEdit.switchConfirm": "Discard and switch",
+  "chat.composerEdit.lockFailed.reserved": "This message is being sent and can't be edited.",
+  "chat.composerEdit.lockFailed.locked":
+    "This message is being edited in another window or device.",
+  "chat.composerEdit.lockFailed.generic": "Couldn't edit this message. Try again.",
+  "chat.composerEdit.saveFailed": "Couldn't save the edit. Try again.",
+  "chat.composerEdit.applyQueue.title": "Apply to queued messages?",
+  "chat.composerEdit.applyQueue.modelAndMode":
+    "You changed the permission to {mode} and the model to {model}. Apply this to all queued messages too?",
+  "chat.composerEdit.applyQueue.model":
+    "You changed the model to {model}. Apply this to all queued messages too?",
+  "chat.composerEdit.applyQueue.mode":
+    "You changed the permission to {mode}. Apply this to all queued messages too?",
+  "chat.composerEdit.applyQueue.confirm": "Apply to queue",
+  "chat.composerEdit.applyQueue.cancel": "Only this message",
+  "chat.composerEdit.applyQueue.failed": "Could not apply to queued messages",
+  "chat.composerEdit.kindMismatch.goal": "A goal message must keep the /goal prefix.",
+  "chat.composerEdit.kindMismatch.text": "A regular message can't be changed into a /goal command.",
+  "chat.queue.editLockedByOther": "Being edited in another window or device",
+  "chat.queue.releaseEdit": "Release",
   "chat.queue.remove": "Remove queued message",
   "chat.queue.turnSteer.steering": "Steering conversation",
   "chat.queue.paused.stopped": "The queue was paused because you stopped the current response",
@@ -6556,6 +6476,26 @@ const enUS: Record<string, string> = {
   "chat.modelChangeNotice.changed": "Switched from {fromModel} to {toModel}",
   "chat.preparing": "Preparing...",
   "chat.remoteGenerating": "Another device is sending a message...",
+  "chat.summaryGroup.explore.one": "Explore {count} item",
+  "chat.summaryGroup.explore.other": "Explore {count} items",
+  "chat.summaryGroup.run.one": "Run {count} command",
+  "chat.summaryGroup.run.other": "Run {count} commands",
+  "chat.summaryGroup.change.label": "Change",
+  "chat.summaryGroup.change.one": "Change {count} file",
+  "chat.summaryGroup.change.other": "Change {count} files",
+  "chat.summaryGroup.unresolved.one": "Change {count} time (path unknown)",
+  "chat.summaryGroup.unresolved.other": "Change {count} times (path unknown)",
+  "chat.summaryGroup.separator": ", ",
+  "chat.summaryGroup.reasoning": "Reasoning",
+  "chat.summaryGroup.explore.completed.one": "Explored {count} item",
+  "chat.summaryGroup.explore.completed.other": "Explored {count} items",
+  "chat.summaryGroup.run.completed.one": "Ran {count} command",
+  "chat.summaryGroup.run.completed.other": "Ran {count} commands",
+  "chat.summaryGroup.change.completed.label": "Changed",
+  "chat.summaryGroup.change.completed.one": "Changed {count} file",
+  "chat.summaryGroup.change.completed.other": "Changed {count} files",
+  "chat.summaryGroup.unresolved.completed.one": "Changed {count} time (path unknown)",
+  "chat.summaryGroup.unresolved.completed.other": "Changed {count} times (path unknown)",
   "chat.reasoning.thinking": "Thinking",
   "chat.reasoning.thought": "Thought",
   "chat.reasoning.durationFewSeconds": "a few seconds",
@@ -6651,6 +6591,8 @@ const enUS: Record<string, string> = {
   "chat.summaryPanel.runningBackgroundTasksMiniValue": "{count} background",
   "chat.summaryPanel.runningBackgroundTasksMiniValuePlural": "{count} background",
   "chat.summaryPanel.stopRunningBackgroundTask": "Stop running background task",
+  "chat.summaryPanel.stopRunningSubagent": "Stop running agent",
+  "chat.summaryPanel.stopSubagentFailed": "Could not stop the agent. Try again.",
   "chat.summaryPanel.openRunningSubagentSession": "Open subagent session",
   "chat.composer.backgroundWorks.tooltipTerminal": "Open running terminals",
   "chat.composer.backgroundWorks.tooltipAgent": "Open running agents",
@@ -6681,11 +6623,6 @@ const enUS: Record<string, string> = {
   "chat.statusPanel.terminals": "Terminals",
   "chat.statusPanel.agents": "Agents",
   "chat.statusPanel.workflows": "Workflows",
-  // Team section (specs/agents-team.md §19 contract 6): single live-team row; status words reuse team.status.*.
-  "chat.statusPanel.team": "Team",
-  "chat.statusPanel.teamWorking": "{count} working",
-  "chat.statusPanel.teamRowWords": "members {working}/{members} · tasks {completed}/{total}",
-  "chat.statusPanel.teamBlocked": "{count} blocked",
   "chat.statusPanel.runningStatusValue": "{count} in background",
   "chat.statusPanel.runningStatusValuePlural": "{count} in background",
   "chat.statusPanel.runningAgentsValue": "{count} running",
@@ -6776,6 +6713,53 @@ const enUS: Record<string, string> = {
   "chat.toolCall.previewUnavailable": "Preview unavailable",
   "chat.toolCall.loading": "Loading...",
   "chat.toolCall.planFile": "Plan file",
+  "chat.toolCall.session.ListSessions": "Find sessions",
+  "chat.toolCall.session.ReadSession": "Read session",
+  "chat.toolCall.session.SendToSession": "Send message",
+  "chat.toolCall.session.WaitSessions": "Wait for sessions",
+  "chat.toolCall.session.ListSessions.running": "Searching",
+  "chat.toolCall.session.ReadSession.running": "Reading",
+  "chat.toolCall.session.SendToSession.running": "Sending",
+  "chat.toolCall.session.WaitSessions.running": "Waiting",
+  "chat.toolCall.session.found": "Found {count, plural, one {# session} other {# sessions}}",
+  "chat.toolCall.session.count": "{count, plural, one {# session} other {# sessions}}",
+  "chat.toolCall.session.unknown": "Outcome unknown",
+  "chat.toolCall.session.idle": "Idle",
+  "chat.toolCall.session.running": "Running",
+  "chat.toolCall.session.attention": "Needs attention",
+  "chat.toolCall.session.accepted": "Accepted",
+  "chat.toolCall.session.queued": "Queued",
+  "chat.toolCall.session.completed": "Completed",
+  "chat.toolCall.session.stopped": "Stopped",
+  "chat.toolCall.session.failed": "Failed",
+  "chat.toolCall.session.rejected": "Rejected",
+  "chat.toolCall.session.pending": "Pending",
+  "chat.toolCall.session.waitEnded": "Wait ended",
+  "chat.toolCall.session.timedOut": "Wait timed out",
+  "chat.toolCall.session.cancelled": "Wait cancelled",
+  "chat.toolCall.session.message": "Message",
+  "chat.toolCall.session.messages": "Messages",
+  "chat.toolCall.session.target": "Target session",
+  "chat.toolCall.session.sessions": "Sessions",
+  "chat.toolCall.session.result": "Result",
+  "chat.toolCall.session.unknownSession": "Unknown session",
+  "chat.toolCall.session.empty": "No sessions found in the searched scope",
+  "chat.toolCall.session.scope": "Search scope",
+  "chat.toolCall.session.partial": "Search coverage is incomplete; some sources were not searched",
+  "chat.toolCall.session.more": "More results available",
+  "chat.toolCall.session.noMessages": "No messages",
+  "chat.toolCall.session.waitingResult": "Waiting for result",
+  "chat.toolCall.session.textResult": "Text result",
+  "chat.toolCall.session.noResult": "No result available",
+  "chat.toolCall.session.role.user": "User",
+  "chat.toolCall.session.role.assistant": "Assistant",
+  "chat.toolCall.session.role.system": "System",
+  "chat.toolCall.session.role.tool": "Tool",
+  "chat.toolCall.fallback.noParameters": "No parameters",
+  "chat.toolCall.fallback.waiting": "Waiting for result",
+  "chat.toolCall.fallback.noResult": "No result available",
+  "chat.toolCall.fallback.error": "Error",
+  "chat.toolCall.fallback.copyFailed": "Copy failed. Please try again.",
   "chat.toolCall.result": "Result",
   "chat.toolCall.mcp.callDetails": "View call details",
   "chat.toolCall.mcp.result": "Result",
@@ -6785,8 +6769,6 @@ const enUS: Record<string, string> = {
   "chat.toolCall.mcp.parameters": "Parameters",
   "chat.toolCall.toolCall": "Tool call",
   "chat.toolCall.kind.read": "Read",
-  "chat.toolCall.explore.bucket.fetch.one": "fetch",
-  "chat.toolCall.explore.bucket.fetch.other": "fetches",
   "chat.toolCall.kind.webFetch": "Fetch",
   "chat.toolCall.webFetch.fetching": "Fetching",
   "chat.toolCall.kind.search": "Search",
@@ -6801,9 +6783,6 @@ const enUS: Record<string, string> = {
   "chat.toolCall.kind.response": "Response",
   "chat.toolCall.kind.taskOutput": "Task output",
   "chat.toolCall.kind.taskStop": "Stop task",
-  "chat.toolCall.kind.generateImage": "Image generation",
-  "chat.toolCall.generateImage.generating": "Generating image",
-  "chat.toolCall.generateImage.resultImage": "Generated image",
   "chat.toolCall.kind.todo": "Todos",
   "chat.toolCall.goal.label": "Goal",
   "chat.toolCall.edit.writing": "Writing",
@@ -6823,20 +6802,10 @@ const enUS: Record<string, string> = {
   "chat.toolCall.execute.running": "Running",
   "chat.toolCall.execute.ran": "Ran",
   "chat.toolCall.execute.execute": "Execute",
-  "chat.toolCall.executeGroup.label": "Terminal",
-  "chat.toolCall.changesGroup.label": "Changes",
-  "chat.toolCall.changesGroup.file.one": "{count} file",
-  "chat.toolCall.changesGroup.file.other": "{count} files",
-  "chat.toolCall.changesGroup.tool.one": "{count} tool",
-  "chat.toolCall.changesGroup.tool.other": "{count} tools",
   "chat.toolCall.execute.terminal": "Terminal",
   "chat.toolCall.execute.expandCommand": "Show full command",
   "chat.toolCall.execute.collapseCommand": "Collapse",
   "chat.toolCall.execute.noOutput": "No output.",
-  "chat.toolCall.executeGroup.command.one": "{count} command",
-  "chat.toolCall.executeGroup.command.other": "{count} commands",
-  "chat.toolCall.executeGroup.failed": "{count} failed",
-  "chat.toolCall.executeGroup.stopped": "{count} stopped",
   "chat.toolCall.nodeRepl.processing": "Working",
   "chat.toolCall.nodeRepl.completed": "Completed",
   "chat.toolCall.nodeRepl.finished": "Operation completed",
@@ -6962,8 +6931,8 @@ const enUS: Record<string, string> = {
   "chat.toolCall.workflow.timeline.roster.door.list": "{count} more subagents · list them here",
   "chat.toolCall.workflow.timeline.roster.door.fold": "{count} more subagents · fold",
   // 门后名单末尾的那一行：被淘汰的子代理没有行，差额在这里说明（本仓的轻量 intl 无 ICU 复数）。
-  "chat.toolCall.workflow.timeline.roster.unlisted.one": "1 more agent not listed",
-  "chat.toolCall.workflow.timeline.roster.unlisted.many": "{count} more agents not listed",
+  "chat.toolCall.workflow.timeline.roster.unlisted.one": "1 more subagent not listed",
+  "chat.toolCall.workflow.timeline.roster.unlisted.many": "{count} more subagents not listed",
   "chat.toolCall.workflow.timeline.ledge.earlier": "{count} earlier phase(s), scrolled out of view",
   "chat.toolCall.workflow.timeline.ledge.later": "{count} later phase(s), scrolled out of view",
   "chat.toolCall.workflow.timeline.scrollbar": "Timeline scroll position",
@@ -6977,10 +6946,10 @@ const enUS: Record<string, string> = {
   "chat.toolCall.workflow.card.steps": "{done}/{total} steps",
   "chat.toolCall.workflow.card.phase": "{count} phase",
   "chat.toolCall.workflow.card.phases": "{count} phases",
-  "chat.toolCall.workflow.card.agent": "{count} agent",
-  "chat.toolCall.workflow.card.agents": "{count} agents",
-  "chat.toolCall.workflow.card.agentWorking": "{count} agent working",
-  "chat.toolCall.workflow.card.agentsWorking": "{count} agents working",
+  "chat.toolCall.workflow.card.agent": "{count} subagent",
+  "chat.toolCall.workflow.card.agents": "{count} subagents",
+  "chat.toolCall.workflow.card.agentWorking": "{count} subagent working",
+  "chat.toolCall.workflow.card.agentsWorking": "{count} subagents working",
   "chat.toolCall.workflow.card.tokens": "{count} tokens",
   "chat.toolCall.workflow.card.round": "round {count}",
   "chat.toolCall.workflow.card.rounds": "{count} rounds",
@@ -7606,13 +7575,6 @@ const enUS: Record<string, string> = {
   "chat.toolCall.sessionContext.result": "Result",
   "chat.toolCall.sessionContext.noResult": "No context returned.",
   "chat.toolCall.explore.label": "Explore",
-  "chat.toolCall.explore.bucket.search.one": "search",
-  "chat.toolCall.explore.bucket.search.other": "searches",
-  "chat.toolCall.explore.bucket.list.one": "list",
-  "chat.toolCall.explore.bucket.list.other": "lists",
-  "chat.toolCall.explore.bucket.file.one": "file",
-  "chat.toolCall.explore.bucket.file.other": "files",
-  "chat.toolCall.explore.bucket.items": "items",
   "chat.toolCall.explore.emptySummary": "0 files",
   "chat.toolCall.source.subAgent": "SubAgent",
   "chat.toolCall.agent.label": "SubAgent",
@@ -7678,7 +7640,6 @@ const enUS: Record<string, string> = {
   "imageEditor.rectangle": "Rectangle",
   "imageEditor.ellipse": "Ellipse",
   "imageEditor.arrow": "Arrow",
-  "imageEditor.eraser": "Eraser",
   "imageEditor.color": "Annotation color",
   "imageEditor.undo": "Undo",
   "imageEditor.redo": "Redo",
@@ -7783,16 +7744,6 @@ const enUS: Record<string, string> = {
   "chat.error.remoteNoAvailableModel":
     "This remote device has no available model yet. Configure models on this computer first; they will sync to the remote device automatically after you save.",
   "chat.error.sendFailed": "Failed to send. Try again later.",
-  "chat.selections.evidenceSend.stale":
-    "The trusted note changed, so the message was not sent. Recheck and attach a fresh source from Knowledge Search.",
-  "chat.selections.evidenceSend.missing":
-    "The trusted note was deleted, so the message was not sent. Restore the note or select another valid source.",
-  "chat.selections.evidenceSend.forbidden":
-    "Source authorization for this session or Vault changed. Reauthorize and prepare the source again.",
-  "chat.selections.evidenceSend.unknown":
-    "The trusted evidence receipt is invalid. Prepare the source again before sending.",
-  "chat.selections.evidenceSend.unavailable":
-    "The trusted source could not be verified, so the message was not sent. Check your Obsidian connection and retry.",
   "chat.error.modelSettings": "Model settings",
   "chat.error.setModels": "Set",
 
@@ -7827,13 +7778,16 @@ const enUS: Record<string, string> = {
 
   // Permissions
   "chat.permission.title": "Permission required",
-  "chat.permission.generateImageNotice":
-    "This sends an outbound request to the image-generation endpoint you configured in Settings → Model capabilities, which may incur costs.",
   "chat.permission.awaitingApproval": "Awaiting approval",
   "chat.permission.approve": "Allow",
   "chat.permission.approveAlways": "Always allow",
   "chat.permission.allowForSession": "Allow for session",
   "chat.permission.responseFailed": "Approval did not complete. Please retry.",
+  "chat.permission.switchAction": "Allow and switch to",
+  "chat.permission.retryCommittedMode":
+    "{mode} was already saved. Select the approval action again to finish in that mode.",
+  "chat.permission.allowAndSwitch": "Allow and switch to {mode}",
+  "chat.permission.switchProjectHint": "New sessions in this project will also use this mode.",
   "chat.permission.fullAccess": "Full access",
   "chat.permission.fullAccess.description":
     "Grant the agent full access without further confirmation.",
@@ -8093,6 +8047,7 @@ const enUS: Record<string, string> = {
   "resourceManager.appUsage": "Drora",
   "resourceManager.systemUsage": "System",
   "resourceManager.category.base": "Base services",
+  "resourceManager.category.task": "Task processes",
   "resourceManager.category.builtinPlugin": "Built-in plugins",
   "resourceManager.category.communityPlugin": "Community plugins",
   "resourceManager.empty": "No processes",
@@ -8688,7 +8643,7 @@ const enUS: Record<string, string> = {
   "automations.customRepeat.frequency": "Repetition frequency",
   "automations.customRepeat.ends": "Ends",
   "automations.customRepeat.neverEnds": "Never ends",
-  "automations.customRepeat.endsOption": "Ends",
+  "automations.customRepeat.endsOption": "On date",
   "automations.customRepeat.hours": "hours",
   "automations.customRepeat.days": "days",
   "automations.customRepeat.minutes": "min",
@@ -8751,11 +8706,6 @@ const enUS: Record<string, string> = {
     "Drora Computer Use is still preparing — its tools aren't loaded yet. Grant the permissions below; tools appear once the helper is ready.",
   "chat.toolCall.cua.requestAccess": "Check Computer Use access",
   "chat.toolCall.cua.appName": "Computer Use",
-  "chat.toolCall.cua.group.completedLabel": "Computer Use",
-  "chat.toolCall.cua.group.event.one": "{count} event",
-  "chat.toolCall.cua.group.event.other": "{count} events",
-  "chat.toolCall.cua.group.message.one": "{count} message",
-  "chat.toolCall.cua.group.message.other": "{count} messages",
   "chat.toolCall.cua.listApps": "List running apps",
   "chat.toolCall.cua.getAppState": "Read app interface",
   "chat.toolCall.cua.listWindows": "List app windows",
@@ -8989,10 +8939,16 @@ const enUS: Record<string, string> = {
   "remoteSync.action.transferredAll": "All synced",
   "remoteSync.action.pushCategory": "Push {category}",
   "remoteSync.action.clear": "Clear selection",
+  "remoteSync.progress.category": "Syncing {category}…",
   "remoteSync.action.transferring": "Syncing…",
   "remoteSync.action.transferAgain": "Sync again",
   "remoteSync.action.stop": "Stop",
   "remoteSync.dialog.title": "Data sync",
+  "remoteSync.dialog.minimize": "Minimize; sync continues",
+  "remoteSync.minimized.pushing": "Syncing… Click to view",
+  "remoteSync.minimized.finished": "Sync finished. Click to view results",
+  "remoteSync.minimized.failed": "Sync needs attention. Click to view",
+  "remoteSync.minimized.restore": "Click to restore sync",
   "remoteSync.dialog.categories": "Sync content",
   "remoteSync.dialog.offline":
     "The device is offline, so actions are disabled. The list refreshes automatically when the device is back online.",
@@ -9048,6 +9004,11 @@ const enUS: Record<string, string> = {
   "remoteSync.dependency.missingSkills": "Missing skills on remote: {names}",
   "remoteSync.dependency.nameSeparator": ", ",
   "remoteSync.dependency.groupSeparator": "; ",
+  "remoteSync.subagents.builtInModel": "Built-in · Model {model}",
+  "remoteSync.subagents.builtInModelWithReasoning":
+    "Built-in · Model {model} · Reasoning effort {level}",
+  "remoteSync.subagents.targetModel": "Remote: {model}",
+  "remoteSync.subagents.targetModelWithReasoning": "Remote: {model} · Reasoning effort {level}",
   "remoteSync.error.offline": "The device disconnected during the push. The push did not finish.",
   "remoteSync.error.preflightTimeout":
     "Checking remote write access timed out. Nothing was written.",
@@ -9081,141 +9042,718 @@ const enUS: Record<string, string> = {
   "remoteSync.providers.error.sessionUnavailable": "The remote connection is no longer available",
   "remoteSync.providers.error.hostExecutionFailed": "The sync could not run on this device",
   "remoteSync.providers.error.unknown": "Unknown error",
-  ...requestSecurityMessagesEnUS,
-  // ui-lib-b-2（2026-10-18 终审）：补齐文件级键差集——modelSuspiciousEmpty 此前仅靠上方
-  // 展开兜底（文件本身无显式键）。显式重申并引用同一消息对象，值不变、单一出处；
-  // 置于展开之后避免 TS2783「被展开覆盖」。
-  "drora.error.modelSuspiciousEmpty":
-    requestSecurityMessagesEnUS["drora.error.modelSuspiciousEmpty"],
-
-  // Health report section (extraction spec §8 N4, obsidian-knowledge.md §5h.3, B6).
-  // Connections related-notes panel (extraction spec §8 N2/N3, obsidian-knowledge.md §5h.1/§5h.2, B6).
-  "webRemoteControl.qr.renderFailed": "Failed to render QR code",
-  "webRemoteControl.relay.description":
-    "Connects through the official cloud relay — your phone does not need to be on the same network. Phone page hosted by z.ai.",
-  "webRemoteControl.transport.lan": "LAN",
-  "webRemoteControl.transport.relay": "Cloud relay",
+  "voiceInput.button.start": "Voice input",
+  "voiceInput.button.connecting": "Connecting to speech recognition…",
+  "voiceInput.button.stop": "Stop recording",
+  "voiceInput.button.recognizing": "Recognizing…",
+  "voiceInput.action.openPrivacySettings": "Open System Settings",
+  "voiceInput.action.openSoundSettings": "Open Sound Settings",
+  "voiceInput.permission.title": "Microphone access needed",
+  "voiceInput.permission.description.mac":
+    'Click "Request again", then choose "Allow" in the system dialog. You can also turn on Drora in System Settings › Privacy & Security › Microphone.',
+  "voiceInput.permission.reauthorize": "Request again",
+  "voiceInput.permission.restartTitle": "Restart Drora",
+  "voiceInput.permission.restartDescription":
+    'The microphone permission was reset. Restart Drora, click the microphone, then choose "Allow" in the system dialog.',
+  "voiceInput.permission.relaunch": "Restart Drora",
+  "voiceInput.permission.granted":
+    "Microphone access is on. Click the microphone to start voice input.",
+  "voiceInput.permission.description.windows":
+    'In Settings › Privacy & security › Microphone, turn on both "Microphone access" and "Let desktop apps access your microphone".',
+  "voiceInput.error.permissionDenied.linux":
+    "Cannot access the microphone. Check the system microphone permission and the PulseAudio / PipeWire input device.",
+  "voiceInput.error.silent":
+    "No sound came from the microphone. Usually the system microphone permission is off or the wrong input device is selected.",
+  "voiceInput.error.silent.linux":
+    "No sound came from the microphone. Check the PulseAudio / PipeWire input device and volume.",
+  "voiceInput.error.noDevice": "No microphone found. Connect a microphone and try again.",
+  "voiceInput.error.noDevice.linux":
+    "No microphone found. Connect a microphone and check the PulseAudio / PipeWire input device.",
+  "voiceInput.error.deviceBusy": "The microphone cannot be used. Another app may be using it.",
+  "voiceInput.error.deviceBusy.linux":
+    "The microphone cannot be used. Another app may be using it. Check the PulseAudio / PipeWire input device.",
+  "voiceInput.error.device_ended": "The microphone was disconnected. Voice input was cancelled.",
+  "voiceInput.error.too_quiet":
+    "No sound detected. Check that the microphone is not muted or too far away.",
+  "voiceInput.error.audio_too_short": "The recording is too short. Try again.",
+  "voiceInput.error.no_speech":
+    "No speech was recognized. Move closer to the microphone and try again.",
+  "voiceInput.error.network": "Cannot connect to speech recognition. Check your network.",
+  "voiceInput.error.proxy":
+    'Cannot connect to speech recognition through the HTTP proxy. Make sure the proxy supports WebSocket, or add the service address to "No proxy", then restart the app.',
+  "voiceInput.error.rate_limited": "Speech recognition is busy. Try again later.",
+  "voiceInput.error.unavailable": "Speech recognition is unavailable. Try again later.",
+  "voiceInput.error.upstream_timeout": "Speech recognition timed out. Try again.",
+  "voiceInput.error.audio_limit_exceeded":
+    "The recording reached the maximum length. The recognized text was kept.",
+  "voiceInput.error.failed": "Speech recognition failed. Try again.",
+  // ===== Drora 自研键（v3.18.0 合并保留块：上游无这些键，specs/upstream-v3.18.0-migration.md §4 S6；
+  //   键集与顺序取自合并前 HEAD，勿手工增删——上游合并时按本块整体对账）=====
+  "chat.composer.addTeam": "Build team",
+  "chat.knowledgeTurn.disclaimer":
+    "Bound to receipts submitted with this turn; each click revalidates the source. Model citations are not fact-checking.",
+  "chat.knowledgeTurn.gaps":
+    "{missing} of {total} answer prose blocks lack a known source number. Review manually; this is not a factual accuracy verdict.",
+  "chat.knowledgeTurn.mentioned": "Mentioned",
+  "chat.knowledgeTurn.sources": "Sources for this answer",
+  "chat.knowledgeTurn.unknown":
+    "The answer cites unknown source numbers: {numbers}. Check the original notes.",
+  "chat.permission.generateImageNotice":
+    "This sends an outbound request to the image-generation endpoint you configured in Settings → Model capabilities, which may incur costs.",
+  "chat.selections.evidenceOpen.failed":
+    "Citation verification failed. Check the Vault connection and retry.",
+  "chat.selections.evidenceOpen.forbidden":
+    "The session or Vault has changed. Opening this citation was denied.",
+  "chat.selections.evidenceOpen.missing": "The source note no longer exists.",
+  "chat.selections.evidenceOpen.stale": "The note has changed. Search again for a fresh citation.",
+  "chat.selections.evidenceOpen.unavailable":
+    "Open VaultView for this session to access the Obsidian source.",
+  "chat.selections.evidenceOpen.vaultClosed":
+    "The Vault panel is turned off. Re-enable it in plugin settings and restart.",
+  "chat.selections.evidenceRecheckOnSend": "Evidence receipt · rechecked on send",
+  "chat.selections.evidenceSend.forbidden":
+    "Source authorization for this session or Vault changed. Reauthorize and prepare the source again.",
+  "chat.selections.evidenceSend.missing":
+    "The trusted note was deleted, so the message was not sent. Restore the note or select another valid source.",
+  "chat.selections.evidenceSend.stale":
+    "The trusted note changed, so the message was not sent. Recheck and attach a fresh source from Knowledge Search.",
+  "chat.selections.evidenceSend.unavailable":
+    "The trusted source could not be verified, so the message was not sent. Check your Obsidian connection and retry.",
+  "chat.selections.evidenceSend.unknown":
+    "The trusted evidence receipt is invalid. Prepare the source again before sending.",
+  "chat.selections.evidenceSourceMismatch":
+    "The source list no longer matches your trusted references. Restore the sources or prepare the question again from Knowledge Search.",
+  "chat.selections.openVerifiedSource": "Verify and open source",
+  "chat.statusPanel.team": "Team",
+  "chat.statusPanel.teamBlocked": "{count} blocked",
+  "chat.statusPanel.teamRowWords": "members {working}/{members} · tasks {completed}/{total}",
+  "chat.statusPanel.teamWorking": "{count} working",
+  "chat.toolCall.generateImage.generating": "Generating image",
+  "chat.toolCall.generateImage.resultImage": "Generated image",
+  "chat.toolCall.kind.generateImage": "Image generation",
+  // drora.error.modelSuspiciousEmpty：上游 v3.18.0 的 requestSecurityMessagesEnUS 已导出该键，
+  // 尾部 spread 会覆盖此处置写的同键——直接交给 spread 提供，避免 TS2783 重复键。
   "remote.serverWorkspacesTitle": "Server workspaces",
+  "settings.agentsTeamEnabled": "Agents Team (experimental)",
+  "settings.agentsTeamEnabledDescription":
+    "Enable /team multi-agent collaboration and the team panel (off by default). The gate is snapshotted when an agent process is created: new sessions inside already-open windows stay disabled — restart the app or open a new window; an explicit CLI agentsTeam.enabled value still takes precedence.",
+  "settings.desktopPet": "Desktop pet",
+  "settings.desktopPet.compatibility":
+    "Every pet uses the Codex format. Import pet.json (v1/v2), legacy avatar.json or a spritesheet directly; v2 adds 16-direction pointer following. Built-ins also export as standard pet packs.",
+  "settings.desktopPet.create": "Create pet",
+  "settings.desktopPet.delete": "Delete",
+  "settings.desktopPet.error":
+    "Pet operation failed. Check the artwork format, dimensions and file permissions, then retry.",
+  "settings.desktopPet.export": "Export",
+  "settings.desktopPet.folder": "Open folder",
+  "settings.desktopPet.guide": "Creation guide",
+  "settings.desktopPet.importImage": "Import spritesheet",
+  "settings.desktopPet.importPack": "Import pet folder",
+  "settings.desktopPet.invalid":
+    "{count} pet folders could not be loaded. Check their manifests and spritesheets.",
+  "settings.desktopPet.refresh": "Refresh",
+  "settings.desktopPet.reset": "Reset",
+  "settings.desktopPet.size": "Pet size",
+  "settings.desktopPet.unavailable": "Pet unavailable",
+  "settings.desktopPet.upgrade": "Upgrade to v2",
   "settings.desktopPetCharacter": "Pet character",
   "settings.desktopPetCharacterDescription":
     "Choose a built-in character or a Codex-compatible custom pet.",
-  "settings.desktopPet": "Desktop pet",
   "settings.desktopPetDescription":
     "Follow task activity on the desktop. Click to view tasks, drag to move, or right-click for options.",
-  "settings.desktopPet.size": "Pet size",
-  "settings.desktopPet.reset": "Reset",
-  "settings.desktopPet.refresh": "Refresh",
-  "settings.desktopPet.folder": "Open folder",
-  "settings.desktopPet.importPack": "Import pet folder",
-  "settings.desktopPet.importImage": "Import spritesheet",
-  "settings.desktopPet.create": "Create pet",
-  "settings.desktopPet.upgrade": "Upgrade to v2",
-  "settings.desktopPet.guide": "Creation guide",
-  "settings.desktopPet.export": "Export",
-  "settings.desktopPet.delete": "Delete",
-  "settings.desktopPet.unavailable": "Pet unavailable",
-  "settings.desktopPet.compatibility":
-    "Every pet uses the Codex format. Import pet.json (v1/v2), legacy avatar.json or a spritesheet directly; v2 adds 16-direction pointer following. Built-ins also export as standard pet packs.",
-  "settings.desktopPet.error":
-    "Pet operation failed. Check the artwork format, dimensions and file permissions, then retry.",
-  "settings.desktopPet.invalid":
-    "{count} pet folders could not be loaded. Check their manifests and spritesheets.",
-
-  // —— Voice dictation/announcement (specs/voice-agent-integration.md §6.3, Phase 1a keys) ——
-  "settings.voice.title": "Voice",
-  "voice.settings.title": "Voice",
-  "voice.settings.description":
-    "Dictation turns speech into composer text (review before sending); announcement reads assistant answers aloud. Both are off by default. Speech engine and vendor endpoints moved to Model Settings → Model capabilities.",
-  "voice.settings.dictation.entry.label": "Show microphone button in the composer",
-  "voice.settings.dictation.entry.description":
-    "When off, the dictation entry is hidden and microphone permission is never requested.",
-  "voice.settings.dictation.lang.label": "Dictation language",
-  "voice.settings.dictation.lang.zh": "中文（普通话）",
-  "voice.settings.dictation.lang.en": "English (US)",
-  "voice.settings.dictation.holdKey.label": "Hold-to-talk key",
-  "voice.settings.dictation.holdKey.description":
-    "Tap once to start, tap again to finish (hands-free); or hold to talk and release to finish (works alongside the mic button). The right Meta key is recommended (⌘ on macOS / Win on Windows, works out of the box); for Fn, set System Settings → Keyboard → “Press 🌐 key to” to “Do Nothing” first.",
-  "voice.settings.dictation.holdKey.off": "Off",
-  "voice.settings.dictation.holdKey.fn": "Fn (🌐)",
-  "voice.settings.dictation.holdKey.rightMeta": "Right Meta (recommended)",
-  "voice.settings.dictation.holdKey.rightMeta.mac": "Right ⌘ (recommended)",
-  "voice.settings.dictation.holdKey.rightMeta.win": "Right Win (recommended)",
-  "voice.settings.dictation.holdKey.rightAlt": "Right ⌥",
-  "voice.settings.dictation.hybridPreview.label": "Live transcription preview",
+  "settings.drora.advanced.hint": "Preview · Application · Export · Restore defaults",
+  "settings.drora.advanced.title": "Advanced",
+  "settings.drora.application.applied": "Applied",
+  "settings.drora.application.noWorkspace":
+    "Open a local workspace to check session application status.",
+  "settings.drora.application.notApplied": "Not applied (no available execution record)",
+  "settings.drora.application.omittedReasonCompileFailed":
+    "Stored persona failed to compile (this turn used the built-in product persona)",
+  "settings.drora.application.omittedReasonPermission": "Execution permission not granted",
+  "settings.drora.application.omittedReasonUninitialized": "Persona not initialized",
+  "settings.drora.application.omittedReasonUnknown": "Unknown reason",
+  "settings.drora.application.omittedWithReason": "Omitted: {reason}",
+  "settings.drora.application.query": "Check",
+  "settings.drora.application.queryFailed": "Query failed: {message}",
+  "settings.drora.application.savedVersion":
+    "Saved version: revision {revision} (template v{template})",
+  "settings.drora.application.savedVersionHint":
+    "Saving only updates the material; sessions apply it when a new turn is captured. Turns already frozen stay unchanged.",
+  "settings.drora.application.sessionPlaceholder": "Session ID",
+  "settings.drora.application.title": "Application status",
+  "settings.drora.application.turnDescription":
+    "Check whether the specified session and turn applied the Drora persona while executing. Execution records exist only at runtime and show as not applied after a restart.",
+  "settings.drora.application.turnPlaceholder": "Turn ID",
+  "settings.drora.application.turnTitle": "Application status of a specific session/turn",
+  "settings.drora.application.uninitialized":
+    "Not initialized yet; sessions use the built-in product persona while executing.",
+  "settings.drora.divergence.description":
+    "The saved version is revision {latest}; your draft is based on revision {base}. Keep editing the draft, or discard it and load the latest.",
+  "settings.drora.divergence.discardDraft": "Discard draft and load latest",
+  "settings.drora.divergence.draftValue": "Draft",
+  "settings.drora.divergence.keepDraft": "Keep draft and continue editing",
+  "settings.drora.divergence.savedValue": "Saved",
+  "settings.drora.divergence.title": "The service has a newer version",
+  "settings.drora.execution.description":
+    "Applies to new or truly reloaded sessions. Sessions already open keep the permission they were started with and are not changed by this switch.",
+  "settings.drora.execution.label": "Enable Drora persona in sessions",
+  "settings.drora.execution.privacy":
+    "When enabled, Drora's personalized content is sent to the currently selected model and may be retained with the original diagnostics.",
+  "settings.drora.export.action": "Export JSON",
+  "settings.drora.export.canceled": "Canceled; no file was saved.",
+  "settings.drora.export.code": "Export failed ({code}).",
+  "settings.drora.export.description":
+    "Creates a read-only JSON snapshot (current core, communication defaults, format version and omission counts) without chat transcripts, learning evidence or credentials; saved through the system save dialog, 256 KiB max. Importing is not supported.",
+  "settings.drora.export.failed": "Saving the file failed: {message}",
+  "settings.drora.export.failedPlain": "Saving the file failed.",
+  "settings.drora.export.noData":
+    "No data yet: the persona is not initialized, so no export was created. Exporting never initializes the persona.",
+  "settings.drora.export.pending": "Exporting…",
+  "settings.drora.export.saved": "Saved.",
+  "settings.drora.export.savedPath": "Saved: {path}",
+  "settings.drora.export.title": "Export persona",
+  "settings.drora.export.unsupported": "This platform cannot save files, so export is unavailable.",
+  "settings.drora.forget.confirmDescription":
+    "This is a logical undo: it clears the app-accessible saved value and candidates for this key. It does not delete chat history, project memory, or diagnostics, and it is not a media-level erase; turns already frozen stay unchanged.",
+  "settings.drora.forget.confirmTitle": 'Forget "{key}"?',
+  "settings.drora.identity.cancel": "Discard changes",
+  "settings.drora.identity.counter": "{count}/{max}",
+  "settings.drora.identity.description":
+    "Name, self-description and three expression options, saved automatically: selects commit on change, text commits on blur. Identity, principles and boundaries come from the product template and can be reviewed under Advanced; free-form prompt editing is not available.",
+  "settings.drora.identity.directness": "Directness",
+  "settings.drora.identity.directness.balanced": "Balanced",
+  "settings.drora.identity.directness.direct": "Direct",
+  "settings.drora.identity.directness.gentle": "Gentle",
+  "settings.drora.identity.directnessDescription":
+    "How directly conclusions and disagreements are stated.",
+  "settings.drora.identity.displayName": "Name",
+  "settings.drora.identity.displayNameDescription":
+    "The name Drora uses for itself in conversations.",
+  "settings.drora.identity.humor": "Humor",
+  "settings.drora.identity.humor.light": "Light",
+  "settings.drora.identity.humor.off": "Off",
+  "settings.drora.identity.humorDescription": "How much light-hearted expression is allowed.",
+  "settings.drora.identity.initialize": "Initialize persona",
+  "settings.drora.identity.initializeHint":
+    "Custom fields can be saved after initialization. Opening this page alone neither initializes nor enables execution.",
+  "settings.drora.identity.initializing": "Initializing…",
+  "settings.drora.identity.resetDefaults": "Restore product defaults",
+  "settings.drora.identity.resetting": "Restoring…",
+  "settings.drora.identity.save": "Save",
+  "settings.drora.identity.savedRevision": "Saved version: revision {revision}",
+  "settings.drora.identity.saving": "Saving…",
+  "settings.drora.identity.selfDescription": "Self description",
+  "settings.drora.identity.selfDescriptionDescription":
+    "Used as material, not instructions: describe how you want Drora to position itself. Leave empty to use the template's self positioning.",
+  "settings.drora.identity.title": "Who Drora is",
+  "settings.drora.identity.uninitialized":
+    "Not initialized yet; the built-in product persona is in use",
+  "settings.drora.identity.warmth": "Warmth",
+  "settings.drora.identity.warmth.balanced": "Balanced",
+  "settings.drora.identity.warmth.restrained": "Restrained",
+  "settings.drora.identity.warmth.warm": "Warm",
+  "settings.drora.identity.warmthDescription": "How close the conversation feels.",
+  "settings.drora.learning.budget":
+    "Today's learning budget (UTC): {attempts}/{attemptsMax} model attempts · input {input}/{inputMax} · output {output}/{outputMax} tokens",
+  "settings.drora.learning.counters":
+    "Learning activity in this process: received {received} · dropped (queue full) {dropped} · applied {applied} · no change {noChange} · rejected {rejected}",
+  "settings.drora.learning.description":
+    "When on, Drora gets bounded learning opportunities from ordinary successful turns and only infers the four communication defaults above. It creates no experiences or memory pages and never changes the core identity, tool permissions, or execution scope. Learning has a daily budget cap; turning it off stops new intake and submission and revokes unfinished learning work.",
+  "settings.drora.learning.disable": "Turn off",
+  "settings.drora.learning.disabling": "Turning off…",
+  "settings.drora.learning.enable": "Turn on",
+  "settings.drora.learning.enabling": "Turning on…",
+  "settings.drora.learning.sourcesCount": "Merged sources: {count}",
+  "settings.drora.learning.title": "Automatic learning",
+  "settings.drora.loading": "Loading Drora persona…",
+  "settings.drora.notice.code": "Operation failed ({code}).",
+  "settings.drora.notice.conflict":
+    "Save conflict: the service already has a newer version. Your draft was kept; compare and choose to keep or discard it.",
+  "settings.drora.notice.initialized": "Persona initialized.",
+  "settings.drora.notice.outcomeUnknown":
+    "Save outcome is unknown (outcome_unknown): the result was not confirmed. Saving again reuses the same mutation id for an idempotent replay instead of writing twice; edit the content first if you want to abandon it.",
+  "settings.drora.notice.rpc": "Operation failed: {message}",
+  "settings.drora.notice.saved":
+    "Saved. Takes effect on the next new turn; turns already in progress are not rewritten.",
+  "settings.drora.notice.unchanged": "Content unchanged; no new revision was created.",
+  "settings.drora.notice.uninitialized":
+    "The persona is not initialized yet. Initialize it before saving.",
+  "settings.drora.policy.cascade.action": "Turn off usage permission",
+  "settings.drora.policy.cascade.description":
+    "Turning off the usage permission also turns off automatic learning in the same transaction: new learning intake and submission stop immediately, all learning leases are revoked, and uncommitted learning candidates and workloads are cleared. Explicitly saved communication defaults are kept; turns already frozen stay unchanged. Turning the permission back on does not restore automatic learning.",
+  "settings.drora.policy.cascade.title": "Turn off usage permission?",
+  "settings.drora.policy.description":
+    "Communication defaults are only injected into new turns while this permission is on. A switch takes effect on the next new turn; turns already frozen stay unchanged. The current value is read from the service; changes made in other windows appear after a refresh.",
+  "settings.drora.policy.disable": "Turn off",
+  "settings.drora.policy.disabling": "Turning off…",
+  "settings.drora.policy.enable": "Turn on",
+  "settings.drora.policy.enabling": "Turning on…",
+  "settings.drora.policy.notice.conflict":
+    "The usage permission was changed in another window: the revision has been re-read; click again to apply your choice.",
+  "settings.drora.policy.notice.saved":
+    "Submitted. The switch takes effect on the next new turn; turns already frozen stay unchanged.",
+  "settings.drora.policy.notice.unchanged":
+    "The service already has this state; no new revision was created.",
+  "settings.drora.policy.notice.uninitialized":
+    "The persona is not initialized yet. Initialize it before changing the usage permission.",
+  "settings.drora.policy.state.off": "Currently off (read from the service)",
+  "settings.drora.policy.state.on": "Currently on (read from the service)",
+  "settings.drora.policy.state.savedOff": "Submitted in this session: off (applies to new turns)",
+  "settings.drora.policy.state.savedOn": "Submitted in this session: on (applies to new turns)",
+  "settings.drora.policy.state.unchangedOff":
+    "The service is already off (this submission had no content change)",
+  "settings.drora.policy.state.unchangedOn":
+    "The service is already on (this submission had no content change)",
+  "settings.drora.policy.state.unknown":
+    "Current effective value unknown (read failed; the service is authoritative)",
+  "settings.drora.policy.title": "Preference injection",
+  "settings.drora.preferences.allowLearning": "Allow learning",
+  "settings.drora.preferences.allowing": "Allowing…",
+  "settings.drora.preferences.collaborationStyle": "Collaboration style",
+  "settings.drora.preferences.collaborationStyle.direct_answer": "Answer first",
+  "settings.drora.preferences.collaborationStyle.explain_tradeoffs": "Explain trade-offs",
+  "settings.drora.preferences.collaborationStyle.step_by_step": "Step by step",
+  "settings.drora.preferences.collaborationStyleDescription": "How answers are organized.",
+  "settings.drora.preferences.currentValue": "Current value: {value}",
+  "settings.drora.preferences.description":
+    "Four communication defaults saved automatically: selects commit on change, the address commits on blur; forgetting stays explicit. They take effect on the next new turn, and turns already frozen stay unchanged. The concrete request at hand always takes precedence over these defaults.",
+  "settings.drora.preferences.disputedBadge":
+    "Conflicting inferred values; injection paused for this key",
+  "settings.drora.preferences.disputedHint":
+    'Resolve the conflict via "Save" or "Forget": both clear the dispute and advance the revision; the automatic value itself is not kept.',
+  "settings.drora.preferences.epistemic.explicit": "Explicit",
+  "settings.drora.preferences.epistemic.inferred": "Inferred",
+  "settings.drora.preferences.explanationDetail": "Explanation detail",
+  "settings.drora.preferences.explanationDetail.balanced": "Balanced",
+  "settings.drora.preferences.explanationDetail.concise": "Concise",
+  "settings.drora.preferences.explanationDetail.detailed": "Detailed",
+  "settings.drora.preferences.explanationDetailDescription": "How detailed explanations are.",
+  "settings.drora.preferences.forget": "Forget",
+  "settings.drora.preferences.forgetting": "Forgetting…",
+  "settings.drora.preferences.forgottenValue": "Forgotten (can be set again)",
+  "settings.drora.preferences.loadFailed": "Failed to load communication defaults ({code}).",
+  "settings.drora.preferences.notSet": "Not set",
+  "settings.drora.preferences.notice.forgotten":
+    "Preference forgotten (a logical undo). Only later turns are affected; turns already frozen, chat history and project memory stay unchanged.",
+  "settings.drora.preferences.pendingCandidate":
+    "One suggestion awaits confirmation: {value} (resolve via Save or Forget; automatic content is only kept after your confirmation)",
+  "settings.drora.preferences.preferredAddress": "Preferred address",
+  "settings.drora.preferences.preferredAddressDescription":
+    "How Drora addresses you; 1–40 characters (Unicode code points).",
+  "settings.drora.preferences.preferredAddressInvalid":
+    "The address cannot be empty. Use Forget to clear it.",
+  "settings.drora.preferences.preferredAddressPlaceholder": "Not set",
+  "settings.drora.preferences.provenance.extraction": "Source: automatic extraction",
+  "settings.drora.preferences.provenance.settings": "Source: saved in settings",
+  "settings.drora.preferences.replyLanguage": "Reply language",
+  "settings.drora.preferences.replyLanguage.en-US": "English",
+  "settings.drora.preferences.replyLanguage.follow_user": "Follow the user's message",
+  "settings.drora.preferences.replyLanguage.zh-CN": "中文",
+  "settings.drora.preferences.replyLanguageDescription": "The language Drora replies in.",
+  "settings.drora.preferences.save": "Save",
+  "settings.drora.preferences.saving": "Saving…",
+  "settings.drora.preferences.suppressedBadge": "Automatic learning suppressed for this key",
+  "settings.drora.preferences.title": "How it talks",
+  "settings.drora.preferences.uninitializedHint":
+    "The persona is not initialized yet; initialize it before saving or forgetting communication defaults, or changing the usage permission.",
+  "settings.drora.presets.active": "Active",
+  "settings.drora.presets.confirmAction": "Switch",
+  "settings.drora.presets.confirmDescription":
+    "This replaces the five persona core fields with “{name}” and explicitly overwrites all four communication preferences (auto-learning stops for overwritten keys; change them below anytime).",
+  "settings.drora.presets.confirmTitle": "Switch persona preset",
+  "settings.drora.presets.description":
+    "Six built-in persona starting points, one click to switch; keep customizing below after applying",
+  "settings.drora.presets.overwriteHint":
+    "Applying overwrites the persona core and the four communication preferences; takes effect on the next turn (no restart needed).",
+  "settings.drora.presets.result.applied": "Applied “{name}”; effective on the next turn.",
+  "settings.drora.presets.result.failed":
+    "Apply failed: please retry later; unfinished steps are safe to retry.",
+  "settings.drora.presets.result.failedWithCode":
+    "Apply failed ({code}). Please retry later; unfinished steps are safe to retry.",
+  "settings.drora.presets.result.partial":
+    "Partially applied: persona core updated; failed preference keys: {keys} (retry below)",
+  "settings.drora.presets.title": "Persona presets",
+  "settings.drora.preview.disclaimer":
+    "Deterministic compilation of the local template; no model requests. The preview is not a guarantee of actual output.",
+  "settings.drora.preview.empty": "Generating preview…",
+  "settings.drora.preview.failed": "Preview failed ({code}).",
+  "settings.drora.preview.title": "Preview",
+  "settings.drora.refresh": "Reload",
+  "settings.drora.reset.confirmAction": "Restore defaults",
+  "settings.drora.reset.confirmDescription":
+    "The five fields will be reset to the product defaults and a new revision is created. This does not change the execution permission, communication defaults or other settings.",
+  "settings.drora.reset.confirmTitle": "Restore product defaults?",
+  "settings.drora.reset.description":
+    "Resets the five identity fields to the product defaults and creates a new revision. This does not change the execution permission, communication defaults or other settings.",
+  "settings.drora.reset.title": "Restore product defaults",
+  "settings.drora.retry": "Retry",
+  "settings.drora.revert": "Revert to the saved value",
+  "settings.drora.title": "Drora Persona",
+  "settings.drora.unavailable": "Persona management is not supported on this connection.",
+  "settings.modelCapabilities.groupTitle": "Model capabilities",
+  "settings.modelCapability.apiKey.configured": "Configured",
+  "settings.modelCapability.apiKey.notConfigured": "Not configured",
+  "settings.modelCapability.apiKey.placeholder": "Enter API Key",
+  "settings.modelCapability.apiKey.save": "Save",
+  "settings.modelCapability.apiKey.saveFailed": "Failed to save API Key",
+  "settings.modelCapability.apiKey.saved": "API Key saved",
+  "settings.modelCapability.apiKey.titleSuffix": " API Key",
+  "settings.modelCapability.apiKey.toggleVisibility": "Toggle API Key visibility",
+  "settings.modelCapability.asr.apiKey.description":
+    "Stored encrypted; effective on the next dictation. Clearing and saving removes the key.",
+  "settings.modelCapability.asr.apiKey.title": "Speech recognition API key",
+  "settings.modelCapability.asr.baseUrl.placeholder": "e.g. https://api.siliconflow.cn/v1",
+  "settings.modelCapability.asr.baseUrl.title": "Vendor API base URL",
+  "settings.modelCapability.asr.baseUrlOverride.title": "Base URL override (optional)",
+  "settings.modelCapability.asr.engine.description":
+    "Cloud engine is used only when its endpoint config is complete; otherwise dictation falls back to the built-in engine.",
+  "settings.modelCapability.asr.engine.label": "Speech recognition engine",
+  "settings.modelCapability.asr.engine.remote": "Cloud engine",
+  "settings.modelCapability.asr.engine.webSpeech": "Built-in (Web Speech)",
+  "settings.modelCapability.asr.model.placeholder": "e.g. FunAudioLLM/SenseVoiceSmall",
+  "settings.modelCapability.asr.model.title": "ASR model",
+  "settings.modelCapability.baseUrl.insecureWarning":
+    "Plain HTTP to a remote address is blocked; use https or a loopback address.",
+  "settings.modelCapability.baseUrl.unparseableWarning":
+    "This is not a parseable URL; check the endpoint address.",
+  "settings.modelCapability.detail.asr.title": "Speech recognition",
+  "settings.modelCapability.detail.imageGeneration.title": "Image generation",
+  "settings.modelCapability.detail.tts.title": "Speech synthesis",
+  "settings.modelCapability.imageGeneration.apiKey.description":
+    "Stored encrypted; credentials never leave the host process.",
+  "settings.modelCapability.imageGeneration.apiKey.title": "Image generation API key",
+  "settings.modelCapability.imageGeneration.baseUrl.placeholder":
+    "e.g. https://open.bigmodel.cn/api/paas/v4",
+  "settings.modelCapability.imageGeneration.baseUrl.title": "Endpoint base URL",
+  "settings.modelCapability.imageGeneration.baseUrlOverride.title": "Base URL override (optional)",
+  "settings.modelCapability.imageGeneration.enabled.description":
+    "Enables the built-in generate_image tool for agents. Effective on the next tool call; incomplete config fails closed.",
+  "settings.modelCapability.imageGeneration.enabled.label": "Image generation",
+  "settings.modelCapability.imageGeneration.model.placeholder": "e.g. cogview-4-flash / dall-e-3",
+  "settings.modelCapability.imageGeneration.model.title": "Model",
+  "settings.modelCapability.imageGeneration.provider.description":
+    "Image generation connection (Base URL and API Key) comes from the selected provider card, managed under Settings → Model providers.",
+  "settings.modelCapability.imageGeneration.provider.title": "Provider",
+  "settings.modelCapability.knowledgeServiceUnavailable": "Knowledge services unavailable",
+  "settings.modelCapability.loadFailed": "Failed to load model capabilities",
+  "settings.modelCapability.nav.asr": "Speech recognition",
+  "settings.modelCapability.nav.embedding": "Semantic embedding",
+  "settings.modelCapability.nav.imageGeneration": "Image generation",
+  "settings.modelCapability.nav.tts": "Speech synthesis",
+  "settings.modelCapability.provider.createFirst": "Create an API Key provider card",
+  "settings.modelCapability.provider.incomplete":
+    "{name} (missing API key / Base URL; selected card cannot send requests)",
+  "settings.modelCapability.provider.unselected": "No provider selected",
+  "settings.modelCapability.saveFailed": "Save failed. Please try again.",
+  "settings.modelCapability.saved": "Saved",
+  "settings.modelCapability.tts.apiKey.description":
+    "Stored encrypted; effective on the next announcement. Clearing and saving removes the key.",
+  "settings.modelCapability.tts.apiKey.title": "Speech synthesis API key",
+  "settings.modelCapability.tts.baseUrl.placeholder": "e.g. https://api.siliconflow.cn/v1",
+  "settings.modelCapability.tts.baseUrl.title": "Vendor API base URL",
+  "settings.modelCapability.tts.baseUrlOverride.title": "Base URL override (optional)",
+  "settings.modelCapability.tts.engine.cloud": "Cloud engine",
+  "settings.modelCapability.tts.engine.description":
+    "Cloud engine is used only when its endpoint config is complete; otherwise announcements use system speech.",
+  "settings.modelCapability.tts.engine.label": "Announcement engine",
+  "settings.modelCapability.tts.engine.system": "System speech",
+  "settings.modelCapability.tts.model.placeholder": "e.g. fnlp/MOSS-TTSD-v0.5",
+  "settings.modelCapability.tts.model.title": "Announcement model",
+  "settings.modelCapability.tts.preview.action": "Preview",
+  "settings.modelCapability.tts.preview.description":
+    "Synthesizes a fixed sentence with the current configuration and plays it; failures show the specific reason.",
+  "settings.modelCapability.tts.preview.failed": "Preview failed: {message}",
+  "settings.modelCapability.tts.preview.loading": "Synthesizing…",
+  "settings.modelCapability.tts.preview.ok": "Preview playback started",
+  "settings.modelCapability.tts.voice.placeholder": "Vendor voice id (empty = vendor default)",
+  "settings.modelCapability.tts.voice.title": "Cloud engine voice",
+  "settings.modelCapability.tts.voice.volcano.description":
+    "Volcano synthesizes per voice (voice_type): pick a built-in voice; a manually entered voice id is preserved.",
+  "settings.modelCapability.tts.voice.volcano.placeholder": "Pick a voice (required)",
+  "settings.modelCapability.tts.voice.volcano.title": "Voice",
+  "settings.modelCapability.unavailable":
+    "Model capabilities are managed by the local desktop host and unavailable in this context.",
+  "settings.modelCapability.vendor.apiKey.label": "API Key",
+  "settings.modelCapability.vendor.connected": "connected",
+  "settings.modelCapability.vendor.createFailed":
+    "Failed to create the voice provider card. Try again later.",
+  "settings.modelCapability.vendor.credentialHint.custom":
+    "The API key of the selected provider card; saving empty deletes it.",
+  "settings.modelCapability.vendor.credentialHint.elevenlabs":
+    "ElevenLabs API key; enter a Voice ID from the console Voice Library (official default voice IDs are being retired).",
+  "settings.modelCapability.vendor.credentialHint.groq":
+    "Groq API key (starts with gsk_); TTS is English/Arabic only, ASR Whisper is multilingual.",
+  "settings.modelCapability.vendor.credentialHint.openai": "OpenAI API key (starts with sk-).",
+  "settings.modelCapability.vendor.credentialHint.siliconflow":
+    "SiliconFlow API key (starts with sk-), shared with chat models.",
+  "settings.modelCapability.vendor.credentialHint.volcano":
+    "Volcano Engine: new speech console (console.volcengine.com/speech/new) takes a single API key (outbound via the desktop proxy in-app).",
   "settings.modelCapability.vendor.credentialHint.volcano.asr":
     "Streaming ASR: enable “Streaming Speech Recognition” in the Volcano speech console; use a single API key (same console as TTS — one key works for both); default model volc.seedasr.sauc.duration.",
-  "voice.settings.dictation.hybridPreview.description":
-    "While holding with a cloud ASR engine, show live preview via system speech recognition; the final text written on release comes from the cloud engine.",
-  "voice.settings.dictation.lang.auto": "Follow interface language",
-  "voice.settings.announcement.enable.label": "Turn-end announcement",
-  "voice.settings.announcement.enable.description":
-    "Read the assistant answer aloud when a turn completes; announcement follows the focused session.",
+  "settings.modelCapability.vendor.customGroup": "Custom endpoints",
+  "settings.modelCapability.vendor.description":
+    "Pick a built-in voice provider or a custom endpoint card; the API key is stored once on the selected provider card and reusable by other capabilities.",
+  "settings.modelCapability.vendor.keepCurrentGroup": "Kept current value",
+  "settings.modelCapability.vendor.needsKey": "no API key",
+  "settings.modelCapability.vendor.optionState": "{name} ({state})",
+  "settings.modelCapability.vendor.title": "Voice provider",
+  "settings.plugins.uninstall.confirmDescriptionKeepData":
+    "This removes the plugin along with its cache and saved configuration; its data directory (including the knowledge index and embedding models) is kept and resumes after reinstalling. This cannot be undone.",
+  "settings.voice.title": "Voice",
+  "sidePane.team": "Team",
+  "team.board.completed": "Completed",
+  "team.board.inProgress": "In progress",
+  "team.board.pending": "Pending",
+  "team.commandFailure.nameRedirect": "The member was renamed; retry with the new name",
+  "team.commandFailure.persistFailed": "Mailbox persistence failed; the message was not delivered",
+  "team.commandFailure.targetRetired":
+    "The target member was removed; the message cannot be delivered",
+  "team.commandFailure.teamHalted": "The team is halted; resume it before delivering messages",
+  "team.history.kind.final_report_delivered": "Final report delivered to the lead session",
+  "team.history.kind.final_report_dispatched": "Final report dispatched to the manager",
+  "team.history.kind.message_dropped": "Message dropped (sender no longer on the team)",
+  "team.member.state.removed": "Removed",
+  "team.member.state.spawning": "Starting",
+  "team.member.state.terminal": "Idle",
+  "team.member.state.working": "Working",
+  "team.memberPane.back": "Back to team",
+  "team.memberPane.inputPending": "Message sending is not wired up yet; coming soon",
+  "team.memberPane.inputPlaceholder": "Message {name} (delivered via the lead's team mailbox)",
+  "team.memberPane.inputReady": "Press Enter to send; delivered via the lead's team mailbox",
+  "team.memberPane.memberAbsent.body":
+    "{name} is no longer on the team roster and has no transcript to review.",
+  "team.memberPane.memberAbsent.title": "Member session not found",
+  "team.memberPane.notStarted.body":
+    "{name}'s session has not appeared yet; the transcript will attach automatically once it does.",
+  "team.memberPane.notStarted.title": "Member has not started",
+  "team.memberPane.send": "Send",
+  "team.memberPane.sendFailed.fallback":
+    "The request was rejected (unknown reason). Your input is kept — try again later",
+  "team.memberPane.sendFailed.line": "Message not delivered: {reason}",
+  "team.memberPane.sendFailed.transport":
+    "The connection is unavailable and the message was not sent. Your input is kept — resend once reconnected",
+  "team.memberPane.teamAbsent.body":
+    "This conversation has no team projection, so the member session cannot be located.",
+  "team.memberPane.teamAbsent.title": "Team projection unavailable",
+  "team.panel.action.halt": "Stop team",
+  "team.panel.action.resume": "Resume team",
+  "team.panel.action.stop": "Remove member",
+  "team.panel.aria": "Agents Team {teamId}",
+  "team.panel.commandFailure.fallback": "The action did not complete (unknown reason). Try again",
+  "team.panel.commandFailure.line": '"{action}" did not complete: {reason}',
+  "team.panel.commandFailure.transport":
+    "The command could not be sent: the connection is unavailable. Reconnect and try again",
+  "team.panel.empty.body":
+    "This conversation has no team projection. Assemble one with /team and its status will show up here.",
+  "team.panel.empty.title": "No team yet",
+  "team.panel.escalationBody":
+    "The team hit a situation that needs a human decision and is paused: resume it with a reason, or halt the team.",
+  "team.panel.escalationTitle": "The team escalated and needs you",
+  "team.panel.halt": "Halt team",
+  "team.panel.haltConfirmBody":
+    "This cancels the lead's current turn, interrupts every member and freezes task scheduling; the team is not deleted and can be resumed explicitly afterwards.",
+  "team.panel.haltConfirmLabel": "Confirm halt",
+  "team.panel.haltConfirmTitle": "Halt this team?",
+  "team.panel.haltHint":
+    "Interrupts all members and freezes scheduling; the team is kept and can be resumed with a reason",
+  "team.panel.leadAssignee": "lead",
+  "team.panel.mailboxNoSummary": "(no summary)",
+  "team.panel.mailboxTitle": "Recent team messages",
+  "team.panel.memberMessage": "Message {name}",
+  "team.panel.memberOpen": "Open {name}'s session",
+  "team.panel.memberProgress": "{members} members · {done}/{total} tasks",
+  "team.panel.membersAria": "Team members",
+  "team.panel.permission": "Permission {mode}",
+  "team.panel.resume": "Resume team",
+  "team.panel.resumeHint":
+    "The team is halted; scheduling continues only after an explicit resume with a reason.",
+  "team.panel.resumeReasonLabel": "Resume reason (required)",
+  "team.panel.resumeReasonPlaceholder":
+    "Why resume now? The reason is recorded in the team journal",
+  "team.panel.stagedReadonlyFeedback": "(revision requested)",
+  "team.panel.stagedReadonlySummary":
+    "Team plan draft: {members} members / {tasks} tasks, awaiting approval",
+  "team.panel.taskAttempt": "attempt {attempt}",
+  "team.permission.mode.auto": "Auto",
+  "team.permission.mode.build": "Ask before changes",
+  "team.permission.mode.edit": "Edit automatically",
+  "team.permission.mode.guarded": "Autonomous",
+  "team.permission.mode.yolo": "Full access",
+  "team.revise.prefillPrompt": "What would you like to adjust?",
+  "team.stagedDock.title": "Team plan pending approval",
+  "team.stagedEditor.abandon": "Abandon",
+  "team.stagedEditor.abandonConfirmBody":
+    "The draft will be archived and cannot be recovered, and the model will not rebuild it automatically; forming a team again requires a new /team.",
+  "team.stagedEditor.abandonConfirmLabel": "Confirm abandon",
+  "team.stagedEditor.abandonConfirmTitle": "Abandon this team draft?",
+  "team.stagedEditor.approve": "Allow",
+  "team.stagedEditor.approveDescription": "Just this once",
+  "team.stagedEditor.approveSession": "Always allow for this session",
+  "team.stagedEditor.approveSessionDescription": "Launching teams won't ask again this session",
+  "team.stagedEditor.assigneeNone": "Unassigned",
+  "team.stagedEditor.awaitingFeedback":
+    "Revision requested: describe the adjustments in the conversation and the model will update this draft",
+  "team.stagedEditor.confirm": "Confirm",
+  "team.stagedEditor.dependsOnLabel": "Depends on",
+  "team.stagedEditor.dependsOnNone": "No dependencies",
+  "team.stagedEditor.dependsOnSeparator": ", ",
+  "team.stagedEditor.failure.draftInvalid":
+    "Draft validation failed: fix member names, task ids, or dependencies and retry",
+  "team.stagedEditor.failure.fallback":
+    "The action did not complete (unknown reason). Try again, or check the team status in the conversation",
+  "team.stagedEditor.failure.hubUnavailable":
+    "The team runtime is not ready: it may be disabled or restarting. Try again shortly",
+  "team.stagedEditor.failure.line": "{action} failed: {reason}",
+  "team.stagedEditor.failure.memberSpawnFailed":
+    "Spawning members failed: the draft is intact with zero members. Fix the cause and approve again",
+  "team.stagedEditor.failure.teamLeadOnly":
+    "This action can only be run in the session that planned the team",
+  "team.stagedEditor.failure.teamNotPresent":
+    "The draft is gone: it may already be approved or abandoned. Refresh and try again",
+  "team.stagedEditor.failure.transport":
+    "The command could not be sent: the connection is unavailable. Reconnect and try again",
+  "team.stagedEditor.membersHeading": "Members",
+  "team.stagedEditor.noteLabel": "Revision notes (optional)",
+  "team.stagedEditor.notePlaceholder": "Describe how this team should change…",
+  "team.stagedEditor.noteSuppressedHint":
+    "Revision notes can't be attached here: state the direction in the conversation",
+  "team.stagedEditor.optionsAria": "Approval actions",
+  "team.stagedEditor.pendingAbandon": "Archiving…",
+  "team.stagedEditor.pendingApprove": "Starting members…",
+  "team.stagedEditor.pendingApproveSession": "Allowing and launching members…",
+  "team.stagedEditor.pendingRevise": "Sending…",
+  "team.stagedEditor.question": "Launch this team?",
+  "team.stagedEditor.rename": "Rename",
+  "team.stagedEditor.revise": "Suggest changes",
+  "team.stagedEditor.roleNone": "No role",
+  "team.stagedEditor.routingLabel": "Routing",
+  "team.stagedEditor.routingNone": "No routing",
+  "team.stagedEditor.stagedSummary": "{members} members · {tasks} tasks",
+  "team.stagedEditor.tasksHeading": "Tasks",
+  "team.stagedEditor.title": "Team plan draft",
+  "team.status.active": "Active",
+  "team.status.archived": "Archived",
+  "team.status.cancelled": "Cancelled",
+  "team.status.completed": "Completed",
+  "team.status.escalated": "Needs attention",
+  "team.status.halted": "Halted",
+  "team.status.idle": "Idle",
+  "team.status.staged": "Pending approval",
+  "team.tab.statusDot": "Team status: {status}",
+  "team.task.status.cancelled": "cancelled",
+  "team.task.status.failed": "failed",
+  "team.ui.managerBadge": "Manager",
+  "voice.ann.indicator": "Announcing",
+  "voice.ann.indicatorAria": "Voice announcement in progress",
+  "voice.ann.permission.truncated": " (content truncated, see the card)",
+  "voice.ann.stop.aria": "Stop announcement",
   "voice.brief.prefix": "Running {tool} {target}",
   "voice.brief.truncated": " (target truncated)",
-  "voice.settings.persona.label": "Announcement persona",
-  "voice.settings.persona.description":
-    "Choosing a persona applies the announcement voice, cloud voice, rate, and language in one shot; changing any of them manually switches this back to “Custom”.",
-  "voice.settings.persona.custom": "Custom",
-  "voice.settings.persona.preset.standard": "Standard",
-  "voice.settings.persona.preset.brisk": "Brisk",
-  "voice.settings.persona.preset.composed": "Composed",
-  "voice.settings.persona.preset.narration": "Narration",
-  "voice.settings.announcement.voice.label": "Announcement voice",
-  "voice.settings.announcement.voice.default": "System default",
-  "voice.settings.announcement.voice.loading": "Loading system voices…",
-  "voice.settings.announcement.voice.preview": "Preview",
-  "voice.settings.announcement.voice.previewText":
-    "Hello, this is a preview of the current announcement voice and rate.",
-  "voice.settings.announcement.lang.label": "Announcement language",
-  "voice.settings.announcement.lang.description":
-    "Applies to the system speech engine only; the cloud engine detects the language automatically.",
-  "voice.settings.announcement.lang.auto": "Follow interface language",
-  "voice.settings.announcement.lang.zh": "中文（普通话）",
-  "voice.settings.announcement.lang.en": "English (US)",
-  "voice.settings.announcement.rate.label": "Announcement rate",
-  "voice.settings.announcement.rate.invalidWarning":
-    "Rate must be between 0.5 and 2; the last saved value was restored.",
-  "voice.settings.announcement.outputDisclosure":
-    "Announcements play through the system default output device; unplugging Bluetooth or muting the system may route audio to speakers. Press the stop button on the announcement indicator to mute immediately.",
-  "voice.settings.toolBrief.enable.label": "Tool briefs",
-  "voice.settings.toolBrief.enable.description":
-    'Spoken hints about the tool currently running (e.g. "Editing foo.ts") between announcements.',
-  "voice.settings.privacy.title": "Voice privacy notice",
-  "voice.settings.privacy.asr":
-    "Speech recognition engine & data flow: Dictation uses your browser/system built-in speech recognition (Web Speech API) by default. Audio and transcripts are processed by that engine's cloud service; Drora stores no audio itself. If another engine is added, its data handler will be disclosed here.",
-  "voice.settings.privacy.persistence":
-    "Persistence of dictated text: Once you send it, dictated text is treated exactly like typed text — it is stored in the session transcript, can be exported or shared with the session, and is not auto-deleted. Dictation may contain credentials or paths; please review it in the composer before sending.",
-  "voice.settings.privacy.mic":
-    "Microphone boundaries: The microphone turns on only after you press the mic button, a recording indicator stays visible while recording, and Esc or a second press stops it immediately. Drora has no background listening or always-on mode; transcripts and audio are never written to logs.",
-  "voice.settings.privacy.acknowledge": "I have read and understood this",
+  "voice.dictation.draftSessionName": "Draft",
+  "voice.dictation.error.aborted": "Dictation ended.",
+  "voice.dictation.error.device":
+    "Cannot access the microphone device. Check the device connection.",
+  "voice.dictation.error.network":
+    "Speech service unavailable (the system engine may be limited in desktop builds). Inserted text was kept; switch to a cloud ASR engine in Settings → Model Capabilities → Speech Recognition.",
+  "voice.dictation.error.permission":
+    "Microphone permission was denied. Allow it in system settings and try again.",
+  "voice.dictation.preview.clear": "Clear",
+  "voice.dictation.preview.hint": "Listening…",
+  "voice.dictation.recordingIndicatorAria": "Recording voice, target session: {session}",
+  "voice.dictation.requestingMic": "Waiting for microphone permission…",
+  "voice.dictation.requestingMicTimeout":
+    "Timed out waiting for microphone permission and stopped. Allow the microphone in system settings and try again.",
+  "voice.dictation.restoreLast": "Restore last transcription",
+  "voice.dictation.sessionGone": "The session was closed and dictation stopped.",
+  "voice.dictation.status.recording":
+    "Listening · Click again to stop (hold to talk, release to stop)",
+  "voice.dictation.stop": "Stop dictation",
   "voice.entry.mic.start.aria": "Start voice dictation",
   "voice.entry.mic.stop.aria": "Stop voice dictation",
   "voice.entry.mic.tooltip":
     "Voice dictation: click to start, click again or press Esc to stop; text lands in the composer for review before sending",
-  "voice.dictation.preview.hint": "Listening…",
-  "voice.dictation.status.recording":
-    "Listening · Click again to stop (hold to talk, release to stop)",
-  "voice.dictation.stop": "Stop dictation",
-  "voice.dictation.preview.clear": "Clear",
-  "voice.dictation.requestingMic": "Waiting for microphone permission…",
-  "voice.dictation.requestingMicTimeout":
-    "Timed out waiting for microphone permission and stopped. Allow the microphone in system settings and try again.",
-  "voice.dictation.error.permission":
-    "Microphone permission was denied. Allow it in system settings and try again.",
-  "voice.dictation.error.network":
-    "Speech service unavailable (the system engine may be limited in desktop builds). Inserted text was kept; switch to a cloud ASR engine in Settings → Model Capabilities → Speech Recognition.",
-  "voice.dictation.error.device":
-    "Cannot access the microphone device. Check the device connection.",
-  "voice.dictation.error.aborted": "Dictation ended.",
-  "voice.dictation.sessionGone": "The session was closed and dictation stopped.",
-  "voice.dictation.restoreLast": "Restore last transcription",
-  "voice.dictation.recordingIndicatorAria": "Recording voice, target session: {session}",
-  "voice.dictation.draftSessionName": "Draft",
-  "voice.ann.indicator": "Announcing",
-  "voice.ann.indicatorAria": "Voice announcement in progress",
-  "voice.ann.stop.aria": "Stop announcement",
-  "voice.ann.permission.truncated": " (content truncated, see the card)",
+  "voice.settings.announcement.enable.description":
+    "Read the assistant answer aloud when a turn completes; announcement follows the focused session.",
+  "voice.settings.announcement.enable.label": "Turn-end announcement",
+  "voice.settings.announcement.lang.auto": "Follow interface language",
+  "voice.settings.announcement.lang.description":
+    "Applies to the system speech engine only; the cloud engine detects the language automatically.",
+  "voice.settings.announcement.lang.en": "English (US)",
+  "voice.settings.announcement.lang.label": "Announcement language",
+  "voice.settings.announcement.lang.zh": "中文（普通话）",
+  "voice.settings.announcement.outputDisclosure":
+    "Announcements play through the system default output device; unplugging Bluetooth or muting the system may route audio to speakers. Press the stop button on the announcement indicator to mute immediately.",
+  "voice.settings.announcement.rate.invalidWarning":
+    "Rate must be between 0.5 and 2; the last saved value was restored.",
+  "voice.settings.announcement.rate.label": "Announcement rate",
+  "voice.settings.announcement.voice.default": "System default",
+  "voice.settings.announcement.voice.label": "Announcement voice",
+  "voice.settings.announcement.voice.loading": "Loading system voices…",
+  "voice.settings.announcement.voice.preview": "Preview",
+  "voice.settings.announcement.voice.previewText":
+    "Hello, this is a preview of the current announcement voice and rate.",
+  "voice.settings.description":
+    "Dictation turns speech into composer text (review before sending); announcement reads assistant answers aloud. Both are off by default. Speech engine and vendor endpoints moved to Model Settings → Model capabilities.",
+  "voice.settings.dictation.entry.description":
+    "When off, the dictation entry is hidden and microphone permission is never requested.",
+  "voice.settings.dictation.entry.label": "Show microphone button in the composer",
+  "voice.settings.dictation.holdKey.description":
+    "Tap once to start, tap again to finish (hands-free); or hold to talk and release to finish (works alongside the mic button). The right Meta key is recommended (⌘ on macOS / Win on Windows, works out of the box); for Fn, set System Settings → Keyboard → “Press 🌐 key to” to “Do Nothing” first.",
+  "voice.settings.dictation.holdKey.fn": "Fn (🌐)",
+  "voice.settings.dictation.holdKey.label": "Hold-to-talk key",
+  "voice.settings.dictation.holdKey.off": "Off",
+  "voice.settings.dictation.holdKey.rightAlt": "Right ⌥",
+  "voice.settings.dictation.holdKey.rightMeta": "Right Meta (recommended)",
+  "voice.settings.dictation.holdKey.rightMeta.mac": "Right ⌘ (recommended)",
+  "voice.settings.dictation.holdKey.rightMeta.win": "Right Win (recommended)",
+  "voice.settings.dictation.hybridPreview.description":
+    "While holding with a cloud ASR engine, show live preview via system speech recognition; the final text written on release comes from the cloud engine.",
+  "voice.settings.dictation.hybridPreview.label": "Live transcription preview",
+  "voice.settings.dictation.lang.auto": "Follow interface language",
+  "voice.settings.dictation.lang.en": "English (US)",
+  "voice.settings.dictation.lang.label": "Dictation language",
+  "voice.settings.dictation.lang.zh": "中文（普通话）",
+  "voice.settings.persona.custom": "Custom",
+  "voice.settings.persona.description":
+    "Choosing a persona applies the announcement voice, cloud voice, rate, and language in one shot; changing any of them manually switches this back to “Custom”.",
+  "voice.settings.persona.label": "Announcement persona",
+  "voice.settings.persona.preset.brisk": "Brisk",
+  "voice.settings.persona.preset.composed": "Composed",
+  "voice.settings.persona.preset.narration": "Narration",
+  "voice.settings.persona.preset.standard": "Standard",
+  "voice.settings.privacy.acknowledge": "I have read and understood this",
+  "voice.settings.privacy.asr":
+    "Speech recognition engine & data flow: Dictation uses your browser/system built-in speech recognition (Web Speech API) by default. Audio and transcripts are processed by that engine's cloud service; Drora stores no audio itself. If another engine is added, its data handler will be disclosed here.",
+  "voice.settings.privacy.mic":
+    "Microphone boundaries: The microphone turns on only after you press the mic button, a recording indicator stays visible while recording, and Esc or a second press stops it immediately. Drora has no background listening or always-on mode; transcripts and audio are never written to logs.",
+  "voice.settings.privacy.persistence":
+    "Persistence of dictated text: Once you send it, dictated text is treated exactly like typed text — it is stored in the session transcript, can be exported or shared with the session, and is not auto-deleted. Dictation may contain credentials or paths; please review it in the composer before sending.",
+  "voice.settings.privacy.title": "Voice privacy notice",
+  "voice.settings.title": "Voice",
+  "voice.settings.toolBrief.enable.description":
+    'Spoken hints about the tool currently running (e.g. "Editing foo.ts") between announcements.',
+  "voice.settings.toolBrief.enable.label": "Tool briefs",
   "voice.source.fromVoice": "From voice",
+  "webRemoteControl.qr.renderFailed": "Failed to render QR code",
+  "webRemoteControl.relay.description":
+    "Connects through the official cloud relay — your phone does not need to be on the same network. Phone page hosted by z.ai.",
+  "webRemoteControl.relaySource.applied": "Relay source switched. Reconnecting.",
+  "webRemoteControl.relaySource.apply": "Save and reconnect",
+  "webRemoteControl.relaySource.applyFailed": "Failed to switch relay source: {error}",
+  "webRemoteControl.relaySource.custom": "Self-hosted",
+  "webRemoteControl.relaySource.customDescription":
+    "Point to your self-hosted relay origin. Only affects the mobile remote control connection.",
+  "webRemoteControl.relaySource.official": "Official",
+  "webRemoteControl.relaySource.officialDescription":
+    "Use the official relay service. No extra configuration needed.",
+  "webRemoteControl.relaySource.originInvalid":
+    "Invalid origin. Use a full URL starting with http(s)://.",
+  "webRemoteControl.relaySource.originPlaceholder": "https://relay.example.com",
+  "webRemoteControl.relaySource.originRequired": "Enter your self-hosted relay origin.",
+  "webRemoteControl.relaySource.title": "Relay service",
+  "webRemoteControl.transport.lan": "LAN",
+  "webRemoteControl.transport.relay": "Cloud relay",
+  ...requestSecurityMessagesEnUS,
 };
 
 export default enUS;

@@ -950,11 +950,12 @@ describe("AgentRuntime manual compact", () => {
       tailStartMessageId: compactBoundaryEvent?.payload.lastSummarizedMessageId,
     });
     expect(afterCompactResult.response).toBe("normal response 3");
+    // 计数包含每轮轮首的 token 预算提醒。
     expect(compactBoundaryEvent?.payload).toMatchObject({
       trigger: CompactTrigger.Manual,
       phase: CompactPhase.StandaloneTurn,
       compactReason: CompactReason.UserRequested,
-      summarizedMessageCount: 9,
+      summarizedMessageCount: 11,
       summarySource: "model",
       customInstructions: true,
       lastSummarizedMessageId: expect.stringMatching(/^msg_/),
@@ -963,7 +964,7 @@ describe("AgentRuntime manual compact", () => {
       trigger: CompactTrigger.Manual,
       phase: CompactPhase.StandaloneTurn,
       compactReason: CompactReason.UserRequested,
-      summarizedMessageCount: 9,
+      summarizedMessageCount: 11,
     });
 
     const compactRequest = requests[2];
@@ -1247,7 +1248,8 @@ describe("AgentRuntime manual compact", () => {
     const boundary = events.find((event) => event.type === SessionEventType.CompactBoundary)
       ?.payload as CompactBoundaryPayload | undefined;
     const postCompactContext = requests[3]?.messages.map((message) => message.content).join("\n");
-    expect(boundary?.summarizedMessageCount).toBe(8);
+    // 计数包含每轮轮首的 token 预算提醒。
+    expect(boundary?.summarizedMessageCount).toBe(10);
     expect(postCompactContext).toContain("Compact summary keeps only the useful second turn.");
     expect(postCompactContext).toContain("continue after literal reminder compact");
     expect(postCompactContext).not.toContain(literalUserPrompt);
@@ -1490,6 +1492,114 @@ describe("AgentRuntime manual compact", () => {
     );
   });
 
+  // 只有思考的回复在请求投影第一步被删除，但仍是历史：auto 与 reactive compact 都按条目判断能否压缩。
+  it.each(["auto", "reactive"] as const)(
+    "%s compacts history whose replies only have reasoning",
+    async (trigger) => {
+      const sessionId = createSessionId(`runtime-${trigger}-compact-reasoning-only`);
+      let compactModelCalls = 0;
+      const generateText = async () => {
+        compactModelCalls++;
+        return {
+          finishReason: "stop",
+          text: "<summary>Two pasted files.</summary>",
+          usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+        };
+      };
+      const runtime = createTestAgentRuntime(
+        sessionId,
+        {
+          compact: { bufferTokens: 20, contextWindow: 240, summaryReserveTokens: 0 },
+          systemPrompt: "You are a compact test agent.",
+        },
+        {
+          eventStore: createTestSessionEventStore(),
+          modelFactory: createTestModelFactory(
+            withStreamTextFromGenerateText({ generateText }) as never,
+          ),
+        },
+      );
+      type CompactContext = {
+        model: Model;
+        modelStepIndex: number;
+        turnRequestState: {
+          entries: readonly RuntimeMessageEntry[];
+          outputTokenContinuationCount: number;
+        };
+      };
+      const runtimeInternals = runtime as unknown as {
+        messageHistory: {
+          addAssistant(content: string, toolCalls: undefined, reasoning: unknown[]): void;
+          addUser(content: string, metadata: ReturnType<typeof realUserRuntimeMetadata>): void;
+          borrowReadOnlyRuntimeEntries(): readonly RuntimeMessageEntry[];
+        };
+        autoCompactIfNeeded(
+          traceContext: ReturnType<typeof createRootTraceContext>,
+          events: SessionEvent[],
+          abortSignal: undefined,
+          context: CompactContext & {
+            compactReason: CompactReason;
+            phase: CompactPhase;
+            rapidRefill: {
+              consecutiveRapidRefills: number;
+              shouldBlock: boolean;
+              toolTurnsSinceCompact: number;
+            };
+          },
+        ): Promise<string>;
+        reactiveCompactAfterContextExceeded(
+          error: unknown,
+          traceContext: ReturnType<typeof createRootTraceContext>,
+          events: SessionEvent[],
+          abortSignal: undefined,
+          context: CompactContext & {
+            activeEntries: readonly RuntimeMessageEntry[];
+            rapidRefillCount: number;
+          },
+        ): Promise<string>;
+      };
+      for (const prompt of ["first pasted file", "second pasted file"]) {
+        runtimeInternals.messageHistory.addUser(prompt, realUserRuntimeMetadata());
+        runtimeInternals.messageHistory.addAssistant("", undefined, [
+          { type: "reasoning", text: "still thinking" },
+        ]);
+      }
+      const activeEntries = runtimeInternals.messageHistory.borrowReadOnlyRuntimeEntries();
+      const traceContext = createRootTraceContext({ sessionId });
+      const context: CompactContext = {
+        model: {
+          ...createTestRuntimeModel({ contextWindow: 240, generateText: generateText as never }),
+          requestCapabilities: { dropReasoningOnlyOrBlankAssistants: true },
+        },
+        modelStepIndex: 1,
+        turnRequestState: { entries: activeEntries, outputTokenContinuationCount: 0 },
+      };
+
+      const outcome =
+        trigger === "auto"
+          ? await runtimeInternals.autoCompactIfNeeded(traceContext, [], undefined, {
+              ...context,
+              compactReason: CompactReason.ContextLimit,
+              phase: CompactPhase.MidTurn,
+              rapidRefill: {
+                consecutiveRapidRefills: 0,
+                shouldBlock: false,
+                toolTurnsSinceCompact: 0,
+              },
+            })
+          : await runtimeInternals.reactiveCompactAfterContextExceeded(
+              createContextExceededError(),
+              traceContext,
+              [],
+              undefined,
+              { ...context, activeEntries, rapidRefillCount: 0 },
+            );
+
+      expect(outcome).toBe("compacted");
+      expect(compactModelCalls).toBe(1);
+    },
+  );
+
   it("persists a compact boundary that resume uses instead of stale pre-compact history", async () => {
     const sessionId = createSessionId("runtime-compact-resume");
     const store = createRecordingSessionStore();
@@ -1585,9 +1695,10 @@ describe("AgentRuntime manual compact", () => {
     expect(
       compactMessage?.info.role === "user" ? compactMessage.info.summary?.body : undefined,
     ).toContain("Resume summary keeps packages/core/src/runtime.ts");
+    // 计数包含每轮轮首的 token 预算提醒。
     expect(boundary).toMatchObject({
       trigger: CompactTrigger.Manual,
-      summarizedMessageCount: 8,
+      summarizedMessageCount: 10,
     });
     expect(boundary?.lastSummarizedMessageId).toMatch(/^msg_/);
     expect(compactionPart?.type === "compaction" ? compactionPart.tail_start_id : undefined).toBe(
@@ -1865,8 +1976,10 @@ describe("AgentRuntime manual compact", () => {
     // compact 后 live 表只含补回的文件，都是完整视图的 Read 记录；大文件是部分视图。
     // 按从旧到新写入，最新的文件在最后，和 Map 遍历顺序即写入顺序的约定一致。
     expect(
+      // win32 适配（2026-11-14 段门复跑）：POSIX 形态夹具路径经产品侧 resolve 落为
+      // 反斜杠盘符相对形态，期望比对前统一到正斜杠（真实 win32 路径两侧同形态不受影响）。
       [...readFileState.values()].map((entry) => [
-        entry.path,
+        entry.path.replaceAll("\\", "/"),
         entry.isPartialView,
         entry.offset,
         entry.limit,
@@ -1917,7 +2030,13 @@ describe("AgentRuntime manual compact", () => {
         input,
         name,
       });
-    expect((await probe("Read", { file_path: files.current })).output).toEqual({
+    // 同上 win32 适配：file_unchanged 回显的是读态记录里的 resolve 后路径（win32 反斜杠），
+    // 两侧归一到正斜杠后比对。
+    const unchangedOutput = (await probe("Read", { file_path: files.current })).output as {
+      filePath: string;
+      type: string;
+    };
+    expect({ ...unchangedOutput, filePath: unchangedOutput.filePath.replaceAll("\\", "/") }).toEqual({
       type: "file_unchanged",
       filePath: files.current,
     });
@@ -2004,7 +2123,8 @@ describe("AgentRuntime manual compact", () => {
 
     await runtime.executeTurn("/compact");
 
-    expect([...readFileState.values()].map((entry) => entry.path)).toEqual([asked]);
+    // 同上 win32 适配：路径形态归一后比对。
+    expect([...readFileState.values()].map((entry) => entry.path.replaceAll("\\", "/"))).toEqual([asked]);
     const persistedText = (await store.messages({ sessionID: sessionId }))
       .flatMap((message) => message.parts)
       .filter((part) => part.type === "text")
@@ -2027,7 +2147,10 @@ describe("AgentRuntime manual compact", () => {
       override async readTextFileRange(
         request: Parameters<MemoryFileSystem["readTextFileRange"]>[0],
       ): ReturnType<MemoryFileSystem["readTextFileRange"]> {
-        if (request.path === file && request.limitLines === undefined) {
+        // win32 适配（2026-11-14 段门复跑）：恢复读请求携带 resolve 后的盘符相对反斜杠
+        // 路径，与 POSIX 夹具字面量不匹配会漏掉 abort 注入、compact 照常完成。按正斜杠
+        // 归一后比对。
+        if (request.path.replaceAll("\\", "/") === file && request.limitLines === undefined) {
           controller.abort();
           throw new Error("read aborted");
         }
@@ -2973,9 +3096,10 @@ describe("AgentRuntime manual compact", () => {
     expect(compactResult.response).toBe("Compacted");
     expect(compactRequests).toHaveLength(2);
     expect(compactModelRetries).toEqual([0, 1]);
+    // 计数包含保留轮次轮首的 token 预算提醒。
     expect(boundary).toMatchObject({
       trigger: CompactTrigger.Manual,
-      summarizedMessageCount: 4,
+      summarizedMessageCount: 5,
     });
     expect(firstCompactContext).toContain("first compact ptl setup");
     // 最早一组含环境与模型公告（自定义 prompt 也发送），丢掉这一组已足够补上缺口。
@@ -3440,13 +3564,14 @@ describe("AgentRuntime manual compact", () => {
       "RECENT portion of the conversation",
     );
     expect(compactRequest).not.toContain("continue with enough context to trigger auto compact");
+    // 计数包含每轮轮首的 token 预算提醒。
     expect(boundary).toMatchObject({
       autoCompactThreshold: 109,
       trigger: CompactTrigger.Auto,
       phase: CompactPhase.PreRequest,
       compactReason: CompactReason.ContextLimit,
       summarySource: "model",
-      summarizedMessageCount: 7,
+      summarizedMessageCount: 9,
     });
     expect(postCompactRequest).toContain("Auto summary preserves the latest user request");
     expect(postCompactRequest).toContain("continue with enough context to trigger auto compact");
@@ -3745,9 +3870,10 @@ describe("AgentRuntime manual compact", () => {
     expect(postCompactContext).toContain("latest auto ptl setup");
     expect(postCompactContext).toContain("pending request after auto ptl retry");
     expect(postCompactContext).not.toContain("oldest auto ptl setup");
+    // 计数包含每轮轮首的 token 预算提醒；保留段里也有本轮那条。
     expect(boundary).toMatchObject({
-      keptMessageCount: 4,
-      summarizedMessageCount: 7,
+      keptMessageCount: 6,
+      summarizedMessageCount: 9,
       trigger: CompactTrigger.Auto,
     });
   });
@@ -4149,12 +4275,13 @@ describe("AgentRuntime manual compact", () => {
     ]);
     expect(requests[1]?.toolNames).toContain("LargeRead");
     expect(requests[2]?.toolNames).toEqual(requests[1]?.toolNames);
+    // 计数包含每轮轮首的 token 预算提醒。
     expect(boundary).toMatchObject({
       trigger: CompactTrigger.Auto,
       phase: CompactPhase.MidTurn,
       compactReason: CompactReason.ContextLimit,
       summarySource: "model",
-      summarizedMessageCount: 7,
+      summarizedMessageCount: 9,
     });
     expect(timelinePayloads).toEqual([
       expect.objectContaining({
@@ -4515,13 +4642,14 @@ describe("AgentRuntime manual compact", () => {
       "compact",
       "normal",
     ]);
+    // 计数包含每轮轮首的 token 预算提醒；保留段里也有本轮那条。
     expect(boundary).toMatchObject({
       trigger: CompactTrigger.Reactive,
       phase: CompactPhase.Reactive,
       compactReason: CompactReason.ProviderOverflow,
       summarySource: "model",
-      summarizedMessageCount: 7,
-      keptMessageCount: 2,
+      summarizedMessageCount: 9,
+      keptMessageCount: 3,
     });
     expect(compactRequest).not.toContain("RECENT portion of the conversation");
     expect(compactRequest).not.toContain("trigger provider overflow");

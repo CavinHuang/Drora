@@ -1,9 +1,12 @@
 import { ProxyChannel, type IChannelServer } from "@drora/rpc";
 import { toOfficialRpcChannelAlias } from "@drora/shared";
 import type { ServiceDescriptor } from "./descriptors.js";
+import { ICredentialService, scopeCredentialServiceForRpc } from "./credential/credential.js";
 
 export interface ServiceExposurePolicy {
-  readonly allowedChannels: ReadonlySet<string>;
+  readonly allowedChannels?: ReadonlySet<string>;
+  /** 仅本机 Desktop MessagePort 的发布点可显式开启；网络/远端发布默认拒绝。 */
+  readonly credentialStoreRecovery?: "local-desktop";
 }
 
 /**
@@ -35,9 +38,9 @@ export class ServiceCollection {
   exposeOnChannelServer(
     server: IChannelServer,
     overrides: ReadonlyMap<string, unknown> = new Map(),
-    // 并集契约：第三个参数同时承载 Drora 的官方别名开关与上游的暴露白名单。
-    // 上游调用方按 ServiceExposurePolicy 形态（{ allowedChannels }）传入，
-    // Drora 附着链路按 { officialChannelAliases } 传入，二者互不冲突。
+    // 并集契约：第三个参数同时承载 Drora 的官方别名开关与上游的暴露策略。
+    // 上游调用方按 ServiceExposurePolicy 形态（{ allowedChannels, credentialStoreRecovery }）
+    // 传入，Drora 附着链路按 { officialChannelAliases } 传入，字段互不冲突。
     options?: {
       /**
        * 同时注册官方通道名别名（zcode-* → 同一 channel 实例）。
@@ -47,11 +50,20 @@ export class ServiceCollection {
       officialChannelAliases?: boolean;
       /** 只暴露白名单内的通道（上游 source-server 的暴露策略）。 */
       allowedChannels?: ServiceExposurePolicy["allowedChannels"];
+      /** 凭据整库检查/恢复仅对本机 Desktop MessagePort 发布点开放（上游恢复策略）。 */
+      credentialStoreRecovery?: ServiceExposurePolicy["credentialStoreRecovery"];
     },
   ): void {
     for (const [channelName, instance] of this._services) {
       if (options?.allowedChannels && !options.allowedChannels.has(channelName)) continue;
-      const exposed = overrides.get(channelName) ?? instance;
+      const selected = overrides.get(channelName) ?? instance;
+      const exposed =
+        channelName === ICredentialService.channelName
+          ? scopeCredentialServiceForRpc(
+              selected as ICredentialService,
+              options?.credentialStoreRecovery === "local-desktop",
+            )
+          : selected;
       const channel = ProxyChannel.fromService(exposed as Record<string, unknown>);
       server.registerChannel(channelName, channel);
       if (options?.officialChannelAliases) {

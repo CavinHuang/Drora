@@ -69,7 +69,11 @@ export const SETTINGS_USER_ACTION_FEATURES = {
   "settings.network": ["save_http_proxy", "save_no_proxy", "save_ca_certificate"],
   "settings.desktop": ["toggle_hardware_acceleration", "toggle_close_to_tray", "toggle_keep_awake"],
   "settings.update": ["toggle_preview_updates", "toggle_auto_update"],
-  "settings.notification": ["toggle_notification", "toggle_notification_sound"],
+  "settings.notification": [
+    "toggle_notification",
+    "toggle_notification_sound",
+    "toggle_mobile_push",
+  ],
   "settings.conversation": [
     "change_interaction_behavior",
     "toggle_ask_user_auto_resolution",
@@ -77,11 +81,8 @@ export const SETTINGS_USER_ACTION_FEATURES = {
     "toggle_show_reasoning",
     "toggle_show_todos",
   ],
-  "settings.tool_grouping": [
-    "toggle_explore_grouping",
-    "toggle_terminal_grouping",
-    "toggle_changes_grouping",
-  ],
+  // D9（specs/upstream-v3.18.0-migration.md §5）：上游 v3.18.0 删除「工具分组」三开关，
+  // 对应 settings 目录项随之退役；agents_team 为 Drora 自研开关保留。
   "settings.agents_team": ["toggle_agents_team"],
   "settings.task": ["toggle_auto_archive", "change_auto_archive_days"],
   "settings.storage": ["change_data_directory"],

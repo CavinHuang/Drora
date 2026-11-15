@@ -4,7 +4,8 @@
  * 策略逻辑集中在本模块（core 属上游对齐代码，既有文件只做 sanctioned 挂点接线）。
  * 分级语义：
  * - P0 任意路径写向量（Bash / js / 所有非 Host 验证 MCP）：整工具 allow 规则不生效、
- *   不提供「总是允许」——逐次确认是唯一放行路径（safe Bash 命令除外，见洞 3）；
+ *   不提供「总是允许」——逐次确认是唯一放行路径（2026-11-14 用户裁定：Bash 评估器
+ *   恢复上游「整工具 allow 恒短路」语义，洞 3 守卫废弃，见裁定注记；MCP/js 面不变）；
  *   MCP 自报 readOnlyHint 不是安全证明，不能降低权限等级；
  * - P1 授权根内写（Write/Edit/ApplyPatch）：维持既有骨架；
  * - P2 免确认区（memory md 等）：由 memory-file-permission 既有覆盖逻辑承担。

@@ -1,0 +1,40 @@
+{
+  "segments": [
+    { "id": "S1", "prefixes": ["packages/shared/", "packages/services/", "packages/rpc/", "packages/server/", "packages/client/", "packages/drora-server-cli/", "packages/session-control/", "packages/provider-node/"], "notes": "契约与共享基础层（编译闭合最小集）：含全部上游新增契约骨架目录（app-control/extension-host/plugin-discovery/managed-worktree 系/extensions/voice-input/windows-runtime-host）与两个纯新增包（session-control/provider-node）。S2-S6 经 spec 责任块表拥有跨包消费链接线与验收，不再按目录例外拆走骨架（缝合仲裁 #1，依据：上游 services/src/index.ts:282-288 re-export、shared/src/app-control/contract.ts import @zcode/session-control/contracts、drora-protocol/index.ts:4 import ../app-control/contract.js）。" },
+    { "id": "S2", "prefixes": [], "notes": "Session Control 链（CLI/desktop 侧域文件与测试，全部经例外划入）。session-control 包与 shared/services app-control 契约骨架由 S1 预落，S2 拥有 CLI 工具注册、bootstrap 双运行时、desktop 导航桥、boundary 治理脚本（缝合仲裁 #13）与全链验收。active-transcript 划入系 architecture-policy requires 链强制（缝合仲裁 #3）。" },
+    { "id": "S3", "prefixes": ["packages/plugin-api/", "packages/design-runtime/", "apps/drora-cli/packages/design-plugin/"], "notes": "Extension Host + design 三件套 + plugin-api + CLI contracts 契约两件 + desktop extension-host 宿主件（supervisor/tsconfig 随段，缝合仲裁 #5）。services/extensions 与 shared/extension-host 骨架由 S1 预落，S3 拥有扩展进程域与验收。" },
+    { "id": "S4", "prefixes": ["apps/drora-cli/"], "notes": "CLI 包主体（session-control/active-transcript/design-plugin/contracts plugin-discovery 域文件例外划出）。ReadSessionContext 退役、凭据分区、观测面、装配缝合（create-app.ts）。" },
+    { "id": "S5", "prefixes": ["packages/desktop/", "scripts/windows-runtime-host/"], "notes": "desktop 本体（main/host 双热点、preload 桥、更新器域 D5 终裁执行、runtime-host D3 构建链三件例外划入）；desktop/test 与 E2E 基建五件例外划 S7。services/windows-runtime-host 与 voice-input 骨架由 S1 预落。" },
+    { "id": "S6", "prefixes": ["packages/ui/"], "notes": "UI + i18n 五语言 + 工具分组重构 D9（toolGrouping 三键 S1 暂缓、S6 原子删除）；extension-slots 例外划 S3。" },
+    { "id": "S7", "prefixes": ["packages/web/test/", "packages/ui/test/", "docs/testing/"], "notes": "测试与 E2E 重组原子域（D7）：desktop/test 整目录 + E2E 基建五件（wdio.conf.ts 与 e2e-formal-spec-selection/run-windows-e2e-shards/run-production-build，路径即契约与目录迁移同批，缝合仲裁 #7）。" },
+    { "id": "S8", "prefixes": ["docs/", ".agents/", "scripts/", "third-party/", "config/", "patches/", "packages/web/", "packages/share-ui/", "packages/web-share/", "packages/mobile-web/", "packages/website/", "website/", "vitest.config.ts", "mise.toml", "package.json", "package-lock.json", "pnpm-lock.yaml", "pnpm-workspace.yaml", "architecture-policy.yaml", ".oxlintrc.json", ".oxfmtrc.json", ".gitattributes", "AGENTS.md", "README.md", "README.en.md", "THIRD-PARTY-NOTICES.md", "CONTEXT.md", "DESIGN.md", "knip.json"], "notes": "文档全量 + 根配置换代 + web/share 应用域收口（main.tsx 依赖 S1 契约与 S6 ui，末段天然满足）+ 生成物四件重跑 + D8 hooks lint。" }
+  ],
+  "exceptions": [
+    { "prefix": "packages/desktop/src/app-control-navigation/", "segment": "S2" },
+    { "prefix": "apps/drora-cli/packages/bootstrap/src/cli-session-control/", "segment": "S2" },
+    { "prefix": "apps/drora-cli/packages/bootstrap/src/session-control/", "segment": "S2" },
+    { "prefix": "apps/drora-cli/packages/bootstrap/tests/cli-session-control/", "segment": "S2" },
+    { "prefix": "apps/drora-cli/packages/bootstrap/tests/session-control/", "segment": "S2" },
+    { "prefix": "apps/drora-cli/packages/core/src/tool/session-control/", "segment": "S2" },
+    { "prefix": "apps/drora-cli/packages/core/tests/session-control/", "segment": "S2" },
+    { "prefix": "apps/drora-cli/packages/bootstrap/src/active-transcript/", "segment": "S2" },
+    { "prefix": "scripts/architecture/session-control-boundary.mjs", "segment": "S2" },
+    { "prefix": "scripts/test/session-control-boundary.test.mjs", "segment": "S2" },
+    { "prefix": "packages/ui/src/extension-slots/", "segment": "S3" },
+    { "prefix": "packages/desktop/src/extension-host/", "segment": "S3" },
+    { "prefix": "packages/desktop/src/main/extensionHostSupervisor.ts", "segment": "S3" },
+    { "prefix": "packages/desktop/tsconfig.extension-host.json", "segment": "S3" },
+    { "prefix": "apps/drora-cli/packages/contracts/src/tools/plugin-discovery.ts", "segment": "S3" },
+    { "prefix": "apps/drora-cli/packages/contracts/src/interfaces/plugin-discovery.port.ts", "segment": "S3" },
+    { "prefix": "packages/desktop/test/", "segment": "S7" },
+    { "prefix": "packages/desktop/wdio.conf.ts", "segment": "S7" },
+    { "prefix": "packages/desktop/scripts/e2e-formal-spec-selection.mjs", "segment": "S7" },
+    { "prefix": "packages/desktop/scripts/e2e-formal-spec-selection.d.mts", "segment": "S7" },
+    { "prefix": "packages/desktop/scripts/run-windows-e2e-shards.mjs", "segment": "S7" },
+    { "prefix": "packages/desktop/scripts/run-production-build.mjs", "segment": "S7" },
+    { "prefix": "scripts/build-windows-runtime-host.mjs", "segment": "S5" },
+    { "prefix": "scripts/stage-credential-keyring.mjs", "segment": "S5" },
+    { "prefix": "scripts/test/windows-runtime-host-build.test.mjs", "segment": "S5" },
+    { "prefix": "docs/testing/react-hooks-lint.md", "segment": "S8" }
+  ]
+}

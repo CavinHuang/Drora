@@ -6,6 +6,7 @@ export { resolveDroraWebhookSecret } from "./drora-extensions/webhookSecret.js";
 import { buildCuaProductHelperAgentEnv } from "./drora-extensions/cuaAgentEnvironment.js";
 export { buildCuaProductHelperAgentEnv } from "./drora-extensions/cuaAgentEnvironment.js";
 // 上游 3.16.1：remote-projects / project / task-groups 服务族装配导入。
+
 import {
   createRemoteProjectService,
   IRemoteProjectService,
@@ -14,6 +15,8 @@ import {
 } from "#src/remote-projects/index.js";
 export {
   createRemoteProjectConnectionAdmission,
+  releaseRemoteProjectProfileHost,
+  findRemoteProjectHostIdForProfile,
   remoteProjectHostIdForProfile,
   remoteProjectHostIdForTarget,
   prepareRemoteServerConnection,
@@ -25,16 +28,40 @@ import {
   IProjectService,
   shouldRescanTaskAutoArchive,
 } from "#src/project/index.js";
+import {
+  createManagedWorktreeService,
+  createWorktreeRemovalGate,
+  IManagedWorktreeService,
+} from "#src/managed-worktree-tasks/index.js";
 export { createLegacySingleRootProjectService } from "#src/project/index.js";
+import { createAppControlService } from "#src/app-control/index.js";
+import {
+  createAppControlDiscoveryDirectory,
+  type AppControlDiscoveryConnection,
+} from "#src/app-control/discovery-directory.js";
+import type {
+  AppControlNavigationPort,
+  AppControlService,
+  AppControlServiceHandle,
+} from "#src/app-control/contract.js";
+export type {
+  AppControlNavigationPort,
+  AppControlBinding,
+  AppControlServiceHandle,
+} from "#src/app-control/contract.js";
 export { createRemoteProjectService } from "#src/remote-projects/index.js";
 import { getDroraDataRootDir as projectDataRoot } from "#src/paths.js";
+import { getDataBaseDir } from "#src/paths.js";
+import { createGitWorktreeRepo } from "#src/git/managed-worktree/index.js";
+import { createGitCommandProvider } from "#src/git/providers/gitCommandProvider.js";
+import { HOST_WORKTREE_COMMAND } from "#src/drora-agent/droraAgent.js";
 import { createTaskGroupService, ITaskGroupService, groupTaskKey } from "#src/task-groups/index.js";
 import { IGenUiService } from "./gen-ui/contract.js";
 import { createGenUiService } from "./gen-ui/node.js";
 // import { channelReplyHostRequestSchema, channelReplyResultSchema } from "@drora/shared";
 /* eslint-disable max-lines -- host process 服务注册和启动装配需要集中维护，拆散后会更难追踪依赖注入顺序 */
 // Node.js service implementations — NOT safe to import in browser code
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -44,9 +71,11 @@ import {
   PERSONAL_PROVIDER_CONFIG_FILE_NAME,
 } from "@drora/provider-node";
 import { getAppConfigDir as resolveAppConfigDir } from "./paths.js";
-import type { StartPlanCaptchaResolver } from "#src/model-provider/startPlanCaptchaHeaders.js";
-import { IOutputStyleService } from "./output-style/outputStyle.js";
-import { createOutputStyleService } from "./output-style/outputStyleService.js";
+import {
+  createSystemCredentialCipher,
+  createServerCredentialCipher,
+  type CredentialCipher,
+} from "@drora/shared/credential-security";
 import {
   createHasExistingLocalTask,
   hasAnyAgentSessionRow,
@@ -54,8 +83,12 @@ import {
 } from "./onboarding/localUsageEvidence.js";
 import {
   buildLocalMediaPreviewUrl,
+  OAUTH_LINKED_BIGMODEL_KEY,
+  OAUTH_SESSION_REVISION_KEY,
   type DynamicWorkflowMode,
   type ProviderProvisioningSourceTrigger,
+  toBearerAuthorization,
+  DRORA_CLIENT_LANGUAGE_ENV,
 } from "@drora/shared";
 
 export {
@@ -68,6 +101,8 @@ import { ICloudContentService } from "#src/cloud-content/cloudContent.js";
 import { createCloudContentService } from "#src/cloud-content/cloudContentService.js";
 import { IMarketingTouchService } from "#src/marketing-touch/marketingTouch.js";
 import { createMarketingTouchService } from "#src/marketing-touch/marketingTouchService.js";
+import { IVoiceInputService } from "#src/voice-input/contract.js";
+import { createVoiceInputService } from "#src/voice-input/voiceInputService.js";
 import { createMarketingAssetRegistry } from "#src/marketing-touch/marketingAssetRegistry.js";
 import type { IChannel } from "@drora/rpc";
 import {
@@ -152,6 +187,11 @@ export {
 export { createCredentialService } from "./credential/credentialService.js";
 export { createBroadcastService } from "./broadcast/broadcastService.js";
 export { createDroraAgentService } from "./drora-agent/droraAgentService.js";
+export type {
+  PluginUserOptionsReader,
+  DroraAgentPluginUserOptionsResult,
+  DroraAgentReadPluginUserOptionsParams,
+} from "./drora-agent/pluginHostQueriesClient.js";
 export { createDroraTaskServiceAdapter } from "./drora-agent/droraTaskServiceAdapter.js";
 export { createDroraSessionService } from "./drora-session/droraSessionService.js";
 export {
@@ -204,7 +244,6 @@ export type {
 } from "./model-provider/accountProviderCredentialStore.js";
 export { importLegacyPersonalProviderConfig } from "./model-provider/legacyPersonalProviderConfigImporter.js";
 export type { StartPlanCaptchaResolver } from "./model-provider/startPlanCaptchaHeaders.js";
-export { createOutputStyleService } from "./output-style/outputStyleService.js";
 // P7 本体清除（specs/obsidian-vault-phase2-true-extraction.md §1-C7）：knowledge/
 // obsidian-vault 全部 re-export（四服务、决策层、Jev 装配、本地语义端口、离线评测）
 // 随本体原件删除移除——插件包（obsidian-plugin/src/server）持有唯一实现。
@@ -316,6 +355,7 @@ export { createSkillsService } from "./skills/skillsService.js";
 export { createSkillSyncService } from "./skill-sync/skillSyncService.js";
 export { createDeviceSyncStateService, createUserConfigSyncService } from "./data-sync/node.js";
 export { createHostProviderProvisioningStatus } from "./provider-provisioning-status/node.js";
+export { createWindowHostExtensions, type WindowHostExtensions } from "./extensions/node.js";
 export { createMcpSyncService } from "./mcp-sync/mcpSyncService.js";
 export { createPluginSyncService } from "./plugin-sync/pluginSyncService.js";
 export { createPluginsService } from "./plugins/pluginsService.js";
@@ -324,7 +364,7 @@ export { createSubagentsService } from "./subagents/subagentsService.js";
 export { createCommandsService } from "./commands/commandsService.js";
 export { createHooksService } from "./hooks/hooksService.js";
 export { createMemoryService } from "./memory/memoryService.js";
-
+export { createOutputStyleService } from "./output-style/outputStyleService.js";
 export { createSettingsSyncService } from "./settings-sync/settingsSyncService.js";
 export { createFeedbackDiagnosticArchive } from "./feedback/feedbackLogArchive.js";
 export { createFeedbackService } from "./feedback/feedbackService.js";
@@ -392,6 +432,7 @@ export {
 
 import {
   buildServerRemoteWorkspaceIdentity,
+  DEFAULT_APP_TOOL_SEARCH_MODE,
   remoteHostIdFromWorkspaceIdentity,
 } from "@drora/shared";
 import { SourceServerWorkspaceAliasRepo } from "./session/sourceServerWorkspaceAliasRepo.js";
@@ -441,7 +482,7 @@ import { ISubagentsService } from "./subagents/subagents.js";
 import { ICommandsService } from "./commands/commands.js";
 import { IHooksService } from "./hooks/hooks.js";
 import { IMemoryService } from "./memory/memory.js";
-
+import { IOutputStyleService } from "./output-style/outputStyle.js";
 import { ISettingsSyncService } from "./settings-sync/settingsSync.js";
 import { IFeedbackService } from "./feedback/feedback.js";
 import { IPromptAttachmentTransferService } from "./prompt-attachment-transfer/promptAttachmentTransfer.js";
@@ -463,8 +504,13 @@ import { createLegacyTeamOrganizationResolver } from "./model-provider/legacyTea
 import { createObservableSettingService } from "./setting/observableSettingService.js";
 import { createCredentialService } from "./credential/credentialService.js";
 import { createBroadcastService } from "./broadcast/broadcastService.js";
-import { createDroraAgentService } from "./drora-agent/droraAgentService.js";
+import {
+  createDroraAgentService,
+  getInProcessPluginUserOptionsReader,
+} from "./drora-agent/droraAgentService.js";
+import type { PluginUserOptionsReader } from "./drora-agent/pluginHostQueriesClient.js";
 import type { DroraAgentCommandResolver } from "./drora-agent/droraAgentProcessManager.js";
+import type { StartPlanCaptchaResolver } from "#src/model-provider/startPlanCaptchaHeaders.js";
 import { buildAgentTelemetrySpawnEnv } from "./drora-agent/agentTelemetryEnv.js";
 import { resolveDroraAgentPresentationSurface } from "./drora-agent/droraAgentPresentationSurface.js";
 import { createDroraTaskServiceAdapter } from "./drora-agent/droraTaskServiceAdapter.js";
@@ -487,6 +533,7 @@ import {
   isOAuthBusinessRequest,
   resolveOAuthBusinessCredentialValidationRequest,
   isCurrentOAuthCredentialRequest,
+  resolveAssociatedOAuthCredentialRequest,
 } from "#src/oauth/oauthUnauthorizedRequest.js";
 import { createOAuthProviderLogoutHandler } from "./oauth/oauthProviderLogout.js";
 import { OAuthCredentialRepo } from "./oauth/repo/oauthCredentialRepo.js";
@@ -555,7 +602,7 @@ import { createSubagentsService } from "./subagents/subagentsService.js";
 import { createCommandsService } from "./commands/commandsService.js";
 import { createHooksService } from "./hooks/hooksService.js";
 import { createMemoryService } from "./memory/memoryService.js";
-
+import { createOutputStyleService } from "./output-style/outputStyleService.js";
 import { createSettingsSyncService } from "./settings-sync/settingsSyncService.js";
 import {
   createFeedbackService,
@@ -655,10 +702,12 @@ import {
   DRORA_JWT_INVALID_BROADCAST_CHANNEL,
   formatLogPrefix,
   isCredentialDecryptError,
+  isBuiltinOAuthProvider,
   isStartPlanModelProviderId,
   OFF_PEAK_PROVIDER_IDS,
   BIGMODEL_PROVIDER_ID,
   type ProviderFamilyDomain,
+  type OAuthAccountAvailability,
   type ServiceAuthorityMode,
   resolveRuntimeDroraEndpointOrigin,
   resolveSafeTelemetryHostname,
@@ -670,6 +719,7 @@ import {
   isDroraCuaInternalFeatureEnabled,
   DRORA_CUA_PLUGIN_AUTHORITY_ENV_KEY,
   DRORA_CUA_BROKER_TOKEN_ENV_KEY,
+
   type DroraAutomation,
   type DroraAutomationRun,
   getCapturedDroraAgentTelemetryEnv,
@@ -779,6 +829,20 @@ export function getOffPeakRequestAuthBuilder(
   services: ServiceCollection,
 ): OffPeakRequestAuthBuilder | undefined {
   return offPeakRequestAuthBuilders.get(services);
+}
+
+const pluginUserOptionsReaders = new WeakMap<ServiceCollection, PluginUserOptionsReader>();
+
+/**
+ * Local Host 进程内：扩展 settings 能力读本插件 user 层有效值（含敏感值，docs/plugins/extension-host.md
+ * §16.7）。不登记为服务、不挂在任何服务对象上，所以不会随 ServiceCollection 暴露到任何 RPC 频道
+ * （桌面 Renderer、手机远控、远程 workspace）。Window Host 把它作为依赖交给扩展网关，网关只给调用方
+ * 自己的插件。只有 createLocalServices 的集合有值；其他集合返回 undefined（调用方按「不支持」处理）。
+ */
+export function getPluginUserOptionsReader(
+  services: ServiceCollection,
+): PluginUserOptionsReader | undefined {
+  return pluginUserOptionsReaders.get(services);
 }
 const managedHostApiNetworkTransports = new WeakMap<ServiceCollection, HostApiNetworkTransport>();
 
@@ -1259,7 +1323,6 @@ export function resolveBundledCuaHelperAppPath(
   ).resourcesPath?.trim();
   return resourcesPath ? join(resourcesPath, "cua-helper", HELPER_APP_NAME) : undefined;
 }
-
 // R1.2 懒启动发现链桥接值的单一出处（specs/cua-gap-remediation-2026-11-09.md）：
 // 切段（agent 进程内的 0.6.5 冻结副本）按 ZCODE_ 名消费，我方注入与安装全在
 // DRORA_ 名与 ~/.drora。切段 bundled 分支拿到这里给出的实际 .app 路径即绕过
@@ -1353,6 +1416,7 @@ export async function buildZcodeCuaLazyLaunchBridgeEnv(
   return bridge;
 }
 
+
 export { isOfficialCuaPluginEnabledForWorkspace };
 
 export function hasGlobalCliDroraCuaServer(env: NodeJS.ProcessEnv = process.env): boolean {
@@ -1400,6 +1464,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  *        用于 BroadcastService 跨窗口中转。传 null 则广播为空操作。
  */
 export function createLocalServices(options: {
+  /** Desktop 注入 Main 的私有加解密桥；系统主密钥不进入 Host/CLI。 */
+  credentialCipherProvider?: CredentialCipher;
   /** 已鉴权 Desktop stdio 连接提供的私有回查频道；不作为公共 service 暴露。 */
   topicResourceRelayChannel?: (request: unknown) => IChannel;
   parentPort?: Parameters<typeof createBroadcastService>[0];
@@ -1436,8 +1502,19 @@ export function createLocalServices(options: {
   reportPluginTelemetryEvent?: (
     event: import("@drora/shared").RendererTelemetryEventPayload,
   ) => void | Promise<void>;
+  /**
+   * 插件管理变更成功返回（Window Host 侧信号），桌面 Host 用它重推扩展进程的插件清单，
+   * 配置与重置还通知该插件的扩展设置订阅者（docs/plugins/extension-host.md §16.7）。
+   */
+  onPluginManagementMutated?: (
+    event: import("./plugins/pluginManagementService.js").PluginMutationSucceededEvent,
+  ) => void;
   processLifecycleReporter?: RuntimeProcessLifecycleReporter;
   taskRuntimeReporter?: RuntimeTaskReporter;
+  /** 阻止退出的事项变化（docs/git/worktree.md §6.4）；桌面 Host 转发给 main 汇总确认。 */
+  quitBlockerReporter?: {
+    onQuitBlockersChanged(blockers: import("@drora/shared").HostQuitBlocker[]): void;
+  };
   /** workspace 文件搜索默认使用内置过滤器；后续规则来源只需在 Host 装配时注入最终实现。 */
   workspaceFileSearchFilter?: WorkspaceFileSearchFilter;
   forwardSessionMessageSendRequested?: (
@@ -1473,6 +1550,8 @@ export function createLocalServices(options: {
   projectStorageHostId?: string;
   sourceServerWorkspaceService?: ISourceServerWorkspaceService;
   resolveProjectHostService?: (hostId: string) => Promise<IProjectService>;
+  /** 只取已在线来源的原始项目快照，不触发 identity 迁移、连接或 Agent 启动。 */
+  resolveAppControlDiscoverySource?: (hostId: string) => Promise<AppControlDiscoveryConnection>;
   /** Bot 复用窗口已有 Source 连接；不经 main 创建 workspace attachment。 */
   resolveBotProjectConnection?: (hostId: string) => BotProjectConnection | undefined;
   remoteProjectConnection?: Pick<
@@ -1484,6 +1563,13 @@ export function createLocalServices(options: {
     getDeviceMid?: () => string | undefined;
     runtimeSurface?: "desktop_local_host" | "remote_workspace_host";
   };
+  /** 窄 App 导航端口，由实际窗口/手机导航 owner 注入；缺席返回 unavailable。 */
+  appControlNavigation?: AppControlNavigationPort;
+  /**
+   * 把本 Host 的 AppControlService 交给进程内的可信组件（扩展网关的会话能力，
+   * docs/plugins/extension-host.md §17.2）。它不注册进 ServiceCollection，也不在任何 RPC 频道上。
+   */
+  onAppControlServiceCreated?: (handle: AppControlServiceHandle) => void;
   /**
    * Start Plan 人机验证采集桥（host→main 隐藏窗口跑阿里云 SDK）；desktop host 注入。
    * 缺省（web/server/远端 authority）时 Start Plan 请求保持无验证头的现状行为。
@@ -1567,12 +1653,24 @@ export function createLocalServices(options: {
   let invalidateProjectTokens = () => {};
   let invalidatePluginUiAccounts: (() => void) | undefined;
   const provisioningOAuthKeys = new Set<string>(PROVIDER_PROVISIONING_OAUTH_CREDENTIAL_KEYS);
+  const credentialCipherProvider =
+    options.credentialCipherProvider ??
+    createSystemCredentialCipher({ filePath: join(resolveAppConfigDir(), "credentials.json") });
   const credentialService = createCredentialService({
-    onDidMutate: ({ key }) => {
-      if (key === "oauth:active_provider" || /^oauth:[^:]+:user_info$/.test(key))
+    cipherProvider: credentialCipherProvider,
+    onDidMutate: ({ keys, operation }) => {
+      if (operation === "recover") {
         invalidatePluginUiAccounts?.();
-      if (provisioningOAuthKeys.has(key)) invalidateProjectTokens();
-      if (provisioningOAuthKeys.has(key)) {
+        invalidateProjectTokens();
+        options.onProviderProvisioningSourceChanged?.("credential");
+        return;
+      }
+      if (
+        keys.some((key) => key === "oauth:active_provider" || /^oauth:[^:]+:user_info$/.test(key))
+      )
+        invalidatePluginUiAccounts?.();
+      if (keys.some((key) => provisioningOAuthKeys.has(key))) invalidateProjectTokens();
+      if (keys.some((key) => provisioningOAuthKeys.has(key))) {
         options.onProviderProvisioningSourceChanged?.("credential");
       }
     },
@@ -1595,8 +1693,30 @@ export function createLocalServices(options: {
   const droraJwtLogoutHandlerRef: {
     current: ((input: string | URL, headers: Headers) => void) | null;
   } = { current: null };
+  const associatedProfileRefreshRef: {
+    current:
+      | ((
+          expected: Pick<OAuthAccountAvailability, "loginProvider" | "userId" | "sessionRevision">,
+        ) => Promise<void>)
+      | null;
+  } = { current: null };
   const apiClient = createNodeApiClient({
     fetchImpl: hostApiNetworkTransport.fetch,
+    resolveAssociatedCredentialRefresh: async (input, headers) => {
+      const material = await resolveAssociatedOAuthCredentialRequest({
+        input,
+        headers,
+        loadMaterial: () => oauthCredentialRepo.loadFamilyMaterial("bigmodel"),
+      });
+      if (!material) return null;
+      return async () => {
+        await associatedProfileRefreshRef.current?.({
+          loginProvider: material.loginProvider,
+          userId: material.droraUserId,
+          sessionRevision: material.sessionRevision,
+        });
+      };
+    },
     onDroraJwtInvalid: (input, headers) => droraJwtLogoutHandlerRef.current?.(input, headers),
     isDroraJwtRequest: (input, headers) =>
       isCurrentOAuthCredentialRequest({ input, headers, credentialService }),
@@ -1660,6 +1780,24 @@ export function createLocalServices(options: {
       });
     },
   });
+  const loadOAuthAccountMaterial = (family: ProviderFamilyDomain) =>
+    oauthCredentialRepo.loadFamilyMaterial(family);
+  // Start 与付费套餐分开取材料：国内无关联账号只有 Start 材料（Drora 主体与共享 JWT）。
+  const loadStartPlanMaterial = (family: ProviderFamilyDomain) =>
+    oauthCredentialRepo.loadStartPlanMaterial(family);
+  const loadOAuthFamilyTokenSet = async (providerId: string) => {
+    if (providerId !== ZAI_PROVIDER_ID && providerId !== BIGMODEL_PROVIDER_ID) return null;
+    const account = await loadOAuthAccountMaterial(providerId);
+    return account
+      ? {
+          accessToken: account.accessToken,
+          droraJwtToken: account.droraJwtToken,
+          sessionRevision: account.sessionRevision,
+          accountIdentity: account.accountIdentity,
+          droraUserId: account.droraUserId,
+        }
+      : null;
+  };
   const projectTokenClient = createAccountProjectTokenClient(apiClient, credentialService);
   invalidateProjectTokens = () => projectTokenClient.clear();
   const accountProviderApiKeyRemoteClient = new AccountProviderApiClient(apiClient);
@@ -1668,10 +1806,7 @@ export function createLocalServices(options: {
     projectTokenClient,
   );
   const accountProviderCredentialService = createAccountProviderCredentialService({
-    async loadOAuthAccessToken(family) {
-      const oauthProviderId = family === "zai" ? ZAI_PROVIDER_ID : BIGMODEL_PROVIDER_ID;
-      return (await oauthCredentialRepo.loadTokenSet(oauthProviderId))?.accessToken ?? null;
-    },
+    loadOAuthAccountMaterial,
     resolveProviderMaterial: (
       family,
       accessToken,
@@ -1687,8 +1822,7 @@ export function createLocalServices(options: {
   });
   const resolveLegacyTeamOrganization = createLegacyTeamOrganizationResolver({
     apiClient,
-    loadOAuthTokenSet: (family) =>
-      oauthCredentialRepo.loadTokenSet(family === "zai" ? ZAI_PROVIDER_ID : BIGMODEL_PROVIDER_ID),
+    loadOAuthTokenSet: loadOAuthFamilyTokenSet,
   });
   const readAccountProviderSettings = async () => {
     // 迁移只在账号事实入口协调。ApiClient 的代理/端点仍读普通 Setting，不递归等待迁移。
@@ -1703,10 +1837,8 @@ export function createLocalServices(options: {
       unresolvedFamilies,
     };
   };
-  const loadAccountIdentity = async (family: ProviderFamilyDomain) => {
-    const oauthProviderId = family === "zai" ? ZAI_PROVIDER_ID : BIGMODEL_PROVIDER_ID;
-    return (await oauthCredentialRepo.loadUserProfile(oauthProviderId))?.id ?? null;
-  };
+  const loadAccountIdentity = async (family: ProviderFamilyDomain) =>
+    (await loadOAuthAccountMaterial(family))?.accountIdentity ?? null;
   const accountRequestAuthService = createAccountRequestAuthService(
     createAccountProviderRequestAuthService({
       resolveCurrentAccountAccess: (access) =>
@@ -1714,11 +1846,13 @@ export function createLocalServices(options: {
           access,
           readSettings: readAccountProviderSettings,
           loadAccountIdentity,
+          loadStartPlanMaterial,
         }),
-      loadOAuthTokenSet: (providerId) => oauthCredentialRepo.loadTokenSet(providerId),
+      loadOAuthTokenSet: loadOAuthFamilyTokenSet,
+      loadStartPlanDroraJwt: async (family) =>
+        (await loadStartPlanMaterial(family))?.droraJwtToken ?? null,
       async loadIndividualPlanMaterial(providerId, family, rejectedProjectTokenFingerprint) {
-        const oauthProviderId = family === "zai" ? ZAI_PROVIDER_ID : BIGMODEL_PROVIDER_ID;
-        const accountIdentity = (await oauthCredentialRepo.loadUserProfile(oauthProviderId))?.id;
+        const accountIdentity = (await loadOAuthAccountMaterial(family))?.accountIdentity;
         if (!accountIdentity) return null;
         return accountProviderCredentialService.loadCodingPlanMaterial({
           providerId,
@@ -1732,7 +1866,7 @@ export function createLocalServices(options: {
         if (!accountIdentity) return null;
         return resolveAccountTeamPlanRuntimeMaterial({
           apiClient,
-          credentialService,
+          loadOAuthAccountMaterial,
           access,
           accountIdentity,
           tokenClient: projectTokenClient,
@@ -1758,6 +1892,7 @@ export function createLocalServices(options: {
       fetchRelease: (endpointOrigin, signal) =>
         fetchDroraBuiltinRemoteRelease({
           apiClient,
+          resolveDroraJwtToken: () => credentialService.load("drorajwttoken"),
           endpointOrigin,
           signal,
           appVersion: DRORA_VERSION,
@@ -1787,6 +1922,8 @@ export function createLocalServices(options: {
     readLegacyProviders: () => readLegacyDroraConfigProviders(),
   });
   const accountProviderConfigSource = createAccountProviderConfigSource({
+    loadSessionRevision: async () =>
+      (await oauthCredentialRepo.loadSessionSnapshot())[OAUTH_SESSION_REVISION_KEY] ?? null,
     configSource: providerConfigRuntime.configService,
     readSettings: readAccountProviderSettings,
     async loadCodingPlanApiKey(providerId, family, accountIdentity, forceRefresh) {
@@ -1799,9 +1936,12 @@ export function createLocalServices(options: {
       });
     },
     loadAccountIdentity,
+    loadStartPlanMaterial,
     resolveFamilyAvailability: createCodingPlanFamilyAvailabilityResolver({
       apiClient,
       credentialService,
+      loadOAuthAccountMaterial,
+      loadStartPlanMaterial,
     }),
   });
   const accountProviderRuntimeLog = createServiceLogger("account-provider-runtime");
@@ -1809,6 +1949,7 @@ export function createLocalServices(options: {
     personalRepository: providerConfigRuntime.personalRepository,
   });
   const providerProvisioningSource = createProviderProvisioningSource({
+    cipherProvider: credentialCipherProvider,
     personalRepository: providerConfigRuntime.personalRepository,
     settingService,
     credentialFilePath: resolveCredentialFilePath(resolveAppConfigDir()),
@@ -1880,7 +2021,10 @@ export function createLocalServices(options: {
     resolve: () =>
       resolveOfficialMcpCredentials({
         accountRequestAuthService,
-        credentialService,
+        getRegistryRevision: () =>
+          providerRuntime.registryService.getSnapshot()?.registry.revision ?? null,
+        loadOAuthIdentityMaterial: () => oauthCredentialRepo.loadIdentityMaterial(),
+        loadOAuthAccountMaterial,
         modelSelectionService: providerRuntime.modelSelection,
       }),
   };
@@ -2181,10 +2325,10 @@ export function createLocalServices(options: {
       if (host?.running && host.socketPath) {
         return {
           socketPath: host.socketPath,
-          // token 模式：PiP 客户端以 role=presentation authenticate
-          // R10：presentationToken 注入退役（官方 0.6.5 presentation 走 authenticate role+peer 资格门）。
         };
       }
+          // token 模式：PiP 客户端以 role=presentation authenticate
+          // R10：presentationToken 注入退役（官方 0.6.5 presentation 走 authenticate role+peer 资格门）。
       // 懒启动：无托管 host 时探测稳定 socket 上自启动的 Helper（probe-only，不拉起）。
       const stable = await probeStableCuaHelperSocket();
       return stable ? { socketPath: stable } : undefined;
@@ -2401,6 +2545,7 @@ export function createLocalServices(options: {
     : async () => (await settingService.get()).dynamicWorkflowMode;
   const codingPlanSubscriptionService = createCodingPlanSubscriptionService({
     apiClient,
+    loadOAuthAccountMaterial,
     credentialService,
     ...(resolveDynamicWorkflowUserMode ? { resolveDynamicWorkflowUserMode } : {}),
     resolveOffPeakModelSelectionView: async () => {
@@ -2560,7 +2705,31 @@ export function createLocalServices(options: {
   // §13 late-bind：providerRuntime 就绪后回填建卡器；档案服务的 §13 迁移在首次
   // get()（knowledge 装配/协议请求，均晚于本行）才执行，时序安全。
   modelCapabilitiesServiceOption?.attachProviderCardCreator?.(createCapabilityProviderCard);
+
+  let appControlService: AppControlService | undefined;
+  // 受管 worktree 的删除租约：worktree 服务取得，Agent 服务与终端服务据此拒绝新操作（§8.3）。
+  // 租约只在本 Host 内生效，前提是一台机器只有一个本地 Host：应用持有单实例锁，主窗口只经
+  // primaryWindowCoordinator 创建并复用已有窗口，renderer 刷新复用原 Host。以后支持多个主窗口时，
+  // 删除需要改由 main 跨 Host 协调（docs/git/worktree.md §8.3）。
+  const worktreeRemovalGate = createWorktreeRemovalGate();
   const droraAgentService = createDroraAgentService({
+    credentialCipherProvider,
+    runSessionOperation: (target, operation) =>
+      worktreeRemovalGate.runSessionOperation(
+        target.sessionId,
+        async () => {
+          // 只有本地任务可能运行在受管 worktree 中；cwd 只经 tasks-index 同一行得到（§2.1）。
+          // 没有任务行时返回 null（未知），由闸门在删除期间拒绝，不回退为 workspace 目录。
+          if (target.workspaceIdentity?.trim()) return target.workspacePath;
+          return (await taskIndexRepo.getProjectRepository()).readTaskCwd({
+            workspacePath: target.workspacePath,
+            taskId: target.sessionId,
+          });
+        },
+        operation,
+      ),
+    resolveAppControlService: () => appControlService,
+    appControlSourceServerId: options?.projectStorageHostId ?? "local",
     useSharedTaskRuntime: async (target) => {
       if (options?.projectStorageHostId && options.projectStorageHostId !== "local") return false;
       return !(await taskIndexRepo.getProjectRepository()).hasProjectWorkspace(target);
@@ -2606,6 +2775,7 @@ export function createLocalServices(options: {
     // agent 内置文生图（specs/model-capabilities.md §6）：档案服务在场即接线；
     // 出站、凭据解密全部留在本 host 进程，CLI 只收图片字节。
     ...(agentImageGenerationSource ? { imageGenerationSource: agentImageGenerationSource } : {}),
+
     commandResolver: options?.droraAgentCommandResolver,
     presentationSurface: resolveDroraAgentPresentationSurface({
       runtimeSurface: options?.agentTelemetry?.runtimeSurface,
@@ -2673,7 +2843,10 @@ export function createLocalServices(options: {
     // Provider 存在性读取正式 Model Selection View；不恢复旧 Provider Snapshot。
     officialMcpAuthHeadersResolver: createOfficialMcpAuthHeadersResolver({
       accountRequestAuthService,
-      credentialService,
+      getRegistryRevision: () =>
+        providerRuntime.registryService.getSnapshot()?.registry.revision ?? null,
+      loadOAuthIdentityMaterial: () => oauthCredentialRepo.loadIdentityMaterial(),
+      loadOAuthAccountMaterial,
       modelSelectionService: providerRuntime.modelSelection,
     }),
     // host 是身份权威边界：provenance/origin 必须在这里再校验一次，不能只依赖 agent
@@ -2827,6 +3000,10 @@ export function createLocalServices(options: {
         // 把 host 解析出的权威 origin（含 settings 覆盖）下发给 agent，否则 agent 侧只按
         // env 推导，test env + 自定义端点时两侧信任判定的输入分叉、官方 MCP 整体 fail closed。
         ...buildAgentEndpointOriginEnv(await resolveCurrentDroraEndpointOrigin()),
+        // Agent 模型请求的 X-Client-Language 默认取 Agent 进程 Intl（Dock 启动无 LANG 时回退 en-US），
+        // 跟界面语言无关；这里把 Host 的实时界面语言按 spawn 时下发，切换语言后下一次启动 Agent 生效。
+        // 远端 Host 不注入 resolveClientLanguage，保持远端 Intl 行为。
+        ...buildAgentClientLanguageEnv(options?.resolveClientLanguage?.()),
         // broker 凭据（socket/token）注入 agent spawn env，让内置 drora-cua plugin 的
         // computer-use MCP server 经 __drora-plugin-host 恢复 token 后连上 broker。
         ...cuaProductHelperEnv,
@@ -2862,7 +3039,7 @@ export function createLocalServices(options: {
               askUserQuestionAutoResolutionEnabled:
                 settings.askUserQuestionAutoResolutionEnabled !== false,
               nativeSearchEnhancementsEnabled: settings.nativeSearchEnhancementsEnabled !== false,
-              toolSearchMode: settings.toolSearchMode ?? "off",
+              toolSearchMode: settings.toolSearchMode ?? DEFAULT_APP_TOOL_SEARCH_MODE,
               memoryEnabled: settings.memoryEnabled === true,
               // Persona 执行许可 E（spec §5）：值为原 Settings 保存的用户选择。是否随本次
               // 响应下发由 droraAgentService 的能力附加门裁决（personaControlV1 确认后保留，
@@ -2903,7 +3080,14 @@ export function createLocalServices(options: {
       };
     },
     repository: () => taskIndexRepo.getProjectRepository(),
-    afterChange: publishProjectChange,
+    afterChange: async (archived) => {
+      // Bug 根因：自动归档直接改 sqlite，只广播项目变更，不发 task_archived；
+      // Controller 依赖任务事实流关闭已归档任务的 tab，缺事件会让出声的 Browser guest 留在后台。
+      for (const task of archived) {
+        droraTaskIndexSyncer.emitWorkspaceTaskListChanged(task, undefined, "task_archived");
+      }
+      await publishProjectChange();
+    },
   });
   // The plugin can be toggled at runtime. Do not let a previously created resolver continue
   // health-checking/restarting Helper after disable, and create it lazily after enable.
@@ -2951,6 +3135,47 @@ export function createLocalServices(options: {
   const gitService = createGitService({
     commitMessageGenerator: gitCommitMessageGenerator,
   });
+  // 终端实例需要同时注册给 renderer 与供 worktree 删除前的占用检查使用，必须是同一个实例。
+  const terminalService = createTerminalService({
+    settingService,
+    isCwdBlocked: (cwd) => worktreeRemovalGate.isRemoving(cwd),
+  });
+  const isLocalProjectHost =
+    !options?.projectStorageHostId || options.projectStorageHostId === "local";
+  const managedWorktreeService = createManagedWorktreeService({
+    isLocalHost: isLocalProjectHost,
+    repository: () => taskIndexRepo.getProjectRepository(),
+    git: createGitWorktreeRepo({
+      commandProvider: createGitCommandProvider(),
+      dataBaseDir: getDataBaseDir,
+    }),
+    removalGate: worktreeRemovalGate,
+    runtime: {
+      hasTerminalsUnder: async (path) =>
+        (await terminalService.listTerminalIdsUnderPath({ path })).length > 0,
+      releaseSessionsUnder: async (target) => {
+        if (!droraAgentService.releaseSessionsUnderDirectory)
+          throw new Error("worktree.release-unsupported");
+        return await droraAgentService.releaseSessionsUnderDirectory(target);
+      },
+    },
+    agent: {
+      supportsWorktreeCwd: async (target) =>
+        (await droraAgentService.supportsWorktreeCwd?.(target)) ?? false,
+      // HOST_WORKTREE_COMMAND 只有本服务能设置，渲染进程经 RPC 无法携带（§5.1）。
+      sendCommand: (command) =>
+        droraAgentService.sendConversationCommandV4({ ...command, [HOST_WORKTREE_COMMAND]: true }),
+      queryCommandResult: async (target) => {
+        if (!droraAgentService.queryCommandResult) throw new Error("worktree.query-unsupported");
+        return await droraAgentService.queryCommandResult(target);
+      },
+    },
+    reportCreatingCount: (count) =>
+      options?.quitBlockerReporter?.onQuitBlockersChanged(
+        count > 0 ? [{ kind: "worktree-creating", count }] : [],
+      ),
+    afterChange: publishProjectChange,
+  });
   // task wrapper 由 Drora task service adapter 提供；核心 session 状态由 Drora agent server 维护。
   const droraTaskService = createDroraTaskServiceAdapter({
     droraAgentService,
@@ -2958,6 +3183,43 @@ export function createLocalServices(options: {
     taskIndexSyncer: droraTaskIndexSyncer,
     settingService,
     cuaProductMcpServerResolver,
+  });
+  appControlService = createAppControlService({
+    sourceServerId: options?.projectStorageHostId ?? "local",
+    projects: projectService,
+    discovery: createAppControlDiscoveryDirectory({
+      sourceServerId: options?.projectStorageHostId ?? "local",
+      projects: projectService,
+      ...(!options?.projectStorageHostId || options.projectStorageHostId === "local"
+        ? { remoteProjects: remoteProjectService }
+        : {}),
+      resolveSource: options?.resolveAppControlDiscoverySource,
+    }),
+    resolveWorkspaceIdentity:
+      options?.projectStorageHostId && options.projectStorageHostId !== "local"
+        ? async (workspacePath) =>
+            (await sourceServerWorkspaceService.resolveWorkspace({ workspacePath }))
+              .canonicalWorkspaceKey
+        : undefined,
+    tasks: droraTaskService,
+    agent: droraAgentService,
+    models: providerRuntime.modelSelection,
+    navigation: options?.appControlNavigation,
+    prepareCreation: ({ projectId }) => projectService.prepareSession({ projectId }),
+    findCreationReceipts: async (creationCommand) =>
+      (await taskIndexRepo.getProjectRepository()).findCreationReceipts({ creationCommand }),
+    reserveFork: async (target) => {
+      // 分叉正文由 CLI 创建；产品归属仍经 Host 的既有原子预留 owner。
+      (await taskIndexRepo.getProjectRepository()).reserveCreatedTask({
+        task: target,
+        projectId: target.projectId,
+        forkedFromTaskId: target.forkedFromTaskId,
+      });
+    },
+  });
+  options?.onAppControlServiceCreated?.({
+    service: appControlService,
+    sourceServerId: options?.projectStorageHostId ?? "local",
   });
   const botsRepo = new BotsRepo();
   const botLog = createServiceLogger("bots");
@@ -2987,15 +3249,20 @@ export function createLocalServices(options: {
             askUserQuestionAutoResolutionEnabled:
               settings.askUserQuestionAutoResolutionEnabled !== false,
             modelIoFullRetentionEnabled: settings.modelIoFullRetentionEnabled === true,
+            pluginAutoRecommendationEnabled: settings.pluginAutoRecommendationEnabled === true,
           };
         },
         warn: (message) => botLog.warn(message),
       })
     : undefined;
   const oauthService = createOAuthService(credentialService, {
+    captureCredentialGuard: () => credentialService.captureRecoveryGuard(),
     apiClient,
     onProviderLogout: handleOAuthProviderLogout,
   });
+  associatedProfileRefreshRef.current = async (expected) => {
+    await oauthService.refreshAccountProfile(expected);
+  };
   const droraJwtLogoutLogger = createServiceLogger("drora-jwt-logout");
   droraJwtLogoutHandlerRef.current = (input, headers) => {
     // 条件退出本身已串行去重；不能丢弃等待旧候选期间到来的新凭据 401。
@@ -3018,7 +3285,9 @@ export function createLocalServices(options: {
   // Registry 的 entitlement/executable 事实，也在多个套餐同时可见时无法唯一选择。
   // 闲时服务与 Host 派发必须共享同一个 Registry-backed 凭据解析闭包。
   const offPeakCredentialResolverDeps = {
-    credentialService,
+    loadOAuthAccountMaterial,
+    getRegistryRevision: () =>
+      providerRuntime.registryService.getSnapshot()?.registry.revision ?? null,
     accountRequestAuthService,
     resolveAccountProvider: async () => {
       await providerRuntime.start();
@@ -3101,6 +3370,15 @@ export function createLocalServices(options: {
         onSnapshot: (snapshot) => marketingAssets.accept(snapshot),
       }),
     )
+    .register(
+      IVoiceInputService,
+      createVoiceInputService({
+        apiClient,
+        getToken: () => credentialService.load("drorajwttoken"),
+        resolveOrigin: resolveCurrentDroraEndpointOrigin,
+        createSocket: (url) => hostApiNetworkTransport.createWebSocket(url),
+      }),
+    )
     .register(IFileService, fileService)
     .register(IMediaPreviewService, mediaPreviewService)
     .register(
@@ -3111,12 +3389,30 @@ export function createLocalServices(options: {
       }),
     )
     .register(IGitService, gitService)
+    .register(IManagedWorktreeService, managedWorktreeService)
     .register(IGitCheckpointService, gitCheckpointService)
     .register(ISystemService, systemService)
-    .register(ITerminalService, createTerminalService({ settingService }))
+    .register(ITerminalService, terminalService)
     .register(ISettingService, settingService)
     .register(IOnboardingRecordService, onboardingRecordService)
-    .register(ICredentialService, credentialService)
+    // RPC 根据运行时方法名分发，不能把 Host 私有批量凭据端口直接注册给 Renderer。
+    .register(ICredentialService, {
+      // 整库检查/恢复不按键读写；是否对当前连接开放由 exposeOnChannelServer 的恢复策略决定。
+      inspectStore: () => credentialService.inspectStore(),
+      recoverStore: (fingerprint) => credentialService.recoverStore(fingerprint),
+      load: (key) => {
+        if (key === OAUTH_LINKED_BIGMODEL_KEY) throw new Error("Host private credential");
+        return credentialService.load(key);
+      },
+      save: (key, value) => {
+        if (key === OAUTH_LINKED_BIGMODEL_KEY) throw new Error("Host private credential");
+        return credentialService.save(key, value);
+      },
+      delete: (key) => {
+        if (key === OAUTH_LINKED_BIGMODEL_KEY) throw new Error("Host private credential");
+        return credentialService.delete(key);
+      },
+    })
     .register(IBroadcastService, broadcastService)
     .register(IDroraTaskService, droraTaskService)
     .register(IDroraAgentService, droraAgentService)
@@ -3154,8 +3450,8 @@ export function createLocalServices(options: {
       IUsageStatsService,
       createUsageStatsService({
         apiClient,
+        loadOAuthAccountMaterial,
         accountRequestAuthService,
-        credentialService,
         droraAgentService,
         officialMcpCredentialSource,
       }),
@@ -3165,6 +3461,7 @@ export function createLocalServices(options: {
       IClientConfigService,
       createClientConfigService({
         apiClient,
+        resolveDroraJwtToken: () => credentialService.load("drorajwttoken"),
         resolveRequestContext: async () => ({
           endpointOrigin: await resolveCurrentDroraEndpointOrigin(),
           appVersion: DRORA_VERSION,
@@ -3195,6 +3492,7 @@ export function createLocalServices(options: {
             resolveOrigin: originResolver.resolveOrigin,
             resolveCredentials,
             logger: offPeakLogger,
+            resolveClientLanguage: options?.resolveClientLanguage,
           }),
           resolveCodingPlanSupport: () =>
             resolveOffPeakCodingPlanSupport(offPeakCredentialResolverDeps),
@@ -3272,10 +3570,17 @@ export function createLocalServices(options: {
         const mockScenario = mockScenarios.has(rawMockScenario as HighspeedMockScenario)
           ? (rawMockScenario as HighspeedMockScenario)
           : null;
-        const resolveHighspeedLoginHeaders = async (): Promise<Record<string, string>> => {
-          const jwt = (await credentialService.load("drorajwttoken"))?.trim() ?? "";
-          if (!jwt) throw new Error("highspeed request requires drora jwt");
-          return { Authorization: /^Bearer\s/i.test(jwt) ? jwt : `Bearer ${jwt}` };
+        const ownerKeyForUser = (userId: string) =>
+          `v1:${createHash("sha256").update(userId).digest("hex")}`;
+        const resolveHealthyIdentity = async () => {
+          const identity = await oauthCredentialRepo.loadIdentityMaterial();
+          return identity
+            ? {
+                ownerKey: ownerKeyForUser(identity.droraUserId),
+                sessionScope: JSON.stringify(identity),
+                droraJwt: identity.droraJwtToken,
+              }
+            : null;
         };
         const transport = mockScenario
           ? createHighspeedMockTransport({ scenario: mockScenario })
@@ -3287,13 +3592,9 @@ export function createLocalServices(options: {
                 const credentials = await resolveOffPeakCredentials(offPeakCredentialResolverDeps, {
                   allowMockCredentials: false,
                 });
-                const codingPlanAuthorization =
-                  (
-                    await credentialService.load(`oauth:${credentials.providerFamily}:access_token`)
-                  )?.trim() ?? "";
                 return buildHighspeedCodingPlanAuthHeaders({
                   droraJwt: credentials.jwt,
-                  codingPlanAuthorization,
+                  codingPlanAuthorization: credentials.codingPlanAuthorization,
                   targetType:
                     credentials.organizationId && credentials.projectId ? "TEAM" : "PERSONAL",
                   ...(credentials.organizationId
@@ -3302,10 +3603,13 @@ export function createLocalServices(options: {
                   ...(credentials.projectId ? { projectId: credentials.projectId } : {}),
                 });
               },
-              healthyHeaders: resolveHighspeedLoginHeaders,
+              healthyHeaders: async () => {
+                throw new Error("highspeed healthy requires captured identity");
+              },
             });
         return new HighspeedCardService({
           transport,
+          resolveHealthyIdentity,
           // 普通 mock 只验证抽卡 UI，不依赖隐藏执行 Provider；目录外模型与队列编辑场景
           // 必须走真实 Highspeed execution Selection，才能覆盖创建期退回和队列模型隔离。
           inferenceMode:
@@ -3336,14 +3640,14 @@ export function createLocalServices(options: {
             const credentials = await resolveOffPeakCredentials(offPeakCredentialResolverDeps, {
               allowMockCredentials: false,
             });
-            const codingPlanAuthorization =
-              (
-                await credentialService.load(`oauth:${credentials.providerFamily}:access_token`)
-              )?.trim() ?? "";
             return {
               droraJwt: credentials.jwt,
               family: credentials.providerFamily,
-              codingPlanAuthorization,
+              accountScope: credentials.accountScope,
+              ...(credentials.droraUserId
+                ? { ownerKey: ownerKeyForUser(credentials.droraUserId) }
+                : {}),
+              codingPlanAuthorization: credentials.codingPlanAuthorization,
               targetType: credentials.organizationId && credentials.projectId ? "TEAM" : "PERSONAL",
               ...(credentials.organizationId ? { organizationId: credentials.organizationId } : {}),
               ...(credentials.projectId ? { projectId: credentials.projectId } : {}),
@@ -3374,6 +3678,7 @@ export function createLocalServices(options: {
       createPluginManagementService({
         droraAgentService,
         reportTelemetryEvent: options?.reportPluginTelemetryEvent,
+        onMutationSucceeded: options?.onPluginManagementMutated,
       }),
     )
     .register(ISubagentsService, subagentsService)
@@ -3407,6 +3712,7 @@ export function createLocalServices(options: {
     services.register(IModelCapabilitiesService, options.modelCapabilitiesService);
   }
 
+
   // 即使初始配置关闭也必须登记 lifecycle disposer：terminal fence 需要早于任意延迟 setting/acquire
   // 恢复，不能把"当前还没有 Helper"误当成"不需要生命周期所有者"。dispose 时串行 stop host。
   registerManagedCuaHelperHostForDispose(services, {
@@ -3422,6 +3728,8 @@ export function createLocalServices(options: {
 
   accountRequestAuthServices.set(services, accountRequestAuthService);
   offPeakRequestAuthBuilders.set(services, buildOffPeakRequestAuthForTicket);
+  const pluginUserOptionsReader = getInProcessPluginUserOptionsReader(droraAgentService);
+  if (pluginUserOptionsReader) pluginUserOptionsReaders.set(services, pluginUserOptionsReader);
 
   providerRuntimes.set(services, providerRuntime);
   providerProvisioningSources.set(services, providerProvisioningSource);
@@ -3512,18 +3820,19 @@ export function createTelemetryAuthorizationLoader(
     if (!userId) return null;
     try {
       const provider = (await credentialService.load("oauth:active_provider"))?.trim();
-      if (provider !== "zai" && provider !== "bigmodel") return null;
+      // 中国区同样持有 Drora 主 JWT；不能用旧的两渠道白名单阻断远控和上报。
+      if (!provider || !isBuiltinOAuthProvider(provider)) return null;
       const readUserId = async () =>
         readTelemetryOAuthUserId(await credentialService.load(`oauth:${provider}:user_info`));
       if ((await readUserId()) !== userId) return null;
-      const jwt = (await credentialService.load("drorajwttoken"))?.trim();
+      const jwt = await credentialService.load("drorajwttoken");
       // 退出/切账号可能发生在异步读取期间；禁止将旧身份的 token 附到其他账号事件上。
       if (
         (await credentialService.load("oauth:active_provider"))?.trim() !== provider ||
         (await readUserId()) !== userId
       )
         return null;
-      return jwt && /^[\x21-\x7e]+$/.test(jwt) ? `Bearer ${jwt}` : null;
+      return toBearerAuthorization(jwt);
     } catch {
       return null;
     }
@@ -3605,11 +3914,12 @@ export async function disposeServiceResourcesAndWait(services: ServiceCollection
   )?.dispose?.();
   // app 关闭时 host 需要等 agent 进程树完成 graceful + force 清理。
   // 旧的同步 dispose 会在 host 退出时丢掉强杀 timer，导致 drora-cli/app-server 变成孤儿进程。
+  // CLI 的 EOF 宽限不能被云内容或终端清理消耗；先关闭 Agent admission 并完成进程回收。
   const disposableServices = [
+    services.getOptional(IDroraAgentService),
     services.getOptional(ICloudContentService),
     services.getOptional(ITerminalService),
     services.getOptional(IDroraTaskService),
-    services.getOptional(IDroraAgentService),
     services.getOptional(IDroraSessionService),
     services.getOptional(IBotsService),
     services.getOptional(IFileWatcherService),
@@ -3686,7 +3996,14 @@ export async function createServerHostServices(options: {
   sourceServerId: string;
   droraBuiltinProviderConfigFilePath: string;
   providerProvisioningTargetEnabled?: boolean;
+  credentialCipherProvider?: CredentialCipher;
 }) {
+  // 无桌面环境不能等到首次登录或 Provisioning 才发现系统库缺失。
+  const credentialCipherProvider =
+    options.credentialCipherProvider ??
+    (await createServerCredentialCipher({
+      filePath: join(resolveAppConfigDir(), "credentials.json"),
+    }));
   const projectStorageHostId = remoteHostIdFromWorkspaceIdentity(
     buildServerRemoteWorkspaceIdentity({ serverId: options.sourceServerId, workspacePath: "/" }),
   );
@@ -3720,6 +4037,7 @@ export async function createServerHostServices(options: {
   });
   const migrationFailedPathCount = await workspaceAliasRepo.getFailedPathCount();
   const services = createLocalServices({
+    credentialCipherProvider,
     droraBuiltinProviderConfigFilePath: options.droraBuiltinProviderConfigFilePath,
     providerProvisioningTargetEnabled: options.providerProvisioningTargetEnabled,
     serviceAuthorityMode: "standalone-server",
@@ -3732,3 +4050,9 @@ export async function createServerHostServices(options: {
 
 export { scopeConversationShareServiceForAttachment } from "./conversation-share/conversationShareConnectionScope.js";
 export { localRuntimeNetworkCapture } from "./drora-agent/localRuntimeNetworkCapture.js";
+
+/** 只下发可打印 ASCII 的界面语言；缺失时不写该键，Agent 回落自身 Intl。 */
+function buildAgentClientLanguageEnv(locale: string | undefined): Record<string, string> {
+  const value = locale?.trim();
+  return value && /^[\x20-\x7e]+$/.test(value) ? { [DRORA_CLIENT_LANGUAGE_ENV]: value } : {};
+}

@@ -199,8 +199,10 @@ describe("file tool handlers", () => {
       truncated: true,
       truncatedByTokenCap: true,
     });
+    // 横幅同样走模型面归一形态（正斜杠，与上方 filePath 期望同款）——2026-11-14 段门
+    // 复跑修复 read-text 部分视图分支漏归一后，这里按归一形态构造正则。
     const banner = new RegExp(
-      `^\\[Truncated: PARTIAL view — ${filePath.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}: showing lines 1-(\\d+) of 1800 total \\((\\d+) tokens, cap 25000\\)\\. Call Read with offset=(\\d+) limit=(\\d+) for the next page, or Grep to find a specific section\\. Do NOT answer from this page alone if the answer may be further in the file\\.\\]$`,
+      `^\\[Truncated: PARTIAL view — ${filePath.replaceAll("\\", "/").replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}: showing lines 1-(\\d+) of 1800 total \\((\\d+) tokens, cap 25000\\)\\. Call Read with offset=(\\d+) limit=(\\d+) for the next page, or Grep to find a specific section\\. Do NOT answer from this page alone if the answer may be further in the file\\.\\]$`,
     ).exec(output.partialViewNotice ?? "");
     expect(banner).not.toBeNull();
     const [, shown, tokens, nextOffset, pageLimit] = banner!.map(Number);

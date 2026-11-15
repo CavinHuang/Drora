@@ -374,12 +374,15 @@ function snapshotExportLines(shellKind: ShellInitSnapshotShellKind): string[] {
     "",
     "# Now get user function names - filter completion functions (single underscore prefix)",
     "# but keep double-underscore helpers (e.g. __zsh_like_cd from mise, __pyenv_init)",
-    "declare -F | cut -d' ' -f3 | grep -vE '^_[^_]' | while read func; do",
-    "  # Encode the function to base64, preserving all special characters",
-    '  encoded_func=$(declare -f "$func" | base64 )',
-    "  # Write the function definition to the snapshot",
-    "  echo \"eval \\\"\\$(echo '$encoded_func' | base64 -d)\\\" > /dev/null 2>&1\" >> \"$SNAPSHOT_FILE\"",
-    "done",
+    // 修复原因（2026-11-13，v3.18.0 S4 段门 test:upstream-cli 实证）：上游对每个函数做
+    // `$(declare -f | base64)` 编码、快照 source 时再逐函数 `eval "$(base64 -d)"` 解码，
+    // 两次都是每函数 2 个 fork。本机登录 shell 83 个函数 × Windows 每次 fork ~90ms，
+    // 快照创建实测 7.8s（SNAPSHOT_TIMEOUT_MS=10s 边缘）、每个后续 bash 启动再付 ~7s，
+    // bash-direct-execution 等 Git Bash 用例全量 5s 超时。`declare -f` 输出本就是
+    // bash 可直接 source 的规范形态（自动重引号），无需 base64 间接层；改为单管道
+    // 逐函数原样追加，创建与 source 两侧零每函数 fork（实测 source 70ms），
+    // POSIX 行为不变（函数定义内容一致，仅少了 eval 包裹与错误吞掉——定义本身不执行，无副作用）。
+    "declare -F | cut -d' ' -f3 | grep -vE '^_[^_]' | while read func; do declare -f \"$func\" >> \"$SNAPSHOT_FILE\"; done",
     "",
     'echo "# Shell Options" >> "$SNAPSHOT_FILE"',
     "shopt -p | head -n 1000 >> \"$SNAPSHOT_FILE\"",

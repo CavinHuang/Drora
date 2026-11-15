@@ -152,8 +152,13 @@ function readTextRangeResultToOutput({
     if (!allowPartialFallback) {
       throwReadOutputTokenBudgetError(tokenCount, filePath);
     }
-    const fallback = createTokenCapPartialView(read, tokenCount, filePath);
-    if (fallback) return { filePath, type: "text", ...fallback };
+    // 修复（2026-11-14，v3.18.0 S4 段门复跑归因）：token 上限部分视图分支此前传入并
+    // 回显裸 filePath——win32 下 join 的反斜杠路径进入模型面回显（输出对象与截断横幅
+    // 文本），与上文 modelPath 归一约定（模型面恒正斜杠）不一致，HEAD 即同款漏归一
+    // （file-tool-port 部分视图用例与 runtime-memory-extraction 的 PARTIAL 横幅断言在
+    // win32 假败）。分支改用 modelPath。
+    const fallback = createTokenCapPartialView(read, tokenCount, modelPath);
+    if (fallback) return { filePath: modelPath, type: "text", ...fallback };
     throwReadOutputTokenBudgetError(tokenCount, filePath);
   }
 

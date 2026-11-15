@@ -1,3 +1,6 @@
+import { execFile } from "node:child_process";
+import { setTimeout as delay } from "node:timers/promises";
+import { promisify } from "node:util";
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
@@ -8,10 +11,11 @@ import { fileURLToPath } from "node:url";
 import { createConfig } from "@drora/adapters/config";
 import { DEFAULT_ENABLED_OFFICIAL_PLUGIN_IDS } from "@drora/shared";
 import { DRORA_PLUGIN_HOST_COMMAND } from "@drora/contracts";
-import type { Logger } from "@drora/contracts";
+import type { Logger, PluginDiscoverRequest } from "@drora/contracts";
 import { describe, expect, it, vi } from "vitest";
 import { resolveStartupPlugins } from "../src/app/startup-marks.js";
 import {
+  createOfficialPluginPreparation,
   findMissingOfficialPluginSeedPaths,
   resolveOfficialPluginRoots,
 } from "../src/app/bundled-plugins.js";
@@ -61,6 +65,13 @@ it("computer-use 默认不启用（电脑控制需用户在设置页显式开启
     false,
   );
 });
+it("design 默认关闭，等待用户安装或启用", () => {
+  const design = OFFICIAL_PLUGIN_DEFINITIONS.find((definition) => definition.name === "design");
+  expect(design).toBeDefined();
+  expect(design?.defaultEnabled ?? false).toBe(false);
+  expect(DEFAULT_ENABLED_OFFICIAL_PLUGIN_IDS.has("design@drora-plugins-official")).toBe(false);
+});
+
 const ANDROID_EMULATOR_PLUGIN_ID = "android-emulator@drora-plugins-official";
 const IOS_SIMULATOR_MCP_ID = "plugin:ios-simulator:ios-simulator";
 const ANDROID_EMULATOR_MCP_ID = "plugin:android-emulator:android-emulator";
@@ -90,7 +101,7 @@ const OFFICIAL_ANDROID_PLUGIN_CACHE_PATH = join(
   "cache",
   "drora-plugins-official",
   "android-emulator",
-  "0.1.0",
+  "0.1.1",
 );
 const OFFICIAL_RESTORE_LEGACY_SESSIONS_PLUGIN_CACHE_PATH = join(
   "cache",
@@ -112,6 +123,62 @@ const BUNDLED_ANDROID_PLUGIN_DIST_PATH = fileURLToPath(
 );
 
 describe("Drora plugins", () => {
+  it("uses the existing Runtime identity for shared startup and facade discovery", async () => {
+    const root = await mkdtemp(join(tmpdir(), "drora-runtime-plugin-scope-"));
+    const discoverPlugins = vi.fn(async (_request: PluginDiscoverRequest) => ({
+      commandRoots: [],
+      diagnostics: [],
+      hooks: {},
+      mcpServers: {},
+      plugins: [],
+      skillRoots: [],
+    }));
+    const options = {
+      env: {},
+      pluginStorageRoot: join(root, "plugins"),
+      pluginDiscovery: { discoverPlugins },
+      pluginPreparation: {
+        startupDegraded: false,
+        resolvePlugins: async (resolve: () => ReturnType<typeof discoverPlugins>) =>
+          await resolve(),
+        signal: new AbortController().signal,
+        prepare: async () => [],
+        invalidate() {},
+        async dispose() {},
+      },
+      runtimeConfig: {
+        memory: { workspaceIdentity: "remote-workspace" },
+        remoteSessionId: "attachment-one",
+      },
+    };
+    try {
+      const configResult = createConfig({ env: {}, skipUserConfig: true, workingDirectory: root });
+      await resolveStartupPlugins({
+        cliStorageRoot: join(root, "cli"),
+        configResult,
+        options,
+        startupTimer: createNoopStartupTimer(),
+        workingDirectory: root,
+      });
+      const facade = createPluginFacadeForApp({
+        configResult,
+        options: options as DroraAppOptions,
+        workingDirectory: root,
+      });
+      await facade.listPlugins();
+      expect(discoverPlugins).toHaveBeenCalledTimes(2);
+      for (const call of discoverPlugins.mock.calls) {
+        expect(call[0]).toMatchObject({
+          workingDirectory: root,
+          workspaceIdentity: "remote-workspace",
+          remoteSessionId: "attachment-one",
+        });
+      }
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   it("starts cached Claude icon migration without blocking overview callers", async () => {
     const root = await mkdtemp(join(tmpdir(), "drora-bootstrap-icon-migration-"));
     const pluginStorageRoot = join(root, "plugins");
@@ -204,10 +271,9 @@ describe("Drora plugins", () => {
         await readFile(join(packageRoot, ".zcode-plugin", "plugin.json"), "utf8"),
       ) as { ui?: { surfaces?: unknown[] } };
       // 卸载后的可恢复条目没有运行时信息，商店只能靠定义里的 componentTypes 归入「UI 插件」。
-      expect(
-        plugin.componentTypes?.includes("ui") ?? false,
-        plugin.name,
-      ).toBe((pluginManifest.ui?.surfaces?.length ?? 0) > 0);
+      expect(plugin.componentTypes?.includes("ui") ?? false, plugin.name).toBe(
+        (pluginManifest.ui?.surfaces?.length ?? 0) > 0,
+      );
     }
   });
 
@@ -223,6 +289,48 @@ describe("Drora plugins", () => {
     ).toEqual([OFFICIAL_BROWSER_USE_REQUIRED_SEED_PATHS.at(-1)]);
   });
 
+  it.each([undefined, true, false])(
+    "resolves design default and explicit preference: %s",
+    async (enabled) => {
+      const root = await mkdtemp(join(tmpdir(), "drora-design-default-"));
+      try {
+        const userConfigPath = join(root, "config.json");
+        await writeFile(
+          userConfigPath,
+          JSON.stringify({
+            plugins: {
+              enabledPlugins:
+                enabled === undefined ? {} : { "design@drora-plugins-official": enabled },
+            },
+          }),
+        );
+        const outcome = await resolveDroraPlugins({
+          env: {},
+          pluginStorageRoot: join(root, "plugins"),
+          userConfigPath,
+          workingDirectory: root,
+        });
+        const design = outcome.plugins.find(
+          (plugin) => plugin.id === "design@drora-plugins-official",
+        );
+        expect(design).toBeDefined();
+        expect(design?.enabled).toBe(enabled === true);
+        expect(
+          outcome.skillRoots.some(
+            (skillRoot) => skillRoot.pluginId === "design@drora-plugins-official",
+          ),
+        ).toBe(enabled === true);
+        expect(
+          outcome.hooks.SessionStart?.some((matcher) =>
+            matcher.hooks.some((hook) => hook.plugin?.id === "design@drora-plugins-official"),
+          ) ?? false,
+        ).toBe(enabled === true);
+      } finally {
+        await rm(root, { recursive: true, force: true });
+      }
+    },
+  );
+
   it("can disable one document plugin without disabling the other formats or search", async () => {
     const root = await mkdtemp(join(tmpdir(), "drora-document-toggle-"));
     try {
@@ -233,7 +341,7 @@ describe("Drora plugins", () => {
           plugins: { enabledPlugins: { "documents@drora-plugins-official": false } },
         }),
       );
-      const outcome = resolveDroraPlugins({
+      const outcome = await resolveDroraPlugins({
         env: {},
         pluginStorageRoot: join(root, "plugins"),
         userConfigPath,
@@ -275,7 +383,7 @@ describe("Drora plugins", () => {
         }),
       );
 
-      const outcome = listDroraPlugins({
+      const outcome = await listDroraPlugins({
         env: {},
         pluginStorageRoot,
         skipUserConfig: true,
@@ -300,12 +408,12 @@ describe("Drora plugins", () => {
       const pluginStorageRoot = join(root, "plugins");
 
       // First seed normally so the cache dir exists.
-      resolveOfficialPluginRoots({ storageRoot: pluginStorageRoot });
+      await resolveOfficialPluginRoots({ storageRoot: pluginStorageRoot });
       const seededDir = join(pluginStorageRoot, OFFICIAL_SKILL_CREATOR_PLUGIN_CACHE_PATH);
       await stat(seededDir); // exists
 
       // Now suppress it and re-resolve.
-      resolveOfficialPluginRoots({
+      await resolveOfficialPluginRoots({
         storageRoot: pluginStorageRoot,
         suppressedBuiltins: new Set([SKILL_CREATOR_PLUGIN_ID]),
       });
@@ -387,7 +495,7 @@ describe("Drora plugins", () => {
       }
       await writeFile(manifestPath, JSON.stringify(manifest));
 
-      const overview = getDroraPluginsOverview({
+      const overview = await getDroraPluginsOverview({
         pluginStorageRoot,
         userConfigPath: configPath,
         workingDirectory: root,
@@ -460,7 +568,7 @@ describe("Drora plugins", () => {
         }),
       );
 
-      const overview = getDroraPluginsOverview({
+      const overview = await getDroraPluginsOverview({
         pluginStorageRoot,
         userConfigPath: configPath,
         workingDirectory: root,
@@ -528,7 +636,7 @@ describe("Drora plugins", () => {
         }),
       );
 
-      const overview = getDroraPluginsOverview({
+      const overview = await getDroraPluginsOverview({
         pluginStorageRoot,
         userConfigPath: configPath,
         workingDirectory: root,
@@ -557,7 +665,7 @@ describe("Drora plugins", () => {
         }),
       );
 
-      const overview = getDroraPluginsOverview({
+      const overview = await getDroraPluginsOverview({
         pluginStorageRoot,
         userConfigPath,
         workingDirectory: root,
@@ -579,7 +687,7 @@ describe("Drora plugins", () => {
         userConfigPath,
         JSON.stringify({ plugins: { enabled: true, suppressedBuiltins: [documentsId] } }),
       );
-      const overview = getDroraPluginsOverview({
+      const overview = await getDroraPluginsOverview({
         pluginStorageRoot,
         userConfigPath,
         workingDirectory: root,
@@ -601,7 +709,7 @@ describe("Drora plugins", () => {
 
     try {
       const pluginStorageRoot = join(root, "plugins");
-      const overview = getDroraPluginsOverview({
+      const overview = await getDroraPluginsOverview({
         env: {},
         pluginStorageRoot,
         skipUserConfig: true,
@@ -616,7 +724,9 @@ describe("Drora plugins", () => {
             name: "drora-plugins-official",
             // 修复（b3e44cb2a 合并误回退；恢复 bff94f4bd 随 drora-site 并入的 16）：
             // 官方市场条目 15→16（drora-site-plugin）；重复定义块已在 B1 删除。
-            pluginCount: 16,
+            // 修复（2026-11-14，v3.18.0 S4 段门复跑归因）：S3 并入上游新插件 design（0.7.2）
+            // 后官方定义清单 16→17，本期望漏改（实测 overview.pluginCount=17）。
+            pluginCount: 17,
             source: {
               source: "url",
               url: "https://cdn-zcode.z.ai/zcode/official-plugin/marketplace.json",
@@ -747,6 +857,112 @@ describe("Drora plugins", () => {
     }
   });
 
+  it("两个独立 CLI 同时安装到同一个 Host 时，缓存、安装记录和默认启用项均保留", async () => {
+    const root = await mkdtemp(join(tmpdir(), "drora-plugin-processes-"));
+    const pluginStorageRoot = join(root, "plugins");
+    const userConfigPath = join(root, "config.json");
+    const names = ["first", "second"];
+    const archives = names.map((name) =>
+      createStoredZip([
+        {
+          path: `${name}/.zcode-plugin/plugin.json`,
+          content: JSON.stringify({ name, version: "1.0.0" }),
+        },
+      ]),
+    );
+    const firstDownload = Promise.withResolvers<void>();
+    const release = Promise.withResolvers<void>();
+    const server = createServer(async (req, res) => {
+      const index = req.url === "/first.zip" ? 0 : 1;
+      if (index === 0) {
+        firstDownload.resolve();
+        await release.promise;
+      }
+      res.end(archives[index]);
+    });
+    const workers: Promise<unknown>[] = [];
+    try {
+      await new Promise<void>((done) => server.listen(0, "127.0.0.1", done));
+      const address = server.address();
+      if (!address || typeof address === "string") throw new Error("missing fixture port");
+      await writeTestFile(
+        join(pluginStorageRoot, "marketplaces", "fixture", "marketplace.json"),
+        JSON.stringify({
+          name: "fixture",
+          plugins: names.map((name, i) => ({
+            name,
+            source: {
+              source: "url",
+              type: "zip",
+              url: `http://127.0.0.1:${address.port}/${name}.zip`,
+              sha256: hashBytes(archives[i]!),
+            },
+          })),
+        }),
+      );
+      await Promise.all(names.map((name) => mkdir(join(root, name))));
+      const install = (name: string) => {
+        const run = promisify(execFile)(process.execPath, [
+          "--import",
+          "tsx",
+          "--input-type=module",
+          "-e",
+          `const { installDroraMarketplacePlugin } = await import(process.argv[1]);
+          const options = JSON.parse(process.argv[2]);
+          process.stdout.write("ready\\n");
+          const result = await installDroraMarketplacePlugin(options);
+          if (result.installedPlugins.length !== 1) throw new Error(JSON.stringify(result));`,
+          new URL("../src/plugins.ts", import.meta.url).href,
+          JSON.stringify({
+            pluginName: name,
+            marketplace: "fixture",
+            pluginStorageRoot,
+            userConfigPath,
+            workingDirectory: join(root, name),
+          }),
+        ]);
+        workers.push(run);
+        return run;
+      };
+      const first = install("first");
+      await Promise.race([
+        firstDownload.promise,
+        first.then(() => {
+          throw new Error("first installation did not fetch the archive");
+        }),
+      ]);
+      const second = install("second");
+      const ready = new Promise<void>((done) => second.child.stdout!.once("data", () => done()));
+      await Promise.race([ready, second]);
+      // 第一个 writer 已读库存；给第二个真实进程机会完成安装，再放行第一个下载。
+      await Promise.race([second, delay(500)]);
+      release.resolve();
+      await Promise.all(workers);
+      const state = JSON.parse(
+        await readFile(join(pluginStorageRoot, "installed_plugins.json"), "utf8"),
+      );
+      expect(state.plugins.map((p: { id: string }) => p.id).sort()).toEqual(
+        names.map((n) => `${n}@fixture`),
+      );
+      for (const record of state.plugins) {
+        expect(
+          JSON.parse(
+            await readFile(join(record.installPath, ".zcode-plugin", "plugin.json"), "utf8"),
+          ).name,
+        ).toBe(record.name);
+      }
+      expect(JSON.parse(await readFile(userConfigPath, "utf8")).plugins.enabledPlugins).toEqual({
+        "first@fixture": true,
+        "second@fixture": true,
+      });
+    } finally {
+      release.resolve();
+      await Promise.allSettled(workers);
+      await closeServer(server);
+      await rm(root, { recursive: true, force: true });
+    }
+  }, 30_000);
+
   it("installs and enables a marketplace plugin from a zip URL source through the facade", async () => {
     const root = await mkdtemp(join(tmpdir(), "drora-bootstrap-zip-marketplace-install-"));
     const pluginStorageRoot = join(root, "plugins");
@@ -827,7 +1043,7 @@ describe("Drora plugins", () => {
         existsSync(join(result.installedPlugins[0]?.installPath ?? "", "agents", "judge.md")),
       ).toBe(true);
 
-      const overviewResult = getDroraPluginsOverview({
+      const overviewResult = await getDroraPluginsOverview({
         pluginStorageRoot,
         userConfigPath: configPath,
         workingDirectory: root,
@@ -845,64 +1061,73 @@ describe("Drora plugins", () => {
     }
   });
 
-  it("respects an explicit disabled choice when reinstalling a plugin", async () => {
-    const root = await mkdtemp(join(tmpdir(), "drora-bootstrap-reinstall-disabled-"));
-    const pluginStorageRoot = join(root, "plugins");
-    const marketplaceRoot = join(root, "marketplace");
-    const pluginRoot = join(marketplaceRoot, "plugins", "hello");
-    const configPath = join(root, "config.json");
+  it.each(["user", "workspace"] as const)(
+    "preserves an explicit %s disable when installing a plugin",
+    async (scope) => {
+      const root = await mkdtemp(join(tmpdir(), "drora-bootstrap-reinstall-disabled-"));
+      const pluginStorageRoot = join(root, "plugins");
+      const marketplaceRoot = join(root, "marketplace");
+      const pluginRoot = join(marketplaceRoot, "plugins", "hello");
+      const configPath = join(root, "config.json");
 
-    try {
-      await writeKnownMarketplaces(pluginStorageRoot, [
-        {
-          id: "lazy-market",
-          source: { source: "directory", path: marketplaceRoot },
-          name: "lazy-market",
-          addedAt: "2026-01-01T00:00:00.000Z",
-          pluginCount: 0,
-        },
-      ]);
-      await writeTestFile(
-        join(marketplaceRoot, ".claude-plugin", "marketplace.json"),
-        JSON.stringify({
-          name: "lazy-market",
-          plugins: [{ name: "hello", source: "./plugins/hello" }],
-        }),
-      );
-      await writeTestFile(
-        join(pluginRoot, ".claude-plugin", "plugin.json"),
-        JSON.stringify({ name: "hello", skills: "skills" }),
-      );
-      await writeTestFile(join(pluginRoot, "skills", "hello", "SKILL.md"), "# hello");
-      // 用户先前显式停用过该插件。
-      await writeTestFile(
-        configPath,
-        JSON.stringify({
-          plugins: { enabledPlugins: { "hello@lazy-market": false } },
-        }),
-      );
+      try {
+        await writeKnownMarketplaces(pluginStorageRoot, [
+          {
+            id: "lazy-market",
+            source: { source: "directory", path: marketplaceRoot },
+            name: "lazy-market",
+            addedAt: "2026-01-01T00:00:00.000Z",
+            pluginCount: 0,
+          },
+        ]);
+        await writeTestFile(
+          join(marketplaceRoot, ".claude-plugin", "marketplace.json"),
+          JSON.stringify({
+            name: "lazy-market",
+            plugins: [{ name: "hello", source: "./plugins/hello" }],
+          }),
+        );
+        await writeTestFile(
+          join(pluginRoot, ".claude-plugin", "plugin.json"),
+          JSON.stringify({ name: "hello", skills: "skills" }),
+        );
+        await writeTestFile(join(pluginRoot, "skills", "hello", "SKILL.md"), "# hello");
+        // User 安装不能覆盖 User 或 Workspace 已有的禁用选择。
+        const projectConfigPath = join(root, ".drora", "config.json");
+        const overridePath = scope === "user" ? configPath : projectConfigPath;
+        await writeTestFile(
+          overridePath,
+          JSON.stringify({
+            plugins: { enabledPlugins: { "hello@lazy-market": false } },
+          }),
+        );
 
-      const result = await installDroraMarketplacePlugin({
-        marketplace: "lazy-market",
-        pluginName: "hello",
-        pluginStorageRoot,
-        userConfigPath: configPath,
-        workingDirectory: root,
-      });
+        const result = await installDroraMarketplacePlugin({
+          marketplace: "lazy-market",
+          pluginName: "hello",
+          pluginStorageRoot,
+          userConfigPath: configPath,
+          workingDirectory: root,
+        });
 
-      // 显式 false 不被默认启用覆盖。
-      expect(result.installedPlugins[0]).toMatchObject({
-        id: "hello@lazy-market",
-        enabled: false,
-      });
-      const persisted = JSON.parse(await readFile(configPath, "utf8")) as {
-        plugins?: { enabledPlugins?: Record<string, boolean> };
-      };
-      expect(persisted.plugins?.enabledPlugins?.["hello@lazy-market"]).toBe(false);
-    } finally {
-      await rm(root, { force: true, recursive: true });
-    }
-  });
+        expect(result.installedPlugins[0]?.id).toBe("hello@lazy-market");
+        if (scope === "user") expect(result.installedPlugins[0]?.enabled).toBe(false);
+        const { plugins } = await resolveDroraPlugins({
+          pluginStorageRoot,
+          projectConfigPath,
+          userConfigPath: configPath,
+          workingDirectory: root,
+        });
+        expect(plugins.find((plugin) => plugin.id === "hello@lazy-market")?.enabled).toBe(false);
+        const persisted = JSON.parse(await readFile(overridePath, "utf8")) as {
+          plugins?: { enabledPlugins?: Record<string, boolean> };
+        };
+        expect(persisted.plugins?.enabledPlugins?.["hello@lazy-market"]).toBe(false);
+      } finally {
+        await rm(root, { force: true, recursive: true });
+      }
+    },
+  );
 
   it("thoroughly uninstalls a plugin and prunes its user config footprint", async () => {
     const root = await mkdtemp(join(tmpdir(), "drora-bootstrap-uninstall-"));
@@ -1138,7 +1363,7 @@ describe("Drora plugins", () => {
       );
 
       // Seed first so its cache exists.
-      resolveDroraPlugins({
+      await resolveDroraPlugins({
         pluginStorageRoot,
         userConfigPath,
         workingDirectory: root,
@@ -1160,7 +1385,7 @@ describe("Drora plugins", () => {
       expect(config.plugins.options?.[SKILL_CREATOR_PLUGIN_ID]).toBeUndefined();
 
       // Re-resolve: Runtime stays gone, but Catalog/cache remain readable for detail/restore.
-      const outcome = resolveDroraPlugins({
+      const outcome = await resolveDroraPlugins({
         pluginStorageRoot,
         userConfigPath,
         workingDirectory: root,
@@ -1230,6 +1455,59 @@ describe("Drora plugins", () => {
     }
   });
 
+  it.each(["restore", "install", "prepare-failed"] as const)(
+    "keeps suppression unchanged when %s cannot prepare plugins",
+    async (entry) => {
+      const root = await mkdtemp(join(tmpdir(), "drora-degraded-restore-"));
+      const userConfigPath = join(root, "config.json");
+      const before = JSON.stringify({
+        plugins: { enabled: true, suppressedBuiltins: [SKILL_CREATOR_PLUGIN_ID] },
+      });
+      const pluginPreparation = createOfficialPluginPreparation(
+        entry === "prepare-failed" ? undefined : { startupTimeoutMs: 0 },
+      );
+      try {
+        if (entry === "prepare-failed")
+          vi.spyOn(pluginPreparation, "prepare").mockRejectedValue(
+            Object.assign(new Error("Plugin startup timed out"), {
+              code: "DRORA_PLUGIN_STARTUP_TIMEOUT",
+            }),
+          );
+        else await pluginPreparation.resolvePlugins(() => new Promise(() => {}));
+        await writeFile(userConfigPath, before);
+        const options = {
+          pluginPreparation,
+          pluginStorageRoot: join(root, "plugins"),
+          userConfigPath,
+          workingDirectory: root,
+        };
+        const catalog = join(options.pluginStorageRoot, "marketplaces", "drora-plugins-official");
+        await mkdir(catalog, { recursive: true });
+        await writeFile(
+          join(catalog, "marketplace.json"),
+          JSON.stringify({
+            name: "drora-plugins-official",
+            plugins: [{ name: "skill-creator", source: "filesystem" }],
+          }),
+        );
+        const restore =
+          entry !== "install"
+            ? restoreBuiltinPlugin({ ...options, pluginId: SKILL_CREATOR_PLUGIN_ID })
+            : installDroraMarketplacePlugin({
+                ...options,
+                marketplace: "drora-plugins-official",
+                pluginName: "skill-creator",
+              });
+        await expect(restore).rejects.toMatchObject({ code: "DRORA_PLUGIN_STARTUP_TIMEOUT" });
+        expect(await readFile(userConfigPath, "utf8")).toBe(before);
+        expect(existsSync(join(options.pluginStorageRoot, "installed_plugins.json"))).toBe(false);
+      } finally {
+        await pluginPreparation.dispose();
+        await rm(root, { recursive: true, force: true });
+      }
+    },
+  );
+
   it("restores a suppressed built-in so it re-seeds on next resolve", async () => {
     const root = await mkdtemp(join(tmpdir(), "drora-bootstrap-restore-builtin-"));
     const pluginStorageRoot = join(root, "plugins");
@@ -1247,7 +1525,7 @@ describe("Drora plugins", () => {
       );
 
       // Suppressed: not present.
-      let outcome = resolveDroraPlugins({
+      let outcome = await resolveDroraPlugins({
         pluginStorageRoot,
         userConfigPath,
         workingDirectory: root,
@@ -1264,7 +1542,7 @@ describe("Drora plugins", () => {
       const config = JSON.parse(await readFile(userConfigPath, "utf8"));
       expect(config.plugins.suppressedBuiltins ?? []).not.toContain(SKILL_CREATOR_PLUGIN_ID);
 
-      outcome = resolveDroraPlugins({
+      outcome = await resolveDroraPlugins({
         pluginStorageRoot,
         userConfigPath,
         workingDirectory: root,
@@ -1292,7 +1570,7 @@ describe("Drora plugins", () => {
       );
 
       // 先写入完整 Catalog/cache，模拟详情页仍可见但 Runtime 被抑制的状态。
-      resolveDroraPlugins({
+      await resolveDroraPlugins({
         pluginStorageRoot,
         userConfigPath,
         workingDirectory: root,
@@ -1350,7 +1628,7 @@ describe("Drora plugins", () => {
         "# Document Skills\n",
       );
 
-      resolveDroraPlugins({
+      await resolveDroraPlugins({
         pluginStorageRoot,
         userConfigPath,
         workingDirectory: root,
@@ -1476,7 +1754,7 @@ describe("Drora plugins", () => {
         pluginStorageRoot,
         workingDirectory: root,
       });
-      const overview = getDroraPluginsOverview({
+      const overview = await getDroraPluginsOverview({
         pluginStorageRoot,
         skipUserConfig: true,
         workingDirectory: root,
@@ -1568,9 +1846,10 @@ describe("Drora plugins", () => {
 
   // 修复（平台标注）：断言依赖 stat 的可执行位；Windows 上 node 只支持只读位，
   // mode & 0o111 恒为 0，该断言在 win32 不可满足，按平台跳过（重播种路径本身
-  // 由同文件其它用例覆盖）。
+  // 由同文件其它用例覆盖）。v3.18.0 合并：上游把本用例重写为
+  // "preserves hook executable mode ..."（断言面不变），平台跳过条件随之保留。
   it.skipIf(process.platform === "win32")(
-    "reseeds official plugin cache when hook executable mode changes",
+    "preserves hook executable mode when rebuilding an older filesystem version",
     async () => {
     const root = await mkdtemp(join(tmpdir(), "drora-bootstrap-plugin-mode-reseed-"));
     const entryRoot = join(root, "resources", "glm");
@@ -1598,21 +1877,17 @@ describe("Drora plugins", () => {
       );
       await writeTestFile(join(pluginRoot, "skills", "skill-creator", "SKILL.md"), "# skill");
 
-      const seedFiles = await hashFixtureSeedFiles(pluginRoot, [
-        ".zcode-plugin/plugin.json",
-        "hooks/hooks.json",
-        "hooks/run-hook.cmd",
-        "skills/skill-creator/SKILL.md",
-      ]);
-      await writeTestFile(join(targetRoot, ".zcode-plugin", "plugin.json"), "{}");
+      await writeTestFile(
+        join(targetRoot, ".zcode-plugin", "plugin.json"),
+        JSON.stringify({ name: "skill-creator" }),
+      );
       await writeTestFile(join(targetRoot, "hooks", "run-hook.cmd"), "#!/usr/bin/env bash\n");
       await writeTestFile(
         join(targetRoot, ".zcode-plugin-seed.json"),
         JSON.stringify({
-          hash: hashText(JSON.stringify(seedFiles.map(({ path, sha256 }) => [path, sha256]))),
           marketplace: "drora-plugins-official",
           plugin: "skill-creator",
-          pluginVersion: "0.1.0",
+          pluginVersion: "0.0.0",
           source: "filesystem",
           version: 1,
         }),
@@ -1620,7 +1895,7 @@ describe("Drora plugins", () => {
       expect((await stat(join(targetRoot, "hooks", "run-hook.cmd"))).mode & 0o111).toBe(0);
 
       process.argv[1] = join(entryRoot, "drora.cjs");
-      resolveOfficialPluginRoots({ storageRoot: pluginStorageRoot });
+      await resolveOfficialPluginRoots({ storageRoot: pluginStorageRoot });
 
       expect((await stat(join(targetRoot, "hooks", "run-hook.cmd"))).mode & 0o111).not.toBe(0);
     } finally {
@@ -1646,7 +1921,7 @@ describe("Drora plugins", () => {
         }),
       );
 
-      const outcome = resolveDroraPlugins({
+      const outcome = await resolveDroraPlugins({
         env: {},
         pluginStorageRoot,
         userConfigPath: configPath,
@@ -1709,7 +1984,7 @@ describe("Drora plugins", () => {
         }),
       );
 
-      const outcome = resolveDroraPlugins({
+      const outcome = await resolveDroraPlugins({
         env: {},
         pluginStorageRoot,
         userConfigPath: configPath,
@@ -1796,7 +2071,7 @@ describe("Drora plugins", () => {
         }),
       );
 
-      const outcome = resolveDroraPlugins({
+      const outcome = await resolveDroraPlugins({
         env: {},
         pluginStorageRoot,
         userConfigPath: configPath,
@@ -1841,7 +2116,7 @@ describe("Drora plugins", () => {
           "cache",
           "drora-plugins-official",
           "android-emulator",
-          "0.1.0",
+          "0.1.1",
           "dist",
           "mcp",
           "server.js",
@@ -1928,11 +2203,13 @@ describe("Drora plugins", () => {
       });
       expect(reloadedConfig.config.plugins.dirs).toEqual([pluginRoot]);
       expect(
-        resolveDroraPlugins({
-          configResult: reloadedConfig,
-          pluginStorageRoot,
-          workingDirectory: root,
-        }).plugins.map((plugin) => plugin.id),
+        (
+          await resolveDroraPlugins({
+            configResult: reloadedConfig,
+            pluginStorageRoot,
+            workingDirectory: root,
+          })
+        ).plugins.map((plugin) => plugin.id),
       ).toContain(pluginId);
       await configureDroraPlugin({
         options: { region: "eu-west-1" },
@@ -2185,7 +2462,7 @@ describe("Drora plugins", () => {
         }),
       );
 
-      const beforeRefresh = getDroraPluginsOverview({
+      const beforeRefresh = await getDroraPluginsOverview({
         env: {},
         pluginStorageRoot,
         userConfigPath,
@@ -2236,7 +2513,7 @@ describe("Drora plugins", () => {
         existsSync(join(pluginStorageRoot, "marketplaces", marketplaceId, "marketplace.json")),
       ).toBe(true);
 
-      const afterRefresh = getDroraPluginsOverview({
+      const afterRefresh = await getDroraPluginsOverview({
         env: {},
         pluginStorageRoot,
         userConfigPath,
@@ -2319,7 +2596,7 @@ describe("Drora plugins", () => {
         workingDirectory: root,
       });
       expect(configResult.config.plugins?.extraKnownMarketplaces?.[marketplaceId]).toBeUndefined();
-      const overview = getDroraPluginsOverview({
+      const overview = await getDroraPluginsOverview({
         env: {},
         pluginStorageRoot: join(root, "plugins"),
         userConfigPath: join(root, "user-config.json"),
@@ -2351,7 +2628,7 @@ describe("Drora plugins", () => {
         }),
       );
 
-      const overview = getDroraPluginsOverview({
+      const overview = await getDroraPluginsOverview({
         env: {},
         pluginStorageRoot: join(root, "plugins"),
         userConfigPath,
@@ -2392,7 +2669,7 @@ describe("Drora plugins", () => {
         }),
       );
 
-      const overview = getDroraPluginsOverview({
+      const overview = await getDroraPluginsOverview({
         env: {},
         pluginStorageRoot,
         userConfigPath,
@@ -2402,7 +2679,9 @@ describe("Drora plugins", () => {
       expect(
         overview.marketplaces.find((marketplace) => marketplace.id === "drora-plugins-official"),
       ).toMatchObject({
-        pluginCount: 16,
+        // 修复（2026-11-14，v3.18.0 S4 段门复跑归因）：S3 并入 design 后官方清单 16→17，
+        // 与上文 marketplace 用例同因漏改。
+        pluginCount: 17,
         source: {
           source: "url",
           url: "https://cdn-zcode.z.ai/zcode/official-plugin/marketplace.json",
@@ -2551,10 +2830,8 @@ describe("Drora plugins", () => {
 
       expect(result.diagnostics).toEqual([expect.objectContaining({ severity: "error" })]);
       expect(existsSync(join(pluginStorageRoot, "marketplaces", marketplaceId))).toBe(false);
-      const known = JSON.parse(
-        await readFile(join(pluginStorageRoot, "known_marketplaces.json"), "utf8"),
-      ) as { marketplaces: Array<{ id: string }> };
-      expect(known.marketplaces.some((item) => item.id === marketplaceId)).toBe(false);
+      // 已取消的请求连默认市场都不应登记；既没有缓存，也没有修改安装状态。
+      expect(existsSync(join(pluginStorageRoot, "known_marketplaces.json"))).toBe(false);
     } finally {
       await rm(root, { force: true, recursive: true });
     }
@@ -2579,7 +2856,7 @@ describe("Drora plugins", () => {
         skipUserConfig: true,
         workingDirectory: root,
       });
-      const outcome = resolveStartupPlugins({
+      const outcome = await resolveStartupPlugins({
         cliStorageRoot: join(root, "cli"),
         configResult,
         env: {},
@@ -2750,23 +3027,6 @@ async function writeKnownMarketplaces(
   );
 }
 
-async function hashFixtureSeedFiles(
-  rootPath: string,
-  paths: string[],
-): Promise<Array<{ path: string; sha256: string }>> {
-  const files = await Promise.all(
-    paths.map(async (path) => ({
-      path,
-      sha256: hashBytes(await readFile(join(rootPath, ...path.split("/")))),
-    })),
-  );
-  return files.sort((left, right) => left.path.localeCompare(right.path));
-}
-
 function hashBytes(bytes: Buffer): string {
   return createHash("sha256").update(bytes).digest("hex");
-}
-
-function hashText(text: string): string {
-  return hashBytes(Buffer.from(text));
 }

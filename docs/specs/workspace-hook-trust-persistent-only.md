@@ -18,18 +18,18 @@ Workspace Hook 只保留一种用户授权：对当前工作区中某一条精�
 
 ### 2.1 变更层
 
-| 层            | 本次变化                                                                                                                                                              |
-| ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| presentation  | 删除独立审核面板和行内状态徽章；未信任行在有效运行开关左侧始终显示“信任”按钮                                                                                          |
-| validation    | 继续校验 workspace identity、bundle digest、review flow generation、interaction、review item，并在所有 Settings Trust mutation 前校验同一受信 managed policy provider |
-| commit-effect | 用户只可提交单条或明确选中条目的 persistent Trust mutation                                                                                                            |
-| persistence   | 仍使用 user-owned Trust store，以 `workspaceIdentity + hookDeclarationDigest` 为键                                                                                    |
-| recovery      | continuous/replayable 继续投影 pending admission；超时、断连和页面关闭均不写 Trust                                                                                    |
+| 层 | 本次变化 |
+| --- | --- |
+| presentation | 删除独立审核面板和行内状态徽章；未信任行在有效运行开关左侧始终显示“信任”按钮 |
+| validation | 继续校验 workspace identity、bundle digest、review flow generation、interaction、review item，并在所有 Settings Trust mutation 前校验同一受信 managed policy provider |
+| commit-effect | 用户只可提交单条或明确选中条目的 persistent Trust mutation |
+| persistence | 仍使用 user-owned Trust store，以 `workspaceIdentity + hookDeclarationDigest` 为键 |
+| recovery | continuous/replayable 继续投影 pending admission；超时、断连和页面关闭均不写 Trust |
 
 ### 2.2 UI Surface Matrix
 
-| Surface                         | 展示/本地状态                                                                                  | 提交入口                                                                                                                                                                                  | 权威状态                                                                                                     | 多端边界                                                                                                    |
-| ------------------------------- | ---------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------- |
+| Surface | 展示/本地状态 | 提交入口 | 权威状态 | 多端边界 |
+| --- | --- | --- | --- | --- |
 | Settings / Hooks / Workspace 行 | Hook 配置与静态 Trust store 快照决定按钮/开关展示；活跃 review request 只提供可操作 generation | 有 session command binding 时复用 Runtime review；无 task/session 时经 workspace 级 Agent RPC 重验 snapshot，并通过 Host 注入的同一 managed policy provider 后提交精确 declaration digest | Runtime review controller / workspace pretrust authority + shared managed policy provider + user Trust store | Desktop 与 Web 共用组件；remote 必须携带 `workspaceIdentity` / `remoteSessionId`；不得为了信任创建隐藏 task |
 | 会话 composer Hook 图标 | `workspaceHookAdmission.pendingCount` | `requestWorkspaceHookReview` 后打开 Hooks 设置 | Runtime admission projection | Desktop continuous 直推；Web remote replayable 从 snapshot 恢复 |
 | Runtime dispatch gate | canonical snapshot evaluation | 无 UI 旁路 | Trust coordinator + security revision | 所有 SessionStart/tool dispatch 共用同一 gate |
@@ -60,12 +60,12 @@ Workspace Hook 只保留一种用户授权：对当前工作区中某一条精�
 
 配置状态与信任状态正交：
 
-| configured | trusted | 行内操作                                           | Runtime 结果                           |
-| ---------- | ------- | -------------------------------------------------- | -------------------------------------- |
-| off        | no      | 显示“信任”与锁定关闭的有效运行开关                 | 不执行                                 |
-| on         | no      | 显示“信任”与锁定关闭的有效运行开关；不改写原始配置 | 跳过并上报 pending                     |
-| off        | yes     | 只显示关闭的配置开关                               | 不执行                                 |
-| on         | yes     | 只显示开启的配置开关                               | 通过其他 policy / snapshot gate 后执行 |
+| configured | trusted | 行内操作 | Runtime 结果 |
+| --- | --- | --- | --- |
+| off | no | 显示“信任”与锁定关闭的有效运行开关 | 不执行 |
+| on | no | 显示“信任”与锁定关闭的有效运行开关；不改写原始配置 | 跳过并上报 pending |
+| off | yes | 只显示关闭的配置开关 | 不执行 |
+| on | yes | 只显示开启的配置开关 | 通过其他 policy / snapshot gate 后执行 |
 
 未信任时开关展示的是“当前是否可运行”，因此统一为关闭且不可操作；原始
 `configuredEnabled` 仍保留在 workspace 配置中。若它原本为 `on`，持久信任成功并刷新
@@ -146,7 +146,7 @@ Renderer              V4/Bootstrap                 Core / Trust Store
 ## 7. 不变量
 
 1. 未持久信任的声明在任何 dispatch 入口都不执行。
-2. Trust mutation 必须绑定 `workspaceKey = workspaceIdentity?.trim() || workspacePath` 与精确 declaration digest。
+2. Trust mutation 必须绑定 `workspaceKey = workspaceIdentity?.trim() || workspacePath` 与精确 declaration digest。review binding 与路由按 `workspaceKey` 匹配；Trust record 的读写键是共享 resolver 计算出的 Trust identity。受管 worktree 的 Trust identity 归一为源仓库，其余 workspace 的 Trust identity 等于 `workspaceKey`（见 `workspace-hook-trust.md` D23）。
 3. 远程 workspace 不得退化为仅按 `workspacePath` 判断。
 4. stale generation、bundle 变化、snapshot 外 item 和 policy 拒绝全部 fail closed。
    Settings 无 session pretrust 与 session review 必须读取同一个由 Host 注入的

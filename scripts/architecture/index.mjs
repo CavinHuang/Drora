@@ -69,10 +69,15 @@ export async function checkArchitecture({
     const manifest = moduleFiles.find((file) => path.basename(file) === "module.ts");
     if (manifest) {
       const manifestSource = await fs.readFile(manifest, "utf8");
+      // manifest-policy-mismatch：文档写"策略与模块声明必须互相校验"，首版只是优先读 module.ts。
+      // 修复原因：例外机制按 rule 键统一设计（isException），但本规则的 requires 与
+      // publicEntrypoints 两个分支首版漏接——跨段合并的中间态（清单为上游逐字稿、其
+      // publicEntrypoints 引用后续切段才落位的文件）没有 scoped 例外通道，段门被跨段
+      // 事实卡死。与其他规则同款接上；例外按 module.ts 文件粒度声明。
+      if (isException(policy, "manifest-policy-mismatch", manifest, cwd)) continue;
       const declared = manifestRequires(manifestSource);
       if (declared) {
         manifestRequiresByModule.set(module.id, declared);
-        // manifest-policy-mismatch：文档写"策略与模块声明必须互相校验"，首版只是优先读 module.ts。
         const unknown = declared.filter((id) => !moduleIds.has(id));
         const onlyInManifest = declared.filter((id) => !module.requires.includes(id));
         const onlyInPolicy = module.requires.filter((id) => !declared.includes(id));

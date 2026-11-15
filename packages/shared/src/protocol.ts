@@ -74,8 +74,14 @@ export interface SystemInfo {
   platform: string;
 }
 
+/**
+ * 支持的界面语言（BCP-47）。顺序即设置页下拉的展示顺序。
+ * 新增语言的步骤见 docs/i18n/ui-locales.md。
+ */
+export const SUPPORTED_LOCALES = ["zh-CN", "en-US", "ja-JP", "ru-RU", "ko-KR"] as const;
+
 /** 支持的语言 */
-export type Locale = "zh-CN" | "en-US";
+export type Locale = (typeof SUPPORTED_LOCALES)[number];
 
 /** 界面语言偏好；system 表示跟随当前运行端系统语言。 */
 export type LocalePreference = "system" | Locale;
@@ -216,8 +222,8 @@ export type PersistedWorkspaceSessionEntry =
 
 // ── Process Monitor ──
 
-/** 资源管理器分类：基础服务 / 内置插件 / 社区插件 */
-export type ResourceUsageCategory = "base" | "builtin-plugin" | "community-plugin";
+/** 资源管理器分类：基础服务 / 任务进程 / 内置插件 / 社区插件 */
+export type ResourceUsageCategory = "base" | "task" | "builtin-plugin" | "community-plugin";
 
 /** 基础服务分组键；插件分组键为插件名或 MCP server name */
 export type ResourceUsageBaseGroupKey = "main" | "gpu" | "renderer" | "host" | "cli" | "utility";
@@ -285,14 +291,8 @@ export interface AppSettings {
    * 只影响内置浏览器出口，不影响 Drora 自身对后端与模型 API 的请求。默认关闭，重启后生效。
    */
   embeddedBrowserAllowInsecureCertificates?: boolean;
-  /** 人类用户主动打开 Browser tab 时的一次性显示偏好；Agent Browser Use 不读写。 */
-  embeddedBrowserViewportPreference?: EmbeddedBrowserViewportPreference;
-  /**
-   * 用户已在设置页关闭输入框的「电脑操作」按钮（内部 hidden 态）。
-   * 取 hidden 语义而非 visible：undefined 即默认显示，老用户无需数据迁移。
-   * 关闭后按钮不再渲染，且不因重启或版本更新自愈，仅能在设置页重新开启。
-   */
-  computerUseComposerEntryHidden?: boolean;
+  /** 文件树单击本地 .html 文件时在内置浏览器打开（默认 false：沿用源码预览）。右键「打开」始终是源码预览。 */
+  fileTreeHtmlClickOpensBrowser?: boolean;
   /**
    * 语音九键 wire 面（specs/voice-agent-integration.md §6.1，全部 optional：
    * undefined 走 validationAppSettings default——入口默认隐藏、播报默认关、
@@ -313,6 +313,16 @@ export interface AppSettings {
   voiceDictationHoldKey?: import("./contracts/voice.js").VoiceDictationHoldKey;
   /** 混合流式预览（spec §5.5.2；undefined 走 default true）。 */
   voiceDictationHybridPreview?: boolean;
+  /** §5.6 系统级听写总开关（undefined 走 default false；键名对应 VOICE_SETTINGS_KEYS.globalDictationEnabled）。 */
+  voiceGlobalDictationEnabled?: boolean;
+  /** 人类用户主动打开 Browser tab 时的一次性显示偏好；Agent Browser Use 不读写。 */
+  embeddedBrowserViewportPreference?: EmbeddedBrowserViewportPreference;
+  /**
+   * 用户已在设置页关闭输入框的「电脑操作」按钮（内部 hidden 态）。
+   * 取 hidden 语义而非 visible：undefined 即默认显示，老用户无需数据迁移。
+   * 关闭后按钮不再渲染，且不因重启或版本更新自愈，仅能在设置页重新开启。
+   */
+  computerUseComposerEntryHidden?: boolean;
   /** 自动归档旧会话的总开关 */
   taskAutoArchiveEnabled?: boolean;
   /** 自动归档修复后的一次性关闭标记；只用于设置迁移，不参与归档判断。 */
@@ -321,6 +331,10 @@ export interface AppSettings {
   taskAutoArchiveOlderThanDays?: number;
   /** 桌面端关闭窗口时隐藏到托盘驻留（Windows/Linux；spec：docs/desktop/linux-close-to-tray.md） */
   closeToTrayOnWindows?: boolean;
+  /** 存在执行中的闲时任务时阻止系统闲置休眠（手动开关，防不了合盖）。 */
+  keepAwakeWhileRunning?: boolean;
+  /** 本机 offline push 上报开关，缺省视为开启（spec：docs/web-remote-control/mobile-event-push.md 6.4）。 */
+  mobilePushEnabled?: boolean;
   /** Device-local desktop pet visibility; absent means hidden. */
   desktopPetEnabled?: boolean;
   /** Last native pet-window position in display-independent coordinates. */
@@ -328,10 +342,7 @@ export interface AppSettings {
   /** 内置角色 ID 或 custom:<folder>；缺省 violet。通过 desktopPetCharacterIdSchema 校验。 */
   desktopPetCharacter?: string;
   desktopPetSize?: number;
-  desktopPetBadgeCorner?: "top-start" | "top-end" | "bottom-start" | "bottom-end";
-  /** 存在执行中的闲时任务时阻止系统闲置休眠（手动开关，防不了合盖）。 */
-  keepAwakeWhileRunning?: boolean;
-  /** Windows 关闭到托盘默认值是否已执行过一次性迁移；只用于设置迁移，不参与业务判断。 */
+  desktopPetBadgeCorner?: "top-start" | "top-end" | "bottom-start" | "bottom-end";  /** Windows 关闭到托盘默认值是否已执行过一次性迁移；只用于设置迁移，不参与业务判断。 */
   closeToTrayOnWindowsMigrationInitialized?: boolean;
   /**
    * Linux 关闭到托盘默认值（关）是否已执行过一次性归位迁移。
@@ -356,18 +367,16 @@ export interface AppSettings {
   messageStreamShowReasoningMigrationInitialized?: boolean;
   /** 是否在消息流中展示 todo 工具渲染；不影响摘要面板的 todo */
   messageStreamShowTodos?: boolean;
-  /** 是否把连续的只读工具调用聚合成 Explore。 */
-  toolGroupingExploreEnabled?: boolean;
-  /** Agents Team 灰度开关（specs/agents-team.md §6.4）：默认关；Host env 桥下发，CLI config 显式值优先。 */
-  agentsTeamEnabled?: boolean;
-  /** 是否把连续的非只读 Shell 工具调用聚合成 Terminal。 */
-  toolGroupingTerminalEnabled?: boolean;
-  /** 是否把连续的 Write/Edit/ApplyPatch 工具调用聚合成 Changes。 */
-  toolGroupingChangesEnabled?: boolean;
   /** Drora 运行中继续输入时，是排队到下一轮，还是引导到下一次工具调用后运行 */
   droraInteractionBehavior?: DroraInteractionBehavior;
   /** Agent 提问五分钟无人回答时是否允许自动继续；缺失按开启兼容旧配置。 */
   askUserQuestionAutoResolutionEnabled?: boolean;
+  /** 默认关闭，控制对话中的插件发现和推荐；设置页手动安装保持可用。 */
+  pluginAutoRecommendationEnabled?: boolean;
+  // D9（specs/upstream-v3.18.0-migration.md §5）：上游 v3.18.0 删除工具分组重构面，
+  // toolGrouping{Explore,Terminal,Changes}Enabled 三键随之原子退役（S1 暂缓、S6 收口）。
+  /** Agents Team 灰度开关（specs/agents-team.md §6.4）：默认关；Host env 桥下发，CLI config 显式值优先。 */
+  agentsTeamEnabled?: boolean;
   /** 是否完整保留 Model I/O；开启后不轮转、不限额重置、不压缩或裁剪，鉴权信息仍会脱敏。 */
   modelIoFullRetentionEnabled?: boolean;
   /**
@@ -397,8 +406,7 @@ export interface AppSettings {
    * cold materialization 冻结，warm Runtime 不重读；UI 文案必须说明「用于新建或真正
    * 重新加载的会话」，不得显示「当前会话已关闭」。
    */
-  [PERSONA_RUNTIME_PREFERENCE_ENABLED]?: boolean;
-  onboardingOccupation?:
+  [PERSONA_RUNTIME_PREFERENCE_ENABLED]?: boolean;  onboardingOccupation?:
     | "office"
     | "developer"
     | "independent"
@@ -486,4 +494,4 @@ export interface AppSettings {
    * 与 droraEndpointOrigin 的 test-only 门禁有意不同。
    */
   webRemoteControlRelayOrigin?: string;
-}
+}

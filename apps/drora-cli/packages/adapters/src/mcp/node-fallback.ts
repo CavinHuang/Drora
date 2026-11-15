@@ -159,6 +159,12 @@ async function ensureShimFile(binDir: string, shim: NodeFallbackShimFile): Promi
     await rename(temporaryPath, shimPath);
   } catch (error) {
     await rm(temporaryPath, { force: true });
+    // 修复原因（2026-11-13，v3.18.0 S4 段门 win32 实证）：并发 agent 同时 rename 同名 shim 时，
+    // Windows 对「目标刚被竞态胜者写入且仍被短暂持有」的文件报 EPERM/EACCES（POSIX rename 原子
+    // 覆盖无此形态，上游只在 POSIX 验证过该竞态安全性）。按本函数契约「并发写入的是同一份字节，
+    // rename 谁赢都正确」，输掉竞态后复查目标已是当前内容即视为成功；仅目标缺失或内容不是当前
+    // 值的异常形态才继续抛出。
+    if (await isShimCurrent(shimPath, shim)) return;
     throw error;
   }
 }

@@ -187,3 +187,7 @@ JS/装配层差距（`data/win32-3.17.2-js-family-diff.json`，已验证）：IP
 4. **electron 联动**：desktop electron 再升 → addon 须按新 ABI 重编（manifest 由 staging 用真实 electronVersion 生成，天然跟随；addon 是唯一硬耦合）。
 5. **arm64**：官方仅发 x64；manifest/verifier 已兼容 arm64，本轮 x64 only，arm64 随官方发布再启。
 6. **vendored 0.6.3 行为探针宿主**：41 ABI addon 无法在 electron44 宿主加载——W1 起统一以官方 0.6.5 为行为参照锚（removed=[] + 错误码 same 185 支撑老面语义跨代未变假设；如探针发现老面行为漂移，即停批取证）。
+7. **src/ 还原标记两档口径（2026-11-15 统一登记，10-plugin-audit §四 LOW 处置）**：`packages/zcode-cua/src/` 还原件头部标记统一为两档——
+   - **逐字还原**＝头部标「还原自发行 bundle」（内容自官方发行 bundle 逐字/切段还原，导出名按 `i(fn,"原始名")` 注解恢复原始语义）；
+   - **结构还原**＝头部标「发行 bundle 还原稿（结构级）」（结构忠实于原编译产物、混淆名块级切分，待语义化拆分）。
+   统一改动（只改措辞不改代码）：helper-installer / windows-helper-host / orphan-reaper 三件「发行 bundle 还原稿：结构忠实…」补「（结构级）」；cua-spec「还原草稿（…）」改「发行 bundle 还原稿（结构级）（…）」（保留"已随包编译进 dist"警示括注）；region-constants 删除与档位矛盾的头行「还原草稿：仅供继续手工重建参考，不参与编译」（该文件在 src/ 内参与编译且已有逐字档头标，同 cua-spec 记载的旧注释失实问题）。mcp/client.ts、mcp/session.ts 无文件头档位标记（仅段内 `还原自 0.6.5 切段 :offset` 逐段注释），不在头部统一范围。块内二级标记（「还原草稿（块级切分…）」等）为段级施工注记，保留不动。

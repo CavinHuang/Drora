@@ -11,11 +11,11 @@
 
 ## Cases
 
-| Case         | 前置                                                     | 操作                                   | 期望                                                  |
-| ------------ | -------------------------------------------------------- | -------------------------------------- | ----------------------------------------------------- |
-| ECR-usage-01 | 桌面默认 workspace 已打开                                | 点击 workspace 头像菜单里的 `使用统计` | 打开设置页，并选中 `usage` 分区                       |
-| ECR-usage-02 | 桌面默认 workspace 已打开；当前已在设置页 `general` 分区 | 点击 settings 头像菜单里的 `使用统计`  | 仍停留设置页，并切换到 `usage` 分区，不返回 workspace |
+| Case | 前置 | 操作 | 期望 |
+| --- | --- | --- | --- |
+| ECR-usage-01 | 桌面默认 workspace 已打开 | 点击 workspace 头像菜单里的 `使用统计` | 打开设置页，并选中 `usage` 分区 |
+| ECR-usage-02 | 桌面默认 workspace 已打开；当前已在设置页 `general` 分区 | 点击 settings 头像菜单里的 `使用统计` | 仍停留设置页，并切换到 `usage` 分区，不返回 workspace |
 
 ## Test Placement
 
-这两条 case 放在 `packages/desktop/test/e2e/e2ecase-regression.test.ts`，使用默认 workspace 前置。测试通过共享 test id 点击当前可见头像菜单和 `使用统计` 菜单项，避免 settings 页面保留的隐藏 workspace DOM 影响断言。
+这两条 case 放在 `packages/desktop/test/e2e/infrastructure/smoke/e2ecase-regression.test.ts`，使用默认 workspace 前置。测试通过共享 test id 点击当前可见头像菜单和 `使用统计` 菜单项，避免 settings 页面保留的隐藏 workspace DOM 影响断言。

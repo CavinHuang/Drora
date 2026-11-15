@@ -11,6 +11,32 @@
 - （2026-10-18 补记，终审发现 cli-core-a-6：增量评审编号 cli-p0-5 此前在本 spec 零记录）**ToolCallStarted 旗标信任门控（cli-p0-5）**：`resolveToolCallCapabilityFlags`（`permission-capability.ts`）对 readOnly 旗标做信任门控——不可信的 `readOnly=true` 断言（普通 MCP 自报 readOnlyHint、沙箱页面自报）经 `isTrustedReadOnlyTool` 判定非可信时**降为省键**（undefined，未知≠只读），只有 Host 验证的 OfficialCua 或内建工具的可信只读结论才外发 true；`false` 与 `undefined` 是有价值的事实/缺席，原样透传。依据：`ToolCallStarted` 载荷的消费者（dynamic-workflow driver 的导入缓存关门判定）会据 readOnly=true 把该笔调用当只读放行——谎报只读的写调用若原样外发 true 即成为绕过面，与「MCP 自报不构成信任锚」（§1/洞 5）同口径；权限判定/展示面不受此旗标影响。
 - 本轮由维护者要求助手自行 review，取消额外人工走查依赖；审查结果须以新回归和真实三平台 Electron 为依据，不能把旧绿色结果当作本轮结果。
 
+## 2026-11-14 用户裁定注记：plan-MCP 与 allowedTools×P0 面以上游为基准（优先于冲突条款）
+
+2026-11-14 用户总裁定：除保留的自研特性外，与上游的语义冲突一律改为上游行为。本 spec 两条
+S03 条款与之冲突，按下述修订执行（实现与测试已同步对齐，详见
+`specs/drora-divergence-ledger.md` 台账 33）：
+
+1. **洞 1a / S03-P1-8（plan-MCP deny 门）修订**：「plan 模式普通 MCP 一律 deny」的修法
+   废弃，改为上游 `checkPlanMode` 语义（`permission/service.ts`，勿改实现）：
+   - 非 readOnly、非 destructive 的 MCP → `mode.plan.mcp` ask（排在 allow 规则之前、
+     `optionsPolicy=no-always-allow`，不提供始终允许）；
+   - readOnly 且非 destructive 的 MCP → 过闸（undefined），按原模式判定（第三方 MCP 能力面
+     `needsApproval` 恒 true，实际落 P0 逐次确认）。
+   `permission-service-write-tier.test.ts` 两条 plan-MCP 用例期望已按实测行为改写
+   （ask / 过闸后原模式判定）；OfficialCua 只读 allow 用例不变。
+2. **洞 3 / S03-P0-1（Bash 整工具 allow ×P0 守卫）修订**：「非 safe 命令不匹配 allow」的
+   修法废弃，`bash-command-rule-evaluator.ts` 首行恢复上游 v3.18.0「无 ruleContent 整工具
+   规则恒短路」；`bash-command-permission-policy.test.ts` 断言恢复上游原文，
+   `bash-command-rule-evaluator.test.ts` S03-P0-1 期望翻转为恒短路放行。
+3. **保留不变面**：洞 2 三层（建议/评估/持久化消毒）、§1 末注「allowedTools 命中 P0 不
+   豁免」（`permission/service.ts` 守卫与「P0 全局 allowedTools 不得绕过」用例）、js/MCP
+   P0 逐次确认、OfficialCua 豁免、洞 1b/洞 5 均不在本次裁定修订范围，照旧生效。
+
+上游测试面残留：`tests/permission-service.test.ts`（上游原样测试）的 plan-mode readOnly MCP
+×项目整工具 allow 用例与保留的洞 2 评估侧守卫冲突（HEAD 同败，台账 32 未修登记）——按本次
+裁定范围（仅上方两条修订）维持现状登记，不擅自放宽保留面。
+
 以下为 2026-10-11 的历史实现说明；当前以顶部收尾复评契约和 `S03_CLOSEOUT_2026-10-17.md` 为准。本 spec 是
 `docs/vaultview/delivery/W00_EVIDENCE_REPORT.md` §7「S03 有条件 GO（收窄口径）」GO 前提的
 程序化落地记录；`WRITE_SAFETY_NO_GO.md` 的撤销条件见其 §3，翻转
@@ -69,6 +95,8 @@ hooks 已有 pending-trust 门控，permission 字段没有）。若豁免 P0，
   可直接执行。
 - 修法：删除该分支。普通 MCP 的 `readOnlyHint` 是服务端自报，不构成信任锚；plan 只允许
   Host 验证的只读能力（当前 OfficialCua）或其它内建可信只读工具。普通 MCP 一律 deny。
+  （2026-11-14 用户裁定修订：本条 deny 门废弃，改上游 checkPlanMode 语义——非 readOnly
+  MCP 走 `mode.plan.mcp` ask，readOnly MCP 过闸后按原模式判定，见顶部裁定注记。）
 
 ### 洞 1b：memory md 覆盖 plan deny
 
@@ -102,6 +130,8 @@ hooks 已有 pending-trust 门控，permission 字段没有）。若豁免 P0，
 - 修法：behavior=allow 时先判 `safe`：非 safe 命令一律不匹配 allow 规则（含整工具与内容
   规则，逐次确认）；safe 命令才允许整工具 allow 短路与内容匹配。deny/ask 行为不变
   （整工具 deny/ask 匹配一切是安全方向）。
+  （2026-11-14 用户裁定修订：本条废弃，evaluator 首行恢复上游「无 ruleContent 整工具规则
+  恒短路」，含非 safe 命令；见顶部裁定注记。）
 
 ### 洞 5（收口）：mcp/index.ts 自报信任
 

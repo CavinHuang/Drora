@@ -44,14 +44,12 @@ export async function listPluginUiSurfaces(
   rawParams: unknown,
 ): Promise<DroraPluginsListUiSurfacesResult> {
   const params = parseParams(droraPluginsListUiSurfacesParamsSchema, rawParams);
-  // 刻意不传 env——原实现经 resolveDroraPlugins 内部 createConfig 也不带 env，保持
-  // 该投影入口的配置口径零变化。
-  const configResult = createConfig({
-    workingDirectory: params.workspace.workspacePath,
-  });
-  const outcome = resolveDroraPlugins({
-    configResult,
+  const outcome = await resolveDroraPlugins({
     logger: context.logger,
+    pluginPreparation: context.deps?.pluginPreparation,
+    pluginDiscovery: context.deps?.pluginDiscovery,
+    workspaceIdentity: params.workspace.workspaceIdentity,
+    remoteSessionId: params.workspace.remoteSessionId,
     workingDirectory: params.workspace.workspacePath,
   });
   return {

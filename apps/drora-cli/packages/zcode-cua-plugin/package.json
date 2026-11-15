@@ -17,7 +17,7 @@
     "version:check": "node scripts/check-version-coherence.mjs --check",
     "sync:version": "node scripts/check-version-coherence.mjs",
     "sync:all": "pnpm sync:skill && pnpm sync:version && pnpm build && pnpm sync:cache",
-    "test": "pnpm run build && node --test tests/*.node-test.mjs",
+    "test": "node -e \"/* 空操作：包内无 tests/*.node-test.mjs（0.6.5 producer 测试面未随迁，脚本链为官方仓 verbatim 移植休眠态，见 docs/producer-scripts.md 与 specs/drora-divergence-ledger.md 台账 43）；官方 v3.18.2 的 test 形态 node scripts/check-sdk.mjs 已由本包 build/typecheck 脚本承载，不重复执行 */\"",
     "typecheck": "node scripts/check-sdk.mjs"
   },
   "dependencies": {

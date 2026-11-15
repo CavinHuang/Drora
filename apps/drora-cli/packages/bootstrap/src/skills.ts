@@ -1,5 +1,5 @@
 import { resolve } from "node:path";
-import { createConfig, resolvePath } from "@drora/adapters/config";
+import { createConfigWithPluginMigrations, resolvePath } from "@drora/adapters/config";
 import { createNodeSkillAdapter } from "@drora/adapters/skills";
 import type { Logger, SkillContent, SkillDiagnostic, SkillLoadOutcome } from "@drora/contracts";
 import { resolveBundledSkillRoots } from "./app/bundled-skills.js";
@@ -7,10 +7,14 @@ import { getCliStorageRoot } from "./app/paths.js";
 import { filterVisualizeSkillRoots } from "./app/visualize-skill-gate.js";
 import { gateAgentsTeamSkillPort } from "./app/agents-team-skill-gate/index.js";
 import { resolveAgentsTeamEnabled } from "./app/drora-team/install.js";
-import { resolveDroraPlugins } from "./plugins.js";
+import { resolveDroraPlugins, type ResolveDroraPluginsOptions } from "./plugins.js";
 import { collectDisabledPaths } from "./skill-command-overrides.js";
 
 export interface ListDroraSkillsOptions {
+  workspaceIdentity?: string;
+  remoteSessionId?: string;
+  pluginPreparation?: ResolveDroraPluginsOptions["pluginPreparation"];
+  pluginDiscovery?: ResolveDroraPluginsOptions["pluginDiscovery"];
   env?: NodeJS.ProcessEnv;
   /** 协议宿主草稿目录使用；CLI 命令缺省关闭。 */
   includeVisualize?: boolean;
@@ -33,7 +37,7 @@ export interface DroraSkillInspection {
 export async function listDroraSkills(
   options: ListDroraSkillsOptions = {},
 ): Promise<SkillLoadOutcome> {
-  const discovery = createSkillDiscovery(options);
+  const discovery = await createSkillDiscovery(options);
   if (!discovery.enabled) {
     return {
       diagnostics: [],
@@ -50,7 +54,7 @@ export async function listDroraSkills(
 export async function inspectDroraSkill(
   options: InspectDroraSkillOptions,
 ): Promise<DroraSkillInspection> {
-  const discovery = createSkillDiscovery(options);
+  const discovery = await createSkillDiscovery(options);
   if (!discovery.enabled) {
     throw new Error("Skills are disabled.");
   }
@@ -77,7 +81,7 @@ export async function inspectDroraSkill(
   };
 }
 
-function createSkillDiscovery(options: ListDroraSkillsOptions):
+async function createSkillDiscovery(options: ListDroraSkillsOptions): Promise<
   | {
       enabled: false;
       workingDirectory: string;
@@ -86,9 +90,10 @@ function createSkillDiscovery(options: ListDroraSkillsOptions):
       enabled: true;
       skillPort: ReturnType<typeof createNodeSkillAdapter>;
       workingDirectory: string;
-    } {
+    }
+> {
   const workingDirectory = resolve(options.workingDirectory ?? process.cwd());
-  const configResult = createConfig({
+  const configResult = await createConfigWithPluginMigrations({
     env: options.env,
     projectConfigPath: options.projectConfigPath,
     workingDirectory,
@@ -102,7 +107,11 @@ function createSkillDiscovery(options: ListDroraSkillsOptions):
       workingDirectory,
     };
   }
-  const pluginOutcome = resolveDroraPlugins({
+  const pluginOutcome = await resolveDroraPlugins({
+    pluginPreparation: options.pluginPreparation,
+    pluginDiscovery: options.pluginDiscovery,
+    workspaceIdentity: options.workspaceIdentity,
+    remoteSessionId: options.remoteSessionId,
     configResult,
     env: options.env,
     logger: options.logger,

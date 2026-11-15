@@ -142,6 +142,10 @@ vi.mock("@/v4/composer/useDraftConfigControl.js", () => ({
   // 草稿 pane 的诊断面会读 resolveInitialDraftConfig（SessionPane.tsx:4787）。
   resolveInitialDraftConfig: () => undefined,
   useDraftConfigControl: () => ({
+    // S6 对齐（specs/upstream-v3.18.0-migration.md §10）：上游 v3.18.0 SessionPane 无条件读
+    // composerDraft.modelSelection（resolveSessionModelUnavailable 横幅派生），旧桩缺该成员
+    // 会渲染期崩溃；补最小 V4ComposerDraft 形态。
+    composerDraft: { text: "", updatedAt: 0 },
     modelSelectionRead: { state: { status: "loading" }, reload: vi.fn() },
     captureAcceptedModelSelection: () => vi.fn(),
     draftConfigRef: { current: {} },

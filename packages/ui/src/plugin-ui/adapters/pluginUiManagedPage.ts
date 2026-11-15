@@ -454,6 +454,13 @@ export function createPage(
     notifyOpenWith(payload) {
       controller?.notifyOpenWith(payload);
     },
+    callPanelTool(toolName: string, args?: Record<string, unknown>) {
+      if (!controller) return Promise.reject(new Error("MCP App page is not running"));
+      return controller.callPanelTool(toolName, args);
+    },
+    notifyPanelToolResult(result: import("@drora/shared/mcp-apps").McpAppsToolResultPayload) {
+      controller?.notifyToolResult(result);
+    },
     bind(node, sidebar) {
       const off = plane.bind({
         node,

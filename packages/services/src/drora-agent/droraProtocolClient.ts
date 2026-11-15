@@ -9,6 +9,7 @@ import {
 } from "@drora/shared";
 import { DroraStorageStartupGate } from "#src/drora-agent/droraStorageStartupGate.js";
 import { Emitter } from "@drora/rpc";
+import { droraPluginStartupDegradedSchema, droraProtocolNotifications } from "@drora/shared";
 import type { IDisposable } from "@drora/rpc";
 import type {
   DroraProtocolMethod,
@@ -165,6 +166,8 @@ export class DroraProtocolClient implements IDisposable {
   }
 
   readonly onNotification = this.notificationEmitter.event;
+  /** 当前连接的降级投影；新进程的新连接自然重置，不跨进程保存。 */
+  pluginStartupDegraded = false;
   readonly onRequest = this.requestEmitter.event;
   readonly onRequestTimeout = this.requestTimeoutEmitter.event;
   readonly onPendingRequestsDrained = this.pendingDrainedEmitter.event;
@@ -349,14 +352,14 @@ export class DroraProtocolClient implements IDisposable {
     this.transport.dispose();
   }
 
-  async disposeAndWait(): Promise<void> {
+  async disposeAndWait(options?: { deadlineAtMs?: number }): Promise<void> {
     const wasDisposed = this.disposed;
     if (!wasDisposed) {
       this.disposed = true;
       this.disposeLocalResources();
     }
     if (this.transport.disposeAndWait) {
-      await this.transport.disposeAndWait();
+      await this.transport.disposeAndWait(options);
       return;
     }
     if (!wasDisposed) {
@@ -399,6 +402,13 @@ export class DroraProtocolClient implements IDisposable {
     }
 
     if ("method" in message) {
+      if (
+        message.method === droraProtocolNotifications.pluginStartupDegraded &&
+        droraPluginStartupDegradedSchema.safeParse((message as DroraProtocolNotification).params)
+          .success
+      ) {
+        this.pluginStartupDegraded = true;
+      }
       if (
         message.method === "startup/storageState" &&
         this.storageStartup.accept((message as DroraProtocolNotification).params)

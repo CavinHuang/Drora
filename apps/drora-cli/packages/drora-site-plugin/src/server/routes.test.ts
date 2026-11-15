@@ -10,14 +10,29 @@ describe("resourcePath", () => {
     ["drora-site://plans", "/api/v1/sites/plans"],
     ["drora-site://sites", "/api/v1/sites"],
     ["drora-site://sites?cursor=", "/api/v1/sites"],
-    ["drora-site://sites?cursor=a%2Fb&limit=20", "/api/v1/sites?cursor=a%2Fb&limit=20"],
+    [
+      "drora-site://sites?cursor=a%2Fb&limit=20",
+      "/api/v1/sites?cursor=a%2Fb&limit=20",
+    ],
     [`drora-site://sites/${SITE}`, `/api/v1/sites/${SITE}`],
     [
       `drora-site://sites/${SITE}/deployments?cursor=x`,
       `/api/v1/sites/${SITE}/deployments?cursor=x`,
     ],
-    [`drora-site://sites/${SITE}/deployments/${DEP}`, `/api/v1/sites/${SITE}/deployments/${DEP}`],
+    [
+      `drora-site://sites/${SITE}/deployments/${DEP}`,
+      `/api/v1/sites/${SITE}/deployments/${DEP}`,
+    ],
     [`drora-site://sites/${SITE}/cover`, `/api/v1/sites/${SITE}/cover`],
+    [`drora-site://sites/${SITE}/analytics`, `/api/v1/sites/${SITE}/analytics`],
+    [
+      `drora-site://sites/${SITE}/analytics?range=30d`,
+      `/api/v1/sites/${SITE}/analytics?range=30d`,
+    ],
+    [
+      `drora-site://sites/analytics/pv24h?siteIds=${SITE},${DEP}`,
+      `/api/v1/sites/analytics/pv24h?siteIds=${SITE}%2C${DEP}`,
+    ],
     [
       `drora-site://sites/${SITE}/deployments/${DEP}/logs?offset=12`,
       `/api/v1/sites/${SITE}/deployments/${DEP}/logs?offset=12`,
@@ -44,6 +59,13 @@ describe("resourcePath", () => {
     "drora-site://sites/1/deployments/2?offset=1",
     "drora-site://user@sites",
     "drora-site://sites/..%2Fusage",
+    "drora-site://sites/1/analytics?range=1y",
+    "drora-site://sites/1/analytics?offset=1",
+    "drora-site://sites/1/analytics/pages",
+    "drora-site://sites/analytics",
+    "drora-site://sites/analytics/pv24h?siteIds=1,abc",
+    `drora-site://sites/analytics/pv24h?siteIds=${Array(21).fill("1").join(",")}`,
+    "drora-site://sites/analytics/pv24h?range=24h",
     "not a uri",
   ])("rejects %s", (uri) => {
     expect(resourcePath(uri)).toBeUndefined();

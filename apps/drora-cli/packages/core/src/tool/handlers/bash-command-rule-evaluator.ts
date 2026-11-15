@@ -11,11 +11,10 @@ export interface BashRuleEvaluationInput {
 }
 
 export function evaluateBashRules(input: BashRuleEvaluationInput): boolean {
-  // S03 洞 3（specs/agent-write-safety.md §2）：整工具 allow（无 ruleContent）不再短路——
-  // 非 safe 命令（重定向等任意路径写）不吃整工具 allow，落到逐次确认；deny/ask 是安全
-  // 方向照旧匹配一切；精确命令 allow 是用户逐条看过的内容规则，保持原语义不受 safe 限制。
-  const hasWholeToolRule = input.rules.some((rule) => !rule.ruleContent);
-  if (hasWholeToolRule && (input.behavior !== "allow" || input.safe)) return true;
+  // 2026-11-14 用户裁定：整工具 allow（allowedTools 面）×P0 与上游语义冲突时以上游为
+  // 基准——恢复上游 v3.18.0 的「无 ruleContent 整工具规则恒短路」；S03 洞 3「仅 safe
+  // 命令短路」守卫废弃（specs/agent-write-safety.md 裁定注记、specs/drora-divergence-ledger.md 台账 33）。
+  if (input.rules.some((rule) => !rule.ruleContent)) return true;
   if (
     input.exactCommands.some((command) => command.length > 0) &&
     input.rules.some((rule) => input.exactCommands.includes(rule.ruleContent ?? ""))

@@ -19,7 +19,9 @@ import {
   type DroraPluginComponentGroup,
   type DroraPluginDiagnostic,
   type DroraPluginInfo,
+  type DroraPluginExtensionSummary,
   type DroraPluginMarketplaceSummary,
+  type DroraPluginStoreListing,
   type DroraPluginsConfigureResult,
   type DroraPluginsDescribeResult,
   type DroraPluginsInstallResult,
@@ -31,6 +33,7 @@ import {
   type DroraPluginsSetHostComponentsEnabledResult,
   type DroraPluginsUninstallResult,
   type DroraPluginsValidateResult,
+  isUserFacingPlugin,
 } from "@drora/shared";
 import type { PluginDiagnostic, PluginMetadata } from "@drora/contracts";
 import {
@@ -41,6 +44,7 @@ import {
   getDroraPluginsOverview,
   installDroraMarketplacePlugin,
   removeDroraPluginMarketplace,
+  resolveDroraPluginConfigWithSecrets,
   resolveDroraPlugins,
   resetDroraPluginConfig,
   restoreBuiltinPlugin as restoreBuiltinPluginCore,
@@ -53,13 +57,16 @@ import {
 import { listInstalledPluginRecords } from "@drora/adapters/plugins";
 import { withPluginStorageLock } from "../lib/plugin-storage-lock.js";
 import { getCliStorageRoot, getPluginStorageRoot } from "../app/paths.js";
-import { resolveOfficialPluginHostMcpServerNames } from "../app/official-plugin-definitions.js";
-import { createConfig, resolvePath, type ConfigResult } from "@drora/adapters/config";
+import {
+  createConfig,
+  createConfigWithPluginMigrations,
+  resolvePath,
+  type ConfigResult,
+} from "@drora/adapters/config";
 import { parseParams, type DroraProtocolAgentServerContext } from "./server-types.js";
 
 // 把 CLI 的 PluginMetadata 投影成协议可序列化的 DroraPluginInfo (只保留 UI 需要的字段)。
 function toPluginInfo(plugin: PluginMetadata, configResult?: ConfigResult): DroraPluginInfo {
-  const hostMcpServerNames = resolveOfficialPluginHostMcpServerNames(plugin.id);
   const configuredOptions = Object.fromEntries(
     Object.entries(plugin.configuredOptions ?? {}).filter(
       ([key]) => plugin.userConfig?.[key]?.sensitive !== true,
@@ -105,9 +112,10 @@ function toPluginInfo(plugin: PluginMetadata, configResult?: ConfigResult): Dror
       availability: surface.availability,
     })) } : {}),
     mcpServerNames: plugin.mcpServerNames,
-    ...(hostMcpServerNames.length > 0 ? { hostMcpServerNames } : {}),
     hookDetails: plugin.hookDetails,
     rootPath: plugin.rootPath,
+    // 插件的持久数据目录：App 交给扩展作 ctx.extension.dataPath（plugin-compat.md「Storage Layout」）。
+    dataPath: plugin.dataPath,
     ...(plugin.userConfig ? { userConfig: plugin.userConfig } : {}),
     ...(Object.keys(configuredOptions).length > 0 ? { configuredOptions } : {}),
     ...(rootSource ? { rootSource } : {}),
@@ -139,16 +147,16 @@ function resolveInlinePluginRootSource(
   return undefined;
 }
 
-function createPluginConfigView(
+async function createPluginConfigView(
   context: DroraProtocolAgentServerContext,
   workspacePath: string,
   configScope: "user" | "workspace" | undefined,
-): ConfigResult {
+): Promise<ConfigResult> {
   // Settings 的 User 与 Workspace 现在是同一批 Host Plugin 的两个配置视图。
   // User 视图若继续加载 project config，会把 Workspace override 投影成 User 当前值；
   // 不传 workingDirectory 可保留 User/default 层，同时仍由调用方的 workspacePath 决定
   // package storage 和相对执行上下文。
-  return createConfig({
+  return createConfigWithPluginMigrations({
     env: context.deps?.env,
     ...(configScope === "user" ? {} : { workingDirectory: workspacePath }),
   });
@@ -186,9 +194,7 @@ function createMissingConfiguredPluginInfos(
         rootPath: "",
         packageStatus: "missing",
         ...(enabledSource ? { enabledSource } : {}),
-        ...(optionSources && Object.keys(optionSources).length > 0
-          ? { optionSources }
-          : {}),
+        ...(optionSources && Object.keys(optionSources).length > 0 ? { optionSources } : {}),
       },
     ];
   });
@@ -201,9 +207,7 @@ export function normalizePluginRootForComparison(
   const resolvedRoot = resolvePath(rootPath);
   // Windows 路径不区分大小写，且配置与 loader 可能分别返回正斜杠和反斜杠。
   // 若直接做字符串比较，会把同一个 Workspace plugins.dirs 根误判为无归属。
-  return platform === "win32"
-    ? resolvedRoot.replaceAll("\\", "/").toLowerCase()
-    : resolvedRoot;
+  return platform === "win32" ? resolvedRoot.replaceAll("\\", "/").toLowerCase() : resolvedRoot;
 }
 
 function toPluginDiagnostic(diagnostic: PluginDiagnostic): DroraPluginDiagnostic {
@@ -220,19 +224,29 @@ export async function listPlugins(
   rawParams: unknown,
 ): Promise<DroraPluginsListResult> {
   const params = parseParams(droraPluginsListParamsSchema, rawParams);
-  const configResult = createPluginConfigView(
-    context,
-    params.workspace.workspacePath,
-    params.configScope,
-  );
-  const outcome = resolveDroraPlugins({
+  context.deps?.pluginPreparation?.signal.throwIfAborted();
+  // optionSources 要包含已迁进私有文件的敏感键（值仍过滤），否则设置页的 scope 标记与
+  // 「清除」按钮会在迁移后消失；所以投影用叠加私有文件后的配置视图。
+  const configResult = await resolveDroraPluginConfigWithSecrets({
+    configResult: await createPluginConfigView(
+      context,
+      params.workspace.workspacePath,
+      params.configScope,
+    ),
+    workingDirectory: params.workspace.workspacePath,
+  });
+  const outcome = await resolveDroraPlugins({
+    pluginPreparation: context.deps?.pluginPreparation,
+    pluginDiscovery: context.deps?.pluginDiscovery,
+    workspaceIdentity: params.workspace.workspaceIdentity,
+    remoteSessionId: params.workspace.remoteSessionId,
     configResult,
     logger: context.logger,
     workingDirectory: params.workspace.workspacePath,
   });
-  const plugins = outcome.plugins.map((plugin) =>
-    toPluginInfo(plugin, configResult),
-  );
+  // 启动 fallback 只表示能力暂不可用；管理查询不能把它投影成磁盘缺包。
+  context.deps?.pluginPreparation?.signal.throwIfAborted();
+  const plugins = outcome.plugins.map((plugin) => toPluginInfo(plugin, configResult));
   return {
     plugins: [
       ...plugins,
@@ -240,7 +254,7 @@ export async function listPlugins(
         configResult,
         new Set(plugins.map((plugin) => plugin.id)),
       ),
-    ],
+    ].filter((plugin) => isUserFacingPlugin(plugin.id)),
     diagnostics: outcome.diagnostics.map(toPluginDiagnostic),
   };
 }
@@ -253,6 +267,11 @@ export async function setPluginEnabled(
   const params = parseParams(droraPluginsSetEnabledParamsSchema, rawParams);
   abortSignal?.throwIfAborted();
   const result = await setDroraPluginEnabled({
+    abortSignal,
+    pluginPreparation: context.deps?.pluginPreparation,
+    pluginDiscovery: context.deps?.pluginDiscovery,
+    workspaceIdentity: params.workspace.workspaceIdentity,
+    remoteSessionId: params.workspace.remoteSessionId,
     enabled: params.enabled,
     logger: context.logger,
     plugin: params.pluginId,
@@ -292,12 +311,17 @@ export async function getPluginsOverview(
   rawParams: unknown,
 ): Promise<DroraPluginsOverviewResult> {
   const params = parseParams(droraPluginsOverviewParamsSchema, rawParams);
+  context.deps?.pluginPreparation?.signal.throwIfAborted();
   enrichCachedClaudeMarketplaceIconsForOverview({
     logger: context.logger,
     workingDirectory: params.workspace.workspacePath,
   });
-  const overview = getDroraPluginsOverview({
-    configResult: createPluginConfigView(
+  const overview = await getDroraPluginsOverview({
+    pluginPreparation: context.deps?.pluginPreparation,
+    pluginDiscovery: context.deps?.pluginDiscovery,
+    workspaceIdentity: params.workspace.workspaceIdentity,
+    remoteSessionId: params.workspace.remoteSessionId,
+    configResult: await createPluginConfigView(
       context,
       params.workspace.workspacePath,
       params.configScope,
@@ -305,11 +329,22 @@ export async function getPluginsOverview(
     logger: context.logger,
     workingDirectory: params.workspace.workspacePath,
   });
+  // 查询途中预算到期也走既有失败通道，避免用空发现结果覆盖已安装状态。
+  context.deps?.pluginPreparation?.signal.throwIfAborted();
+  // 扩展摘要只在被要求时放进 listing：listing 与结果都是 strict，比 CLI 旧的 services 解析到新键会让
+  // 整个商店打不开（docs/plugins/plugin-publishing.md §4.3）。能这样要的 services 已先读过能力位。
+  const withSummary = params.includeExtensionSummary === true;
   return {
     marketplaces: overview.marketplaces.map(toMarketplaceSummary),
-    availablePlugins: overview.availablePlugins.map(toAvailablePluginSummary),
-    installedPlugins: overview.installedPlugins.map(toInstalledPluginSummary),
-    restorableBuiltins: overview.restorableBuiltins.map(toAvailablePluginSummary),
+    availablePlugins: overview.availablePlugins
+      .filter((plugin) => isUserFacingPlugin(plugin.id))
+      .map((plugin) => toAvailablePluginSummary(withExtensionSummary(plugin, withSummary))),
+    installedPlugins: overview.installedPlugins
+      .filter((plugin) => isUserFacingPlugin(plugin.id))
+      .map((plugin) => toInstalledPluginSummary(withExtensionSummary(plugin, withSummary))),
+    restorableBuiltins: overview.restorableBuiltins
+      .filter((plugin) => isUserFacingPlugin(plugin.id))
+      .map(toAvailablePluginSummary),
     diagnostics: overview.diagnostics.map(toPluginDiagnostic),
     capability: { supported: true },
   };
@@ -321,16 +356,13 @@ export async function addPluginMarketplace(
   abortSignal?: AbortSignal,
 ): Promise<DroraPluginsMarketplaceMutationResult> {
   const params = parseParams(droraPluginsMarketplaceAddParamsSchema, rawParams);
-  const pluginStorageRoot = resolvePluginStorageRoot(params.workspace.workspacePath);
-  const marketplace = await withPluginStorageLock(pluginStorageRoot, async () =>
-    addDroraPluginMarketplace({
-      abortSignal,
-      dryRun: params.dryRun,
-      logger: context.logger,
-      source: params.source,
-      workingDirectory: params.workspace.workspacePath,
-    }),
-  );
+  const marketplace = await addDroraPluginMarketplace({
+    abortSignal,
+    dryRun: params.dryRun,
+    logger: context.logger,
+    source: params.source,
+    workingDirectory: params.workspace.workspacePath,
+  });
   return { marketplace: toMarketplaceSummary(marketplace), diagnostics: [] };
 }
 
@@ -339,14 +371,11 @@ export async function removePluginMarketplace(
   rawParams: unknown,
 ): Promise<DroraPluginsMarketplaceMutationResult> {
   const params = parseParams(droraPluginsMarketplaceRemoveParamsSchema, rawParams);
-  const pluginStorageRoot = resolvePluginStorageRoot(params.workspace.workspacePath);
-  await withPluginStorageLock(pluginStorageRoot, async () =>
-    removeDroraPluginMarketplace({
-      logger: context.logger,
-      marketplace: params.marketplace,
-      workingDirectory: params.workspace.workspacePath,
-    }),
-  );
+  await removeDroraPluginMarketplace({
+    logger: context.logger,
+    marketplace: params.marketplace,
+    workingDirectory: params.workspace.workspacePath,
+  });
   return { diagnostics: [] };
 }
 
@@ -356,15 +385,12 @@ export async function updatePluginMarketplace(
   abortSignal?: AbortSignal,
 ): Promise<DroraPluginsMarketplaceMutationResult> {
   const params = parseParams(droraPluginsMarketplaceUpdateParamsSchema, rawParams);
-  const pluginStorageRoot = resolvePluginStorageRoot(params.workspace.workspacePath);
-  const result = await withPluginStorageLock(pluginStorageRoot, async () =>
-    updateDroraPluginMarketplace({
-      abortSignal,
-      logger: context.logger,
-      marketplace: params.marketplace,
-      workingDirectory: params.workspace.workspacePath,
-    }),
-  );
+  const result = await updateDroraPluginMarketplace({
+    abortSignal,
+    logger: context.logger,
+    marketplace: params.marketplace,
+    workingDirectory: params.workspace.workspacePath,
+  });
   return {
     marketplaces: result.marketplaces.map(toMarketplaceSummary),
     diagnostics: result.diagnostics.map(toPluginDiagnostic),
@@ -377,18 +403,19 @@ export async function installPlugin(
   abortSignal?: AbortSignal,
 ): Promise<DroraPluginsInstallResult> {
   const params = parseParams(droraPluginsInstallParamsSchema, rawParams);
-  const pluginStorageRoot = resolvePluginStorageRoot(params.workspace.workspacePath);
-  const result = await withPluginStorageLock(pluginStorageRoot, async () =>
-    installDroraMarketplacePlugin({
-      abortSignal,
-      dryRun: params.dryRun,
-      logger: context.logger,
-      marketplace: params.marketplace,
-      pluginName: params.pluginName,
-      scope: params.scope,
-      workingDirectory: params.workspace.workspacePath,
-    }),
-  );
+  const result = await installDroraMarketplacePlugin({
+    pluginPreparation: context.deps?.pluginPreparation,
+    pluginDiscovery: context.deps?.pluginDiscovery,
+    workspaceIdentity: params.workspace.workspaceIdentity,
+    remoteSessionId: params.workspace.remoteSessionId,
+    abortSignal,
+    dryRun: params.dryRun,
+    logger: context.logger,
+    marketplace: params.marketplace,
+    pluginName: params.pluginName,
+    scope: params.scope,
+    workingDirectory: params.workspace.workspacePath,
+  });
   return {
     dependencyClosure: result.dependencyClosure,
     installedPlugins: result.installedPlugins.map(toInstalledPluginSummary),
@@ -402,6 +429,10 @@ export async function uninstallPlugin(
 ): Promise<DroraPluginsUninstallResult> {
   const params = parseParams(droraPluginsUninstallParamsSchema, rawParams);
   const removed = await uninstallDroraMarketplacePlugin({
+    pluginPreparation: context.deps?.pluginPreparation,
+    pluginDiscovery: context.deps?.pluginDiscovery,
+    workspaceIdentity: params.workspace.workspaceIdentity,
+    remoteSessionId: params.workspace.remoteSessionId,
     logger: context.logger,
     marketplace: params.marketplace,
     pluginId: params.pluginId,
@@ -421,14 +452,13 @@ export async function updatePlugin(
 ): Promise<DroraPluginsInstallResult> {
   const params = parseParams(droraPluginsUpdateParamsSchema, rawParams);
   const pluginStorageRoot = resolvePluginStorageRoot(params.workspace.workspacePath);
-  const installed = listInstalledPluginRecords(pluginStorageRoot).filter((record) => {
-    if (params.pluginId) return record.id === params.pluginId;
-    if (params.marketplace) return record.marketplace === params.marketplace;
-    return true;
-  });
-  // 与 uninstall 一样把整个重装循环串行化到同一 storageRoot 的 in-process 锁里，
-  // 避免并发 update/install 交错读改写 installed_plugins.json / cache。
-  return withPluginStorageLock(pluginStorageRoot, async () => {
+  // 在同一把写锁内选择待更新记录，避免把等锁期间卸载的插件重新装回去。
+  return withPluginStorageLock(pluginStorageRoot, async (lock) => {
+    const installed = listInstalledPluginRecords(pluginStorageRoot).filter((record) => {
+      if (params.pluginId) return record.id === params.pluginId;
+      if (params.marketplace) return record.marketplace === params.marketplace;
+      return true;
+    });
     const installedPlugins: DroraInstalledPluginSummary[] = [];
     const dependencyClosure: string[] = [];
     // 聚合每条记录重装产生的诊断：installDroraMarketplacePlugin 失败时不抛错，而是返回
@@ -438,6 +468,12 @@ export async function updatePlugin(
     const diagnostics: DroraPluginDiagnostic[] = [];
     for (const record of installed) {
       const result = await installDroraMarketplacePlugin({
+        pluginStorageRoot: lock.root,
+        pluginStorageLock: lock,
+        pluginPreparation: context.deps?.pluginPreparation,
+        pluginDiscovery: context.deps?.pluginDiscovery,
+        workspaceIdentity: params.workspace.workspaceIdentity,
+        remoteSessionId: params.workspace.remoteSessionId,
         logger: context.logger,
         marketplace: record.marketplace,
         pluginName: record.name,
@@ -460,6 +496,10 @@ export async function restoreBuiltinPlugin(
 ): Promise<DroraPluginsRestoreBuiltinResult> {
   const params = parseParams(droraPluginsRestoreBuiltinParamsSchema, rawParams);
   await restoreBuiltinPluginCore({
+    pluginPreparation: context.deps?.pluginPreparation,
+    pluginDiscovery: context.deps?.pluginDiscovery,
+    workspaceIdentity: params.workspace.workspaceIdentity,
+    remoteSessionId: params.workspace.remoteSessionId,
     logger: context.logger,
     pluginId: params.pluginId,
     workingDirectory: params.workspace.workspacePath,
@@ -473,6 +513,10 @@ export async function configurePlugin(
 ): Promise<DroraPluginsConfigureResult> {
   const params = parseParams(droraPluginsConfigureParamsSchema, rawParams);
   await configureDroraPlugin({
+    pluginPreparation: context.deps?.pluginPreparation,
+    pluginDiscovery: context.deps?.pluginDiscovery,
+    workspaceIdentity: params.workspace.workspaceIdentity,
+    remoteSessionId: params.workspace.remoteSessionId,
     clearOptionKeys: params.clearOptionKeys,
     dryRun: params.dryRun,
     logger: context.logger,
@@ -503,16 +547,13 @@ export async function validatePlugin(
   rawParams: unknown,
 ): Promise<DroraPluginsValidateResult> {
   const params = parseParams(droraPluginsValidateParamsSchema, rawParams);
-  const pluginStorageRoot = resolvePluginStorageRoot(params.workspace.workspacePath);
-  const diagnostics = await withPluginStorageLock(pluginStorageRoot, async () =>
-    validateDroraPlugin({
-      logger: context.logger,
-      marketplace: params.marketplace,
-      pluginName: params.pluginName,
-      source: params.source,
-      workingDirectory: params.workspace.workspacePath,
-    }),
-  );
+  const diagnostics = await validateDroraPlugin({
+    logger: context.logger,
+    marketplace: params.marketplace,
+    pluginName: params.pluginName,
+    source: params.source,
+    workingDirectory: params.workspace.workspacePath,
+  });
   return {
     ok: diagnostics.every((diagnostic) => diagnostic.severity !== "error"),
     diagnostics: diagnostics.map(toPluginDiagnostic),
@@ -529,13 +570,11 @@ export async function describePlugin(
   rawParams: unknown,
 ): Promise<DroraPluginsDescribeResult> {
   const params = parseParams(droraPluginsDescribeParamsSchema, rawParams);
-  const pluginStorageRoot = resolvePluginStorageRoot(params.workspace.workspacePath);
   // 已安装目录、已缓存 manifest 与临时 source 解析都不持锁；只有懒加载 manifest 写入进锁。
   const result = await describeDroraPlugin({
     logger: context.logger,
     marketplace: params.marketplace,
     pluginName: params.pluginName,
-    withWriteLock: (write) => withPluginStorageLock(pluginStorageRoot, write),
     workingDirectory: params.workspace.workspacePath,
   });
   const components: DroraPluginComponentGroup[] = result.components.map((group) => ({
@@ -575,6 +614,14 @@ function toMarketplaceSummary(input: {
     ...(input.featured ? { featured: input.featured } : {}),
     ...(input.refreshFailure ? { refreshFailure: input.refreshFailure } : {}),
   };
+}
+
+/** 按请求把 CLI 内部的扩展摘要并进 listing；不要求时原样返回（摘要不进线）。 */
+function withExtensionSummary<
+  T extends { listing?: DroraPluginStoreListing; extensionSummary?: DroraPluginExtensionSummary },
+>(plugin: T, include: boolean): T {
+  if (!include || !plugin.extensionSummary) return plugin;
+  return { ...plugin, listing: { ...plugin.listing, extensionSummary: plugin.extensionSummary } };
 }
 
 function toAvailablePluginSummary(input: {

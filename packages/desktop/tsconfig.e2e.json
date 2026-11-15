@@ -15,13 +15,15 @@
     "test/e2e",
     "src/host/botRemoteWorkspaceResolver.ts",
     "src/host/sourceServerDirectory.ts",
-    "src/host/windowRemoteConnectionRegistry.ts"
+    "src/host/windowRemoteConnectionRegistry.ts",
+    "src/host/windowHostAttachmentRpcPolicy.ts"
   ],
   "references": [
     { "path": "../shared" },
     { "path": "../ui" },
     { "path": "../e2e-report" },
     { "path": "../drora-server-cli" },
+    // 本仓自研域：桌面宠物单独工程，上游无此面，物理隔离保留。
     { "path": "./tsconfig.pet.json" }
   ]
 }

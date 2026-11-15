@@ -6,9 +6,13 @@ import {
   desktopPetSizeSchema,
   desktopPetCornerSchema,
 } from "./desktopPet.js";
-import { appToolSearchModeSchema } from "./app-runtime-preferences.js";
 import { PERSONA_RUNTIME_PREFERENCE_ENABLED } from "./contracts/persona.js";
-import type { AppSettings } from "./protocol.js";
+import {
+  appToolSearchModeSchema,
+  DEFAULT_APP_TOOL_SEARCH_MODE,
+} from "./app-runtime-preferences.js";
+import { SUPPORTED_LOCALES, type AppSettings } from "./protocol.js";
+import { resolvePersistedUiLocale, resolvePersistedUiLocalePreference } from "./locale.js";
 import { REMOTE_ASSET_INSTALL_MODES } from "./remoteAssetInstallMode.js";
 import { isKnownRemoteResourcePackageId } from "./remoteResourcePackages.js";
 import { wslUserSchema } from "./wslUserValidation.js";
@@ -47,8 +51,8 @@ export const appSettingsOccupationEnum = appSettingsOccupationSchema;
 
 const nonEmptyStringSchema = z.string().trim().min(1);
 
-export const localeSchema = z.enum(["zh-CN", "en-US"]);
-export const localePreferenceSchema = z.enum(["system", "zh-CN", "en-US"]);
+export const localeSchema = z.enum(SUPPORTED_LOCALES);
+export const localePreferenceSchema = z.enum(["system", ...SUPPORTED_LOCALES]);
 const droraInteractionBehaviorSchema = z.enum(["queue", "guide"]);
 // launch.md「The user's choice」：读文件时未知取值（降级后读到新版本写的值）按「跟随」处理，
 // 不能让一个偏好字段把整份设置读坏。
@@ -186,6 +190,7 @@ const droraEndpointOriginSchema = z.preprocess((value) => {
     return undefined;
   }
 }, z.string().optional());
+
 // 远控「官方/自建 Relay」切换（specs/relay-v2-server.md §8.7）：坏值只丢该字段，
 // 与 droraEndpointOrigin 同款容错——误配不能拖垮整份 settings 读取。
 const webRemoteControlRelayOriginSchema = droraEndpointOriginSchema;
@@ -299,6 +304,27 @@ function migrateMessageStreamShowReasoningDefault(value: unknown): unknown {
     messageStreamShowReasoning: true,
     messageStreamShowReasoningMigrationInitialized: true,
   };
+}
+
+/**
+ * setting.json 的 uiLocale / uiLocalePreference（真实界面语言）合并回内存字段 locale / localePreference。
+ * 落盘时旧字段只存中英以兼容旧版本 schema，见 locale.ts「setting.json 界面语言存储格式」。
+ * 新字段不进 appSettingsObjectSchema：内存 AppSettings 只有一份真实语言，由 z.object 默认 strip 掉。
+ */
+function applyPersistedUiLocaleFields(value: unknown): unknown {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return value;
+  }
+  const raw = value as Record<string, unknown>;
+  if (!("uiLocale" in raw) && !("uiLocalePreference" in raw)) {
+    return value;
+  }
+  const merged: Record<string, unknown> = { ...raw };
+  const locale = resolvePersistedUiLocale(raw);
+  const localePreference = resolvePersistedUiLocalePreference(raw);
+  if (locale !== undefined) merged.locale = locale;
+  if (localePreference !== undefined) merged.localePreference = localePreference;
+  return merged;
 }
 
 function migrateLegacyLocalePreference(value: unknown): unknown {
@@ -525,6 +551,7 @@ const appSettingsObjectSchema = z.object({
   httpProxyNoProxy: nonEmptyStringSchema.optional(),
   httpProxyCaCertPath: nonEmptyStringSchema.optional(),
   embeddedBrowserAllowInsecureCertificates: z.boolean().default(false),
+  fileTreeHtmlClickOpensBrowser: z.boolean().default(false),
   embeddedBrowserViewportPreference: embeddedBrowserViewportPreferenceSchema.default(
     DEFAULT_EMBEDDED_BROWSER_VIEWPORT_PREFERENCE,
   ),
@@ -550,34 +577,41 @@ const appSettingsObjectSchema = z.object({
   voiceDictationHoldKey: z.enum(VOICE_DICTATION_HOLD_KEYS).default("off"),
   // §5.5.2 混合流式预览（§6.1 行 11）。
   voiceDictationHybridPreview: z.boolean().default(true),
+  // §5.6 系统级听写总开关（specs/voice-agent-integration.md §5.6，22038fc10 批一已入
+  // VOICE_SETTINGS_KEYS）：默认关。补齐 parity 缺腿——契约键先落而 schema 未跟曾致
+  // contract.test parity 红（基线已知失败），此字段为该不变式的补齐面。
+  voiceGlobalDictationEnabled: z.boolean().default(false),
   taskAutoArchiveEnabled: z.boolean().default(false),
   taskAutoArchiveResetVersion: z.literal(1).default(1),
   taskAutoArchiveOlderThanDays: z.number().int().positive().max(365).default(30),
   closeToTrayOnWindows: z.boolean().default(true),
+  closeToTrayOnWindowsMigrationInitialized: z.boolean().default(true),
+  // default(false)：新装与存量用户首次启动都视为未归位，由 main 进程按平台决定是否迁移。
+  closeToTrayLinuxMigrationInitialized: z.boolean().default(false),
+  keepAwakeWhileRunning: z.boolean().default(false),
   desktopPetEnabled: z.boolean().default(false),
   desktopPetPosition: z.object({ x: z.number().int(), y: z.number().int() }).optional(),
   desktopPetCharacter: desktopPetCharacterIdSchema.optional(),
   desktopPetSize: desktopPetSizeSchema.optional(),
   desktopPetBadgeCorner: desktopPetCornerSchema.optional(),
-  closeToTrayOnWindowsMigrationInitialized: z.boolean().default(true),
-  // default(false)：新装与存量用户首次启动都视为未归位，由 main 进程按平台决定是否迁移。
-  closeToTrayLinuxMigrationInitialized: z.boolean().default(false),
-  keepAwakeWhileRunning: z.boolean().default(false),
+  // 本机 offline push 上报开关（spec：docs/web-remote-control/mobile-event-push.md 6.4）。
+  // 必须声明在完整 schema，否则合并后显式 false 会被剥离。
+  mobilePushEnabled: z.boolean().default(true),
   desktopZoomLevel: desktopZoomLevelSchema.optional(),
   desktopWindowSize: desktopWindowSizeSchema.optional(),
   desktopChromiumHardwareAccelerationEnabled: z.boolean().default(true),
   messageStreamShowReasoning: z.boolean().default(true),
   messageStreamShowReasoningMigrationInitialized: z.boolean().default(true),
   messageStreamShowTodos: z.boolean().default(false),
-  toolGroupingExploreEnabled: z.boolean().default(true),
+  // D9（specs/upstream-v3.18.0-migration.md §5）：toolGrouping 三键随上游 v3.18.0 工具
+  // 分组重构删除（旧配置残留经 zod strip 语义忽略，不迁移）。
   // Agents Team 灰度（specs/agents-team.md §6.4/§11）：设置面开关，默认关。
   // 桌面经 DRORA_AGENTS_TEAM env 桥下发 Host/Agent；CLI config agentsTeam.enabled
   // 显式值仍优先（resolveAgentsTeamEnabled 裁决链）。开关后新会话生效。
   agentsTeamEnabled: z.boolean().default(false),
-  toolGroupingTerminalEnabled: z.boolean().default(true),
-  toolGroupingChangesEnabled: z.boolean().default(false),
   droraInteractionBehavior: droraInteractionBehaviorSchema.default("queue"),
   askUserQuestionAutoResolutionEnabled: z.boolean().default(true),
+  pluginAutoRecommendationEnabled: z.boolean().default(false),
   modelIoFullRetentionEnabled: z.boolean().default(false),
   dynamicWorkflowMode: dynamicWorkflowModeSettingSchema,
   enabledBuiltinAgentCliProviders: enabledBuiltinAgentCliProvidersSchema.default([
@@ -589,7 +623,7 @@ const appSettingsObjectSchema = z.object({
   providerFamilyDomainUpdatedAt: z.number().int().nonnegative().optional(),
   providerFamilyDomainMigrated: z.boolean().default(false),
   nativeSearchEnhancementsEnabled: z.boolean().default(true),
-  toolSearchMode: appToolSearchModeSchema.default("off"),
+  toolSearchMode: appToolSearchModeSchema.default(DEFAULT_APP_TOOL_SEARCH_MODE),
   onboardingOccupation: appSettingsOccupationSchema.nullish(),
   proactiveSuggestionsEnabled: z.boolean().optional(),
   memoryEnabled: z.boolean().default(false),
@@ -632,10 +666,12 @@ export const appSettingsSchema = z.preprocess(
         migrateMessageStreamShowReasoningDefault(
           migrateCloseToTrayOnWindowsDefault(
             migrateLegacyLocalePreference(
-              sanitizeDroraEndpointOrigin(
-                migrateLegacyWorkspaceSession(
-                  migrateLegacyBuiltinAgentCliProviders(
-                    migrateRemoteBoundaryIntroAcknowledgement(migrateTaskAutoArchiveReset(value)),
+              applyPersistedUiLocaleFields(
+                sanitizeDroraEndpointOrigin(
+                  migrateLegacyWorkspaceSession(
+                    migrateLegacyBuiltinAgentCliProviders(
+                      migrateRemoteBoundaryIntroAcknowledgement(migrateTaskAutoArchiveReset(value)),
+                    ),
                   ),
                 ),
               ),
@@ -659,6 +695,7 @@ export const appSettingsPatchSchema = z.object({
   httpProxyNoProxy: nonEmptyStringSchema.optional(),
   httpProxyCaCertPath: nonEmptyStringSchema.optional(),
   embeddedBrowserAllowInsecureCertificates: z.boolean().optional(),
+  fileTreeHtmlClickOpensBrowser: z.boolean().optional(),
   embeddedBrowserViewportPreference: embeddedBrowserViewportPreferenceSchema.optional(),
   computerUseComposerEntryHidden: z.boolean().optional(),
   // 语音九键 update 面（全部 optional：patch 语义）；§6.1 / contracts/voice.ts parity。
@@ -673,15 +710,18 @@ export const appSettingsPatchSchema = z.object({
   voicePrivacyDisclosureAcknowledged: z.boolean().optional(),
   voiceDictationHoldKey: z.enum(VOICE_DICTATION_HOLD_KEYS).optional(),
   voiceDictationHybridPreview: z.boolean().optional(),
+  // §5.6 系统级听写总开关：patch 面（见上方完整 schema 同名注释）。
+  voiceGlobalDictationEnabled: z.boolean().optional(),
   taskAutoArchiveEnabled: z.boolean().optional(),
   taskAutoArchiveOlderThanDays: z.number().int().positive().max(365).optional(),
   closeToTrayOnWindows: z.boolean().optional(),
+  keepAwakeWhileRunning: z.boolean().optional(),
   desktopPetEnabled: z.boolean().optional(),
   desktopPetPosition: z.object({ x: z.number().int(), y: z.number().int() }).optional(),
   desktopPetCharacter: desktopPetCharacterIdSchema.optional(),
   desktopPetSize: desktopPetSizeSchema.optional(),
   desktopPetBadgeCorner: desktopPetCornerSchema.optional(),
-  keepAwakeWhileRunning: z.boolean().optional(),
+  mobilePushEnabled: z.boolean().optional(),
   closeToTrayOnWindowsMigrationInitialized: z.boolean().optional(),
   closeToTrayLinuxMigrationInitialized: z.boolean().optional(),
   desktopZoomLevel: desktopZoomLevelSchema.optional(),
@@ -690,12 +730,10 @@ export const appSettingsPatchSchema = z.object({
   messageStreamShowReasoning: z.boolean().optional(),
   messageStreamShowReasoningMigrationInitialized: z.boolean().optional(),
   messageStreamShowTodos: z.boolean().optional(),
-  toolGroupingExploreEnabled: z.boolean().optional(),
   agentsTeamEnabled: z.boolean().optional(),
-  toolGroupingTerminalEnabled: z.boolean().optional(),
-  toolGroupingChangesEnabled: z.boolean().optional(),
   droraInteractionBehavior: droraInteractionBehaviorSchema.optional(),
   askUserQuestionAutoResolutionEnabled: z.boolean().optional(),
+  pluginAutoRecommendationEnabled: z.boolean().optional(),
   modelIoFullRetentionEnabled: z.boolean().optional(),
   // 空串是「删除选择、回到跟随」的哨兵：RPC 会吞掉 undefined，normalizeSettingsPatch 把它归一成删除。
   dynamicWorkflowMode: z.union([z.enum(DYNAMIC_WORKFLOW_MODES), z.literal("")]).optional(),

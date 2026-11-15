@@ -2288,7 +2288,10 @@ describe("NodeExecutionAdapter", () => {
     expect(plan.command.mode).toBe("shell");
     if (plan.command.mode === "shell") {
       expect(plan.command.command).toContain("__drora_status=$?");
-      expect(plan.command.command).toContain("pwd -P >");
+      // win32 修复：Git Bash 的 pwd -P 把 %TEMP% 下的 cwd 写成 MSYS /tmp/...，
+      // 常规转换得到当前盘相对 \tmp\... 使 statSync 失败；改由 cygpath -w 产出
+      // 原生 Windows 路径（见 src/exec/cwd-capture.ts 的根因链注释）。
+      expect(plan.command.command).toContain("pwd -P | cygpath -w -f - >");
       expect(plan.command.command).not.toContain("%ERRORLEVEL%");
     }
   });

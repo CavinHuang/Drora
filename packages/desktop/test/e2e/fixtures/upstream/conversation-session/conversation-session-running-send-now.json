@@ -1,7 +1,7 @@
 {
   "version": 1,
   "caseName": "conversation-session-running-send-now",
-  "spec": "./test/e2e/conversation-session/conversation-session-running-send-now.test.ts",
+  "spec": "./test/e2e/conversation-session/queue/conversation-session-running-send-now.test.ts",
   "fixtures": [
     {
       "id": "upstream-running-send-now-head-base",
@@ -78,7 +78,6 @@
           "CRITICAL: Respond with TEXT ONLY",
           "The user sent a new message while you were working:"
         ],
-        "lastUserMessageIncludes": ["E2E_RUNNING_SEND_NOW_HEAD"],
         "lastUserMessageIncludes": ["E2E_RUNNING_SEND_NOW_HEAD"],
         "lastUserMessageExcludes": ["E2E_RUNNING_SEND_NOW_HEAD_BASE"]
       },

@@ -34,11 +34,15 @@ export const DRORA_DWF_CHILD_COMMAND = "__drora-dwf-child";
 /**
  * app 级常驻服务（g1，specs/obsidian-vault-phase2-true-extraction.md §3/§6/§10-P1）标记
  * env 键：bootstrap appService 启动链经 `__drora-plugin-host` 拉起的插件 server 进程携带
- * `DRORA_PLUGIN_APP_SERVICE=1`，供 server 进程内区分「宿主常驻实例」与「会话级 stdio
- * 实例」（P3 起消费，如日志与 lease owner 命名）。契约键单一出处在本 contracts 常量区；
- * obsidian-plugin 包不依赖 contracts，消费侧以本地常量 + 注释锁定同值
- * （OFFICIAL_OBSIDIAN_PLUGIN_ID 分侧锁定先例）。该键由宿主权威写入，插件
- * manifest/user env 不可覆盖（启动链最后覆写）。
+ * `DRORA_PLUGIN_APP_SERVICE=1`。当前消费方仅在宿主侧：bootstrap 启动链经本常量写入、
+ * 契约测试断言；插件侧（obsidian-plugin）**尚未读取该键**——「区分宿主常驻实例与会话级
+ * stdio 实例（日志、lease owner 命名等）」的插件内消费未落地（2026-11-15 审计核对零
+ * 消费，见 docs/upstream-v3.18.0-diff-2026-11-11/10-plugin-audit.md §四，原注释「P3 起
+ * 消费」与「消费侧以本地常量锁定同值」均为漂移）。契约键单一出处在本 contracts 常量区；
+ * obsidian-plugin 包不依赖 contracts（自包含插件，构建期 esbuild 独立打包，引 contracts
+ * 会破坏该边界），插件侧未来出现消费点时按 OFFICIAL_OBSIDIAN_PLUGIN_ID 先例以本地
+ * 常量 + 注释分侧锁定同值。该键由宿主权威写入，插件 manifest/user env 不可覆盖
+ * （启动链最后覆写）。
  */
 export const DRORA_PLUGIN_APP_SERVICE_ENV_KEY = "DRORA_PLUGIN_APP_SERVICE";
 /** {@link DRORA_PLUGIN_APP_SERVICE_ENV_KEY} 的固定值；常量化避免生产/消费两侧字面量漂移。 */
@@ -57,6 +61,7 @@ export type PluginSource = "official" | "inline" | "cache";
 export type PluginDiagnosticSeverity = "warning" | "error";
 
 export type PluginDiagnosticCode =
+  | "plugin_startup_timeout"
   | "plugin_root_not_found"
   | "plugin_manifest_not_found"
   | "plugin_manifest_invalid"
@@ -80,6 +85,8 @@ export type PluginDiagnosticCode =
   | "plugin_marketplace_source_unsupported"
   | "plugin_validation_deferred"
   | "plugin_variable_missing"
+  // 敏感选项私有文件读不出（损坏或 I/O 失败）：按空处理，诊断里只有文件路径，不含任何值。
+  | "plugin_secrets_unreadable"
   | "plugin_duplicate_id"
   | "plugin_not_found"
   | "plugin_ambiguous_name";
@@ -334,6 +341,8 @@ export interface PluginLoadOutcome {
 }
 
 export interface PluginDiscoverRequest {
+  workspaceIdentity?: string;
+  remoteSessionId?: string;
   config: PluginConfig;
   env?: Record<string, string | undefined>;
   // bootstrap 可以把"安全到默认就开"的 official plugin id 列表传进来,
@@ -352,6 +361,8 @@ export interface PluginOperationOptions {
 }
 
 export interface PluginPort {
+  /** 管理写入完成后清除可复用材料；无缓存实现可省略。 */
+  invalidate?(): void;
   discoverPlugins(
     request: PluginDiscoverRequest,
     options?: PluginOperationOptions,

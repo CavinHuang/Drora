@@ -378,6 +378,25 @@ export function createPluginUiHostController(
       if (bridge && attached) sendOpenWith(bridge, payload);
       else pendingOpenWith = { payload };
     },
+    async callPanelTool(toolName: string, args?: Record<string, unknown>) {
+      if (disposed) throw new Error("MCP App instance was closed");
+      // pluginScope 未 prepared 时抛错，与页面 AppBridge 的调用同一语义。
+      const scope = pluginScope();
+      const callId = createCallId();
+      activeCalls.add(callId);
+      deps.onBusyChange?.();
+      try {
+        return await deps.bridge.callTool({
+          ...scope,
+          toolName,
+          ...(args ? { arguments: args } : {}),
+          callId,
+        });
+      } finally {
+        activeCalls.delete(callId);
+        deps.onBusyChange?.();
+      }
+    },
     dispose() {
       if (disposal) return disposal;
       disposed = true;

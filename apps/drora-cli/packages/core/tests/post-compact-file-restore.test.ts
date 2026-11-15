@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { resolve } from "node:path";
 import type { ReadTextOutput } from "@drora/contracts";
 import type { RuntimeMessageEntry } from "../src/agent/message-history.js";
 import {
@@ -291,7 +292,10 @@ describe("post-compact file restore paths and read state", () => {
         },
       ],
       readFiles,
-      readFileState: createState([entry(preservedFile, { sourceTool: "Read" })]),
+      // win32 适配（2026-11-14，v3.18.0 S4 段门复跑归因）：生产里读态路径由 Read 工具按
+      // resolve 后的绝对形态记录（win32 带盘符反斜杠），保留段相对路径也经 resolve 后进
+      // 排除键比对；夹具按平台 resolve 镜像同形态（POSIX 为恒等），排除语义不变。
+      readFileState: createState([entry(resolve(preservedFile), { sourceTool: "Read" })]),
       workingDirectory: root,
     });
 

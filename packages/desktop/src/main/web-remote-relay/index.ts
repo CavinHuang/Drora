@@ -1,8 +1,13 @@
 export type * from "#src/main/web-remote-relay/contract.js";
 export { createWebRemoteControlDeviceStorage } from "#src/main/web-remote-relay/webRemoteControlDeviceStorage.js";
+// 并集：双 relay 接线（webRemoteControlEndpointUrls，§1 例外 3 上游树零命中的自研件）保 ours；
+// buildWebRemoteControlClientLanguageHeader 为上游 v3.18.0 新增（语言头契约随 mobilePush 演进）。
 export { buildWebRemoteControlEndpointUrls } from "#src/main/web-remote-relay/webRemoteControlEndpointUrls.js";
 export type { WebRemoteControlEndpointUrlInputs } from "#src/main/web-remote-relay/webRemoteControlEndpointUrls.js";
-export { createWebRemoteControlV2Http } from "#src/main/web-remote-relay/webRemoteControlV2Http.js";
+export {
+  buildWebRemoteControlClientLanguageHeader,
+  createWebRemoteControlV2Http,
+} from "#src/main/web-remote-relay/webRemoteControlV2Http.js";
 export {
   respondToWebRemoteControlActionRequest,
   type RunWebRemoteControlRendererAction,

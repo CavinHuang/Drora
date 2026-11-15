@@ -14,5 +14,5 @@ export interface DroraProtocolTransport extends IDisposable {
   readonly onMessage: Event<DroraProtocolMessage>;
   readonly onClose: Event<DroraProtocolTransportClosedEvent>;
   send(message: DroraProtocolMessage): Promise<void>;
-  disposeAndWait?(): Promise<void>;
+  disposeAndWait?(options?: { deadlineAtMs?: number }): Promise<void>;
 }

@@ -79,7 +79,11 @@ export async function generateThirdPartyNotices(root = repositoryRoot) {
       // 修复：集中 NOTICE 不能替代 Apache 4(b) 的文件内修改声明，重新生成时也不能抹掉这一义务。
       if (!files.some((entry) => entry.file === file))
         throw new Error(`Modified source outside copied roots: ${file}`);
-      if (!(await readFile(join(root, file), "utf8")).includes("Modified by Drora:"))
+      // 修复（v3.18.0 S8）：design-resources 等按字节还原的上游资产（specs/drora-rename.md 豁免区 6，
+      // sha256 溯源钉住）其文件内声明保持上游原文 "Modified by ZCode:"，改写即 hash 失配；
+      // 本仓自改文件仍用 "Modified by Drora:"。两种声明都满足 Apache 4(b) 的文件内修改告知。
+      const source = await readFile(join(root, file), "utf8");
+      if (!source.includes("Modified by Drora:") && !source.includes("Modified by ZCode:"))
         throw new Error(`Missing file-local modification notice: ${file}`);
     }
     copiedInventory.push({ ...record, files });

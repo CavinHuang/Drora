@@ -1,5 +1,8 @@
 /**
  * S03 洞 1a + 洞 2 评估侧单测（specs/agent-write-safety.md §2 / S03-P0-3..5、S03-P1-8）。
+ * 2026-11-14 用户裁定 B：plan-MCP 面与上游语义冲突时以上游为基准，两条 plan 模式
+ * MCP 用例期望已按上游 checkPlanMode 语义改写（ask / 过闸后原模式判定），S03 旧
+ * 「plan 恒 deny」条款同步修订（见 specs/agent-write-safety.md 裁定注记）。
  * 运行：node --import tsx --test apps/drora-cli/packages/core/test/permission-service-write-tier.test.ts
  */
 import assert from "node:assert/strict";
@@ -40,24 +43,32 @@ function ruleset(behavior: "allow" | "deny" | "ask", toolName: string, ruleConte
   };
 }
 
-test("S03-P1-8：plan 模式未自报 readOnly 的 MCP → deny（直通分支已删）", () => {
+test("S03-P1-8：plan 模式未自报 readOnly 的 MCP → 上游语义 ask（mode.plan.mcp，不提供始终允许）", () => {
+  // 2026-11-14 用户裁定 B：plan-MCP 面与上游语义冲突时以上游为基准。上游 checkPlanMode
+  // 对非 readOnly、非 destructive 的 MCP 走 mode.plan.mcp 询问（排在 allow 规则之前、
+  // 不提供始终允许），S03「第三方 MCP 恒 deny」旧期望废弃，按实测行为断言。
   const service = new PermissionService();
   const decision = service.checkPermission(
     { toolName: "mcp__srv__write", input: {}, riskLevel: "medium", mode: "plan" },
     mcpCapability(),
   );
-  assert.equal(decision.decision, "deny");
-  assert.equal(decision.ruleId, "mode.plan.nonReadOnly");
+  assert.equal(decision.decision, "ask");
+  assert.equal(decision.ruleId, "mode.plan.mcp");
+  assert.equal(decision.optionsPolicy, "no-always-allow");
 });
 
-test("plan 模式第三方 MCP 即使自报 readOnly 也必须 deny", () => {
+test("plan 模式第三方 MCP 自报 readOnly → 过闸后按原模式判定（P0 逐次确认）", () => {
+  // 2026-11-14 用户裁定 B：上游 checkPlanMode 对 readOnly 且非 destructive 的 MCP 过闸
+  // （undefined → 原模式判定），不因第三方身份 deny。真实第三方 MCP 的能力面
+  // （src/mcp/index.ts）readOnlyHint 只置 readOnly，needsApproval 恒 true——过闸后
+  // 落原模式 P0 判定，实测为 ask / mode.build.sideEffect。
   const service = new PermissionService();
   const decision = service.checkPermission(
     { toolName: "mcp__srv__search", input: {}, riskLevel: "low", mode: "plan" },
-    mcpCapability({ readOnly: true, permission: { ...mcpCapability().permission!, riskLevel: "low", sideEffectScope: "none", needsApproval: false } }),
+    mcpCapability({ readOnly: true, permission: { ...mcpCapability().permission!, riskLevel: "low", sideEffectScope: "none", needsApproval: true } }),
   );
-  assert.equal(decision.decision, "deny");
-  assert.equal(decision.ruleId, "mode.plan.nonReadOnly");
+  assert.equal(decision.decision, "ask");
+  assert.equal(decision.ruleId, "mode.build.sideEffect");
 });
 
 test("plan mode: Host-verified OfficialCua read-only capability remains allowed", () => {

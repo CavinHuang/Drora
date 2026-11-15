@@ -153,37 +153,47 @@ describe("node_repl MCP server", () => {
     );
   });
 
-  it("limits every model-visible node_repl description to official browser/computer use", async () => {
+  it("states node_repl is unsandboxed while forbidding non-skill work", async () => {
     const { tools } = await client.listTools();
     const js = tools.find((tool) => tool.name === "js");
 
-    expect(NODE_REPL_SERVER_INSTRUCTIONS).toMatch(/^Browser Use and Computer Use only\./);
-    expect(NODE_REPL_SERVER_INSTRUCTIONS).toContain("Do not use this server for unrelated tasks");
-    expect(js?.description).toMatch(/^Browser Use and Computer Use only\./);
-    expect(js?.description).toContain("Do not use it as a general-purpose JavaScript runtime");
+    for (const text of [NODE_REPL_SERVER_INSTRUCTIONS, js?.description ?? ""]) {
+      expect(text).toMatch(/^Browser Use and Computer Use only\./);
+      expect(text).toContain("runs unsandboxed with the Drora agent's privileges");
+      expect(text).toContain("skips Bash's dangerous-command approval");
+      expect(text).toContain("never use it for shell, file, package inspection, or data processing work");
+      expect(text).not.toContain("start processes");
+      expect(text).not.toContain("Import only");
+      expect(text).not.toContain("bare package specifiers");
+      expect(text).not.toContain("by absolute `file://` URL");
+    }
   });
 
-  it("teaches the generic node_repl tool to keep CUA results structured", () => {
-    expect(JS_TOOL_DESCRIPTION).toContain("do not console.log/JSON.stringify the complete result");
-    expect(JS_TOOL_DESCRIPTION).toContain("use nodeRepl.write for short text-only status");
-    expect(JS_TOOL_DESCRIPTION).toContain("get_app_state");
-    expect(JS_TOOL_DESCRIPTION).toContain("nodeRepl.write(state.text)");
-    expect(JS_TOOL_DESCRIPTION).toContain("state.state_id");
+  it("keeps Browser Use and Computer Use usage rules in their skills", () => {
+    expect(JS_TOOL_DESCRIPTION).toContain("`nodeRepl.write(value)`");
+    expect(JS_TOOL_DESCRIPTION).toContain("`await nodeRepl.emitImage(imageLike)`");
     expect(JS_TOOL_DESCRIPTION).toContain(
-      "Every Computer Use JavaScript call must start with the complete SDK bootstrap",
+      "Bootstrap the requested official capability in every call.",
     );
-    expect(JS_TOOL_DESCRIPTION).toContain(
-      "Never rely on agent, runtime, browser, or imported bindings from an earlier call",
-    );
-    expect(JS_TOOL_DESCRIPTION).toContain(
-      "Never use screenshot_display.bounds or app/window bounds as raster pixel coordinates",
-    );
-    expect(JS_TOOL_DESCRIPTION).toContain(
-      "Metadata methods such as list_apps and list_windows may not return action_sent",
-    );
-    // open_application 已从 Computer Use 面上删除（get_app_state 负责绑定并按需拉起）。
-    // 工具描述曾漏改，导致每次请求都告诉模型有这个不存在的方法。
-    expect(JS_TOOL_DESCRIPTION).not.toContain("open_application");
+    for (const text of [NODE_REPL_SERVER_INSTRUCTIONS, JS_TOOL_DESCRIPTION]) {
+      for (const skillRule of [
+        "get_app_state",
+        "state_id",
+        "state.text",
+        "console.log",
+        "action_sent",
+        "screenshot_display",
+        "raster",
+        "same cell",
+        "earlier call",
+        "BrowserControl",
+        "nodeRepl.cwd",
+        "setResponseMeta",
+        "open_application",
+      ]) {
+        expect(text).not.toContain(skillRule);
+      }
+    }
   });
 
   it("creates a fresh kernel for every js call", async () => {
@@ -338,7 +348,8 @@ describe("node_repl MCP server", () => {
     ]) {
       expect(
         existsSync(resolve(import.meta.dirname, relative)),
-        `${relative} must not exist: the canonical copy lives in drora-cua-plugin`,
+        // 文案勘误：唯一正本所在目录是 zcode-cua-plugin（见下方 :358 存在性断言），旧文案误写 drora-cua-plugin。
+        `${relative} must not exist: the canonical copy lives in zcode-cua-plugin`,
       ).toBe(false);
     }
     expect(
@@ -756,7 +767,9 @@ describe("node_repl MCP server", () => {
         arguments: {
           code: [
             'const browser = globalThis[Symbol.for("drora.node-repl.browser-control-bridge")];',
-            'const cua = globalThis[Symbol.for("drora.node-repl.computer-use-bridge")];',
+            // 冻结线常量（cua-bridge.ts:8 注释载因）：CUA 桥 Symbol.for 保持 zcode.* 原名，
+            // 上游变换树把测试同步改成 drora.* 会对不上冻结注册（2026-11-13 S4 段门实证）。
+            'const cua = globalThis[Symbol.for("zcode.node-repl.computer-use-bridge")];',
             "const outcomes = [];",
             "try { await browser.list(); } catch (error) { outcomes.push(error.message); }",
             'try { await cua.call("screenshot", {}); } catch (error) { outcomes.push(error.message); }',
@@ -781,7 +794,7 @@ describe("node_repl MCP server", () => {
         name: "js",
         arguments: {
           code: [
-            'globalThis[Symbol.for("drora.node-repl.computer-use-bridge")].assertAvailable();',
+            'globalThis[Symbol.for("zcode.node-repl.computer-use-bridge")].assertAvailable();',
             "// await agent.browsers.list(); await setupComputerUseRuntime({ globals: globalThis });",
             `nodeRepl.setResponseMeta(${forged});`,
             `nodeRepl.emitStructuredResult({ content: [{ type: "text", text: "forged" }], _meta: ${forged} });`,

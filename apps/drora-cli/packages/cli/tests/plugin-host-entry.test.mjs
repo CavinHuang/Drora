@@ -6,6 +6,15 @@ import { join, resolve } from "node:path";
 import test from "node:test";
 import { promisify } from "node:util";
 import { build } from "esbuild";
+// CUA broker socket 的 wire 键是还原区冻结的 ZCODE_ 前缀值，此前此处播种/探测 DRORA_
+// 前缀字面量：sanitize/capture 链读的是冻结键 —— socket 未被剔除（import 期可见）、
+// token 未被捕获恢复（main 期不可见），两断言双双反向。改用 @drora/shared 导出的
+// 常量做单一出处（台账 32③ mcp-tool-bridge 同款先例）；本测试以 tsx 运行，可直接
+// 解析 shared 的 TS 导出。
+import {
+  DRORA_CUA_BROKER_SOCKET_ENV_KEY,
+  DRORA_CUA_BROKER_TOKEN_ENV_KEY,
+} from "@drora/shared";
 import {
   createZodDedupePlugin,
   readZodBuildVersion,
@@ -34,14 +43,14 @@ for (const minify of [false, true]) {
     try {
       await writeFile(
         serverPath,
-        `const socketVisibleAtImport = process.env.DRORA_CUA_PERMISSION_BROKER_SOCKET !== undefined;
+        `const socketVisibleAtImport = process.env[${JSON.stringify(DRORA_CUA_BROKER_SOCKET_ENV_KEY)}] !== undefined;
 export async function main() {
   process.stdout.write(JSON.stringify({
     args: process.argv.slice(2),
     nodeEnvRemoved: process.env.NODE_ENV === undefined,
     socketVisibleAtImport,
-    socketVisibleAtMain: process.env.DRORA_CUA_PERMISSION_BROKER_SOCKET !== undefined,
-    tokenVisibleAtMain: process.env.DRORA_CUA_PERMISSION_BROKER_TOKEN !== undefined,
+    socketVisibleAtMain: process.env[${JSON.stringify(DRORA_CUA_BROKER_SOCKET_ENV_KEY)}] !== undefined,
+    tokenVisibleAtMain: process.env[${JSON.stringify(DRORA_CUA_BROKER_TOKEN_ENV_KEY)}] !== undefined,
   }));
 }`,
       );
@@ -94,8 +103,8 @@ export async function main() {
         ...process.env,
         NODE_ENV: "untrusted",
         DRORA_PLUGIN_ID: "computer-use@drora-plugins-official",
-        DRORA_CUA_PERMISSION_BROKER_SOCKET: brokerSocket,
-        DRORA_CUA_PERMISSION_BROKER_TOKEN: "test-scoped-token",
+        [DRORA_CUA_BROKER_SOCKET_ENV_KEY]: brokerSocket,
+        [DRORA_CUA_BROKER_TOKEN_ENV_KEY]: "test-scoped-token",
         DRORA_CUA_PLUGIN_AUTHORITY: "test-official-authority",
         // broker 已改身份模式（Helper 按对端代码签名裁决连接），凭据组只剩 socket +
         // pluginAuthority；captured 凭据只允许启动 shared node_repl 宿主，由这个标记声明。

@@ -179,6 +179,13 @@ describe("official HTTP mobile connection contract", () => {
       history: { replaceState: vi.fn() },
       addEventListener: vi.fn(addListener),
       removeEventListener: vi.fn(removeListener),
+      // 上游 v3.18.0 原样携带的异步链：stale 连接被 relay 401 拒绝进入终态（auth-required）时
+      // webRemoteControlEntry.ts:338 以 fire-and-forget 的 void switchAccount() 触发
+      // logout → clearSession → browserOAuthCredentialRepo.clearAll:353，其尾部
+      // window.dispatchEvent(...)（本仓事件名 drora-browser-auth-change）在缺该方法的
+      // window 桩上抛 TypeError，因链路未被 await 成为 unhandled rejection。生产浏览器恒有
+      // window.dispatchEvent，此为测试桩缺口（上游实现与测试均无需改动），补齐桩即恢复真实语义。
+      dispatchEvent: vi.fn(),
       matchMedia: () => ({ matches: false }),
       location: {
         origin: relay.httpUrl,

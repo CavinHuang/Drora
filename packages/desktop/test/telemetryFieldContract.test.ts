@@ -7,6 +7,10 @@ import { promisify } from "node:util";
 import { afterEach, test } from "vitest";
 import { auditTelemetryFields } from "../scripts/lib/telemetry-field-contract.mjs";
 
+// Windows 下 node:os 的 devNull 是 "\\.\nul"，git-for-windows 无法把它当配置文件打开
+// （fatal: unable to access '\\.\nul'）；Windows 设备文件名用 "nul" 才能被 git 识别。
+const gitDevNull = process.platform === "win32" ? "nul" : devNull;
+
 const exec = promisify(execFile);
 const roots: string[] = [];
 afterEach(async () => {
@@ -22,7 +26,7 @@ async function fixture() {
       env: {
         ...process.env,
         GIT_CONFIG_NOSYSTEM: "1",
-        GIT_CONFIG_GLOBAL: devNull,
+        GIT_CONFIG_GLOBAL: gitDevNull,
         GIT_AUTHOR_NAME: "Test",
         GIT_AUTHOR_EMAIL: "test@example.com",
         GIT_COMMITTER_NAME: "Test",

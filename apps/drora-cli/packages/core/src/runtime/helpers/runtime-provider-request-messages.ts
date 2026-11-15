@@ -20,10 +20,13 @@ export function shouldUseMidConversationSystem(
   );
 }
 
-export function shouldFoldRemindersIntoToolResults(
-  model: Pick<Model, "requestCapabilities">,
-): boolean {
-  return model.requestCapabilities?.foldRemindersIntoToolResults === true;
+/** 模型请求能力到投影参数的唯一推导：普通请求与 compact 的记录投影共用，避免两处各自读取漏掉新开关。 */
+export function requestCapabilityProjectionOptions(model: Pick<Model, "requestCapabilities">) {
+  const capabilities = model.requestCapabilities;
+  return {
+    foldRemindersIntoToolResults: capabilities?.foldRemindersIntoToolResults === true,
+    dropReasoningOnlyOrBlankAssistants: capabilities?.dropReasoningOnlyOrBlankAssistants === true,
+  };
 }
 
 type RequestRuntime = {
@@ -89,13 +92,17 @@ export function buildRuntimeProviderRequestMessages(
   input: MessageProjectionInput,
 ): ProviderRequestMessageProjectionResult {
   // 上游 v3.17.1：midConversationSystem 与 reminder 折叠判定收敛到模型能力 helper；
-  // Drora persona 贡献注入（applyPersonaContribution）保持最外层包装不变。
-  return applyPersonaContribution(
+  // v3.18.0：折叠面并入 requestCapabilityProjectionOptions。Drora persona 贡献注入
+  // （applyPersonaContribution）保持最外层包装不变。
+  const projected = applyPersonaContribution(
     buildProviderRequestMessages({
       ...input,
       useMidConversationSystem: shouldUseMidConversationSystem(runtime.config, input.model),
-      foldRemindersIntoToolResults: shouldFoldRemindersIntoToolResults(input.model),
+      ...requestCapabilityProjectionOptions(input.model),
     }),
     input.contribution,
   );
+  // v3.18.0：上游投影结果新增必填 originEntries；persona 侧声明为可选（兼容无该字段的
+  // 投影面），此处投影源恒带该字段（贡献缺席时原样透传），收敛回必填返回类型。
+  return { ...projected, originEntries: projected.originEntries ?? [] };
 }

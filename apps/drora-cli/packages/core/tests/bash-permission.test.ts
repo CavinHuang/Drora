@@ -8,6 +8,7 @@ import {
   createSessionId,
   createToolCallId,
   type ExecutionPort,
+  type ExecutionShellSelection,
   type SessionEvent,
 } from "@drora/contracts";
 import {
@@ -17,6 +18,7 @@ import {
 } from "../src/permission/service.js";
 import { createToolExecutor } from "../src/tool/executor.js";
 import { createToolRegistry } from "../src/tool/registry.js";
+import { resolveRuntimePermissionCapability } from "../src/tool/executor/permission-capability.js";
 import {
   bashToolEntry,
   isBashInputConcurrencySafe,
@@ -25,6 +27,90 @@ import {
 } from "../src/tool/handlers/bash.js";
 
 describe("bash runtime permission capability", () => {
+  it.each(["cmd", "legacy-shell"] as const)(
+    "does not grant Bash read-only capability to %s commands",
+    (dialect) => {
+      const bashShellSelection: ExecutionShellSelection = {
+        dialect,
+        source: "legacy-fallback",
+        display: { name: dialect },
+      };
+      for (const command of [String.raw`type # & python G:\temp\hello.py`, "type README.md"]) {
+        const input = { command };
+        const capability = resolveRuntimePermissionCapability(bashToolEntry, input, {
+          bashShellSelection,
+        });
+        expect(capability).toMatchObject({ readOnly: false, needsApproval: true });
+        for (const mode of ["build", "edit", "plan"] as const) {
+          const decision = new PermissionService().checkPermission(
+            { input, mode, riskLevel: capability.riskLevel, toolName: "Bash" },
+            capability,
+          );
+          expect(decision.decision).toBe(mode === "plan" ? "deny" : "ask");
+        }
+        expect(
+          new PermissionService().checkPermission(
+            {
+              input,
+              mode: "build",
+              planEnabled: true,
+              riskLevel: capability.riskLevel,
+              toolName: "Bash",
+            },
+            capability,
+            { version: 1, allow: [{ toolName: "Bash", ruleContent: command }] },
+          ).decision,
+        ).toBe("deny");
+      }
+    },
+  );
+
+  it.each(["posix", "git-bash"] as const)("preserves read-only capability for %s", (dialect) => {
+    expect(
+      resolveRuntimePermissionCapability(
+        bashToolEntry,
+        { command: "cat README.md" },
+        {
+          bashShellSelection: { dialect, source: "legacy-fallback", display: { name: dialect } },
+        },
+      ),
+    ).toMatchObject({ readOnly: true, needsApproval: false });
+  });
+
+  it.each(["build", "edit", "plan"] as const)(
+    "never executes the CMD comment mismatch when denied in %s",
+    async (mode) => {
+      const registry = createToolRegistry();
+      registry.register(bashToolEntry);
+      const run = vi.fn<ExecutionPort["run"]>(async () => {
+        throw new Error("Denied commands must not reach execution");
+      });
+      const requestPermission = vi.fn(async () => ({ decision: "deny" as const }));
+      const executor = createToolExecutor({
+        registry,
+        permissionService: new PermissionService(),
+        permissionBroker: { requestPermission },
+        executionPort: { run },
+        mode,
+        emitEvent: async () => {},
+        bashShellSelection: { dialect: "cmd", source: "user-config", display: { name: "CMD" } },
+        workingDirectory: process.cwd(),
+        sessionId: createSessionId(`cmd-${mode}`),
+      });
+      const result = await executor.execute({
+        id: createToolCallId(`cmd-${mode}`),
+        name: "Bash",
+        input: { command: String.raw`type # & python G:\temp\hello.py` },
+      });
+      expect(result).toMatchObject({
+        success: false,
+        error: { type: CoreErrorType.PermissionDenied },
+      });
+      expect(requestPermission).toHaveBeenCalledTimes(mode === "plan" ? 0 : 1);
+      expect(run).not.toHaveBeenCalled();
+    },
+  );
+
   it("keeps display classification separate from read-only and concurrency helpers", () => {
     expect(isBashInputReadOnly({ command: "ls" })).toBe(true);
     expect(isBashInputConcurrencySafe({ command: "ls" })).toBe(true);
@@ -313,6 +399,9 @@ describe("bash runtime permission capability", () => {
     // 修复（断言随实现更新）：2026-10-17 评审后的 S03 不变量 2——allowedTools 命中
     // Bash 的 P0 写向量时不得整工具放行（项目配置可无信任门注入 allowedTools），故
     // build 下 sed 高危组合回落为 ask；yolo/guarded 维持放行，plan 维持 deny 不变。
+    // 修复（2026-11-14，v3.18.0 S4 段门复跑归因）：expectedByMode 表自 2026-10-17 起
+    // 定义后从未被消费——循环断言硬编码 "allow"，与同段注释宣告的 S03 不变量自相矛盾
+    // （build 实际 ask，HEAD 即同败）。断言改为按表取值，与上方注释语义对齐。
     const expectedByMode = { build: "ask", yolo: "allow", guarded: "allow" } as const;
     for (const mode of ["build", "yolo", "guarded"] as const) {
       expect(
@@ -327,7 +416,7 @@ describe("bash runtime permission capability", () => {
           capability,
           projectRules,
         ).decision,
-      ).toBe("allow");
+      ).toBe(expectedByMode[mode]);
     }
   });
 

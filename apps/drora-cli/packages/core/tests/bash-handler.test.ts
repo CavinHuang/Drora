@@ -35,17 +35,24 @@ const workspaceRoot = resolve("/work");
 const projectRoot = resolve(workspaceRoot, "project");
 const defaultCommandRoot = resolve("/tmp");
 
+// win32 适配（2026-11-14，v3.18.0 S4 段门复跑归因）：decideBashCwdPolicy 内部用 node
+// path 归一，POSIX 形态夹具（/repo/...）在 win32 被归一成反斜杠盘符相对路径，与 POSIX
+// 字面期望撕裂（真实 Windows 路径分支另有 win32 专用用例覆盖）。期望比对前把两侧统一
+// 到正斜杠形态，策略语义（inside/outside 判定）不受影响。
+const toPosixForm = (value: string) => value.replaceAll("\\", "/");
+const expectCwd = (result: { nextWorkingDirectory: string }, expected: string) =>
+  expect(toPosixForm(result.nextWorkingDirectory)).toBe(expected);
+
 describe("Bash cwd policy", () => {
   it("keeps cwd when resolved cwd stays inside workspace", () => {
-    expect(
-      decideBashCwdPolicy({
-        status: "completed",
-        exitCode: 0,
-        resolvedCwd: "/repo/subdir",
-        workspaceRoot: "/repo",
-        runtimeScope: "main",
-      }),
-    ).toEqual({ nextWorkingDirectory: "/repo/subdir" });
+    const result1 = decideBashCwdPolicy({
+      status: "completed",
+      exitCode: 0,
+      resolvedCwd: "/repo/subdir",
+      workspaceRoot: "/repo",
+      runtimeScope: "main",
+    });
+    expectCwd(result1, "/repo/subdir");
   });
 
   it("resets cwd and returns provider-visible stderr suffix when resolved cwd leaves workspace", () => {
@@ -238,15 +245,14 @@ describe("Bash cwd policy", () => {
   );
 
   it("keeps cwd for workspace child directories whose names start with dot-dot", () => {
-    expect(
-      decideBashCwdPolicy({
-        status: "completed",
-        exitCode: 0,
-        resolvedCwd: "/repo/..cache",
-        workspaceRoot: "/repo",
-        runtimeScope: "main",
-      }),
-    ).toEqual({ nextWorkingDirectory: "/repo/..cache" });
+    const resultA = decideBashCwdPolicy({
+      status: "completed",
+      exitCode: 0,
+      resolvedCwd: "/repo/..cache",
+      workspaceRoot: "/repo",
+      runtimeScope: "main",
+    });
+    expectCwd(resultA, "/repo/..cache");
 
     expect(
       decideBashCwdPolicy({
@@ -2727,6 +2733,115 @@ describe("bashHandler", () => {
   });
 });
 
+describe("Bash process log", () => {
+  function recordingLogger() {
+    const entries: Array<{ message: string; context: Record<string, unknown> }> = [];
+    const logger = {
+      debug() {},
+      info(message: string, context?: Record<string, unknown>) {
+        entries.push({ message, context: context ?? {} });
+      },
+      warn() {},
+      error() {},
+      child() {
+        return logger;
+      },
+    } as unknown as NonNullable<ToolExecutionContext["logger"]>;
+    return { entries, logger };
+  }
+
+  it("logs the child pid with toolCallId when the process starts and exits", async () => {
+    const { entries, logger } = recordingLogger();
+    const executionPort: ExecutionPort = {
+      async run(_request, options) {
+        await options?.onEvent?.({ type: "started", pid: 4321, timestamp: new Date() });
+        return {
+          ...executionResult({ status: "failed", exitCode: 3 }),
+          pid: 4321,
+          durationMs: 1500,
+        };
+      },
+    };
+
+    await bashHandler(
+      { command: "python train.py" } satisfies BashInput,
+      contextWith(executionPort, { logger }),
+    );
+
+    const started = entries.find((entry) => entry.context.event === "tool.bash.process.started");
+    const exited = entries.find((entry) => entry.context.event === "tool.bash.process.exited");
+    expect(started?.context).toMatchObject({
+      pid: 4321,
+      runInBackground: false,
+      toolCallId: "tool_test",
+    });
+    expect(exited?.context).toMatchObject({
+      durationMs: 1500,
+      exitCode: 3,
+      executionStatus: "failed",
+      pid: 4321,
+      toolCallId: "tool_test",
+    });
+  });
+
+  it("logs the start of an explicit background command and leaves its exit to background tracking", async () => {
+    const { entries, logger } = recordingLogger();
+    const executionPort: BashBackgroundLifecycleExecutionPort = {
+      async run() {
+        throw new Error("foreground run is not expected");
+      },
+      // 与真实 adapter 一致：explicit 模式在 started 里就提交后台，不再把 started 转发给 handler。
+      async runBashWithBackgroundLifecycle() {
+        return {
+          kind: "backgrounded",
+          task: { taskId: "exec_bg", status: "running", startedAt: new Date(), pid: 98 },
+        };
+      },
+    };
+
+    await bashHandler(
+      { command: "sleep 600", run_in_background: true } satisfies BashInput,
+      contextWith(executionPort, { logger }),
+    );
+
+    expect(entries.map((entry) => entry.context.event)).toEqual(["tool.bash.process.started"]);
+    expect(entries[0]?.context).toMatchObject({
+      pid: 98,
+      runInBackground: true,
+      toolCallId: "tool_test",
+    });
+  });
+
+  it("writes one start log when a forwarded started event is followed by backgrounding", async () => {
+    const { entries, logger } = recordingLogger();
+    const executionPort: BashBackgroundLifecycleExecutionPort = {
+      async run() {
+        throw new Error("foreground run is not expected");
+      },
+      // auto_on_timeout：前台阶段已转发 started，超时后才转后台。
+      async runBashWithBackgroundLifecycle(_request, _lifecycle, options) {
+        await options?.onEvent?.({ type: "started", pid: 77, timestamp: new Date() });
+        return {
+          kind: "backgrounded",
+          task: { taskId: "exec_auto", status: "running", startedAt: new Date(), pid: 77 },
+        };
+      },
+    };
+
+    await bashHandler(
+      { command: "npm run build" } satisfies BashInput,
+      contextWith(executionPort, { logger }),
+    );
+
+    expect(entries.map((entry) => entry.context.event)).toEqual(["tool.bash.process.started"]);
+    expect(entries[0]?.context).toMatchObject({
+      pid: 77,
+      runInBackground: false,
+      toolCallId: "tool_test",
+    });
+  });
+});
+
 function contextWith(
   executionPort: ExecutionPort,
   options: {
@@ -2736,6 +2851,7 @@ function contextWith(
     emitEvent?: ToolExecutionContext["emitEvent"];
     fileSystemPort?: FileSystemPort;
     imageProcessorPort?: ImageProcessorPort;
+    logger?: ToolExecutionContext["logger"];
     offPeakTurn?: boolean;
     readFileState?: ReadFileStateMap;
     runtimeScope?: ToolExecutionContext["runtimeScope"];
@@ -2756,6 +2872,7 @@ function contextWith(
     executionPort,
     fileSystemPort: options.fileSystemPort,
     imageProcessorPort: options.imageProcessorPort,
+    logger: options.logger,
     offPeakTurn: options.offPeakTurn,
     readFileState: options.readFileState,
     runtimeScope: options.runtimeScope,

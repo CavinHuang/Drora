@@ -23,6 +23,15 @@ jobs:
       - run: corepack enable
       - name: Install dependencies
         run: pnpm install --frozen-lockfile && node -e "require('node:fs').accessSync('node_modules/bundle-require/node_modules/esbuild/lib/main.js')" || pnpm install --frozen-lockfile --force
+      # 3f8f2e63b 将 apps/drora-cli 拆为独立 pnpm workspace（独立 pnpm-lock.yaml，
+      # 不在根 workspace 包清单内），根 pnpm install 从此不再安装其依赖。拆分后
+      # CI 全新环境缺 CLI node_modules：turbo 不可达（exit 254）、office-runtime
+      # 依赖（@fontsource/noto-sans-sc 等）无法解析（run 43682178889 实证）；
+      # 本地因 apps/drora-cli/node_modules 已存在而未暴露。触及 CLI workspace
+      # 构建链/测试面的 job 必须先独立安装（frozen 同 CLI 锁，双 workspace 均
+      # packageManager=pnpm@10.33.2）。
+      - name: Install CLI workspace dependencies
+        run: pnpm --dir apps/drora-cli install --frozen-lockfile
       - name: Freshness baseline
         run: node scripts/check-workspace-freshness.mjs
         continue-on-error: true
@@ -163,6 +172,12 @@ jobs:
       - run: corepack enable
       - name: Install dependencies
         run: pnpm install --frozen-lockfile && node -e "require('node:fs').accessSync('node_modules/bundle-require/node_modules/esbuild/lib/main.js')" || pnpm install --frozen-lockfile --force
+      # 同 verify job：CLI 独立 workspace（3f8f2e63b）需单独安装——本 job 的
+      # build-desktop-agent-cli.mjs（documents-plugin 经 office-runtime 解析
+      # @fontsource/noto-sans-sc）、core vitest 与 obsidian-plugin 测试都落在
+      # CLI workspace 的依赖解析链上（run 43682178889 实证缺失即红）。
+      - name: Install CLI workspace dependencies
+        run: pnpm --dir apps/drora-cli install --frozen-lockfile
       - name: Build plugin MCP runtimes
         # node-repl-host 依赖 @drora/core、@drora/contracts 的 dist,
         # 必须先走依赖闭包。turbo 2.9 在「子目录 turbo.json + 仓库根 workspace」
@@ -232,6 +247,11 @@ jobs:
       - run: corepack enable
       - name: Install dependencies
         run: pnpm install --frozen-lockfile && node -e "require('node:fs').accessSync('node_modules/bundle-require/node_modules/esbuild/lib/main.js')" || pnpm install --frozen-lockfile --force
+      # 同 verify job：CLI 独立 workspace（3f8f2e63b）需单独安装，否则下方
+      # turbo 闭包与 build-desktop-agent-cli.mjs 在全新环境不可达（turbo not
+      # found / @fontsource 解析失败，run 43682178889 三平台实证）。
+      - name: Install CLI workspace dependencies
+        run: pnpm --dir apps/drora-cli install --frozen-lockfile
       # 同 Typecheck job：本分支 typecheck 尾段的 bootstrap tsc 需要依赖闭包 dist 先在。
       - name: Build bootstrap dependency closure
         run: pnpm --dir apps/drora-cli exec turbo run build --filter=@drora/bootstrap^...

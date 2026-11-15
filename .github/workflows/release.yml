@@ -92,6 +92,12 @@ jobs:
         run: Set-MpPreference -DisableRealtimeMonitoring $true
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+      # 同 ci.yml 修复：3f8f2e63b 拆分后 apps/drora-cli 是独立 pnpm workspace，
+      # 根 install 不装其依赖，下方 turbo 闭包与 CLI 构建链在全新环境不可达
+      # （turbo not found / @fontsource 解析失败，CI run 43682178889 实证）——
+      # 先独立安装 CLI workspace（frozen 同 CLI 锁）。
+      - name: Install CLI workspace dependencies
+        run: pnpm --dir apps/drora-cli install --frozen-lockfile
       # 同 ci.yml:本分支 typecheck 尾段的 bootstrap tsc 需要依赖闭包 dist 先在,
       # 全新环境无 @drora/contracts 等 dist 会全量 TS2307(v0.0.10 首跑实证)。
       - name: Build bootstrap dependency closure
@@ -265,6 +271,12 @@ jobs:
         run: Set-MpPreference -DisableRealtimeMonitoring $true
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+      # 同 ci.yml 修复：3f8f2e63b 拆分后 apps/drora-cli 是独立 pnpm workspace，
+      # 根 install 不装其依赖，下方 turbo 闭包与 CLI 构建链在全新环境不可达
+      # （turbo not found / @fontsource 解析失败，CI run 43682178889 实证）——
+      # 先独立安装 CLI workspace（frozen 同 CLI 锁）。
+      - name: Install CLI workspace dependencies
+        run: pnpm --dir apps/drora-cli install --frozen-lockfile
       # 同 ci.yml:本分支 typecheck 尾段的 bootstrap tsc 需要依赖闭包 dist 先在,
       # 全新环境无 @drora/contracts 等 dist 会全量 TS2307(v0.0.10 首跑实证)。
       - name: Build bootstrap dependency closure

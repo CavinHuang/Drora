@@ -28,6 +28,10 @@ jobs:
       - run: corepack enable
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+      # 同 ci.yml 修复：3f8f2e63b 拆分后 apps/drora-cli 是独立 pnpm workspace，
+      # 根 install 不装其依赖，下方 CLI 构建（turbo）在全新环境不可达——先独立安装。
+      - name: Install CLI workspace dependencies
+        run: pnpm --dir apps/drora-cli install --frozen-lockfile
       - name: Build CLI bundle with dependency closure
         run: pnpm --dir apps/drora-cli run build
       # SEA 还内嵌插件 MCP runtime(node_repl 宿主与工具插件),它们不在 cli 的

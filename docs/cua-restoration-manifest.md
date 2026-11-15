@@ -1854,3 +1854,12 @@ spec `specs/cua-3.17.2-alignment.md` P4 批。改动面与证据：
 - **probe-one-win 终态归一**（机器态三定谳）：getForegroundRootWindowId 坏参返回值=前台窗 hwnd 机器态形状化；rt ref 归一模式放宽（无 '-' 尾段的两段形态）；decorativeVocabulary=桌面瞬态词表形状化为计数桶（≥4=机制在）；captureWindowPngComposite fgFreshBounds=前台存在性瞬态恒化 presence-varies。**9 面（97 面）全 EQUAL**。
 - **换装终态**：runtime addon→W5 97 面（sha dd1b456d…）+仓内镜像+manifest；fork E2E 双形态绿；helper 四件链/双生成器 --verify/字面量门 276/276/接口双工具（97/97+128 调用点）全绿。
 - **win32 CUA 0.6.5 对齐战役（W0-W5）至此全线收官**：97/97 面（=官方全集，含 parity 揭出的 windowsOperationScene 漏账面）、六链验收体系（probe-one-win 9 面/parity 三面套件/接口双工具/fork E2E/字面量门/生成器 --verify）全绿、三件套换装+fork 链复活实证。遗留=打包链出口 mobile-web 0xC0000005（win 机工具链，非 CUA）与 W4 记档的 afterPack 全链补跑。全程未 commit。
+
+### 第八十五轮：CI parity 门 51/57 红灯定谳——in-tree 官方基准副本刷新至 v3.18.2 发行物（2026-11-15）
+
+- **触发**：CI run 43682178889（v0.1.0 发布阻断）addon-parity 门 51/57——rebuild(rest) 比 orig 多 48 个导出（ghost*/postMessage*/windowsOperationScene/listInstalledApplicationsAsync 等）+ listApplications +window_id / probeWindows +acceptsLeftMouseDown 键差 + probeWindows 窗集/形状差。
+- **定因（资产对结论）**：`AX_NATIVE_ORIG` 指向的入库基准 `packages/zcode-cua-helper/build/Release/ax_native.node` 是 df4c71043（2026-10-14）时代的**49 面官方旧版字节副本**（sha e5684892299ffd8d…、387,480 B）；W1-W5 战役把重建源推进到官方 97 面（W4 基面六键形/第 97 面、W5 收官），但该基准副本**未随战役刷新**——W5 当轮 parity 全绿走的是本机发行物（D:/software/zcode）路径，CI 以入库副本为基准首次实跑即揭出断层。rebuild 侧无合并污染：v3.18.0-v3.18.2 合并未触碰 reverse/src（git log 实证 fb4110003 后零改动）。
+- **原版证据**：本机官方发行物 ZCode **v3.18.2.10443** `D:/software/zcode/resources/tools/cua-helper`（helper 0.6.5 / electron 44.7.0）——其自带 runtime-manifest.json 自钉 addon `sha256=0789882762a77467b3294182ccab032cf87007b7e4a4ab1c0e103c6f88258d08`（839,576 B），导出面 97，与重建产物**逐名一致（双向零差集，本机双加载实测）**。
+- **处置**：入库基准换装为该 v3.18.2 发行物字节副本（07898827…）——维持 parity-native.mjs 头注释「build/Release/ax_native.node 与发行物字节一致，CI 上以入库副本为基准」的**基准语义**（重建产物不得自证）；dev 回退链（helperAddonLoader in-tree 8 级上溯）同步获得 97 面能力，旧 49 面副本下 windowsDevHelperMain 的 no-op 降级窗口关闭。
+- **验证**：build-rebuilt.mjs 干净重编（electron 44.7.0 ABI，0 警告 0 错误）后，以 CI 同款 env（AX_NATIVE_ORIG 指新基准）实跑：parity-native **57/57** + parity-native-matrix **123 格 0 结构差** 全绿。
+- **边界与如实记档**：runtime 镜像（dd1b456d）、仓内镜像 native/ax_native_win.node（dd1b456d）、desktop bundled-tools（8f9c4d）三处**自建钉扎不动**（W5 裁定①「钉扎自建产物」仍有效）。另记档一处既有不一致：bundled-tools 钉 8f9c4d（411,136 B，W4 代际）与 runtime 镜像钉 dd1b456d（412,160 B，W5 代际）为同源不同代重建产物——非本次引入，待后续换装轮次统一。
